@@ -4,7 +4,7 @@
  * in this browser. Rooms can be booked from the rail and the Gantt.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
 import CalendarPage from '@/pages/calendar';
@@ -18,7 +18,10 @@ vi.mock('@/services/calendarService', () => ({
   calendarService: { fetchEntries: vi.fn().mockResolvedValue([]) },
 }));
 
-vi.mock('@/services/meetingRequestService', () => ({ meetingRequestService: { listVenues: vi.fn() } }));
+vi.mock('@/services/meetingRequestService', async (importOriginal) => ({
+  ...(await importOriginal()),
+  meetingRequestService: { listVenues: vi.fn() },
+}));
 vi.mock('@/components/calendar/MeetingRequestDialog', () => ({
   default: ({ open, initial }) => (open ? <div data-testid="request-form">{JSON.stringify(initial)}</div> : null),
 }));
@@ -39,6 +42,9 @@ function renderAt(url) {
     </QueryClientProvider>,
   );
 }
+
+// The day panel is a side panel at every width: open it from the toolbar's day button.
+const openDayPanel = async () => fireEvent.click(await screen.findByRole('button', { name: /^[A-Z][a-z]{2} · [A-Z][a-z]{2} \d+/ }));
 
 describe('Calendar layouts', () => {
   beforeEach(() => {
@@ -79,7 +85,7 @@ describe('Calendar layouts', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('date=2026-11-16');
     fireEvent.click(screen.getByRole('button', { name: '4 weeks' }));
     expect(screen.getByTestId('where')).toHaveTextContent('weeks=4');
-    fireEvent.click(screen.getByRole('button', { name: 'Calendar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Month' }));
     expect(screen.getByTestId('where').textContent).not.toContain('weeks=');
     fireEvent.click(screen.getByRole('button', { name: 'Today' }));
     const now = new Date();
@@ -98,6 +104,7 @@ describe('Calendar layouts', () => {
 
   it('shows each room in the day rail; a free spot opens the pre-filled form', async () => {
     renderAt('/calendar?date=2031-03-10');
+    await openDayPanel();
     expect(await screen.findByTestId('venue-strip-Conference Room')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Request Admin Office on 2031-03-10' }));
     expect(JSON.parse(screen.getByTestId('request-form').textContent)).toEqual({
@@ -147,7 +154,7 @@ describe('Calendar Activity types', () => {
   it('draws each type in its own colour', async () => {
     const { container } = renderAt('/calendar?date=2031-03-10');
     await screen.findByText('Weekly sync', { selector: '*' }).catch(() => null);
-    await screen.findByRole('button', { name: /^Event/ });
+    await screen.findByRole('button', { name: /^Filters/ });
     for (const dot of ['bg-teal-9', 'bg-plum-9', 'bg-indigo-9', 'bg-orange-9']) {
       expect(container.querySelector(`.${dot}`)).not.toBeNull();
     }
@@ -155,20 +162,27 @@ describe('Calendar Activity types', () => {
 
   it('filters by type, leaves Time Off alone, and shows everything again when cleared', async () => {
     renderAt('/calendar?date=2031-03-10');
+    fireEvent.click(await screen.findByRole('button', { name: /^Filters/ }));
     const eventChip = await screen.findByRole('button', { name: /^Event/ });
     expect(await screen.findAllByText(/Weekly sync/)).not.toHaveLength(0);
     fireEvent.click(eventChip);
+    expect(screen.getByRole('button', { name: 'Remove filter Event' })).toBeInTheDocument();
     expect(screen.queryAllByText(/Weekly sync/)).toHaveLength(0);
     expect(screen.queryAllByText(/Archive files/)).toHaveLength(0);
     expect(screen.getAllByText(/Town hall/).length).toBeGreaterThan(0);
+    await openDayPanel();
     expect(screen.getAllByText(/Away Person/).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByTestId('day-rail')).toBeNull());
+    fireEvent.click(await screen.findByRole('button', { name: /^Filters/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear' }));
     expect(screen.getAllByText(/Weekly sync/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Archive files/).length).toBeGreaterThan(0);
   });
 
   it('counts only Activities with a Venue under Rooms', async () => {
     renderAt('/calendar?date=2031-03-10');
+    await openDayPanel();
     await screen.findByTestId('venue-strip-Conference Room');
     const rooms = screen.getByRole('region', { name: 'Rooms' });
     expect(rooms).toHaveTextContent(/Rooms\s*2/);

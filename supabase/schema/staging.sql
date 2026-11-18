@@ -28,6 +28,33 @@ create extension if not exists "uuid-ossp" with schema "extensions";
 -- ============================================================
 
 
+create table if not exists public."activity_general_settings" (
+  "id" boolean not null default true,
+  "meeting_onsite" boolean not null default true,
+  "meeting_online" boolean not null default true,
+  "meeting_hybrid" boolean not null default true,
+  "earliest_start" time without time zone not null default '06:00:00'::time without time zone,
+  "latest_end" time without time zone not null default '21:45:00'::time without time zone,
+  "time_step_minutes" smallint not null default 15,
+  "default_start" time without time zone not null default '09:00:00'::time without time zone,
+  "default_end" time without time zone not null default '10:00:00'::time without time zone,
+  "reminder_minutes" integer not null default 15,
+  "max_days" integer not null default 31,
+  "guests_allowed" boolean not null default true,
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."activity_type_settings" (
+  "activity_type" text not null,
+  "name" text not null,
+  "color" text not null,
+  "active" boolean not null default true,
+  "who_files" text not null default 'HEADS'::text,
+  "needs_hr" boolean not null default false,
+  "multi_day" boolean not null default false,
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."app_settings" (
   "id" boolean not null default true,
   "updated_at" timestamp with time zone not null default now(),
@@ -1982,6 +2009,8 @@ create table if not exists public."verification_rate_limits" (
 -- Constraints (primary key, unique, foreign key, check)
 -- ============================================================
 
+alter table activity_general_settings add constraint "activity_general_settings_pkey" PRIMARY KEY (id);
+alter table activity_type_settings add constraint "activity_type_settings_pkey" PRIMARY KEY (activity_type);
 alter table app_settings add constraint "app_settings_pkey" PRIMARY KEY (id);
 alter table bug_report_notes add constraint "bug_report_notes_pkey" PRIMARY KEY (id);
 alter table bug_reports add constraint "bug_reports_pkey" PRIMARY KEY (id);
@@ -2180,6 +2209,18 @@ alter table transmittal_sors add constraint "transmittal_sors_key" UNIQUE (trans
 alter table transmittal_stages add constraint "transmittal_stages_key" UNIQUE (transmittal_id, stage);
 alter table transmittals add constraint "transmittals_number_key" UNIQUE (number);
 alter table undertime_requests add constraint "undertime_requests_verification_token_key" UNIQUE (verification_token);
+alter table activity_general_settings add constraint "activity_general_default_chk" CHECK (((default_start < default_end) AND (default_start >= earliest_start) AND (default_end <= latest_end)));
+alter table activity_general_settings add constraint "activity_general_one_meeting_type_chk" CHECK ((meeting_onsite OR meeting_online OR meeting_hybrid));
+alter table activity_general_settings add constraint "activity_general_settings_id_check" CHECK (id);
+alter table activity_general_settings add constraint "activity_general_settings_max_days_check" CHECK (((max_days >= 1) AND (max_days <= 366)));
+alter table activity_general_settings add constraint "activity_general_settings_reminder_minutes_check" CHECK (((reminder_minutes >= 5) AND (reminder_minutes <= 1440)));
+alter table activity_general_settings add constraint "activity_general_settings_time_step_minutes_check" CHECK ((time_step_minutes = ANY (ARRAY[15, 30, 60])));
+alter table activity_general_settings add constraint "activity_general_step_chk" CHECK (((mod(((EXTRACT(epoch FROM earliest_start) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0) AND (mod(((EXTRACT(epoch FROM latest_end) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0) AND (mod(((EXTRACT(epoch FROM default_start) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0) AND (mod(((EXTRACT(epoch FROM default_end) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0)));
+alter table activity_general_settings add constraint "activity_general_window_chk" CHECK ((earliest_start < latest_end));
+alter table activity_type_settings add constraint "activity_type_settings_activity_type_check" CHECK ((activity_type = ANY (ARRAY['MEETING'::text, 'ADMIN_TASK'::text, 'OPERATIONS_TASK'::text, 'EVENT'::text])));
+alter table activity_type_settings add constraint "activity_type_settings_color_check" CHECK ((color = ANY (ARRAY['teal'::text, 'indigo'::text, 'orange'::text, 'plum'::text, 'blue'::text, 'green'::text, 'pink'::text, 'amber'::text, 'violet'::text])));
+alter table activity_type_settings add constraint "activity_type_settings_name_check" CHECK (((btrim(name) <> ''::text) AND (char_length(name) <= 40)));
+alter table activity_type_settings add constraint "activity_type_settings_who_files_check" CHECK ((who_files = ANY (ARRAY['EVERYONE'::text, 'HEADS'::text])));
 alter table app_settings add constraint "app_settings_id_check" CHECK ((id = true));
 alter table bug_report_notes add constraint "bug_report_notes_kind_check" CHECK ((kind = ANY (ARRAY['note'::text, 'resolved'::text, 'reopened'::text])));
 alter table bug_reports add constraint "bug_reports_description_check" CHECK ((length(btrim(description)) > 0));
@@ -2330,7 +2371,6 @@ alter table meeting_requests add constraint "meeting_requests_end_after_start" C
 alter table meeting_requests add constraint "meeting_requests_guest_emails_aligned" CHECK ((COALESCE(array_length(guest_emails, 1), 0) = COALESCE(array_length(guests, 1), 0)));
 alter table meeting_requests add constraint "meeting_requests_link_not_blank" CHECK (((meeting_link IS NULL) OR (btrim(meeting_link) <> ''::text)));
 alter table meeting_requests add constraint "meeting_requests_quarter_hours" CHECK (((mod((EXTRACT(epoch FROM starts_at))::bigint, (900)::bigint) = 0) AND (mod((EXTRACT(epoch FROM ends_at))::bigint, (900)::bigint) = 0)));
-alter table meeting_requests add constraint "meeting_requests_same_manila_day" CHECK (((activity_type <> 'MEETING'::text) OR (((starts_at AT TIME ZONE 'Asia/Manila'::text))::date = ((ends_at AT TIME ZONE 'Asia/Manila'::text))::date)));
 alter table meeting_requests add constraint "meeting_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING_HEAD'::text, 'PENDING_HR'::text, 'RETURNED'::text, 'APPROVED'::text, 'DECLINED'::text, 'CANCELLED'::text])));
 alter table meeting_requests add constraint "meeting_requests_type_check" CHECK (((meeting_type IS NULL) OR (meeting_type = ANY (ARRAY['ONSITE'::text, 'ONLINE'::text, 'HYBRID'::text]))));
 alter table meeting_requests add constraint "meeting_requests_type_rules" CHECK (
@@ -2786,8 +2826,9 @@ alter table undertime_requests add constraint "undertime_requests_printed_by_fke
 alter table ipas add constraint "ipas_sor_rule_on_ipas" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table ipas_sors add constraint "ipas_sor_rule_on_sors" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table meeting_request_days add constraint "meeting_request_days_meeting_check" TRIGGER DEFERRABLE INITIALLY DEFERRED;
+alter table meeting_request_days add constraint "meeting_request_days_venue_clash" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 alter table meeting_requests add constraint "meeting_requests_meeting_days_check" TRIGGER DEFERRABLE INITIALLY DEFERRED;
-alter table meeting_requests add constraint "meeting_requests_no_double_booking" EXCLUDE USING gist (venue_id WITH =, tstzrange(starts_at, ends_at, '[)'::text) WITH &&) WHERE ((status = ANY (ARRAY['PENDING_HEAD'::text, 'PENDING_HR'::text, 'RETURNED'::text, 'APPROVED'::text])));
+alter table meeting_requests add constraint "meeting_requests_venue_clash" TRIGGER DEFERRABLE INITIALLY DEFERRED;
 
 -- ============================================================
 -- Indexes (excluding those backing constraints)
@@ -2984,6 +3025,8 @@ CREATE INDEX undertime_requests_head_id_idx ON public.undertime_requests USING b
 -- Row Level Security (enable/force)
 -- ============================================================
 
+alter table public."activity_general_settings" enable row level security;
+alter table public."activity_type_settings" enable row level security;
 alter table public."app_settings" enable row level security;
 alter table public."bug_report_notes" enable row level security;
 alter table public."bug_reports" enable row level security;
@@ -3128,6 +3171,28 @@ alter table public."verification_rate_limits" enable row level security;
 -- RLS Policies
 -- ============================================================
 
+create policy "activity_general_settings_read" on public."activity_general_settings"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "activity_general_settings_update" on public."activity_general_settings"
+  as permissive
+  for update
+  to authenticated
+  using (can_manage_activity_settings())
+  with check (can_manage_activity_settings());
+create policy "activity_type_settings_read" on public."activity_type_settings"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "activity_type_settings_update" on public."activity_type_settings"
+  as permissive
+  for update
+  to authenticated
+  using (can_manage_activity_settings())
+  with check (can_manage_activity_settings());
 create policy "Allow Super Admin to insert app_settings" on public."app_settings"
   as permissive
   for insert
@@ -8030,6 +8095,25 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.activity_can_file(p_employee_id uuid, p_activity_type text)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select case
+    when p_employee_id is null then false
+    else coalesce((
+      select case t.who_files
+               when 'EVERYONE' then true
+               else coalesce((select coalesce(e.is_head, false) from public.employees e where e.id = p_employee_id), false)
+             end
+        from public.activity_type_settings t
+       where t.activity_type = p_activity_type
+    ), false)
+  end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.activity_days_normalize(p_days jsonb, p_activity_type text, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -8039,9 +8123,15 @@ declare
   v_raw jsonb;
   v_out jsonb;
   v_n int;
-  v_listed boolean := coalesce(case when jsonb_typeof(p_days) = 'array' then jsonb_array_length(p_days) > 0 end, false);
+  g public.activity_general_settings%rowtype;
+  v_multi boolean;
+  v_name text;
+  v_span int;
   r record;
 begin
+  select * into g from public.activity_general_settings limit 1;
+  select t.multi_day, t.name into v_multi, v_name from public.activity_type_settings t where t.activity_type = p_activity_type;
+
   v_raw := case
     when p_days is null or jsonb_typeof(p_days) <> 'array' or jsonb_array_length(p_days) = 0
       then jsonb_build_array(jsonb_build_object('starts_at', p_starts_at, 'ends_at', p_ends_at))
@@ -8056,8 +8146,8 @@ begin
   if v_n = 0 then
     raise exception 'Choose at least one day.' using errcode = '22023';
   end if;
-  if p_activity_type = 'MEETING' and v_n > 1 then
-    raise exception 'A Meeting is one day.' using errcode = '22023';
+  if v_n > 1 and not coalesce(v_multi, false) then
+    raise exception 'A % is one day.', coalesce(v_name, 'Meeting') using errcode = '22023';
   end if;
 
   for r in select x.starts_at, x.ends_at from jsonb_to_recordset(v_out) as x(starts_at timestamptz, ends_at timestamptz) loop
@@ -8070,12 +8160,13 @@ begin
     if (r.starts_at at time zone 'Asia/Manila')::date <> (r.ends_at at time zone 'Asia/Manila')::date then
       raise exception 'Each day must start and end on the same day.' using errcode = '22023';
     end if;
-    if mod(extract(epoch from r.starts_at)::bigint, 900) <> 0 or mod(extract(epoch from r.ends_at)::bigint, 900) <> 0 then
-      raise exception 'Times must be on 15-minute marks.' using errcode = '22023';
+    if mod(extract(epoch from r.starts_at)::bigint, g.time_step_minutes * 60) <> 0
+       or mod(extract(epoch from r.ends_at)::bigint, g.time_step_minutes * 60) <> 0 then
+      raise exception 'Times must be on %-minute marks.', g.time_step_minutes using errcode = '22023';
     end if;
-    if v_listed and ((r.starts_at at time zone 'Asia/Manila')::time < time '06:00'
-       or (r.ends_at at time zone 'Asia/Manila')::time > time '21:45') then
-      raise exception 'Times must be between 06:00 and 21:45.' using errcode = '22023';
+    if ((r.starts_at at time zone 'Asia/Manila')::time < g.earliest_start
+       or (r.ends_at at time zone 'Asia/Manila')::time > g.latest_end) then
+      raise exception 'Times must be between % and %.', to_char(g.earliest_start, 'HH24:MI'), to_char(g.latest_end, 'HH24:MI') using errcode = '22023';
     end if;
   end loop;
 
@@ -8084,6 +8175,12 @@ begin
     from jsonb_to_recordset(v_out) as x(starts_at timestamptz, ends_at timestamptz)
   ) <> v_n then
     raise exception 'Each day can be listed only once.' using errcode = '22023';
+  end if;
+
+  select ((max((x.starts_at at time zone 'Asia/Manila')::date) - min((x.starts_at at time zone 'Asia/Manila')::date)) + 1)
+    into v_span from jsonb_to_recordset(v_out) as x(starts_at timestamptz, ends_at timestamptz);
+  if v_span > g.max_days then
+    raise exception 'An Activity can cover at most % days.', g.max_days using errcode = '22023';
   end if;
 
   return v_out;
@@ -8108,13 +8205,91 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.activity_needs_hr(p_activity_type text, p_venue_id uuid)
+CREATE OR REPLACE FUNCTION public.activity_general_settings_touch()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.activity_is_approver(p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
- IMMUTABLE
+ STABLE SECURITY DEFINER
  SET search_path TO ''
 AS $function$
-  select p_activity_type = 'EVENT' or (p_activity_type = 'MEETING' and p_venue_id is not null);
+  select coalesce((select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
+                   from public.employees e where e.id = p_employee_id), false);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.activity_needs_hr(p_activity_type text, p_venue_id uuid, p_filer_id uuid DEFAULT NULL::uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select coalesce((
+           select t.needs_hr and (p_activity_type <> 'MEETING' or p_venue_id is not null)
+             from public.activity_type_settings t where t.activity_type = p_activity_type
+         ), false)
+     and not public.activity_is_approver(p_filer_id);
+$function$
+;
+CREATE OR REPLACE FUNCTION public.activity_settings_check(p_activity_type text, p_meeting_type text, p_guests text[], p_old_activity_type text DEFAULT NULL::text, p_old_meeting_type text DEFAULT NULL::text, p_old_guests text[] DEFAULT NULL::text[])
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  g public.activity_general_settings%rowtype;
+  v_on boolean;
+  v_type_on boolean;
+  v_name text;
+begin
+  select * into g from public.activity_general_settings limit 1;
+  select t.active, t.name into v_on, v_name from public.activity_type_settings t where t.activity_type = p_activity_type;
+  v_type_on := case p_meeting_type when 'ONSITE' then g.meeting_onsite when 'ONLINE' then g.meeting_online when 'HYBRID' then g.meeting_hybrid else true end;
+  if not coalesce(v_on, false) and p_activity_type is distinct from p_old_activity_type then
+    raise exception '% is switched off, so it cannot be filed.', coalesce(v_name, 'That Activity type') using errcode = '22023';
+  end if;
+  if p_activity_type = 'MEETING' and p_meeting_type is distinct from p_old_meeting_type
+     and not coalesce(v_type_on, false) then
+    raise exception '% meetings are switched off.', initcap(lower(p_meeting_type)) using errcode = '22023';
+  end if;
+  if not g.guests_allowed and coalesce(array_length(p_guests, 1), 0) > 0
+     and p_guests is distinct from coalesce(p_old_guests, '{}') then
+    raise exception 'Guests are not allowed on an Activity.' using errcode = '22023';
+  end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.activity_type_phrase(p_activity_type text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select coalesce((select t.name from public.activity_type_settings t where t.activity_type = p_activity_type), 'this Activity type');
+$function$
+;
+CREATE OR REPLACE FUNCTION public.activity_type_settings_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  new.updated_at := now();
+  if new.active = false and old.active
+     and not exists (select 1 from public.activity_type_settings t where t.active and t.activity_type <> new.activity_type) then
+    raise exception 'At least one Activity type must stay on.' using errcode = '22023';
+  end if;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.add_bug_report_note(p_report_id uuid, p_body text)
@@ -8420,6 +8595,19 @@ AS $function$
     select 1 from employees e
     where e.id = get_employee_id()
       and (e.is_super_admin or e.has_retail_access)
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.can_manage_activity_settings()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  select coalesce(
+    (select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false)
+       from public.employees e where e.id = public.get_employee_id()),
+    false
   );
 $function$
 ;
@@ -14044,7 +14232,6 @@ AS $function$
 declare
   v_actor uuid := public.get_employee_id();
   v_req public.meeting_requests%rowtype;
-  v_applicant_is_head boolean;
   v_atype text;
   v_to text;
   v_head uuid;
@@ -14132,16 +14319,17 @@ begin
     raise exception 'Write the purpose of the Activity.' using errcode = '22023';
   end if;
 
-  select coalesce(is_head, false) into v_applicant_is_head from public.employees where id = v_actor;
-  if v_atype = 'EVENT' and v_req.activity_type <> 'EVENT' and not coalesce(v_applicant_is_head, false) then
-    raise exception 'Only a department head can file an Event.' using errcode = '42501';
+  -- An edit may keep the Activity's own type, even one its filer could not file today (an Admin Task a
+  -- non-head filed before #1063). It may not switch to a type the filer cannot file.
+  if v_atype <> v_req.activity_type and not public.activity_can_file(v_actor, v_atype) then
+    raise exception 'Only a department head can file the % type.', public.activity_type_phrase(v_atype) using errcode = '42501';
   end if;
 
   v_head := null;
 
-  -- The same rule as filing, run again on every edit: any change to an Event goes back to HR.
+  -- The same rule as filing, run again on every edit: an approver's own Activity stays approved.
   v_to := case
-    when not public.activity_needs_hr(v_atype, p_venue_id) then 'APPROVED'
+    when not public.activity_needs_hr(v_atype, p_venue_id, v_req.applicant_id) then 'APPROVED'
     when v_req.status = 'RETURNED' then 'RETURNED'
     else 'PENDING_HR'
   end;
@@ -14153,6 +14341,7 @@ begin
     from unnest(coalesce(p_guests, '{}')) with ordinality as g(name, i)
     where btrim(g.name) <> '';
   perform public.guest_emails_check(v_emails);
+  perform public.activity_settings_check(v_atype, v_type, v_guests, v_req.activity_type, v_req.meeting_type, v_req.guests);
 
   select coalesce(array_agg(employee_id order by employee_id), '{}') into v_old_people
     from public.meeting_request_participants where request_id = p_request_id;
@@ -14295,7 +14484,6 @@ CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts
 AS $function$
 declare
   v_applicant uuid := public.get_employee_id();
-  v_applicant_is_head boolean;
   v_atype text := upper(coalesce(p_activity_type, 'MEETING'));
   v_status text;
   v_head uuid;
@@ -14319,11 +14507,8 @@ begin
   perform public.activity_fields_check(v_atype, v_type, p_venue_id, v_link);
   v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
 
-  if v_atype = 'EVENT' then
-    select coalesce(is_head, false) into v_applicant_is_head from public.employees where id = v_applicant;
-    if not coalesce(v_applicant_is_head, false) then
-      raise exception 'Only a department head can file an Event.' using errcode = '42501';
-    end if;
+  if not public.activity_can_file(v_applicant, v_atype) then
+    raise exception 'Only a department head can file the % type.', public.activity_type_phrase(v_atype) using errcode = '42501';
   end if;
 
   if p_venue_id is not null and not exists (select 1 from public.calendar_venues where id = p_venue_id and active) then
@@ -14341,7 +14526,7 @@ begin
     raise exception 'Write the purpose of the Activity.' using errcode = '22023';
   end if;
 
-  v_status := case when public.activity_needs_hr(v_atype, p_venue_id) then 'PENDING_HR' else 'APPROVED' end;
+  v_status := case when public.activity_needs_hr(v_atype, p_venue_id, v_applicant) then 'PENDING_HR' else 'APPROVED' end;
   v_head := null;
 
   select coalesce(array_agg(btrim(g.name) order by g.i), '{}'),
@@ -14350,6 +14535,7 @@ begin
     from unnest(coalesce(p_guests, '{}')) with ordinality as g(name, i)
     where btrim(g.name) <> '';
   perform public.guest_emails_check(v_emails);
+  perform public.activity_settings_check(v_atype, v_type, v_guests);
 
   select (v_days->0->>'starts_at')::timestamptz, (v_days->0->>'ends_at')::timestamptz into v_first_start, v_first_end;
   select max(x.ends_at) into v_last_end from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz);
@@ -19935,6 +20121,7 @@ AS $function$
 declare
   v_id uuid;
   v_type text;
+  v_multi boolean;
 begin
   if tg_table_name = 'meeting_requests' then
     v_id := new.id;
@@ -19942,29 +20129,40 @@ begin
     v_id := coalesce(new.request_id, old.request_id);
   end if;
   select activity_type into v_type from public.meeting_requests where id = v_id;
-  if v_type = 'MEETING' and (select count(*) from public.meeting_request_days where request_id = v_id) <> 1 then
+  select multi_day into v_multi from public.activity_type_settings where activity_type = v_type;
+  if v_type = 'MEETING' and not coalesce(v_multi, false)
+     and (select count(*) from public.meeting_request_days where request_id = v_id) <> 1
+     and (tg_op = 'INSERT' or tg_table_name = 'meeting_requests') then
     raise exception 'A Meeting is one day.' using errcode = '23514';
   end if;
   return null;
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.meeting_request_holder(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_exclude_id uuid DEFAULT NULL::uuid)
+CREATE OR REPLACE FUNCTION public.meeting_request_holder(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_exclude_id uuid DEFAULT NULL::uuid, p_days jsonb DEFAULT NULL::jsonb)
  RETURNS TABLE(id uuid, purpose text, starts_at timestamp with time zone, ends_at timestamp with time zone, applicant_name text, venue_name text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select m.id, m.purpose, m.starts_at, m.ends_at, e.name, v.name
+  with wanted as (
+    select x.starts_at, x.ends_at
+      from jsonb_to_recordset(
+             case when jsonb_typeof(p_days) = 'array' and jsonb_array_length(p_days) > 0 then p_days
+                  else jsonb_build_array(jsonb_build_object('starts_at', p_starts_at, 'ends_at', p_ends_at)) end
+           ) as x(starts_at timestamptz, ends_at timestamptz)
+  )
+  select m.id, m.purpose, d.starts_at, d.ends_at, e.name, v.name
     from public.meeting_requests m
+    join public.meeting_request_days d on d.request_id = m.id
     join public.employees e on e.id = m.applicant_id
     join public.calendar_venues v on v.id = m.venue_id
     where public.get_employee_id() is not null
       and m.venue_id = p_venue_id
       and m.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED')
-      and tstzrange(m.starts_at, m.ends_at, '[)') && tstzrange(p_starts_at, p_ends_at, '[)')
+      and exists (select 1 from wanted w where tstzrange(d.starts_at, d.ends_at, '[)') && tstzrange(w.starts_at, w.ends_at, '[)'))
       and (p_exclude_id is null or m.id <> p_exclude_id)
-    order by m.starts_at
+    order by d.starts_at
     limit 1;
 $function$
 ;
@@ -19985,6 +20183,44 @@ begin
   exception when others then
     null;
   end;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.meeting_request_venue_clash_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_id uuid;
+  v_venue uuid;
+begin
+  -- Read the id with if/else: plpgsql resolves every field in a CASE, and
+  -- meeting_requests rows have no request_id.
+  if tg_table_name = 'meeting_requests' then
+    v_id := new.id;
+  else
+    v_id := new.request_id;
+  end if;
+  select m.venue_id into v_venue from public.meeting_requests m
+   where m.id = v_id and m.venue_id is not null and m.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED');
+  if v_venue is null then
+    return null;
+  end if;
+  -- One at a time per Venue, so two filings made together cannot both pass.
+  perform pg_advisory_xact_lock(hashtextextended(v_venue::text, 0));
+  if exists (
+    select 1
+      from public.meeting_request_days d
+      join public.meeting_requests o on o.venue_id = v_venue and o.id <> v_id
+           and o.status in ('PENDING_HEAD', 'PENDING_HR', 'RETURNED', 'APPROVED')
+      join public.meeting_request_days od on od.request_id = o.id
+     where d.request_id = v_id
+       and tstzrange(d.starts_at, d.ends_at, '[)') && tstzrange(od.starts_at, od.ends_at, '[)')
+  ) then
+    raise exception 'That Venue is already booked at that time.' using errcode = '23P01';
+  end if;
   return null;
 end;
 $function$
@@ -24239,7 +24475,11 @@ CREATE OR REPLACE FUNCTION public.send_meeting_reminders()
 AS $function$
 declare
   v_count integer;
+  v_lead integer;
 begin
+  select reminder_minutes into v_lead from public.activity_general_settings limit 1;
+  v_lead := coalesce(v_lead, 15);
+
   with due as (
     update public.meeting_request_days dy
        set reminder_sent_at = now()
@@ -24248,7 +24488,7 @@ begin
        and r.status = 'APPROVED'
        and dy.reminder_sent_at is null
        and dy.starts_at > now()
-       and dy.starts_at <= now() + interval '15 minutes'
+       and dy.starts_at <= now() + make_interval(mins => v_lead)
     returning r.id, r.applicant_id, r.facilitator_id, r.venue_id, r.meeting_type, dy.starts_at, r.purpose
   ),
   people as (
@@ -31045,6 +31285,8 @@ $function$
 -- Triggers
 -- ============================================================
 
+CREATE TRIGGER activity_general_settings_touch BEFORE UPDATE ON public.activity_general_settings FOR EACH ROW EXECUTE FUNCTION activity_general_settings_touch();
+CREATE TRIGGER activity_type_settings_guard BEFORE UPDATE ON public.activity_type_settings FOR EACH ROW EXECUTE FUNCTION activity_type_settings_guard();
 CREATE TRIGGER trg_committee_task_activity_update_guard BEFORE UPDATE ON public.committee_task_activity FOR EACH ROW EXECUTE FUNCTION chat_message_update_guard();
 CREATE TRIGGER committee_tasks_cancel_closes_windows AFTER UPDATE OF status ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_cancel_closes_windows();
 CREATE TRIGGER trg_committee_tasks_guard_manage BEFORE UPDATE ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_guard_manage();
@@ -31179,12 +31421,14 @@ CREATE TRIGGER lwop_leaves_guard_head_status BEFORE UPDATE ON public.lwop_leaves
 CREATE TRIGGER meeting_request_days_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_request_days FOR EACH ROW EXECUTE FUNCTION meeting_request_days_broadcast_change();
 CREATE TRIGGER meeting_request_days_guard_insert BEFORE INSERT ON public.meeting_request_days FOR EACH ROW EXECUTE FUNCTION meeting_request_days_guard_insert();
 CREATE CONSTRAINT TRIGGER meeting_request_days_meeting_check AFTER INSERT OR DELETE OR UPDATE ON public.meeting_request_days DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION meeting_request_days_meeting_check();
+CREATE CONSTRAINT TRIGGER meeting_request_days_venue_clash AFTER INSERT OR UPDATE OF starts_at, ends_at, request_id ON public.meeting_request_days DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION meeting_request_venue_clash_check();
 CREATE TRIGGER meeting_request_participants_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_request_participants FOR EACH ROW EXECUTE FUNCTION meeting_request_participants_broadcast_change();
 CREATE TRIGGER meeting_requests_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_broadcast_change();
 CREATE TRIGGER meeting_requests_default_day AFTER INSERT ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_default_day();
 CREATE TRIGGER meeting_requests_guard_insert BEFORE INSERT ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_guard_insert();
 CREATE CONSTRAINT TRIGGER meeting_requests_meeting_days_check AFTER UPDATE OF activity_type ON public.meeting_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION meeting_request_days_meeting_check();
 CREATE TRIGGER meeting_requests_touch BEFORE UPDATE ON public.meeting_requests FOR EACH ROW EXECUTE FUNCTION meeting_requests_touch();
+CREATE CONSTRAINT TRIGGER meeting_requests_venue_clash AFTER UPDATE OF venue_id, status ON public.meeting_requests DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION meeting_request_venue_clash_check();
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER order_ageing_rules_stamp BEFORE INSERT OR UPDATE ON public.order_ageing_rules FOR EACH ROW EXECUTE FUNCTION order_ageing_rules_stamp();

@@ -1,6 +1,34 @@
 [
     {
         "date": "2026-11-17",
+        "title": "Activity rules and a better Calendar",
+        "version": "1.11.3",
+        "changes": [
+            "The Calendar now has one Filters button, with a count of the filters that are on.",
+            "Each filter that is on shows as a small chip you can remove with one click.",
+            "You can filter by people: pick some people, a whole department, or Only me. In the Gantt, only their rows show.",
+            "Admin Tasks, Operations Tasks, Events and Online Meetings now show in the day panel, under the rooms.",
+            "On the Gantt, every Activity is on the row of its Lead and each Participant. A room Meeting also stays on its room's row.",
+            "The day panel opens from a day or from +N more on every screen size.",
+            "Anyone can file a Meeting. Only a department head can file an Admin Task, an Operations Task or an Event. If you can only file Meetings, the button says New Meeting.",
+            "A head's Admin Tasks, Operations Tasks and Events go straight onto the Calendar. A room Meeting that HR or a Super Admin files themselves is approved at once, and stays approved when they change it. Other room Meetings still wait for HR.",
+            "HR and Super Admins have a new Activities tab in Settings. It sets the name and colour of each Activity type, whether it is on, who can file it, whether it waits for HR and whether it can run over several days.",
+            "The same tab sets the meeting types that are on, the earliest start and latest end, the time step, the default start and end, how long before the start the reminder goes out, the longest range and whether Guests are allowed.",
+            "A change applies to new filings and edits. Activities that are already filed stay as they are. Every change is written to the Activity Log.",
+            "Requests that HR or a Super Admin filed, and Events that a head filed, were waiting for approval. They are approved now.",
+            "People on an Activity get a note, You're on an Activity, with the type, the date, the time and who scheduled it. Someone added later gets it too.",
+            "The Approvals Activities list and its count in the side menu now update on their own, and every approver sees the same count.",
+            "An Activity over several days now shows as one bar in the Month and the Gantt. A day taken out of the middle shows as a gap.",
+            "Opening it lists the From and To dates and every day with its own hours, and marks the day you opened.",
+            "The Calendar now has one switch, Month or Gantt. The extra Calendar and My Activities tabs are gone.",
+            "My Activities is now a button at the top. It opens a side panel with your Activities and their Edit and Cancel buttons.",
+            "A new Full screen button hides the side menu, the page title and the day panel, to give the board all the room. Esc or the same button brings them back as they were.",
+            "On a phone, the Calendar is a small month with a coloured dot on each day that has entries. Tap a day to see its list below, and tap an entry to open its details."
+        ],
+        "link": "/release-notes"
+    },
+    {
+        "date": "2026-11-17",
         "title": "Meeting Requests are now Activities",
         "version": "1.11.2",
         "changes": [

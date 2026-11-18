@@ -115,7 +115,7 @@ describe("Meeting Request journey", () => {
                 <CalendarPage />
             </MemoryRouter>,
         )
-        await user.click(await screen.findByRole("button", { name: "New Activity" }))
+        await user.click(await screen.findByRole("button", { name: "New Meeting" }))
         const dialog = await screen.findByRole("dialog")
         await user.click(within(dialog).getAllByRole("combobox")[2])
         await user.click(await screen.findByRole("option", { name: "Conference Room" }))
@@ -143,6 +143,7 @@ describe("Meeting Request journey", () => {
                 <CalendarPage />
             </MemoryRouter>,
         )
+        await user.click(await screen.findByRole("button", { name: /^[A-Z][a-z]{2} · [A-Z][a-z]{2} \d+/ }))
         const rooms = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Rooms" })
         expect(await within(rooms).findByText("Quarterly planning")).not.toHaveClass("italic")
         expect(within(rooms).queryByText(/Waiting for/)).not.toBeInTheDocument()

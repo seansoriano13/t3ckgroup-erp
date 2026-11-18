@@ -13,7 +13,7 @@ export const manilaInstant = (ymd, hhmm) => new Date(`${ymd}T${hhmm}:00+08:00`).
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** Why a draft cannot be filed yet, in plain words, or null. */
-export function draftProblem({ activityType = 'MEETING', meetingType = 'ONSITE', meetingLink = '', venueId, date, start, end, days, facilitatorId, purpose, guests = [] }, now = new Date()) {
+export function draftProblem({ activityType = 'MEETING', meetingType = 'ONSITE', meetingLink = '', venueId, date, start, end, days, facilitatorId, purpose, guests = [], multiDay = activityType !== 'MEETING', typeName = activityType === 'MEETING' ? 'Meeting' : 'Activity', maxDays = null }, now = new Date()) {
   const isMeeting = activityType === 'MEETING';
   if (isMeeting && meetingType !== 'ONLINE' && !venueId) return 'Choose a Venue.';
   if (isMeeting && meetingType !== 'ONSITE' && !String(meetingLink ?? '').trim()) return 'Paste the meeting link.';
@@ -22,7 +22,13 @@ export function draftProblem({ activityType = 'MEETING', meetingType = 'ONSITE',
   if (days) {
     // A range: every kept day is checked. A day that has already started is not checked again.
     if (days.length === 0) return 'Keep at least one day.';
-    if (days.length > 1 && isMeeting) return 'A Meeting is one day.';
+    if (days.length > 1 && !multiDay) return `A ${typeName} is one day.`;
+    if (maxDays && days.length > 0) {
+      const first = days[0].date;
+      const last = days[days.length - 1].date;
+      const span = Math.round((Date.parse(`${last}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / 86_400_000) + 1;
+      if (span > maxDays) return `An Activity can cover at most ${maxDays} days.`;
+    }
     const backwards = days.find((d) => d.end <= d.start);
     if (backwards) return `${backwards.date}: the Activity must end after it starts.`;
     const past = days.find((d) => !d.frozen && new Date(manilaInstant(d.date, d.start)) < now);

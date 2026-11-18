@@ -187,11 +187,13 @@ describe('HrLeavesManagerPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('button', { name: 'Calendar', pressed: true })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Month', pressed: true })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Gantt' })).toBeInTheDocument();
     // Preset to Time Off and Overtime: no Meetings layer is on.
-    expect(screen.getByRole('button', { name: 'Meetings', pressed: false })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Overtime', pressed: true })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
+    expect(screen.getByRole('button', { name: /^Activities/, pressed: false })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Overtime/, pressed: true })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
 
     await user.click(await screen.findByText(/Ana C\. · Offset/));
     expect(await screen.findByText('Dental visit')).toBeInTheDocument();

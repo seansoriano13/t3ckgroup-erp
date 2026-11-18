@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
-import { groupByDepartment, outByDay } from './peopleRows.js';
+import { entryUnderClick, groupByDepartment, outByDay } from './peopleRows.js';
 import { TIME_OFF_KINDS, time12 } from './entrySpan.js';
 import { Face } from './calendarParts.jsx';
 
@@ -176,18 +176,23 @@ function PersonRow({ row, days, cols, todayYmd, onOpenEntry }) {
         const end = ymds.indexOf(bar.endYmd);
         const e = bar.entry;
         const span = end - start + 1;
+        const activity = bar.kind === 'MEETING';
         const timed = !TIME_OFF_KINDS.has(bar.kind);
-        const label = timed ? `${bar.kind === 'OVERTIME' ? 'OT' : 'UT'} ${e.hours != null ? `${Number(e.hours)}h` : ''}` : def.label;
+        const label = activity ? e.title || def.label : timed ? `${bar.kind === 'OVERTIME' ? 'OT' : 'UT'} ${e.hours != null ? `${Number(e.hours)}h` : ''}` : def.label;
         return (
           <Button
             key={bar.key}
             variant="ghost"
-            onClick={() => onOpenEntry(e)}
+            onClick={(event) => onOpenEntry(entryUnderClick(bar, ymds, event))}
             data-testid="people-bar"
+            data-continues-before={bar.continuesBefore}
+            data-continues-after={bar.continuesAfter}
             data-pending={bar.pending}
-            title={`${e.employee?.name} · ${def.label}${timed ? ` · ${formatEntryTime(e)}` : ''}${bar.pending ? ' (pending)' : ''}`}
+            title={`${activity ? e.title : e.employee?.name} · ${def.label}${timed ? ` · ${formatEntryTime(e)}` : ''}${bar.pending ? ' (pending)' : ''}`}
             className={cn(
-              'z-1 mx-1.5 my-1 h-auto min-w-0 justify-start gap-1 rounded-md border px-2.5 py-0 text-xs font-semibold',
+              'z-1 my-1 h-auto min-w-0 justify-start gap-1 rounded-md border px-2.5 py-0 text-xs font-semibold',
+              bar.continuesBefore ? 'ml-0 rounded-l-none border-l-0' : 'ml-1.5',
+              bar.continuesAfter ? 'mr-0 rounded-r-none border-r-0' : 'mr-1.5',
               def.chip,
               bar.pending && 'border-dashed',
               timed && 'justify-center px-2',
@@ -298,7 +303,7 @@ export default function CalendarGantt({ days, entries, layers, venues, todayYmd,
 
           {groups.length === 0 && (
             <p className="sticky left-0 p-6 text-sm text-muted-foreground">
-              {needle ? 'Nobody matches that search.' : 'Nobody is out or on overtime in this range.'}
+              {needle ? 'Nobody matches that search.' : 'Nobody is out, on overtime or in an Activity in this range.'}
             </p>
           )}
           {groups.map(([dept, rows]) => (

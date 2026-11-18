@@ -23,6 +23,12 @@ const dayAt = (n, startHour = 9, endHour = 10) => {
     const base = Date.UTC(2035, 0, 1 + n, 0, 0, 0) - 8 * HOUR
     return { starts_at: new Date(base + startHour * HOUR).toISOString(), ends_at: new Date(base + endHour * HOUR).toISOString() }
 }
+// A day counted from today (Manila), for tests that move days into the past and so must stay inside the day limit.
+const soonAt = (n, startHour = 9, endHour = 10) => {
+    const t = new Date(Date.now() + 8 * HOUR)
+    const base = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate() + n) - 8 * HOUR
+    return { starts_at: new Date(base + startHour * HOUR).toISOString(), ends_at: new Date(base + endHour * HOUR).toISOString() }
+}
 const manilaDay = (iso) => new Date(new Date(iso).getTime() + 8 * HOUR).toISOString().slice(0, 10)
 
 let block = 100
@@ -102,7 +108,7 @@ describe("the day rows", () => {
         let sat = nextBlock()
         while (sat % 7 !== 5) sat += 1 // 2035-01-01 is a Monday, so offset 5 is a Saturday
         const days = [dayAt(sat - 1), dayAt(sat, 8, 12), dayAt(sat + 1, 13, 14)]
-        const { id, error } = await file("ordinary", { p_days: days })
+        const { id, error } = await file("head", { p_days: days })
         expect(error).toBeNull()
         const rows = await daysOf(id)
         expect(rows).toHaveLength(3)
@@ -122,23 +128,23 @@ describe("the day rows", () => {
             { starts_at: new Date(new Date(base.starts_at).getTime() + 60_000).toISOString(), ends_at: base.ends_at },
             { starts_at: base.ends_at, ends_at: base.starts_at },
         ]) {
-            const { error } = await file("ordinary", { p_days: [bad] })
+            const { error } = await file("head", { p_days: [bad] })
             expect(error).not.toBeNull()
         }
     })
 
     it("refuses the same date twice and a window outside 06:00 to 21:45", async () => {
         const b = nextBlock()
-        expect((await file("ordinary", { p_days: [dayAt(b), dayAt(b, 11, 12)] })).error?.message).toMatch(/only once/i)
-        expect((await file("ordinary", { p_days: [dayAt(b, 5, 7)] })).error?.message).toMatch(/06:00/)
-        expect((await file("ordinary", { p_days: [dayAt(b, 20, 22)] })).error?.message).toMatch(/21:45/)
-        expect((await file("ordinary", { p_days: [dayAt(b, 20, 21.75)] })).error).toBeNull()
+        expect((await file("head", { p_days: [dayAt(b), dayAt(b, 11, 12)] })).error?.message).toMatch(/only once/i)
+        expect((await file("head", { p_days: [dayAt(b, 5, 7)] })).error?.message).toMatch(/06:00/)
+        expect((await file("head", { p_days: [dayAt(b, 20, 22)] })).error?.message).toMatch(/21:45/)
+        expect((await file("head", { p_days: [dayAt(b, 20, 21.75)] })).error).toBeNull()
     })
 
     it("refuses a day in the past when filing, and refuses a direct bad row in the table", async () => {
         const past = { starts_at: "2020-01-02T01:00:00.000Z", ends_at: "2020-01-02T02:00:00.000Z" }
-        expect((await file("ordinary", { p_days: [past] })).error?.message).toMatch(/past/i)
-        const { id } = await file("ordinary")
+        expect((await file("head", { p_days: [past] })).error?.message).toMatch(/past/i)
+        const { id } = await file("head")
         const future = dayAt(nextBlock())
         const sameDay = await svc().from("meeting_request_days").insert({ request_id: id, starts_at: future.starts_at, ends_at: new Date(new Date(future.starts_at).getTime() + 20 * HOUR).toISOString() })
         expect(sameDay.error?.code).toBe("23514")
@@ -149,7 +155,7 @@ describe("the day rows", () => {
     })
 
     it("lets every signed-in employee read the days, and nobody write them", async () => {
-        const { id } = await file("ordinary")
+        const { id } = await file("head")
         const reader = await clientFor("outsider")
         expect((await reader.from("meeting_request_days").select("id").eq("request_id", id)).data).toHaveLength(1)
         const write = await reader.from("meeting_request_days").insert({ request_id: id, ...dayAt(nextBlock()) })
@@ -160,7 +166,7 @@ describe("the day rows", () => {
 describe("a Meeting is one day", () => {
     it("refuses a list of two days in the filing function", async () => {
         const b = nextBlock()
-        const { error } = await file("ordinary", {
+        const { error } = await file("head", {
             p_activity_type: "MEETING",
             p_venue_id: venue,
             p_meeting_type: "ONSITE",
@@ -170,7 +176,7 @@ describe("a Meeting is one day", () => {
     })
 
     it("refuses a second day row in the table", async () => {
-        const { id, error } = await file("ordinary", { p_activity_type: "MEETING", p_venue_id: venue, p_meeting_type: "ONSITE", p_days: [dayAt(nextBlock())] })
+        const { id, error } = await file("head", { p_activity_type: "MEETING", p_venue_id: venue, p_meeting_type: "ONSITE", p_days: [dayAt(nextBlock())] })
         expect(error).toBeNull()
         const second = await svc().from("meeting_request_days").insert({ request_id: id, ...dayAt(nextBlock()) })
         expect(second.error?.message).toMatch(/Meeting is one day/i)
@@ -179,8 +185,8 @@ describe("a Meeting is one day", () => {
 
     it("refuses turning a three-day task into a Meeting", async () => {
         const b = nextBlock()
-        const { id } = await file("ordinary", { p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2)] })
-        const { error } = await edit("ordinary", id, { p_activity_type: "MEETING", p_venue_id: venue, p_meeting_type: "ONSITE" })
+        const { id } = await file("head", { p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2)] })
+        const { error } = await edit("head", id, { p_activity_type: "MEETING", p_venue_id: venue, p_meeting_type: "ONSITE" })
         expect(error?.message).toMatch(/Meeting is one day/i)
         expect(await daysOf(id)).toHaveLength(3)
     })
@@ -190,7 +196,7 @@ describe("the Calendar", () => {
     it("shows one entry per day with that day's hours, and the request id opens day 1", async () => {
         const b = nextBlock()
         const days = [dayAt(b), dayAt(b + 1, 9, 12), dayAt(b + 2, 13, 14)]
-        const { id } = await file("ordinary", { p_days: days })
+        const { id } = await file("head", { p_days: days })
         const from = manilaDay(days[0].starts_at)
         const to = manilaDay(days[2].starts_at)
         const { data, error } = await (await clientFor("outsider")).rpc("calendar_entries", { p_from: from, p_to: to, p_include_pending: false })
@@ -208,9 +214,9 @@ describe("the Calendar", () => {
 describe("changing days", () => {
     it("saves a changed day, a removed day and an added day", async () => {
         const b = nextBlock()
-        const { id } = await file("ordinary", { p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2)] })
+        const { id } = await file("head", { p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2)] })
         const before = await daysOf(id)
-        const changed = await edit("ordinary", id, { p_days: [dayAt(b, 10, 11), dayAt(b + 2), dayAt(b + 3)] })
+        const changed = await edit("head", id, { p_days: [dayAt(b, 10, 11), dayAt(b + 2), dayAt(b + 3)] })
         expect(changed.error).toBeNull()
         const after = await daysOf(id)
         expect(after).toHaveLength(3)
@@ -222,34 +228,34 @@ describe("changing days", () => {
         expect(changed.data.changed_fields.days).toBeTruthy()
     })
 
-    it("sends an approved Event back to HR for any change to its days", async () => {
+    it("keeps an approved Event approved when its days change (#1063)", async () => {
         const b = nextBlock()
         const { id, error } = await file("head", { p_activity_type: "EVENT", p_days: [dayAt(b), dayAt(b + 1)] })
         expect(error).toBeNull()
         await svc().from("meeting_requests").update({ status: "APPROVED" }).eq("id", id)
         const { data, error: e2 } = await edit("head", id, { p_days: [dayAt(b), dayAt(b + 1, 9, 11)] })
         expect(e2).toBeNull()
-        expect(data.to_status).toBe("PENDING_HR")
-        expect((await row(id)).status).toBe("PENDING_HR")
+        expect(data.to_status).toBe("APPROVED")
+        expect((await row(id)).status).toBe("APPROVED")
     })
 
     it("keeps a started day as it is, and lets the other days change or go", async () => {
-        const b = nextBlock()
-        const { id } = await file("head", { p_activity_type: "EVENT", p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2), dayAt(b + 3), dayAt(b + 4)] })
+        const b = 3 // days near today, so the started days and the future days stay inside the day limit
+        const { id } = await file("head", { p_activity_type: "EVENT", p_days: [soonAt(b), soonAt(b + 1), soonAt(b + 2), soonAt(b + 3), soonAt(b + 4)] })
         await svc().from("meeting_requests").update({ status: "APPROVED" }).eq("id", id)
         await startDays(id, 2) // day 1 and day 2 have started
         const rows = await daysOf(id)
         const kept = rows.slice(0, 2).map(({ starts_at, ends_at }) => ({ starts_at, ends_at }))
         // changing a started day is refused
-        const moved = await edit("head", id, { p_days: [{ ...kept[0], ends_at: new Date(new Date(kept[0].ends_at).getTime() + HOUR).toISOString() }, kept[1], dayAt(b + 2)] })
+        const moved = await edit("head", id, { p_days: [{ ...kept[0], ends_at: new Date(new Date(kept[0].ends_at).getTime() + HOUR).toISOString() }, kept[1], soonAt(b + 2)] })
         expect(moved.error?.message).toMatch(/already started/i)
         // dropping a started day is refused
-        const dropped = await edit("head", id, { p_days: [kept[1], dayAt(b + 2)] })
+        const dropped = await edit("head", id, { p_days: [kept[1], soonAt(b + 2)] })
         expect(dropped.error?.message).toMatch(/already started/i)
-        // days 3 to 5 can change and go, and the Event goes back to HR
-        const ok = await edit("head", id, { p_days: [...kept, dayAt(b + 2, 10, 12)] })
+        // days 3 to 5 can change and go, and the Event stays approved
+        const ok = await edit("head", id, { p_days: [...kept, soonAt(b + 2, 10, 12)] })
         expect(ok.error).toBeNull()
-        expect(ok.data.to_status).toBe("PENDING_HR")
+        expect(ok.data.to_status).toBe("APPROVED")
         const after = await daysOf(id)
         expect(after).toHaveLength(3)
         expect(after.slice(0, 2).map((d) => d.id)).toEqual(rows.slice(0, 2).map((d) => d.id))
@@ -257,19 +263,19 @@ describe("changing days", () => {
 
     it("refuses an edit once every day has started", async () => {
         const b = nextBlock()
-        const { id } = await file("ordinary", { p_days: [dayAt(b), dayAt(b + 1)] })
+        const { id } = await file("head", { p_days: [dayAt(b), dayAt(b + 1)] })
         await startDays(id, 2)
-        expect((await edit("ordinary", id, { p_purpose: "Late" })).error?.message).toMatch(/already started/i)
+        expect((await edit("head", id, { p_purpose: "Late" })).error?.message).toMatch(/already started/i)
     })
 })
 
 describe("cancelling", () => {
     it("on day 2 keeps days 1 and 2 on the Calendar and removes the rest", async () => {
         const b = nextBlock()
-        const { id } = await file("ordinary", { p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2), dayAt(b + 3), dayAt(b + 4)] })
+        const { id } = await file("head", { p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2), dayAt(b + 3), dayAt(b + 4)] })
         await startDays(id, 2)
         const held = (await daysOf(id)).slice(0, 2)
-        const { error } = await cancel("ordinary", id)
+        const { error } = await cancel("head", id)
         expect(error).toBeNull()
         const after = await daysOf(id)
         expect(after.map((d) => d.id)).toEqual(held.map((d) => d.id))
@@ -286,7 +292,8 @@ describe("cancelling", () => {
         const b = nextBlock()
         const { id, error: fileError } = await file("head", { p_activity_type: "EVENT", p_days: [dayAt(b), dayAt(b + 1), dayAt(b + 2)] })
         expect(fileError).toBeNull()
-        expect((await row(id)).status).toBe("PENDING_HR")
+        // An Event is approved on filing now; put it back to waiting to test the waiting case.
+        await svc().from("meeting_requests").update({ status: "PENDING_HR" }).eq("id", id)
         await startDays(id, 2)
         const held = await daysOf(id)
         expect((await cancel("head", id)).error).toBeNull()
@@ -306,9 +313,9 @@ describe("cancelling", () => {
 
     it("is refused once every day has started", async () => {
         const b = nextBlock()
-        const { id } = await file("ordinary", { p_days: [dayAt(b), dayAt(b + 1)] })
+        const { id } = await file("head", { p_days: [dayAt(b), dayAt(b + 1)] })
         await startDays(id, 2)
-        expect((await cancel("ordinary", id)).error?.message).toMatch(/already started/i)
+        expect((await cancel("head", id)).error?.message).toMatch(/already started/i)
         expect((await row(id)).status).not.toBe("CANCELLED")
     })
 })

@@ -492,7 +492,7 @@ export const SECTIONS = [
         points: [
           "Meeting Request is now Activity, with four types: Meeting, Admin Task, Operations Task and Event.",
           "Anyone can lead an Activity. The Lead no longer has to be a department head.",
-          "Only Meetings in a room and Events wait for HR. The other Activities are on the Calendar as soon as you file them.",
+          "Only room Meetings wait for HR, and not when HR or a Super Admin files them. Events and the other Activities are on the Calendar as soon as you file them.",
           "Admin Tasks, Operations Tasks and Events can run over several days.",
           "Reception can be booked as a Venue.",
         ],
@@ -642,6 +642,35 @@ export const SECTIONS = [
         ],
       },
       {
+        id: "activity-rules",
+        kind: "change",
+        title: "Who can file an Activity, and a roomier Calendar",
+        body: "Only department heads can file Admin Tasks, Operations Tasks and Events. Everyone can still file Meetings. The Calendar has more room, and HR and Super Admins can change the Activity rules.",
+        who: ["Everyone", "Department heads", "HR"],
+        highlights: [
+          {
+            title: "Who can file",
+            text: "Only department heads can file Admin Tasks, Operations Tasks and Events. Everyone can still file Meetings.",
+          },
+          {
+            title: "Less waiting for HR",
+            text: "Events no longer wait for HR, and neither do room Meetings filed by HR or Super Admins.",
+          },
+          {
+            title: "You're on an Activity",
+            text: "You get this note when you are put on an Activity, with the type, the date, the time and who scheduled it.",
+          },
+          {
+            title: "More room on the Calendar",
+            text: "One Filters button, a people filter, a Full screen button, one bar for an Activity over several days, and a month view on phones.",
+          },
+          {
+            title: "Change the rules",
+            text: "HR and Super Admins can change the Activity rules in Settings, under Activities.",
+          },
+        ],
+      },
+      {
         id: "file-time-off",
         kind: "fix",
         title: "The File Time Off form tells you what is missing",
@@ -730,6 +759,7 @@ export const SECTIONS = [
       {
         text: "On a phone, the Calendar shows an agenda list, and on a laptop more weeks fit.",
       },
+
     ],
   },
   {

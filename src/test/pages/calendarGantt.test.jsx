@@ -94,6 +94,18 @@ describe("Calendar Gantt", () => {
     expect(mocks.fetch).toHaveBeenCalledWith(expect.objectContaining({ includePending: false }));
   });
 
+  it("limits the rows to the people chosen in the filter", async () => {
+    mocks.user = makeEmployee({ name: "Dana Reyes" });
+    mocks.fetch = vi.fn(async () => [...all.filter((e) => e.employee.id === "p1"), row("SIL", "b", ben, `${month}12`)]);
+    const user = await renderGantt();
+    expect(await screen.findByTestId("person-p2")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Filters/ }));
+    await user.click(screen.getByRole("checkbox", { name: "Ben Lim" }));
+    expect(screen.queryByTestId("person-p1")).toBeNull();
+    expect(screen.getByTestId("person-p2")).toBeInTheDocument();
+  });
+
   it("groups people by department and narrows the rows by name or department", async () => {
     mocks.user = makeHrEmployee();
     const user = await renderGantt();

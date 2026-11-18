@@ -7,6 +7,7 @@ import { taskService } from "../../../services/taskService.js";
 import { headApprovalService } from "../../../services/headApprovalService";
 import { transmittalService } from "../../../services/transmittalService";
 import { meetingRequestService } from "../../../services/meetingRequestService";
+import { useMeetingRealtime } from "../../../hooks/useMeetingRealtime";
 import { TRANSMITTAL_STAFF_LIST } from "../../../constants/transmittals";
 import {
   selectHrPending,
@@ -127,10 +128,13 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
     enabled: !!user?.id && (isHead || isSuperAdmin || isHr),
   });
 
+  // Live like the Calendar (#1063), and never older than the last broadcast.
+  useMeetingRealtime({ enabled: !!user?.id && (isHead || isSuperAdmin || isHr) });
   const meetingsQuery = useQuery({
-    queryKey: ["meeting-requests", "approval-queue", user?.id, isHr, isSuperAdmin],
-    queryFn: () => meetingRequestService.listPendingForApprover({ employeeId: user.id, isHr, isSuperAdmin }),
+    queryKey: ["meeting-requests", "approval-queue", isHr, isSuperAdmin],
+    queryFn: () => meetingRequestService.listPendingForApprover({ isHr, isSuperAdmin }),
     enabled: !!user?.id && (isHead || isSuperAdmin || isHr),
+    staleTime: 0,
   });
 
   const rawTasks = tasksQuery.data;
