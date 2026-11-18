@@ -62,6 +62,7 @@ import {
   getFilteredNavigationGroups,
   getFilteredQuickActions,
 } from "../constants/navigation";
+import { useActivitySettings } from "../hooks/useActivitySettings";
 import { useNavBadges } from "../hooks/useNavBadges";
 import { CAPTION_BASE } from "@/lib/captionStyle";
 import { activeGroupKey } from "@/lib/navSection";
@@ -70,6 +71,8 @@ import { isStaging, isLocal } from "@/lib/appEnv";
 
 export default function SideNav() {
   const { user, logout } = useAuth();
+  // Reads the Activity settings (#1064) so the New button's label and the type names follow them.
+  useActivitySettings();
   const navigate = useNavigate();
   const location = useLocation();
   const menuButtonRef = useRef(null);

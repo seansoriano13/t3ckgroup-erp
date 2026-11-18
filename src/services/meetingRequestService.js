@@ -39,6 +39,11 @@ const DECISION_VERB = {
 export const ACTIVITY_TYPE = { MEETING: 'MEETING', ADMIN_TASK: 'ADMIN_TASK', OPERATIONS_TASK: 'OPERATIONS_TASK', EVENT: 'EVENT' };
 export const ACTIVITY_TYPE_LABEL = { MEETING: 'Meeting', ADMIN_TASK: 'Admin Task', OPERATIONS_TASK: 'Operations Task', EVENT: 'Event' };
 
+/** Lays the names HR set in Settings > Activities (#1064) over the labels, in place. `types` is settings.types. */
+export function applyActivityTypeNames(types) {
+  for (const key of Object.keys(ACTIVITY_TYPE_LABEL)) if (types?.[key]?.name) ACTIVITY_TYPE_LABEL[key] = types[key].name;
+}
+
 export const MEETING_TYPE = { ONSITE: 'ONSITE', ONLINE: 'ONLINE', HYBRID: 'HYBRID' };
 export const MEETING_TYPE_LABEL = { ONSITE: 'Onsite', ONLINE: 'Online', HYBRID: 'Hybrid' };
 
@@ -111,12 +116,13 @@ const REQUEST_SELECT = `*,
 
 const timeRange = (startsAt, endsAt) => `${manilaTime(startsAt)} to ${manilaTime(endsAt)}`;
 
-async function describeHolder({ venueId, startsAt, endsAt }) {
+async function describeHolder({ venueId, startsAt, endsAt, days = null }) {
   if (!venueId) return 'That time clashes with another booking. Pick another time.';
   const { data } = await supabase.rpc('meeting_request_holder', {
     p_venue_id: venueId,
     p_starts_at: startsAt,
     p_ends_at: endsAt,
+    p_days: days?.map((d) => ({ starts_at: d.startsAt, ends_at: d.endsAt })) ?? null,
   });
   const holder = Array.isArray(data) ? data[0] : data;
   if (!holder) return 'That Venue is already booked at that time. Pick another time.';
@@ -247,7 +253,7 @@ export const meetingRequestService = {
     });
     if (error) {
       if (error.code === EXCLUSION_VIOLATION) {
-        throw new Error(await describeHolder({ venueId, startsAt, endsAt }));
+        throw new Error(await describeHolder({ venueId, startsAt, endsAt, days }));
       }
       throw new Error(error.message);
     }
@@ -287,19 +293,26 @@ export const meetingRequestService = {
     });
   },
 
-  /** Tells the Lead and every Participant (not the person filing) that an Activity is on. */
-  async notifyApproved(request, slot, senderId) {
-    const invited = new Set([request.facilitator_id, ...(request.participants ?? []).map((p) => p.employee_id)]);
+  /**
+   * Tells people "You're on an Activity" when it goes onto the Calendar (#1063): the type, the date or
+   * dates, the time and who scheduled it. By default that is the Lead and every Participant; `only` narrows
+   * it to the people an edit just added. The person filing is never told. The type stays MEETING_APPROVED
+   * so older notifications still open.
+   */
+  async notifyApproved(request, slot, senderId, { only = null } = {}) {
+    const invited = new Set(only ?? [request.facilitator_id, ...(request.participants ?? []).map((p) => p.employee_id)]);
     invited.delete(request.applicant_id);
     invited.delete(null);
     invited.delete(undefined);
+    const typeLabel = ACTIVITY_TYPE_LABEL[request.activity_type] ?? 'Activity';
+    const scheduler = request.applicant?.name ?? 'Someone';
     for (const recipient_id of invited) {
       await notificationService.createNotification({
         recipient_id,
         sender_id: senderId ?? null,
         type: 'MEETING_APPROVED',
-        title: 'Activity approved',
-        message: `${slot}: ${request.purpose}`,
+        title: "You're on an Activity",
+        message: `${typeLabel}: ${slot}: ${request.purpose}. Scheduled by ${scheduler}.`,
         reference_id: request.id,
       });
     }
@@ -352,15 +365,16 @@ export const meetingRequestService = {
   },
 
   /**
-   * Requests waiting on HR (#748). Only HR and Super Admins have a queue; nobody is shown their
-   * own request.
+   * Requests waiting on HR (#748). Only HR and Super Admins have a queue. Every approver sees the
+   * same list and count (#1063): what HR or a Super Admin files is approved on filing, so nothing of
+   * their own is left waiting to be hidden.
    */
-  async listPendingForApprover({ employeeId, isHr = false, isSuperAdmin = false } = {}) {
+  async listPendingForApprover({ isHr = false, isSuperAdmin = false } = {}) {
     if (!isHr && !isSuperAdmin) return [];
     const query = supabase.from('meeting_requests').select(REQUEST_SELECT).eq('status', MEETING_STATUS.PENDING_HR).order('created_at');
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data ?? []).filter((r) => r.applicant_id !== employeeId);
+    return data ?? [];
   },
 
   /** The count behind the sidebar badge (same filter as the queue). */
@@ -389,7 +403,7 @@ export const meetingRequestService = {
       p_head_id: headId,
     });
     if (error) {
-      if (error.code === EXCLUSION_VIOLATION) throw new Error(await describeHolder({ venueId, startsAt, endsAt }));
+      if (error.code === EXCLUSION_VIOLATION) throw new Error(await describeHolder({ venueId, startsAt, endsAt, days }));
       throw new Error(error.message);
     }
     await this.afterChange(data, { actor });
@@ -455,6 +469,13 @@ export const meetingRequestService = {
       invited.delete(request.applicant_id);
       invited.delete(null);
       invited.delete(undefined);
+      // Someone an edit just added is told they are on it, not that "an Activity changed".
+      if (!cancelled) {
+        const before = new Set([result.old_facilitator_id, ...(result.old_participant_ids ?? [])]);
+        const added = [...invited].filter((id) => !before.has(id) && id !== request.applicant_id);
+        if (added.length) await this.notifyApproved(request, slot, senderId, { only: added });
+        for (const id of added) invited.delete(id);
+      }
       for (const recipient_id of invited) {
         await notificationService.createNotification({
           recipient_id,

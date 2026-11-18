@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "fs";
 import path from "path";
 import { MODULES, NOTIFICATION_TARGETS, LEGACY } from "./notificationTargets";
 import { PUSH_NOTIFICATION_TYPES } from "../constants/pushNotificationTypes";
+import { ACTIVITY_TYPE_KEYS } from "./activitySettings";
 
 /**
  * Every notification type the app can write needs an entry in NOTIFICATION_TARGETS,
@@ -33,7 +34,10 @@ const auditSource = readFileSync(path.join(root, "scripts/notification-click-aud
 const typesBlock = auditSource.match(/const TYPES = \{([\s\S]*?)\r?\n\};/);
 const auditTypes = [...typesBlock[1].matchAll(/"([A-Z][A-Z_]+)"/g)].map((m) => m[1]);
 
-const writtenTypes = new Set([...serviceTypes, ...migrationTypes, ...auditTypes]);
+// Activity type keys (ADMIN_TASK, ...) appear as values inside notification inserts; they are not notification types.
+const writtenTypes = new Set(
+  [...serviceTypes, ...migrationTypes, ...auditTypes].filter((t) => !ACTIVITY_TYPE_KEYS.includes(t)),
+);
 
 describe("NOTIFICATION_TARGETS", () => {
   it("found the type list in the audit script", () => {

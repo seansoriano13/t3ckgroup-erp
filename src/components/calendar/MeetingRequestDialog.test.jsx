@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,6 +8,8 @@ import { meetingRequestService } from '@/services/meetingRequestService';
 import { calendarService } from '@/services/calendarService';
 import { manilaToday } from '@/lib/manilaDate.js';
 import { formatDayLabel } from './activityDays.js';
+import { activitySettingsService } from '@/services/activitySettingsService';
+import { DEFAULT_ACTIVITY_SETTINGS, getActivitySettings, setActivitySettings } from '@/utils/activitySettings';
 
 const mockUser = { id: 'me', name: 'Me', is_head: true };
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: mockUser }) }));
@@ -122,17 +124,62 @@ describe('Activity form', () => {
     expect(await screen.findByRole('option', { name: 'Event' })).toBeInTheDocument();
   });
 
-  it('hides Event from a non-head', async () => {
+  it('offers a non-head only Meetings (#1063)', async () => {
     mockUser.is_head = false;
     try {
       renderForm([]);
       await screen.findByText('Activity type');
       fireEvent.click(screen.getAllByRole('combobox')[0]);
-      expect(await screen.findByRole('option', { name: 'Admin Task' })).toBeInTheDocument();
+      expect(await screen.findByRole('option', { name: 'Meeting' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Admin Task' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Operations Task' })).not.toBeInTheDocument();
       expect(screen.queryByRole('option', { name: 'Event' })).not.toBeInTheDocument();
     } finally {
       mockUser.is_head = true;
     }
+  });
+
+  describe('follows Settings > Activities (#1064)', () => {
+    const withSettings = (types = {}, general = {}) => ({
+      types: Object.fromEntries(Object.entries(DEFAULT_ACTIVITY_SETTINGS.types).map(([k, v]) => [k, { ...v, ...(types[k] ?? {}) }])),
+      general: { ...DEFAULT_ACTIVITY_SETTINGS.general, ...general },
+    });
+    const useSettings = (settings) => vi.spyOn(activitySettingsService, 'get').mockResolvedValue(settings);
+    afterEach(() => {
+      vi.restoreAllMocks();
+      setActivitySettings(DEFAULT_ACTIVITY_SETTINGS);
+    });
+
+    it('drops a type that is switched off and shows the new name of another', async () => {
+      useSettings(withSettings({ EVENT: { active: false }, ADMIN_TASK: { name: 'Office Duty' } }));
+      renderForm([]);
+      await waitFor(() => expect(getActivitySettings().types.ADMIN_TASK.name).toBe('Office Duty'));
+      await screen.findByText('Activity type');
+      fireEvent.click(screen.getAllByRole('combobox')[0]);
+      expect(await screen.findByRole('option', { name: 'Office Duty' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Event' })).not.toBeInTheDocument();
+    });
+
+    it('offers only the meeting types that are on', async () => {
+      useSettings(withSettings({}, { meetingTypes: { ONSITE: true, ONLINE: false, HYBRID: false } }));
+      renderForm([]);
+      await waitFor(() => expect(getActivitySettings().general.meetingTypes.ONLINE).toBe(false));
+      await screen.findByText('Meeting type');
+      fireEvent.click(screen.getAllByRole('combobox')[1]);
+      expect(await screen.findByRole('option', { name: 'Onsite' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Online' })).not.toBeInTheDocument();
+    });
+
+    it('lists times from the hours and step, and hides Guests when they are not allowed', async () => {
+      useSettings(withSettings({}, { earliestStart: '08:00', latestEnd: '12:00', timeStep: 60, defaultStart: '09:00', defaultEnd: '10:00', guestsAllowed: false }));
+      renderForm([], { date: '2031-03-10', start: '09:00', end: '10:00' });
+      await waitFor(() => expect(getActivitySettings().general.guestsAllowed).toBe(false));
+      await waitFor(() => expect(screen.queryByText('Guests (outside the company)')).not.toBeInTheDocument());
+      fireEvent.click(screen.getAllByRole('combobox').find((c) => c.textContent.includes('09:00')));
+      expect(await screen.findByRole('option', { name: '11:00' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: '09:15' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: '13:00' })).not.toBeInTheDocument();
+    });
   });
 
   describe('over a date range (#1056)', () => {

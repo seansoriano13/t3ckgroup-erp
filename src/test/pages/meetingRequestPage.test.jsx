@@ -74,7 +74,7 @@ describe("Meeting Request from the Calendar page", () => {
       </MemoryRouter>,
     );
 
-    await user.click(await screen.findByRole("button", { name: "New Activity" }));
+    await user.click(await screen.findByRole("button", { name: "New Meeting" }));
     const dialog = await screen.findByRole("dialog");
 
     await user.click(within(dialog).getAllByRole("combobox")[2]);
@@ -92,17 +92,17 @@ describe("Meeting Request from the Calendar page", () => {
     await waitFor(() => expect(db.rows("meeting_requests")).toHaveLength(1));
     expect(db.rows("meeting_request_events")).toHaveLength(1);
 
-    await user.click(await screen.findByRole("tab", { name: "My Activities" }));
+    await user.click(await screen.findByRole("button", { name: "My Activities" }));
     const list = await screen.findByTestId("my-meeting-requests");
     expect(within(list).getByText("Quarterly planning")).toBeInTheDocument();
     expect(within(list).getByText("Waiting for head")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Calendar" }));
+    await user.click(screen.getByRole("button", { name: "Close My Activities" }));
     // Tomorrow is in this month's grid unless today ends a month on a Sunday.
     await screen.findByTestId("calendar-month");
     if (!screen.queryByTestId(`day-${tomorrow}`)) await user.click(screen.getByRole("button", { name: "Next month" }));
     await user.click(await screen.findByTestId(`day-${tomorrow}`));
-    const rooms = within(screen.getByTestId("day-rail")).getByRole("region", { name: "Rooms" });
+    const rooms = within(await screen.findByTestId("day-rail")).getByRole("region", { name: "Rooms" });
     expect(await within(rooms).findByText("Quarterly planning")).toHaveClass("italic");
     expect(within(rooms).getByText("Waiting for head")).toBeInTheDocument();
   }, 30000);

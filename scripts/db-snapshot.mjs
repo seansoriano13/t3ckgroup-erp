@@ -27,7 +27,9 @@
  * than shelling out to pg_dump, so it has no Docker dependency of its own.
  */
 import pg from 'pg';
-import { writeFileSync, readFileSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, mkdtempSync } from 'fs';
+import { spawnSync } from 'child_process';
+import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { DEFAULT_LOCAL_DB_URL } from './lib/seedShared.mjs';
@@ -272,6 +274,14 @@ if (checkOnly) {
   const normalize = (s) => s.replace(/\r\n/g, '\n');
   const stripHeader = (s) => s.split('-- ============================================================\n-- Tables').slice(1).join('-- ============================================================\n-- Tables');
   if (stripHeader(normalize(committed)) !== stripHeader(normalize(body))) {
+    // Show what differs, so a failed gate log says what to fix.
+    const dir = mkdtempSync(join(tmpdir(), 'schema-diff-'));
+    writeFileSync(join(dir, 'committed.sql'), stripHeader(normalize(committed)));
+    writeFileSync(join(dir, 'live.sql'), stripHeader(normalize(body)));
+    const d = spawnSync('diff', ['-u', 'committed.sql', 'live.sql'], { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    console.error(d.stdout ? `--- ${compareFile} (committed)
++++ live schema
+${d.stdout}` : '(could not run diff)');
     console.error(`DRIFT DETECTED: the live schema on ${label} no longer matches ${compareFile}`);
     console.error(
       explicitUrl

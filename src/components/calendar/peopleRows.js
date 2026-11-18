@@ -1,4 +1,9 @@
+import { addDays } from 'date-fns';
+import { manilaDate, parseManilaDate } from '@/lib/manilaDate.js';
 import { TIME_OFF_KINDS, isOut } from './entrySpan.js';
+
+const dayBefore = (ymd) => manilaDate(addDays(parseManilaDate(ymd), -1));
+const dayAfter = (ymd) => manilaDate(addDays(parseManilaDate(ymd), 1));
 
 /**
  * Pure helpers for the Calendar's bars: each multi-day group becomes bars
@@ -9,14 +14,18 @@ import { TIME_OFF_KINDS, isOut } from './entrySpan.js';
 /**
  * Turns one person's entries into bars. Entries sharing a kind and group_id are one
  * request; its dates split into runs of consecutive days, one bar per run.
- * Each bar: { key, entry, kind, startYmd, endYmd, pending, lane }.
+ * Each bar: { key, entry, days, kind, startYmd, endYmd, pending, lane, continuesBefore, continuesAfter }.
+ * `entry` is the first day and `days` every day entry of the bar; the two flags say the request
+ * goes on past the first or last shown day (so the bar draws an open edge there).
  */
 export function entriesToBars(entries, days) {
   const index = new Map(days.map((ymd, i) => [ymd, i]));
   const groups = new Map();
+  const dates = new Map();
   for (const entry of entries) {
-    if (!index.has(entry.manila_date)) continue;
     const key = `${entry.kind}:${entry.group_id ?? entry.id}`;
+    dates.set(key, (dates.get(key) ?? new Set()).add(entry.manila_date));
+    if (!index.has(entry.manila_date)) continue;
     const list = groups.get(key) ?? [];
     list.push(entry);
     groups.set(key, list);
@@ -34,7 +43,10 @@ export function entriesToBars(entries, days) {
         kind: first.kind,
         startYmd: first.manila_date,
         endYmd: run[run.length - 1].manila_date,
+        days: run,
         pending: run.some((e) => e.status === 'PENDING'),
+        continuesBefore: first.manila_date === days[0] && dates.get(key).has(dayBefore(days[0])),
+        continuesAfter: run[run.length - 1].manila_date === days[days.length - 1] && dates.get(key).has(dayAfter(days[days.length - 1])),
       });
     };
     for (let i = 1; i < sorted.length; i++) {
@@ -59,6 +71,26 @@ export function entriesToBars(entries, days) {
     bar.lane = lane;
   }
   return bars;
+}
+
+/**
+ * The day entry a click on a bar means: the day under the pointer, or the bar's first day when
+ * the pointer is not over it (keyboard, or a screen with no layout). `cols` are the day columns
+ * the bar covers, from `startIndex`, and `fraction` is how far across the bar the click landed.
+ */
+export function dayAtFraction(bar, columns, startIndex, ymds, fraction) {
+  if (!Number.isFinite(fraction)) return bar.entry;
+  const at = Math.min(columns - 1, Math.max(0, Math.floor(fraction * columns)));
+  const ymd = ymds[startIndex + at];
+  return bar.days.find((e) => e.manila_date === ymd) ?? bar.entry;
+}
+
+/** The entry a click on a bar opens: the day under the pointer. */
+export function entryUnderClick(bar, ymds, event) {
+  const rect = event?.currentTarget?.getBoundingClientRect?.();
+  const fraction = rect?.width ? (event.clientX - rect.left) / rect.width : NaN;
+  const start = ymds.indexOf(bar.startYmd);
+  return dayAtFraction(bar, ymds.indexOf(bar.endYmd) - start + 1, start, ymds, fraction);
 }
 
 /** How many people are out on each day: Time Off and undertime, one count per person per day. */
@@ -86,19 +118,36 @@ function summarize(list) {
 }
 
 /**
- * The Gantt's people: one row per person with an entry other than a meeting,
- * grouped by department (sorted, "No department" for none), people sorted by
- * name. `days` are the Manila dates the chart shows. `query` narrows by name
+ * The people an entry is drawn for on the Gantt. An Activity (kind MEETING) is on the row of
+ * its Lead and of every Participant; every other kind is on its one employee's row.
+ * A person with no known department is looked up in `known` (id to employee).
+ */
+function peopleOf(entry, known) {
+  if (entry.kind !== 'MEETING') return entry.employee?.id ? [entry.employee] : [];
+  const d = entry.details ?? {};
+  const lead = d.facilitator?.id ? [d.facilitator] : entry.employee?.id ? [entry.employee] : [];
+  const seen = new Set();
+  return [...lead, ...(d.participants ?? [])]
+    .filter((p) => p?.id && !seen.has(p.id) && seen.add(p.id))
+    .map((p) => ({ ...p, department: p.department ?? known.get(p.id)?.department }));
+}
+
+/**
+ * The Gantt's people: one row per person with an entry, Activities included
+ * (on the Lead's and each Participant's row), grouped by department (sorted,
+ * "No department" for none), people sorted by name. `days` are the Manila dates the chart shows. `query` narrows by name
  * or department (case-insensitive). Returns [[department, rows]].
  */
 export function groupByDepartment(entries, days, query = '') {
+  const known = new Map();
+  for (const entry of entries ?? []) if (entry.employee?.id && !known.has(entry.employee.id)) known.set(entry.employee.id, entry.employee);
   const people = new Map();
   for (const entry of entries ?? []) {
-    const person = entry.employee;
-    if (entry.kind === 'MEETING' || !person?.id) continue;
-    const row = people.get(person.id) ?? { employee: person, entries: [] };
-    row.entries.push(entry);
-    people.set(person.id, row);
+    for (const person of peopleOf(entry, known)) {
+      const row = people.get(person.id) ?? { employee: person, entries: [] };
+      row.entries.push(entry);
+      people.set(person.id, row);
+    }
   }
   const needle = query.trim().toLowerCase();
   const shown = new Set(days);

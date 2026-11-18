@@ -3,18 +3,18 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { manilaTime } from '@/lib/manilaDate.js';
-import { ACTIVITY_TYPES, ENTRY_KINDS, LAYERS, activityTypeOf, kindOf, styleOf } from './entryKinds.jsx';
+import { ACTIVITY_TYPES, ENTRY_KINDS, LAYERS, activityTypeOf, kindOf, layerLabel, styleOf } from './entryKinds.jsx';
 import { formatEntryTime } from './entryFormat.js';
 import { initials } from './entrySpan.js';
 
 // Small parts both Calendar layouts share; each layout owns its own grid.
 
 const LAYOUT_SWITCH = [
-  { key: 'calendar', label: 'Calendar', icon: CalendarDays },
+  { key: 'calendar', label: 'Month', icon: CalendarDays },
   { key: 'gantt', label: 'Gantt', icon: ChartGantt },
 ];
 
-/** Calendar | Gantt. */
+/** Month | Gantt. */
 export function LayoutSwitch({ layout, onChange }) {
   return (
     <div className="flex rounded-xl bg-muted p-1" role="group" aria-label="Layout">
@@ -70,7 +70,7 @@ export function LayerToggles({ layers, toggleLayer, all }) {
             ) : (
               <span className={cn('size-2 rounded-full', on ? LAYER_DOT[key] : 'bg-mauve-7')} aria-hidden />
             )}
-            {label}
+            {layerLabel({ key, label })}
             <span className="font-mono text-xs tabular-nums text-muted-foreground" aria-hidden>
               {counts[key] ?? 0}
             </span>

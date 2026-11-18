@@ -13,11 +13,14 @@ import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
 import { calendarService } from '@/services/calendarService';
 import { employeeService } from '@/services/employeeService';
-import { ACTIVITY_TYPE, ACTIVITY_TYPE_LABEL, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue, requestDays } from '@/services/meetingRequestService';
+import { formTypeOptions } from '@/utils/activityFiling';
+import { ACTIVITY_TYPE, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue, requestDays } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
 import { isIsoDate } from '@/utils/dateUtils.js';
 import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
-import { TIME_OPTIONS, draftProblem, manilaInstant } from './meetingDraft.js';
+import { draftProblem, manilaInstant } from './meetingDraft.js';
+import { useActivitySettings } from '@/hooks/useActivitySettings';
+import { enabledMeetingTypes, timeOptions } from '@/utils/activitySettings';
 import ActivityDayRows from './ActivityDayRows.jsx';
 import { daysFromSaved, daysPayload, keptDays } from './activityDays.js';
 import { clashMessage, findClash, rangeWarnings, venueMeetings } from './meetingPreview.js';
@@ -70,9 +73,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const { user } = useAuth();
   const queryClient = useQueryClient();
   useMeetingRealtime();
+  // The rules HR set in Settings > Activities: types, meeting types, hours, default times, longest range, Guests.
+  const settings = useActivitySettings();
+  const rules = settings.general;
+  const times = useMemo(() => timeOptions(rules), [rules]);
+  const meetingTypeKeys = enabledMeetingTypes(rules);
 
   const [activityType, setActivityType] = useState(editing?.activity_type ?? ACTIVITY_TYPE.MEETING);
-  const [meetingType, setMeetingType] = useState(editing?.meeting_type ?? MEETING_TYPE.ONSITE);
+  const [meetingType, setMeetingType] = useState(editing?.meeting_type ?? (meetingTypeKeys.includes(MEETING_TYPE.ONSITE) ? MEETING_TYPE.ONSITE : meetingTypeKeys[0] ?? MEETING_TYPE.ONSITE));
   const [meetingLink, setMeetingLink] = useState(editing?.meeting_link ?? '');
   const [venuePick, setVenueId] = useState(editing?.venue_id ?? initial.venueId ?? '');
   // A saved request's days: the range, each day's own times, and the days that have already started.
@@ -80,8 +88,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [date, setDate] = useState(() => saved?.from ?? initial.date ?? manilaToday());
   const [dateTo, setDateTo] = useState(() => saved?.to ?? '');
   const [dayEdits, setDayEdits] = useState(() => saved?.edits ?? {});
-  const [start, setStart] = useState(saved?.start ?? initial.start ?? '09:00');
-  const [end, setEnd] = useState(saved?.end ?? initial.end ?? '10:00');
+  const [start, setStart] = useState(saved?.start ?? initial.start ?? rules.defaultStart);
+  const [end, setEnd] = useState(saved?.end ?? initial.end ?? rules.defaultEnd);
   const frozenDates = saved?.frozen ?? NO_DATES;
   const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');  // the Lead
   const [participants, setParticipants] = useState(() =>
@@ -95,12 +103,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
   const people = useMemo(() => [...employees].sort((a, b) => a.name.localeCompare(b.name)), [employees]);
-  const viewerIsHead = Boolean(user?.is_head || user?.isHead);
-  // Only a department head files an Event; the database refuses anyone else.
-  const typeOptions = Object.values(ACTIVITY_TYPE)
-    .filter((t) => t !== ACTIVITY_TYPE.EVENT || viewerIsHead || editing?.activity_type === ACTIVITY_TYPE.EVENT)
-    .map((t) => ({ value: t, label: ACTIVITY_TYPE_LABEL[t] }));
+  // The form offers only what the viewer may file; the database refuses the rest (#1063).
+  const typeOptions = formTypeOptions(user, editing?.activity_type, settings).map((t) => ({ value: t, label: settings.types[t].name }));
   const isMeeting = activityType === ACTIVITY_TYPE.MEETING;
+  // Whether this type can run over several days is a setting, not a rule of the Meeting.
+  const multiDay = Boolean(settings.types[activityType]?.multiDay);
+  const meetingTypeOptions = Object.values(MEETING_TYPE)
+    .filter((t) => meetingTypeKeys.includes(t) || t === editing?.meeting_type)
+    .map((t) => ({ value: t, label: MEETING_TYPE_LABEL[t] }));
 
   const { data: lastPicks } = useQuery({
     queryKey: ['meeting-last-picks', user?.id],
@@ -115,9 +125,9 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   // A date box hands over '' while cleared and a too-long year as typed. Nothing below works
   // out a time from a date that is not real: that threw "Invalid time value" and took the page down.
   const dateOk = isIsoDate(date);
-  // A Meeting is one day. The other types can run From to To, one row per day.
-  const rangeEnd = !isMeeting && isIsoDate(dateTo) && dateTo > date ? dateTo : date;
-  const days = isMeeting
+  // A type that is one day is one row. A type that can run over several days goes From to To, one row per day.
+  const rangeEnd = multiDay && isIsoDate(dateTo) && dateTo > date ? dateTo : date;
+  const days = !multiDay
     ? [{ date, start, end, frozen: false }]
     : keptDays(date, rangeEnd, dayEdits, start, end, frozenDates);
   // Every day of the range, so the soft warnings cover each day. A Meeting's range is its one day.
@@ -146,7 +156,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       })
     : [];
 
-  const problem = clash ? clashMessage(clash) : draftProblem({ activityType, meetingType, meetingLink, venueId, date, start, end, days, facilitatorId, purpose, guests });
+  const problem = clash ? clashMessage(clash) : draftProblem({ activityType, meetingType, meetingLink, venueId, date, start, end, days, facilitatorId, purpose, guests, multiDay, typeName: settings.types[activityType]?.name, maxDays: rules.maxDays });
 
   const addGuest = () => {
     const name = guestDraft.trim();
@@ -223,7 +233,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             <SelectField
               value={meetingType}
               onChange={setMeetingType}
-              options={Object.values(MEETING_TYPE).map((t) => ({ value: t, label: MEETING_TYPE_LABEL[t] }))}
+              options={meetingTypeOptions}
               className="w-full"
             />
           </div>
@@ -253,7 +263,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           </div>
         )}
         <div>
-          <FieldBox label={isMeeting ? 'Date' : 'From'} className="mb-1.5 block" />
+          <FieldBox label={multiDay ? 'From' : 'Date'} className="mb-1.5 block" />
           <Input
             type="date"
             value={date}
@@ -264,7 +274,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             className="font-semibold"
           />
         </div>
-        {!isMeeting && (
+        {multiDay && (
           <div>
             <FieldBox label="To" className="mb-1.5 block" />
             <Input
@@ -281,14 +291,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         <div className="grid grid-cols-2 gap-4 sm:col-span-2">
           <div className="min-w-0">
             <FieldBox label="Start" className="mb-1.5 block" />
-            <SelectField value={start} onChange={setStart} options={TIME_OPTIONS} className="w-full" />
+            <SelectField value={start} onChange={setStart} options={times} className="w-full" />
           </div>
           <div className="min-w-0">
             <FieldBox label="End" className="mb-1.5 block" />
-            <SelectField value={end} onChange={setEnd} options={TIME_OPTIONS} className="w-full" />
+            <SelectField value={end} onChange={setEnd} options={times} className="w-full" />
           </div>
         </div>
-        {!isMeeting && <ActivityDayRows from={date} to={rangeEnd} edits={dayEdits} onEdit={setDayEdit} start={start} end={end} frozen={frozenDates} />}
+        {multiDay && <ActivityDayRows from={date} to={rangeEnd} edits={dayEdits} onEdit={setDayEdit} start={start} end={end} frozen={frozenDates} timeOptions={times} />}
         <div className="sm:col-span-2">
           <FieldBox label="Lead" className="mb-1.5 block" />
           <SelectField
@@ -303,8 +313,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <FieldBox label="Participants" className="mb-1.5 block" />
           <PeoplePicker value={participants} onChange={setParticipants} types={[SELECTOR_TYPES.EMPLOYEE]} placeholder="Add participants" />
         </div>
+        {(rules.guestsAllowed || guests.length > 0) && (
         <div className="sm:col-span-2">
           <FieldBox label="Guests (outside the company)" className="mb-1.5 block" />
+          {rules.guestsAllowed ? (
           <div className="flex items-end gap-2">
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
             <Input
@@ -337,6 +349,9 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
               Add
             </Button>
           </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Guests are not allowed now. You can remove the ones already listed.</p>
+          )}
           {guests.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-1.5">
               {guests.map((g) => (
@@ -356,6 +371,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             </ul>
           )}
         </div>
+        )}
         <div className="sm:col-span-2">
           <FieldBox label="Purpose" className="mb-1.5 block" />
           <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the Activity for?" />

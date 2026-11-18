@@ -6,6 +6,7 @@ import {
   getFilteredQuickActions,
   buildUserPermissionContext,
 } from "./navigation";
+import { getActivitySettings, setActivitySettings } from "@/utils/activitySettings";
 
 describe("navigation registry", () => {
   it("defines the 7 canonical ERP modules adhering to CONTEXT.md", () => {
@@ -505,10 +506,26 @@ describe("navigation registry", () => {
       expect(actions[0].category).toBe("Personal");
       expect(actions[0].items.map((i) => i.label)).toEqual([
         "File Time Off / Overtime",
-        "New Activity",
+        "New Meeting",
       ]);
       expect(actions[1].category).toBe("Operations");
       expect(actions[1].items.map((i) => i.label)).toEqual(["New Purchase Request"]);
+    });
+
+    it("shows no Activity button when the viewer can file no type (#1062)", () => {
+      const before = getActivitySettings();
+      const types = Object.fromEntries(
+        Object.entries(before.types).map(([k, v]) => [k, { ...v, active: false }]),
+      );
+      setActivitySettings({ ...before, types });
+      try {
+        const labels = getFilteredQuickActions({ id: "u1" }).flatMap((g) => g.items.map((i) => i.label));
+        expect(labels).not.toContain("New Activity");
+        expect(labels).not.toContain("New Meeting");
+        expect(labels).toContain("File Time Off / Overtime");
+      } finally {
+        setActivitySettings(before);
+      }
     });
 
     it("returns Personal, Operations, and Sales categories for Super Admin", () => {

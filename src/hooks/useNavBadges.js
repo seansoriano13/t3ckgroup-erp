@@ -3,6 +3,7 @@ import { taskService } from "../services/taskService";
 import { headApprovalService } from "../services/headApprovalService";
 import { opportunityService } from "../services/opportunityService";
 import { meetingRequestService } from "../services/meetingRequestService";
+import { useMeetingRealtime } from "./useMeetingRealtime";
 import { ipasService } from "../services/ipasService";
 import { ipasPendingKey } from "../components/ipas/ipasKeys";
 
@@ -61,11 +62,13 @@ export function useNavBadges(user) {
 
   // 2b. Activities waiting on HR (#748): only HR / Super Admin decide them.
   const canSeeMeetings = isSuperAdmin || isHr;
+  // Live like the Calendar (#1063): another approver's decision or a new filing moves the count at once.
+  useMeetingRealtime({ enabled: !!user?.id && canSeeMeetings });
   const { data: pendingMeetings = [] } = useQuery({
-    queryKey: ["meeting-requests", "nav-badge", user?.id, isHr, isSuperAdmin],
-    queryFn: () => meetingRequestService.listPendingForApprover({ employeeId: user.id, isHr, isSuperAdmin }),
+    queryKey: ["meeting-requests", "nav-badge", isHr, isSuperAdmin],
+    queryFn: () => meetingRequestService.listPendingForApprover({ isHr, isSuperAdmin }),
     enabled: !!user?.id && canSeeMeetings,
-    staleTime: 30000,
+    staleTime: 0,
   });
   const meetingApprovals = canSeeMeetings ? pendingMeetings.length : 0;
 
