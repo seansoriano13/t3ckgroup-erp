@@ -50,11 +50,12 @@ function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end
   // Like the server: only the entries whose Manila date is inside the asked range.
   calendarService.fetchEntries.mockImplementation(async ({ from, to }) => entries.filter((e) => e.manila_date >= from && e.manila_date <= to));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <MeetingRequestDialog open onClose={() => {}} initial={initial} editing={editing} />
     </QueryClientProvider>,
   );
+  return { ...view, client };
 }
 
 /** A Manila date `n` days from `ymd`, and a Manila wall-clock time on it as an instant. */
@@ -95,6 +96,23 @@ describe('Activity form', () => {
     expect(box).toHaveTextContent('Me is in another Activity at Admin Office, 09:00 to 10:00.');
     fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: 'Planning' } });
     expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
+  });
+
+  it('does not show the Activity it is sending as a clash with itself when the list refreshes mid-send', async () => {
+    meetingRequestService.fileRequest.mockReturnValue(new Promise(() => {}));
+    const entries = [];
+    const { client } = renderForm(entries);
+    await screen.findByText('Activity type');
+    fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: 'Planning' } });
+    fireEvent.click(screen.getByRole('button', { name: /Send request/ }));
+    await screen.findByRole('button', { name: /Sending/ });
+    const calls = calendarService.fetchEntries.mock.calls.length;
+    // The realtime refresh lands: the row being saved is now in the list.
+    entries.push(meeting({ details: { facilitator: { id: 'me', name: 'Me' }, participants: [] } }));
+    await client.invalidateQueries({ queryKey: ['meeting-requests'] });
+    expect(calendarService.fetchEntries.mock.calls.length).toBe(calls);
+    expect(screen.queryByText(/already held/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('soft-warnings')).not.toBeInTheDocument();
   });
 
   it('does not crash when the date is cleared, and asks for a date', async () => {

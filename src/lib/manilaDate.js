@@ -37,6 +37,11 @@ export function manilaTime(instant) {
   return format(toManila(instant), 'HH:mm')
 }
 
+/** An instant as a Manila "3:27 PM" (12-hour clock). */
+export function formatManilaTime(instant) {
+  return format(toManila(instant), 'h:mm a')
+}
+
 /** An instant as a Manila "Oct 14, 2026". */
 export function formatManilaDate(instant) {
   return format(toManila(instant), 'MMM d, yyyy')
