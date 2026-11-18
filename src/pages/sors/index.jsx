@@ -172,6 +172,34 @@ const SCOPE_PARAM = "scope";
 const isLegacyMineLink = (params) => params.get(RECORD_VIEW_PARAM) === "mine" && !params.get(RECORD_LINK_PARAM);
 const openRecord = (id) => openRecordWindow({ id, type: "OPPORTUNITY" });
 
+// "Proposal Submitted", "ProposalSubmitted" and "proposal submitted" are the
+// same Stage: flow Stages and the pipeline list were typed separately.
+const stageNameKey = (name) => String(name ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const sameStageName = (a, b) => stageNameKey(a) === stageNameKey(b);
+
+function shownStage(o, flowStagesIndex, pipelineStages) {
+  if (o.sale_type_id) {
+    const stage = flowStagesIndex?.stagesById?.[o.flow_stage_id];
+    if (!stage) return { label: null, tone: "mauve" };
+    const flow = flowStagesIndex.flowsById[stage.flow_id];
+    const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
+    return { label: stage.name, tone: flowStageTone(stage, flow, stagesOfFlow) };
+  }
+  const pipelineStage = pipelineStages.find((s) => s.code === o.status);
+  return { label: pipelineStage?.label || o.status, tone: null, code: o.status };
+}
+
+// The Stage filter's options are the pipeline's Stage codes, but a flow SOR's
+// `status` never moves off "LEAD" — its real Stage is the flow Stage it sits
+// on. So match on the Stage the row shows (same name as the option's label),
+// and fall back to `status` only when the row shows no Stage.
+function isOnStageCode(o, code, flowStagesIndex, pipelineStages) {
+  const target = pipelineStages.find((s) => s.code === code);
+  const shown = shownStage(o, flowStagesIndex, pipelineStages).label;
+  if (!target || !shown) return o.status === code;
+  return sameStageName(shown, target.label);
+}
+
 export default function OpportunitiesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -359,17 +387,7 @@ export default function OpportunitiesPage() {
     queryFn: () => salesFlowService.getSaleTypes({ includeArchived: true }),
   });
 
-  const stageDisplay = (o) => {
-    if (o.sale_type_id) {
-      const stage = flowStagesIndex?.stagesById?.[o.flow_stage_id];
-      if (!stage) return { label: null, tone: "mauve" };
-      const flow = flowStagesIndex.flowsById[stage.flow_id];
-      const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
-      return { label: stage.name, tone: flowStageTone(stage, flow, stagesOfFlow) };
-    }
-    const pipelineStage = pipelineStages.find((s) => s.code === o.status);
-    return { label: pipelineStage?.label || o.status, tone: null, code: o.status };
-  };
+  const stageDisplay = (o) => shownStage(o, flowStagesIndex, pipelineStages);
 
   // Issue #199 — each flow SOR is judged against its OWN Flow Snapshot, so
   // the register reads every distinct snapshot among its SORs once, in bulk,
@@ -462,7 +480,7 @@ export default function OpportunitiesPage() {
       } else if (view !== "board" && isLostOpportunity(o, stageContext)) {
         return false;
       }
-      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && stageFilter !== "LOST" && o.status !== stageFilter) return false;
+      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && stageFilter !== "LOST" && !isOnStageCode(o, stageFilter, flowStagesIndex, pipelineStages)) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
       if (!matchesSaleType(o, effectiveSaleTypeFilter)) return false;
@@ -514,6 +532,8 @@ export default function OpportunitiesPage() {
     employeeFilter,
     user?.id,
     stageContext,
+    flowStagesIndex,
+    pipelineStages,
   ]);
 
   // ── Register sorting ────────────────────────────────────────────────────

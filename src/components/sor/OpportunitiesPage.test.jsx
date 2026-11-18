@@ -5,6 +5,7 @@ import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunitiesPage from "../../pages/sors/index";
 import { opportunityService } from "../../services/opportunityService";
 import { makeFlowSnapshot } from "../../test/factories";
+import { salesFlowService } from "../../services/salesFlowService";
 
 const MOCK_OPP_1 = {
   id: "opp-uuid-1",
@@ -458,5 +459,49 @@ describe("Lost deals in the register (#814)", () => {
     expect(screen.getByRole("columnheader", { name: "Reason" })).toBeInTheDocument()
     expect(screen.getByText("No response from client")).toBeInTheDocument()
     expect(screen.getByText("Other: Client went silent")).toBeInTheDocument()
+  })
+})
+
+// A flow SOR's `status` never moves off "LEAD", so the List's Stage filter has
+// to follow the Stage the row shows. Four Project SORs sat on "Qualified" and
+// were missing from the Qualified filter.
+describe("Stage filter follows the Stage a flow SOR sits on", () => {
+  const index = {
+    flowsById: { "flow-1": { id: "flow-1", sale_type_id: "st-1" } },
+    stagesById: {
+      "stage-lead": { id: "stage-lead", flow_id: "flow-1", name: "Lead", sort_order: 10 },
+      "stage-q": { id: "stage-q", flow_id: "flow-1", name: "Qualified", sort_order: 30 },
+    },
+    stagesByFlow: {
+      "flow-1": [
+        { id: "stage-lead", flow_id: "flow-1", name: "Lead", sort_order: 10 },
+        { id: "stage-q", flow_id: "flow-1", name: "Qualified", sort_order: 30 },
+      ],
+    },
+  }
+  const flowRow = (id, title, stageId) => ({
+    ...MOCK_OPP_1, id, serial_no: 10, project_title: title,
+    status: "LEAD", sale_type_id: "st-1", flow_stage_id: stageId, flow_snapshot_id: null,
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(salesFlowService, "getAllStagesIndex").mockResolvedValue(index)
+    opportunityService.getOpportunities.mockResolvedValue([
+      flowRow("f-q", "Flow deal on Qualified", "stage-q"),
+      flowRow("f-lead", "Flow deal on Lead", "stage-lead"),
+      { ...MOCK_OPP_2, serial_no: 11 },
+    ])
+  })
+
+  it("lists a flow SOR on Qualified, and not one on Lead, when filtered to Qualified", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities?status=QUALIFIED"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("Flow deal on Qualified")).toBeInTheDocument()
+    expect(screen.queryByText("Flow deal on Lead")).toBeNull()
   })
 })
