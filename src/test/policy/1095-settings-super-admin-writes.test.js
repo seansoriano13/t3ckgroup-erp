@@ -33,6 +33,7 @@ const leadSource = async (value) => (await svc().from("crm_lead_sources").select
 
 describe("crm_lead_sources (Settings > Sales Configuration)", () => {
     it("is read by a plain employee", async () => {
+        await svc().from("crm_lead_sources").insert({ value: `${TAG}_READ`, label: "Readable" })
         const { data, error } = await (await clientFor("ordinary")).from("crm_lead_sources").select("value, label, is_active")
         expect(error).toBeNull()
         expect(data.length).toBeGreaterThan(0)
@@ -115,6 +116,7 @@ describe("meal_break_settings (Settings > HR & Schedule)", () => {
     const current = async () => (await svc().from("meal_break_settings").select("*").eq("key", "dinner").single()).data
 
     it("is read by a plain employee", async () => {
+        await svc().from("crm_lead_sources").insert({ value: `${TAG}_READ`, label: "Readable" })
         const { data, error } = await (await clientFor("ordinary")).from("meal_break_settings").select("key")
         expect(error).toBeNull()
         expect(data.length).toBeGreaterThan(0)

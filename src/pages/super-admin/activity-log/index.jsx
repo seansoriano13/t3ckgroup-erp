@@ -10,10 +10,8 @@ import { opportunityService } from "../../../services/opportunityService";
 import Avatar from "../../../components/Avatar.jsx";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
-import ActivityLogFilterBar, {
-  GROUP_TASK_STATUS_OPTIONS,
-  TASK_STATUS_OPTIONS,
-} from "../../../components/ActivityLogFilterBar";
+import ActivityLogFilterBar from "../../../components/ActivityLogFilterBar";
+import { GROUP_TASK_STATUS_OPTIONS, TASK_STATUS_OPTIONS } from "@/constants/activityLogStatusOptions";
 import { LiveIndicator, LogLoadError, LogPager } from "../../../components/ActivityLogParts";
 import { LOG_LOAD_ERROR_MESSAGE } from "../../../lib/activityLogSearch";
 import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort, systemLogSubject } from "../../../lib/activityLog";
