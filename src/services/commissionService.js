@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import {
   RATE_TYPES,
+  assertPercentagesInRange,
   assertPercentagesSumTo100,
   calculateCommissionBreakdown,
   splitSalesShareForRoles,
@@ -172,6 +173,7 @@ async function createRate({ rateType, percent, effectiveFrom }, actorId) {
   if (!effectiveFrom) {
     throw new Error("Effective-from date is required.");
   }
+  assertPercentagesInRange([percent], { label: "Rate percent" });
 
   const { data, error } = await supabase
     .from("commission_rates")
@@ -194,6 +196,7 @@ async function createRate({ rateType, percent, effectiveFrom }, actorId) {
 async function saveDepartmentAllocations(departments, actorId) {
   await requireSuperAdmin(actorId);
 
+  assertPercentagesInRange(departments.map((department) => department.allocationPercent), { label: "Department allocations" });
   assertPercentagesSumTo100(
     departments.map((department) => department.allocationPercent),
     { label: "Department allocations" },
@@ -236,6 +239,7 @@ async function getPositions(departmentId) {
 async function savePositionAllocations(departmentId, positions, actorId) {
   await requireSuperAdmin(actorId);
 
+  assertPercentagesInRange(positions.map((position) => position.allocationPercent), { label: "Position allocations" });
   assertPercentagesSumTo100(
     positions.map((position) => position.allocationPercent),
     { label: "Position allocations" },
@@ -282,6 +286,7 @@ async function savePositionAllocations(departmentId, positions, actorId) {
 async function saveSplitsForProjectType(projectType, splits, actorId) {
   await requireSalesDirectorOrSuperAdmin(actorId);
 
+  assertPercentagesInRange(splits.map((split) => split.percent), { label: "Commission Split percentages" });
   assertPercentagesSumTo100(
     splits.map((split) => split.percent),
     { label: "Commission Split percentages" },

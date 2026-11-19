@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertPercentagesInRange,
   assertPercentagesSumTo100,
   calculateCommissionableRevenue,
   calculateCommissionBreakdown,
@@ -668,5 +669,22 @@ describe("aggregateOpportunityCommissions", () => {
 
     const bobMetrics = agg.salesEmployees.find((e) => e.employeeId === "emp-bob");
     expect(bobMetrics.roleBreakdown.closing_salesperson).toBeCloseTo(821.43, 2);
+  });
+});
+
+describe("assertPercentagesInRange", () => {
+  it("accepts 0 and 100 and values between", () => {
+    expect(() => assertPercentagesInRange([0, 50, 100])).not.toThrow();
+  });
+
+  it("refuses a negative value even when the total is 100", () => {
+    expect(() => assertPercentagesInRange([-5, 105], { label: "Department allocations" })).toThrow(
+      /Department allocations must each be between 0% and 100%/,
+    );
+  });
+
+  it("refuses a value above 100 and a non-number", () => {
+    expect(() => assertPercentagesInRange([100.5])).toThrow();
+    expect(() => assertPercentagesInRange([Number.NaN])).toThrow();
   });
 });

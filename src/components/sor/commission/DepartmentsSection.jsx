@@ -11,6 +11,7 @@ import { Meter, Swatch, UsageRow, UsageSection } from "./parts";
 const INPUT_CLASS = "h-7 rounded-md border border-border bg-card px-2 text-right text-sm tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-mauve-6";
 
 const sumOf = (values) => values.reduce((sum, v) => sum + (Number(v) || 0), 0);
+const inRange = (v) => Number(v) >= 0 && Number(v) <= 100;
 const isHundred = (total) => Math.abs(total - 100) <= 0.01;
 
 function Total({ total, className = "" }) {
@@ -37,7 +38,7 @@ function PositionsDetail({ department, canEdit, actorId }) {
   const rows = draft ?? positions;
   const total = sumOf(rows.map((r) => r.allocationPercent));
   const dirty = draft !== null;
-  const valid = isHundred(total) && rows.length > 0 && rows.every((r) => r.name.trim());
+  const valid = isHundred(total) && rows.length > 0 && rows.every((r) => inRange(r.allocationPercent)) && rows.every((r) => r.name.trim());
   const patch = (index, change) => setDraft(rows.map((row, i) => (i === index ? { ...row, ...change } : row)));
 
   const save = useMutation({
@@ -186,7 +187,7 @@ export default function DepartmentsSection({ departments, canViewAllFinancials, 
         <div className="flex items-center justify-end gap-3 px-4 py-3">
           <Total total={total} />
           <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
-          <Button type="button" size="sm" disabled={!dirty || !isHundred(total) || save.isPending} onClick={() => save.mutate()}>Save allocations</Button>
+          <Button type="button" size="sm" disabled={!dirty || !isHundred(total) || !records.every((r) => inRange(values(r))) || save.isPending} onClick={() => save.mutate()}>Save allocations</Button>
         </div>
       )}
     </UsageSection>

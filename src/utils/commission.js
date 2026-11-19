@@ -27,6 +27,19 @@ export function assertPercentagesSumTo100(percentages, { label = "Percentages", 
   }
 }
 
+/**
+ * Throws if any percentage is not a number between 0 and 100. The sum check
+ * above cannot catch a negative share balanced by an oversized one.
+ */
+export function assertPercentagesInRange(percentages, { label = "Percentages" } = {}) {
+  for (const percent of percentages) {
+    const value = Number(percent);
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      throw new Error(`${label} must each be between 0% and 100%.`);
+    }
+  }
+}
+
 export const RATE_TYPES = {
   VAT: "VAT",
   WITHHOLDING: "WITHHOLDING",
