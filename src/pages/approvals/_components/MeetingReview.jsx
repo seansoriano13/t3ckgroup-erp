@@ -52,7 +52,7 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
                     {req.meeting_link}
                   </ExternalLink>
                 ) : (
-                  req.meeting_link
+                  <span className="break-words">{req.meeting_link}</span>
                 )}
               </DetailRow>
             )}
@@ -60,8 +60,8 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
             <DetailRow label="First filed">{formatManilaDateTime(item.submittedAt)}</DetailRow>
             <DetailRow label="Lead">{req.facilitator?.name}</DetailRow>
             <DetailRow label="Participants">{people.length ? people.join(", ") : "None"}</DetailRow>
-            <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(", ") : "None"}</DetailRow>
-            <DetailRow label="Purpose">{req.purpose}</DetailRow>
+            <DetailRow label="Guests"><span className="break-words">{guests.length ? guests.map(guestText).join(", ") : "None"}</span></DetailRow>
+            <DetailRow label="Purpose"><span className="break-words">{req.purpose}</span></DetailRow>
           </dl>
         </DetailSection>
 

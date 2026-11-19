@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
+import { ahead } from "./support/dates.js"
 
 const svc = () => serviceClient()
 const created = []
@@ -17,7 +18,7 @@ let venue
 
 // One Manila day per slot number, 09:00 to 10:00, so no two requests clash at a Venue.
 const slot = (n, hours = 1) => {
-    const d = Date.UTC(2038, 0, 1 + n, 1, 0, 0)
+    const d = Date.UTC(...ahead(210 + n), 1, 0, 0)
     return { p_starts_at: new Date(d).toISOString(), p_ends_at: new Date(d + hours * 3_600_000).toISOString() }
 }
 let n = 0
@@ -113,7 +114,7 @@ describe("an edit with no differing field", () => {
         }
 
         n += 1
-        const base = Date.UTC(2038, 6, 1 + n, 1, 0, 0)
+        const base = Date.UTC(...ahead(260 + n), 1, 0, 0)
         const days = [0, 1, 2].map((k) => ({ starts_at: new Date(base + k * 86_400_000).toISOString(), ends_at: new Date(base + k * 86_400_000 + 3_600_000).toISOString() }))
         const filed = await (await clientFor("head")).rpc("file_meeting_request", {
             p_venue_id: null,

@@ -10,12 +10,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
+import { ahead } from "./support/dates.js"
 
 const svc = () => serviceClient()
 const created = []
 let venue
 
-const at = (n) => new Date(Date.UTC(2034, 5, 1, 1, 0, 0) + n * 15 * 60_000).toISOString()
+const at = (n) => new Date(Date.UTC(...ahead(60), 1, 0, 0) + n * 15 * 60_000).toISOString()
 
 const insert = async (over = {}) => {
     const { data, error } = await svc()

@@ -14,7 +14,9 @@ import { tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./support/access
 import { MARKER } from "./support/rows.js"
 
 const svc = () => serviceClient()
-const DAY = "2031-04-14"
+// Days counted from today: the database refuses a day more than one year ahead (#1087).
+const dayPlus = (n) => new Date(Date.now() + (300 + n) * 86_400_000).toISOString().slice(0, 10)
+const DAY = dayPlus(0)
 const at = (hhmm, day = DAY) => new Date(`${day}T${hhmm}:00+08:00`).toISOString()
 const OVERLAP_CODE = "23P01"
 const CHECK_CODE = "23514"
@@ -78,7 +80,7 @@ describe("the Venues", () => {
     })
 
     it("cannot be deleted while a request uses them", async () => {
-        await insertRaw(conference, "07:00", "07:15", "PENDING_HEAD", "2031-04-20")
+        await insertRaw(conference, "07:00", "07:15", "PENDING_HEAD", dayPlus(6))
         const { error } = await svc().from("calendar_venues").delete().eq("id", conference)
         expect(error?.code).toBe("23503")
     })
@@ -133,7 +135,7 @@ describe("the time rules", () => {
     it("refuses a request that ends on another Manila day", async () => {
         const { error } = await svc().from("meeting_requests").insert({
             applicant_id: ids.ordinary, venue_id: adminOffice,
-            starts_at: at("23:00"), ends_at: at("01:00", "2031-04-15"),
+            starts_at: at("23:00"), ends_at: at("01:00", dayPlus(1)),
             facilitator_id: ids.head, purpose: `${MARKER} x`,
         })
         expect(error?.code).toBe(CHECK_CODE)
@@ -234,22 +236,22 @@ describe("file_meeting_request()", () => {
 
 describe("calendar_entries() MEETING branch", () => {
     it("shows a pending meeting, with its details, to an ordinary colleague", async () => {
-        const { id } = await file("ordinary", adminOffice, "10:00", "10:30", { day: "2031-04-16" })
+        const { id } = await file("ordinary", adminOffice, "10:00", "10:30", { day: dayPlus(2) })
         const { data, error } = await (await clientFor("outsider")).rpc("calendar_entries", {
-            p_from: "2031-04-16", p_to: "2031-04-16", p_include_pending: false,
+            p_from: dayPlus(2), p_to: dayPlus(2), p_include_pending: false,
         })
         expect(error).toBeNull()
         const row = data.find((r) => r.kind === "MEETING" && r.id === id)
-        expect(row).toMatchObject({ status: "PENDING", venue: "Admin Office", manila_date: "2031-04-16" })
+        expect(row).toMatchObject({ status: "PENDING", venue: "Admin Office", manila_date: dayPlus(2) })
         expect(row.details).toMatchObject({ stage: "PENDING_HR", purpose: `${MARKER} filed`, venue: "Admin Office", guests: ["Mr. Visitor"] })
         expect(row.details.facilitator.id).toBe(ids.head)
         expect(row.details.participants.map((p) => p.id)).toEqual([ids.outsider])
     })
 
     it("drops declined and cancelled meetings", async () => {
-        const declined = await insertRaw(adminOffice, "11:00", "11:30", "DECLINED", "2031-04-17")
+        const declined = await insertRaw(adminOffice, "11:00", "11:30", "DECLINED", dayPlus(3))
         const { data } = await (await clientFor("outsider")).rpc("calendar_entries", {
-            p_from: "2031-04-17", p_to: "2031-04-17", p_include_pending: true,
+            p_from: dayPlus(3), p_to: dayPlus(3), p_include_pending: true,
         })
         expect(data.some((r) => r.id === declined.id)).toBe(false)
     })

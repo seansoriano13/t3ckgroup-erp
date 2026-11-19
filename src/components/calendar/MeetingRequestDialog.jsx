@@ -19,7 +19,7 @@ import { ACTIVITY_TYPE, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequ
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
 import { isIsoDate } from '@/utils/dateUtils.js';
 import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
-import { activityFingerprint, defaultSlot, draftProblems, manilaInstant } from './meetingDraft.js';
+import { PURPOSE_MAX, activityFingerprint, defaultSlot, draftProblems, latestDate, manilaInstant } from './meetingDraft.js';
 import { useActivitySettings } from '@/hooks/useActivitySettings';
 import { enabledMeetingTypes, timeOptions } from '@/utils/activitySettings';
 import ActivityDayRows from './ActivityDayRows.jsx';
@@ -115,6 +115,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [guests, setGuests] = useState(() => guestList(editing?.guests, editing?.guest_emails));
   const [guestDraft, setGuestDraft] = useState('');
   const [guestEmailDraft, setGuestEmailDraft] = useState('');
+  const [guestNote, setGuestNote] = useState('');
   const [purpose, setPurpose] = useState(editing?.purpose ?? '');
 
   // Anything typed or picked since the form opened: closing then asks first (#1086). An untouched form closes at once.
@@ -181,6 +182,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const problems = draftProblems({ activityType, meetingType, meetingLink, venueId, date, dateTo, start, end, days, facilitatorId, purpose, guests, multiDay, typeName: settings.types[activityType]?.name, maxDays: rules.maxDays }, now);
   if (clash) problems.unshift({ field: 'time', message: clashMessage(clash) });
   const problem = problems[0]?.message ?? null;
+  const purposeLength = [...purpose.trim()].length;
   const problemAt = (field) => problems.find((p) => p.field === field)?.message;
 
   // Editing: "Save changes" stays off until something differs from the saved Activity (#1084). Send again is not held back.
@@ -198,9 +200,18 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     purpose: editing.purpose,
   });
 
+  // A Guest is the pair name plus email (#1087): the same name with another email is another Guest.
+  const sameGuest = (a, b) => a.name === b.name && (a.email ?? '').toLowerCase() === (b.email ?? '').toLowerCase();
   const addGuest = () => {
-    const name = guestDraft.trim();
-    if (name && !guests.some((g) => g.name === name)) setGuests([...guests, { name, email: guestEmailDraft.trim() }]);
+    const guest = { name: guestDraft.trim(), email: guestEmailDraft.trim() };
+    if (!guest.name) return;
+    if (guests.some((g) => sameGuest(g, guest))) {
+      // A true repeat is told to the person; what they typed stays so they can change the email.
+      setGuestNote('Already added.');
+      return;
+    }
+    setGuests([...guests, guest]);
+    setGuestNote('');
     setGuestDraft('');
     setGuestEmailDraft('');
   };
@@ -306,6 +317,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
               containerClassName="w-full"
             />
             <FieldProblem field="link" message={problemAt('link')} />
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="link-hint">The link must start with http:// or https://</p>
           </div>
         )}
         <div>
@@ -314,6 +326,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             type="date"
             value={date}
             min={manilaToday(now)}
+            max={latestDate(now)}
             disabled={frozenDates.size > 0}
             onChange={(e) => setDate(e.target.value)}
             containerClassName="w-full"
@@ -328,6 +341,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
               type="date"
               value={dateTo || rangeEnd}
               min={date || undefined}
+              max={latestDate(now)}
               onChange={(e) => setDateTo(e.target.value)}
               containerClassName="w-full"
               className="font-semibold"
@@ -372,7 +386,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
             <Input
               value={guestDraft}
-              onChange={(e) => setGuestDraft(e.target.value)}
+              onChange={(e) => {
+                setGuestDraft(e.target.value);
+                setGuestNote('');
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -385,7 +402,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             <Input
               type="email"
               value={guestEmailDraft}
-              onChange={(e) => setGuestEmailDraft(e.target.value)}
+              onChange={(e) => {
+                setGuestEmailDraft(e.target.value);
+                setGuestNote('');
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -403,17 +423,22 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           ) : (
             <p className="text-xs text-muted-foreground">Guests are not allowed now. You can remove the ones already listed.</p>
           )}
+          {guestNote && (
+            <p className="mt-1 text-xs text-destructive" data-testid="guest-note">
+              {guestNote}
+            </p>
+          )}
           {guests.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-1.5">
               {guests.map((g) => (
-                <li key={g.name} className="flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs">
+                <li key={`${g.name}\n${g.email}`} className="flex items-center gap-1 break-words rounded-full border border-border px-2 py-0.5 text-xs">
                   {g.email ? `${g.name} <${g.email}>` : g.name}
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
                     aria-label={`Remove ${g.name}`}
-                    onClick={() => setGuests(guests.filter((x) => x.name !== g.name))}
+                    onClick={() => setGuests(guests.filter((x) => !sameGuest(x, g)))}
                   >
                     <X size={12} />
                   </Button>
@@ -427,7 +452,17 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         <div className="sm:col-span-2">
           <FieldBox label="Purpose" className="mb-1.5 block" />
           <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the Activity for?" />
-          <FieldProblem field="purpose" message={problemAt('purpose')} />
+          <div className="mt-1 flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <FieldProblem field="purpose" message={problemAt('purpose')} />
+            </div>
+            <p
+              className={`ml-auto shrink-0 text-xs ${purposeLength > PURPOSE_MAX ? 'text-destructive' : 'text-muted-foreground'}`}
+              data-testid="purpose-counter"
+            >
+              {purposeLength} / {PURPOSE_MAX}
+            </p>
+          </div>
         </div>
       </div>
       {warnings.length > 0 && (

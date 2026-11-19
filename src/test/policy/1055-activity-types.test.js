@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
+import { ahead } from "./support/dates.js"
 
 const svc = () => serviceClient()
 const created = []
@@ -20,7 +21,7 @@ let otherVenue
 
 // One Manila day per slot number, 9:00 to 10:00, so no two requests ever clash at a Venue.
 const slot = (n, h = 1) => {
-    const d = Date.UTC(2035, 0, 1 + n, 1, 0, 0)
+    const d = Date.UTC(...ahead(90 + n), 1, 0, 0)
     return { p_starts_at: new Date(d).toISOString(), p_ends_at: new Date(d + h * 3_600_000).toISOString() }
 }
 

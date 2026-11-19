@@ -38,7 +38,10 @@ const meeting = (over) => ({
   ...over,
 });
 
-function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }, editing = null, { clock, onClose = () => {} } = {}) {
+// The form's clock when a test sets none: early 2031, so its 2031 dates are ahead and within a year (#1087).
+const defaultClock = () => new Date('2031-01-01T08:00:00+08:00');
+
+function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }, editing = null, { clock = defaultClock, onClose = () => {} } = {}) {
   employeeService.getAllEmployees.mockResolvedValue([
     { id: 'fac', name: 'Fay Facilitator', isHead: true },
     { id: 'me', name: 'Me', isHead: true },
@@ -498,11 +501,110 @@ describe('Activity form', () => {
       calendarService.fetchEntries.mockResolvedValue([]);
       render(
         <QueryClientProvider client={client}>
-          <MeetingRequestDialog open onClose={() => {}} editing={saved({ status: 'RETURNED' })} resend />
+          <MeetingRequestDialog open onClose={() => {}} editing={saved({ status: 'RETURNED' })} resend clock={defaultClock} />
         </QueryClientProvider>,
       );
       await screen.findByText('Activity type');
       expect(screen.getByRole('button', { name: 'Send again' })).toBeEnabled();
+    });
+  });
+
+  describe('Guests are a name plus an email (#1087)', () => {
+    const addGuest = async (user, name, email = '') => {
+      const nameBox = screen.getByPlaceholderText('Name');
+      const emailBox = screen.getByPlaceholderText('Email (optional)');
+      fireEvent.change(nameBox, { target: { value: name } });
+      fireEvent.change(emailBox, { target: { value: email } });
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+    };
+
+    it('says "Already added." for the same name and email, and keeps one Guest', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      expect(screen.queryByTestId('guest-note')).not.toBeInTheDocument();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      expect(screen.getByTestId('guest-note')).toHaveTextContent('Already added.');
+      expect(screen.getAllByRole('button', { name: 'Remove Ana Cruz' })).toHaveLength(1);
+    });
+
+    it('adds the same name with another email, and the same name with no email', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      await addGuest(user, 'Ana Cruz', 'ana@other.example');
+      await addGuest(user, 'Ana Cruz');
+      expect(screen.queryByTestId('guest-note')).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Remove Ana Cruz' })).toHaveLength(3);
+      expect(screen.getByText('Ana Cruz <ana@other.example>')).toBeInTheDocument();
+    });
+
+    it('takes away only the Guest that was clicked, and clears the message when the person types on', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      await addGuest(user, 'Ana Cruz', 'ana@other.example');
+      await user.click(screen.getAllByRole('button', { name: 'Remove Ana Cruz' })[0]);
+      expect(screen.queryByText('Ana Cruz <ana@example.com>')).not.toBeInTheDocument();
+      expect(screen.getByText('Ana Cruz <ana@other.example>')).toBeInTheDocument();
+      await addGuest(user, 'Ana Cruz', 'ana@other.example');
+      expect(screen.getByTestId('guest-note')).toBeInTheDocument();
+      await user.type(screen.getByPlaceholderText('Name'), ' Jr');
+      expect(screen.queryByTestId('guest-note')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('purpose, meeting link and date limits (#1087)', () => {
+    const purposeBox = () => screen.getByPlaceholderText('What is the Activity for?');
+
+    it('counts the purpose, and stops the send at 501 characters with a message', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      expect(screen.getByTestId('purpose-counter')).toHaveTextContent('0 / 500');
+      fireEvent.change(purposeBox(), { target: { value: 'a'.repeat(500) } });
+      expect(screen.getByTestId('purpose-counter')).toHaveTextContent('500 / 500');
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
+      expect(screen.queryByTestId('problem-purpose')).not.toBeInTheDocument();
+      fireEvent.change(purposeBox(), { target: { value: 'a'.repeat(501) } });
+      expect(screen.getByTestId('purpose-counter')).toHaveTextContent('501 / 500');
+      expect(screen.getByTestId('problem-purpose')).toHaveTextContent('The purpose can be at most 500 characters.');
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+    });
+
+    it('says under the link box that it must be a web link, and stops the send for anything else', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await user.click(screen.getAllByRole('combobox')[1]);
+      await user.click(await screen.findByRole('option', { name: 'Online' }));
+      const link = await screen.findByPlaceholderText(/Paste the link/);
+      expect(screen.getByTestId('link-hint')).toHaveTextContent('The link must start with http:// or https://');
+      fireEvent.change(purposeBox(), { target: { value: 'Planning' } });
+      for (const bad of ['javascript:alert(1)', 'not a url']) {
+        fireEvent.change(link, { target: { value: bad } });
+        expect(screen.getByTestId('problem-link')).toHaveTextContent('The meeting link must start with http:// or https://.');
+        expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+      }
+      fireEvent.change(link, { target: { value: 'https://meet.google.com/x' } });
+      expect(screen.queryByTestId('problem-link')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
+    });
+
+    it('stops the send for a date more than a year ahead, and offers no later date', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      fireEvent.change(purposeBox(), { target: { value: 'Planning' } });
+      const date = document.querySelector('input[type="date"]');
+      expect(date).toHaveAttribute('max', '2032-01-01');
+      fireEvent.change(date, { target: { value: '2032-02-01' } });
+      expect(screen.getByTestId('problem-date')).toHaveTextContent('The date can be at most one year ahead.');
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+      fireEvent.change(date, { target: { value: '2032-01-01' } });
+      expect(screen.queryByTestId('problem-date')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
     });
   });
 });
