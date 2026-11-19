@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../support";
+import { renderWithProviders, setupUser } from "../support";
 import SuperAdminActivityLogPage from "../../pages/super-admin/activity-log/index";
 
 const MOCK_SOR_LOG = {
@@ -175,5 +175,52 @@ describe("SuperAdminActivityLogPage Clickable SOR Logs", () => {
 
     expect(screen.getByText("Send quotation")).toBeInTheDocument();
     expect(screen.queryByText(/"checked":true/)).not.toBeInTheDocument();
+  });
+});
+
+describe("SuperAdminActivityLogPage task filters", () => {
+  const rowFor = (id, title, status) => ({
+    ...MOCK_CHECKLIST_TASK_LOG,
+    id,
+    taskId: `task-${id}`,
+    taskDescription: title,
+    taskStatus: status,
+    content: `note ${id}`,
+  });
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    // The server narrows the rows; the page must show what comes back as is.
+    taskActivityService.getRecentTaskActivity.mockImplementation(async (params) =>
+      params.taskStatus === "COMPLETED"
+        ? [rowFor("a", "Finished job", "COMPLETED")]
+        : [rowFor("a", "Finished job", "COMPLETED"), rowFor("b", "Open job", "INCOMPLETE")],
+    );
+  });
+
+  it("changes the rows when a Task status is picked, using the real COMPLETED value", async () => {
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    const user = setupUser();
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    expect(await screen.findByText("Open job")).toBeInTheDocument();
+
+    await user.click(screen.getByText("All statuses"));
+    await user.click(screen.getByRole("button", { name: "Completed" }));
+
+    await waitFor(() => expect(screen.queryByText("Open job")).not.toBeInTheDocument());
+    expect(screen.getByText("Finished job")).toBeInTheDocument();
+    expect(taskActivityService.getRecentTaskActivity).toHaveBeenLastCalledWith(
+      expect.objectContaining({ taskStatus: "COMPLETED" }),
+    );
+  });
+
+  it("does not filter the loaded page by department on the client", async () => {
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    // Rows carry no department; the server already decided what belongs.
+    expect(await screen.findByText("Finished job")).toBeInTheDocument();
+    expect(screen.getByText("Open job")).toBeInTheDocument();
   });
 });

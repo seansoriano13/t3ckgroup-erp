@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
+import { creatorIdsForDepartment } from "./activityLogCreatorFilter";
 
 export const groupTaskActivityService = {
   async getActivityForTask(taskId) {
@@ -197,7 +198,9 @@ export const groupTaskActivityService = {
     type = "ALL",
     authorId = "ALL",
     employeeId = "ALL", // Note: group tasks don't have logged_by in the same way, maybe created_by or member
-    taskStatus = "ALL", // HR_PENDING, COMPLETED, etc.
+    taskStatus = "ALL", // ACTIVE, HR_PENDING, etc.
+    dept = "ALL",
+    subDept = "ALL",
     dateFrom = null,
     dateTo = null,
     search = "",
@@ -205,11 +208,20 @@ export const groupTaskActivityService = {
     const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
     const safeOffset = Math.max(0, Number(offset) || 0);
 
+    // Task status, owner and department narrow the parent rows: an inner join
+    // on the group task, only when one of them is set.
+    const creatorIds = await creatorIdsForDepartment({ dept, subDept });
+    if (creatorIds && creatorIds.length === 0) return [];
+    const narrowsTask =
+      (employeeId && employeeId !== "ALL") ||
+      (taskStatus && taskStatus !== "ALL") ||
+      creatorIds !== null;
+
     let query = supabase
       .from("committee_task_activity")
       .select(`
         *,
-        task:committee_tasks!committee_task_activity_task_id_fkey(
+        task:committee_tasks!committee_task_activity_task_id_fkey${narrowsTask ? "!inner" : ""}(
           id,
           title,
           status,
@@ -229,6 +241,7 @@ export const groupTaskActivityService = {
     // Simple filter for creator for now if employeeId is specified
     if (employeeId && employeeId !== "ALL") query = query.eq("task.created_by", employeeId);
     if (taskStatus && taskStatus !== "ALL") query = query.eq("task.status", taskStatus);
+    if (creatorIds) query = query.in("task.created_by", creatorIds);
 
     if (dateFrom) query = query.gte("created_at", dateFrom);
     if (dateTo) query = query.lte("created_at", dateTo);

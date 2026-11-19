@@ -10,7 +10,10 @@ import { opportunityService } from "../../../services/opportunityService";
 import Avatar from "../../../components/Avatar.jsx";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
-import ActivityLogFilterBar from "../../../components/ActivityLogFilterBar";
+import ActivityLogFilterBar, {
+  GROUP_TASK_STATUS_OPTIONS,
+  TASK_STATUS_OPTIONS,
+} from "../../../components/ActivityLogFilterBar";
 import { LiveIndicator, LogLoadError, LogPager } from "../../../components/ActivityLogParts";
 import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort } from "../../../lib/activityLog";
 import HrLogsPanel from "../../../components/hr/HrLogsPanel";
@@ -264,6 +267,8 @@ export default function SuperAdminActivityLogPage() {
         authorId: filters.authorId,
         employeeId: filters.employeeId,
         taskStatus: filters.taskStatus,
+        dept: filters.dept,
+        subDept: filters.subDept,
         dateFrom: startOfDayIso(filters.dateFrom),
         dateTo: endOfDayIso(filters.dateTo),
         search: filters.search,
@@ -282,20 +287,7 @@ export default function SuperAdminActivityLogPage() {
   });
 
   const filteredEntries = useMemo(() => {
-    const isDeptFiltered = activeTab !== "SYSTEM" && activeTab !== "SOR";
-
-    const raw = entries.filter((e) => {
-      if (isDeptFiltered) {
-        if (filters.dept !== "ALL" && (e.taskCreatorDept || "") !== filters.dept)
-          return false;
-        if (
-          filters.subDept !== "ALL" &&
-          (e.taskCreatorSubDept || "") !== filters.subDept
-        )
-          return false;
-      }
-      return true;
-    });
+    const raw = entries;
 
     // Consolidate redundant logs (tasks/group only)
     if (activeTab === "SYSTEM" || activeTab === "SOR") return raw;
@@ -352,7 +344,7 @@ export default function SuperAdminActivityLogPage() {
     }
 
     return consolidated;
-  }, [entries, filters.dept, filters.subDept, activeTab]);
+  }, [entries, activeTab]);
   const { sorted: sortedEntries, sort, toggle } = useTableSort(filteredEntries, ACTIVITY_SORT);
 
   const hasActiveFilters = Object.keys(DEFAULT_LOG_FILTERS).some(
@@ -545,7 +537,11 @@ export default function SuperAdminActivityLogPage() {
             variant="underline"
             tabs={visibleTabs}
             activeTab={activeTab}
-            onChange={setActiveTab}
+            onChange={(tab) => {
+              // Task and Group Task statuses differ: a leftover one matches nothing.
+              setFilters((p) => (p.taskStatus === "ALL" ? p : { ...p, taskStatus: "ALL" }));
+              setActiveTab(tab);
+            }}
             size="md"
           />
         }
@@ -556,6 +552,7 @@ export default function SuperAdminActivityLogPage() {
               setFilters={setFilters}
               employees={employees}
               liveIndicator={<LiveIndicator active={liveAnim} />}
+              statusOptions={activeTab === "GROUP" ? GROUP_TASK_STATUS_OPTIONS : TASK_STATUS_OPTIONS}
             />
           )
         }
