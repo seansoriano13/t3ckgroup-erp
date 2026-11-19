@@ -13,6 +13,13 @@ export const HR_ENTITY_TYPES = [
   "HR_SETTINGS",
 ];
 
+// The words a log shows for an entity type whose code is older than its screen name. The code in the
+// database stays (MEETING_REQUEST); only what people read changes. An Activity was a Meeting Request.
+export const ENTITY_TYPE_LABELS = { MEETING_REQUEST: "Activity" };
+
+/** What a log shows for an entity type: its screen word, else the code written out. */
+export const entityTypeLabel = (code) => ENTITY_TYPE_LABELS[code] ?? code;
+
 export const systemAuditLogService = {
   /**
    * Write a system-level admin action to the audit log
@@ -101,7 +108,7 @@ export const systemAuditLogService = {
       id: entry.id,
       taskId: entry.entity_id || null,
       taskDescription: entry.entity_type
-        ? `[${entry.entity_type}]`
+        ? `[${ENTITY_TYPE_LABELS[entry.entity_type]?.toUpperCase() ?? entry.entity_type}]`
         : "[SYSTEM]",
       taskStatus: null,
       taskCreatorDept: null,

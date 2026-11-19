@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { meetingActions } from './meetingActions.js';
 import MeetingActions from './MeetingActions.jsx';
@@ -73,5 +73,17 @@ describe('MeetingActions', () => {
     mockUser = { id: 'ana' };
     renderActions({ ...request, startsAt: PAST });
     expect(screen.queryByTestId('meeting-actions')).toBeNull();
+  });
+
+  it('names the Venue in the cancel question only when the Activity holds one', () => {
+    mockUser = { id: 'ana' };
+    const { unmount } = renderActions({ ...request, hasVenue: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByText(/The Venue is freed at once/)).toBeInTheDocument();
+    unmount();
+    renderActions({ ...request, hasVenue: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByText(/It comes off the Calendar at once/)).toBeInTheDocument();
+    expect(screen.queryByText(/Venue/)).toBeNull();
   });
 });

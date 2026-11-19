@@ -62,13 +62,13 @@ export default function MeetingDetail({ entry }) {
               </ul>
             </DetailRow>
           )}
-          <DetailRow label="Stage">{MEETING_STATUS_LABEL[d.stage] ?? d.stage}</DetailRow>
+          <DetailRow label="Status">{MEETING_STATUS_LABEL[d.stage] ?? d.stage}</DetailRow>
           <DetailRow label="Lead">{d.facilitator?.name}</DetailRow>
           <DetailRow label="Participants">{participants.length ? participants.map((p) => p.name).join(', ') : 'None'}</DetailRow>
           <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(', ') : 'None'}</DetailRow>
         </dl>
       </DetailSection>
-      <MeetingActions request={{ id: d.request_id ?? entry.group_id ?? entry.id, status: d.stage, startsAt: d.last_day_starts_at ?? entry.starts_at, applicantId: person.id }} />
+      <MeetingActions request={{ id: d.request_id ?? entry.group_id ?? entry.id, status: d.stage, startsAt: d.last_day_starts_at ?? entry.starts_at, applicantId: person.id, hasVenue: Boolean(d.venue ?? entry.venue) }} />
     </SlideOverBody>
   );
 }

@@ -7,6 +7,8 @@
 export const ACTIVITY_TYPE_KEYS = ['MEETING', 'ADMIN_TASK', 'OPERATIONS_TASK', 'EVENT'];
 export const MEETING_TYPE_KEYS = ['ONSITE', 'ONLINE', 'HYBRID'];
 
+// Only a Meeting with a Venue waits for HR by default. An Event waits for HR only when HR switches "Waits for HR"
+// on in Settings > Activities (CONTEXT.md, Activity type).
 export const DEFAULT_ACTIVITY_SETTINGS = {
   types: {
     MEETING: { name: 'Meeting', color: 'teal', active: true, whoFiles: 'EVERYONE', needsHr: true, multiDay: false },

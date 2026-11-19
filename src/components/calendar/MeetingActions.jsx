@@ -12,7 +12,8 @@ import { meetingActions } from './meetingActions.js';
 
 /**
  * Edit, Send again and Cancel for one Activity (#628). Each button shows only when allowed.
- * `request` is { id, status, startsAt, applicantId }; `onDone` runs after any action succeeds.
+ * `request` is { id, status, startsAt, applicantId, hasVenue }; `onDone` runs after any action succeeds.
+ * `hasVenue` is true only for an Activity that holds a Venue, so the cancel question names a Venue only then.
  */
 export default function MeetingActions({ request, onDone, allowHr = true }) {
   const { user } = useAuth();
@@ -79,7 +80,7 @@ export default function MeetingActions({ request, onDone, allowHr = true }) {
         open={cancelling}
         onOpenChange={setCancelling}
         title="Cancel this Activity?"
-        description="The Venue is freed at once. This cannot be undone."
+        description={`${request.hasVenue ? 'The Venue is freed at once.' : 'It comes off the Calendar at once.'} This cannot be undone.`}
         confirmLabel="Cancel request"
         cancelLabel="Keep it"
         tone="destructive"
