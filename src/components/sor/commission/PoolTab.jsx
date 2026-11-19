@@ -45,6 +45,7 @@ function ChartTooltip({ active, payload, canSee }) {
 export default function PoolTab({ access, departments }) {
   const navigate = useNavigate();
   const { dashboard, rates, user, canViewAllFinancials, canViewSalesAmounts } = access;
+  // One rule for the Sales fund: no visible amount (not allowed, or nothing to show) is masked, never "₱0.00".
   const [list, setList] = useState("deals");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -87,7 +88,7 @@ export default function PoolTab({ access, departments }) {
         figure={canViewAllFinancials ? formatPHP(dashboard.totalCommissionPool) : MASK}
         note={`An estimate · ${rates.pool}% of ${canViewAllFinancials ? compactPHP(dashboard.totalCommissionableRevenue) : "Commissionable Revenue"}`}
         stats={[
-          { label: "Sales fund", value: canViewSalesAmounts ? formatPHP(dashboard.salesDeptTotal) : MASK },
+          { label: "Sales fund", value: canViewSalesAmounts && dashboard.salesDeptTotal > 0 ? formatPHP(dashboard.salesDeptTotal) : MASK },
           {
             label: "With a Contract Date",
             value: (
