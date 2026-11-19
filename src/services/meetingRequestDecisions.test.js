@@ -75,9 +75,9 @@ describe("meetingRequestService decisions", () => {
 
   it("surfaces the database's refusal and sends nothing", async () => {
     stubRpc("decide_meeting_request", () => {
-      throw pgrstError("42501", "You cannot decide your own Meeting Request.", { status: 403 })
+      throw pgrstError("42501", "You cannot decide your own Activity.", { status: 403 })
     })
-    await expect(meetingRequestService.decide({ requestId: request.id, decision: "APPROVE", actor: applicant })).rejects.toThrow(/own Meeting Request/)
+    await expect(meetingRequestService.decide({ requestId: request.id, decision: "APPROVE", actor: applicant })).rejects.toThrow(/own Activity/)
     await waitForNetworkIdle()
     expect(db.rows("notifications")).toHaveLength(0)
     expect(audit()).toHaveLength(0)

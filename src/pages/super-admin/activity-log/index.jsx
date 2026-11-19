@@ -5,7 +5,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { taskActivityService } from "../../../services/tasks/taskActivityService";
 import { employeeService } from "../../../services/employeeService";
 import { groupTaskActivityService } from "../../../services/groupTaskActivityService";
-import { systemAuditLogService } from "../../../services/systemAuditLogService";
+import { systemAuditLogService, ENTITY_TYPE_LABELS } from "../../../services/systemAuditLogService";
 import { opportunityService } from "../../../services/opportunityService";
 import Avatar from "../../../components/Avatar.jsx";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
@@ -117,7 +117,7 @@ function ContentDisplay({ content, search }) {
 
 // "HR_NOTE" -> "HR note": codes are for the database, not the reader.
 const humanizeCode = (code) =>
-  String(code || "")
+  String(ENTITY_TYPE_LABELS[code] ?? code ?? "")
     .toLowerCase()
     .replace(/_/g, " ")
     .replace(/^hr(?= |$)/, "HR")
