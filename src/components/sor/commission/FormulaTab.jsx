@@ -25,6 +25,7 @@ function SplitDetail({ projectType, splits, canEdit, actorId }) {
   const saved = Object.fromEntries(roles.map((role) => [role, Number(splits.find((s) => s.shareRole === role)?.percent) || 0]));
   const values = draft ?? saved;
   const total = roles.reduce((sum, role) => sum + (Number(values[role]) || 0), 0);
+  const inRange = roles.every((role) => Number(values[role] || 0) >= 0 && Number(values[role] || 0) <= 100);
   const dirty = draft !== null && roles.some((role) => Number(draft[role]) !== saved[role]);
 
   const stopEditing = () => {
@@ -92,7 +93,7 @@ function SplitDetail({ projectType, splits, canEdit, actorId }) {
           Total {total.toFixed(2)}%{Math.abs(total - 100) > 0.01 && " — must be 100%"}
         </span>
         <Button type="button" variant="ghost" size="sm" onClick={stopEditing}>Cancel</Button>
-        <Button type="button" size="sm" disabled={!dirty || save.isPending || Math.abs(total - 100) > 0.01} onClick={() => save.mutate()}>
+        <Button type="button" size="sm" disabled={!dirty || !inRange || save.isPending || Math.abs(total - 100) > 0.01} onClick={() => save.mutate()}>
           Save split
         </Button>
       </div>
