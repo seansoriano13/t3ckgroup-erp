@@ -169,7 +169,7 @@ export default function BidDecisionPanel({
   const goLine = matrix.summary?.goLinePercent ?? null;
   const underGoLine = Boolean(matrix.summary?.underGoLine);
 
-  const offerCheck = offerVsAbc(tenderLines, matrix.abc);
+  const offerCheck = offerVsAbc(tenderLines, matrix.abc, matrix.offer);
 
   const decide = (verdict) =>
     writes.run(async () => {
