@@ -4,7 +4,8 @@ import FilterBar from "./ui/FilterBar";
 import { FilterSelect } from "./ui/FilterDropdown";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
-import { DEFAULT_LOG_FILTERS } from "@/lib/activityLog";
+import { DEFAULT_LOG_FILTERS, orderDateRange } from "@/lib/activityLog";
+import { TASK_STATUS_OPTIONS } from "@/constants/activityLogStatusOptions";
 
 const TYPE_OPTIONS = [
   { value: "ALL", label: "All types" },
@@ -12,15 +13,6 @@ const TYPE_OPTIONS = [
   { value: "COMMENT", label: "Comment" },
   { value: "APPROVAL", label: "Approval" },
   { value: "HR_NOTE", label: "HR note" },
-];
-
-const STATUS_OPTIONS = [
-  { value: "ALL", label: "All statuses" },
-  { value: "INCOMPLETE", label: "Incomplete" },
-  { value: "AWAITING APPROVAL", label: "Awaiting approval" },
-  { value: "COMPLETE", label: "Complete" },
-  { value: "NOT APPROVED", label: "Not approved" },
-  { value: "DELETED", label: "Deleted" },
 ];
 
 const chip = "h-9 w-auto gap-2 px-2.5";
@@ -37,8 +29,20 @@ const dateField = (label, value, onChange, min) => (
  * behind Filters. `filters` is the page's whole filter set; dates are
  * "YYYY-MM-DD" strings ("" = unset).
  */
-export default function ActivityLogFilterBar({ filters, setFilters, employees = [], liveIndicator }) {
+export default function ActivityLogFilterBar({
+  filters,
+  setFilters,
+  employees = [],
+  liveIndicator,
+  statusOptions = TASK_STATUS_OPTIONS,
+  showTaskFilters = true,
+}) {
   const set = (key) => (value) => setFilters((p) => ({ ...p, [key]: value }));
+  const setDate = (key) => (value) =>
+    setFilters((p) => {
+      const next = { ...p, [key]: value };
+      return { ...next, ...orderDateRange(next.dateFrom, next.dateTo) };
+    });
 
   const departments = useMemo(
     () => [...new Set(employees.map((e) => e.department).filter((d) => typeof d === "string" && d.trim()))].sort(),
@@ -54,8 +58,8 @@ export default function ActivityLogFilterBar({ filters, setFilters, employees = 
 
   const activeCount = [
     filters.employeeId !== "ALL",
-    filters.dept !== "ALL",
-    filters.subDept !== "ALL",
+    showTaskFilters && filters.dept !== "ALL",
+    showTaskFilters && filters.subDept !== "ALL",
     filters.dateFrom !== "",
     filters.dateTo !== "",
   ].filter(Boolean).length;
@@ -64,12 +68,12 @@ export default function ActivityLogFilterBar({ filters, setFilters, employees = 
     activeCount > 0 ||
     filters.search !== "" ||
     filters.type !== "ALL" ||
-    filters.taskStatus !== "ALL" ||
+    (showTaskFilters && filters.taskStatus !== "ALL") ||
     filters.authorId !== "ALL";
 
   return (
     <FilterBar
-      search={{ value: filters.search, onChange: set("search"), placeholder: "Search content or task description" }}
+      search={{ value: filters.search, onChange: set("search"), placeholder: showTaskFilters ? "Search content or task description" : "Search content" }}
       chips={
         <>
           <FilterSelect
@@ -81,15 +85,17 @@ export default function ActivityLogFilterBar({ filters, setFilters, employees = 
             className={chip}
             wrapperClassName="w-auto shrink-0"
           />
-          <FilterSelect
-            icon={Clock}
-            label="Task status"
-            options={STATUS_OPTIONS}
-            value={filters.taskStatus}
-            onChange={set("taskStatus")}
-            className={chip}
-            wrapperClassName="w-auto shrink-0"
-          />
+          {showTaskFilters && (
+            <FilterSelect
+              icon={Clock}
+              label="Task status"
+              options={statusOptions}
+              value={filters.taskStatus}
+              onChange={set("taskStatus")}
+              className={chip}
+              wrapperClassName="w-auto shrink-0"
+            />
+          )}
           <FilterSelect
             icon={ShieldCheck}
             label="Actor"
@@ -110,6 +116,7 @@ export default function ActivityLogFilterBar({ filters, setFilters, employees = 
             value={filters.employeeId}
             onChange={set("employeeId")}
           />
+          {showTaskFilters && (<>
           <FilterSelect
             icon={Building2}
             label="Department"
@@ -125,9 +132,10 @@ export default function ActivityLogFilterBar({ filters, setFilters, employees = 
             onChange={set("subDept")}
             disabled={filters.dept === "ALL"}
           />
+          </>)}
           <div className="grid grid-cols-2 gap-2.5 sm:col-span-2">
-            {dateField("Date from", filters.dateFrom, set("dateFrom"))}
-            {dateField("Date to", filters.dateTo, set("dateTo"), filters.dateFrom)}
+            {dateField("Date from", filters.dateFrom, setDate("dateFrom"))}
+            {dateField("Date to", filters.dateTo, setDate("dateTo"))}
           </div>
         </div>
       }

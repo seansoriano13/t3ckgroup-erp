@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../support";
+import { renderWithProviders, setupUser } from "../support";
 import SuperAdminActivityLogPage from "../../pages/super-admin/activity-log/index";
 
 const MOCK_SOR_LOG = {
@@ -176,5 +176,153 @@ describe("SuperAdminActivityLogPage Clickable SOR Logs", () => {
 
     expect(screen.getByText("Send quotation")).toBeInTheDocument();
     expect(screen.queryByText(/"checked":true/)).not.toBeInTheDocument();
+  });
+});
+
+describe("SuperAdminActivityLogPage task filters", () => {
+  const rowFor = (id, title, status) => ({
+    ...MOCK_CHECKLIST_TASK_LOG,
+    id,
+    taskId: `task-${id}`,
+    taskDescription: title,
+    taskStatus: status,
+    content: `note ${id}`,
+  });
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    // The server narrows the rows; the page must show what comes back as is.
+    taskActivityService.getRecentTaskActivity.mockImplementation(async (params) =>
+      params.taskStatus === "COMPLETED"
+        ? [rowFor("a", "Finished job", "COMPLETED")]
+        : [rowFor("a", "Finished job", "COMPLETED"), rowFor("b", "Open job", "INCOMPLETE")],
+    );
+  });
+
+  it("changes the rows when a Task status is picked, using the real COMPLETED value", async () => {
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    const user = setupUser();
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    expect(await screen.findByText("Open job")).toBeInTheDocument();
+
+    await user.click(screen.getByText("All statuses"));
+    await user.click(screen.getByRole("button", { name: "Completed" }));
+
+    await waitFor(() => expect(screen.queryByText("Open job")).not.toBeInTheDocument());
+    expect(screen.getByText("Finished job")).toBeInTheDocument();
+    expect(taskActivityService.getRecentTaskActivity).toHaveBeenLastCalledWith(
+      expect.objectContaining({ taskStatus: "COMPLETED" }),
+    );
+  });
+
+  it("does not filter the loaded page by department on the client", async () => {
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    // Rows carry no department; the server already decided what belongs.
+    expect(await screen.findByText("Finished job")).toBeInTheDocument();
+    expect(screen.getByText("Open job")).toBeInTheDocument();
+  });
+});
+
+describe("SuperAdminActivityLogPage tab filters and polish", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    taskActivityService.getRecentTaskActivity.mockImplementation(async () => [MOCK_CHECKLIST_TASK_LOG]);
+  });
+
+  it("shows Task status and Department on Task Logs but not on System Logs", async () => {
+    const user = setupUser();
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    expect(await screen.findByText("Confirm site survey")).toBeInTheDocument();
+    expect(screen.getByText("All statuses")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/task description/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /filters/i }));
+    expect(screen.getByText("All departments")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("tab", { name: "System Logs" }));
+    expect(await screen.findByText(/Beta Network S0002/i)).toBeInTheDocument();
+    expect(screen.queryByText("All statuses")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/task description/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /filters/i }));
+    expect(screen.queryByText("All departments")).not.toBeInTheDocument();
+    expect(screen.queryByText("All sub-departments")).not.toBeInTheDocument();
+  });
+
+  it("logs no console error for titles that start with [", async () => {
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    taskActivityService.getRecentTaskActivity.mockImplementation(async () => [
+      { ...MOCK_CHECKLIST_TASK_LOG, id: "pr-1", taskDescription: "[PR] S07696", content: "note" },
+    ]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    expect(await screen.findByText("[PR] S07696")).toBeInTheDocument();
+    expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining("checklist"), expect.anything());
+    errorSpy.mockRestore();
+  });
+
+  it("swaps a date range typed backwards", async () => {
+    const user = setupUser();
+    renderWithProviders(<SuperAdminActivityLogPage />);
+    await screen.findByText("Confirm site survey");
+    await user.click(screen.getByRole("button", { name: /filters/i }));
+
+    const from = screen.getByLabelText(/date from/i);
+    const to = screen.getByLabelText(/date to/i);
+    fireEvent.change(from, { target: { value: "2026-11-19" } });
+    fireEvent.change(to, { target: { value: "2026-11-01" } });
+
+    await waitFor(() => expect(from).toHaveValue("2026-11-01"));
+    expect(to).toHaveValue("2026-11-19");
+  });
+
+  it("keeps the Status on the phone card of a Task Logs row", async () => {
+    renderWithProviders(<SuperAdminActivityLogPage />);
+    const row = (await screen.findByText("Confirm site survey")).closest("tr");
+    await waitFor(() => {
+      const status = Array.from(row.querySelectorAll("td")).find((td) => td.dataset.label === "Status");
+      expect(status).toBeTruthy();
+      expect(status.dataset.phone).not.toBe("hide");
+    });
+  });
+
+  it("names what changed in the System Logs Subject", async () => {
+    const { systemAuditLogService } = await import("../../services/systemAuditLogService");
+    systemAuditLogService.getRecentSystemActivity.mockImplementation(async () => [
+      {
+        ...MOCK_SYSTEM_OPP_LOG,
+        id: "m-1",
+        entityType: "MEETING_REQUEST",
+        taskDescription: "[MEETING_REQUEST]",
+        content: "Booked",
+        metadata: { venue: "Boardroom A" },
+      },
+    ]);
+    const user = setupUser();
+    renderWithProviders(<SuperAdminActivityLogPage />);
+    await user.click(await screen.findByRole("tab", { name: "System Logs" }));
+    expect(await screen.findByText("Boardroom A")).toBeInTheDocument();
+  });
+});
+
+describe("SuperAdminActivityLogPage load errors (#1099)", () => {
+  it("shows the plain message and asks only once when the database answers 400", async () => {
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    const { plainLogError } = await import("../../lib/activityLogSearch");
+    taskActivityService.getRecentTaskActivity.mockReset();
+    taskActivityService.getRecentTaskActivity.mockRejectedValue(
+      plainLogError({ status: 400, message: 'failed to parse logic tree ((content.ilike."%a,b%"))' }),
+    );
+
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    expect(await screen.findByText("Could not load the log. Try again.")).toBeInTheDocument();
+    expect(screen.queryByText(/logic tree/)).not.toBeInTheDocument();
+    expect(taskActivityService.getRecentTaskActivity).toHaveBeenCalledTimes(1);
   });
 });

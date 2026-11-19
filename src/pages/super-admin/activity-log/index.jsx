@@ -11,8 +11,10 @@ import Avatar from "../../../components/Avatar.jsx";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 import ActivityLogFilterBar from "../../../components/ActivityLogFilterBar";
+import { GROUP_TASK_STATUS_OPTIONS, TASK_STATUS_OPTIONS } from "@/constants/activityLogStatusOptions";
 import { LiveIndicator, LogLoadError, LogPager } from "../../../components/ActivityLogParts";
-import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort } from "../../../lib/activityLog";
+import { LOG_LOAD_ERROR_MESSAGE } from "../../../lib/activityLogSearch";
+import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort, systemLogSubject } from "../../../lib/activityLog";
 import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -58,8 +60,8 @@ function tryParseChecklist(str) {
     ) {
       return parsed;
     }
-  } catch (e) {
-    console.error("Failed to parse checklist:", e);
+  } catch {
+    // Not JSON (for example the title "[PR] S07696"): plain text, not a checklist.
   }
   return null;
 }
@@ -218,21 +220,21 @@ export default function SuperAdminActivityLogPage() {
       });
     };
 
+    // Task Logs is not live: task_activity is not in the realtime publication
+    // (large table, see #1100), so it has no subscription and no LIVE badge.
     let sub;
-    if (activeTab === "TASKS")
-      sub = taskActivityService.subscribeToAllActivity(handleNewEntry);
-    else if (activeTab === "GROUP")
+    if (activeTab === "GROUP")
       sub = groupTaskActivityService.subscribeToAllActivity(handleNewEntry);
     else if (activeTab === "SYSTEM")
+      sub = systemAuditLogService.subscribeToAllActivity(handleNewEntry);
+    else if (activeTab === "SOR")
       sub = systemAuditLogService.subscribeToAllActivity(handleNewEntry);
 
     return () => {
       if (sub) {
-        if (activeTab === "TASKS")
-          taskActivityService.unsubscribeFromActivity(sub);
-        else if (activeTab === "GROUP")
+        if (activeTab === "GROUP")
           groupTaskActivityService.unsubscribeFromActivity(sub);
-        else if (activeTab === "SYSTEM")
+        else if (activeTab === "SYSTEM" || activeTab === "SOR")
           systemAuditLogService.unsubscribeFromActivity(sub);
       }
     };
@@ -264,6 +266,8 @@ export default function SuperAdminActivityLogPage() {
         authorId: filters.authorId,
         employeeId: filters.employeeId,
         taskStatus: filters.taskStatus,
+        dept: filters.dept,
+        subDept: filters.subDept,
         dateFrom: startOfDayIso(filters.dateFrom),
         dateTo: endOfDayIso(filters.dateTo),
         search: filters.search,
@@ -279,23 +283,12 @@ export default function SuperAdminActivityLogPage() {
     },
     enabled: activeTab !== "HR",
     staleTime: 15_000,
+    // A 400 is a request the database refused; asking again cannot fix it.
+    retry: (failureCount, err) => err?.status !== 400 && failureCount < 2,
   });
 
   const filteredEntries = useMemo(() => {
-    const isDeptFiltered = activeTab !== "SYSTEM" && activeTab !== "SOR";
-
-    const raw = entries.filter((e) => {
-      if (isDeptFiltered) {
-        if (filters.dept !== "ALL" && (e.taskCreatorDept || "") !== filters.dept)
-          return false;
-        if (
-          filters.subDept !== "ALL" &&
-          (e.taskCreatorSubDept || "") !== filters.subDept
-        )
-          return false;
-      }
-      return true;
-    });
+    const raw = entries;
 
     // Consolidate redundant logs (tasks/group only)
     if (activeTab === "SYSTEM" || activeTab === "SOR") return raw;
@@ -352,7 +345,7 @@ export default function SuperAdminActivityLogPage() {
     }
 
     return consolidated;
-  }, [entries, filters.dept, filters.subDept, activeTab]);
+  }, [entries, activeTab]);
   const { sorted: sortedEntries, sort, toggle } = useTableSort(filteredEntries, ACTIVITY_SORT);
 
   const hasActiveFilters = Object.keys(DEFAULT_LOG_FILTERS).some(
@@ -396,7 +389,7 @@ export default function SuperAdminActivityLogPage() {
       <PageLoading label="activity log" />
     );
   } else if (isError) {
-    body = <LogLoadError title="Failed to load activity log" message={error?.message} />;
+    body = <LogLoadError title="Failed to load activity log" message={error?.message || LOG_LOAD_ERROR_MESSAGE} />;
   } else if (filteredEntries.length === 0) {
     body = (
       <>
@@ -417,11 +410,11 @@ export default function SuperAdminActivityLogPage() {
             <TableHeader>
               <TableRow>
                 <SortHead id="when" phone="meta" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
-                <SortHead id="type" phone="badge" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
+                <SortHead id="type" phone={showStatus ? "hide" : "badge"} sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
                 <SortHead id="subject" phone="title" sortKey="subject" sort={sort} onSort={toggle}>Subject</SortHead>
                 <SortHead id="details" phone="meta" sortKey="details" sort={sort} onSort={toggle}>Details</SortHead>
                 <SortHead id="by" phone="meta" sortKey="by" sort={sort} onSort={toggle}>By</SortHead>
-                {showStatus && <SortHead id="status" phone="meta" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
+                {showStatus && <SortHead id="status" phone="badge" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -433,6 +426,9 @@ export default function SuperAdminActivityLogPage() {
                   (activeTab === "SYSTEM" && e.entityType === "OPPORTUNITY" && !!(e.entityId || e.taskId));
 
                 let displayTitle = e.taskDescription || `Task ${e.taskId}`;
+                if (!showStatus) {
+                  displayTitle = systemLogSubject(e, employees) || displayTitle;
+                }
                 let displayContent = e.content;
 
                 if ((activeTab === "SOR" || e.entityType === "OPPORTUNITY") && e.content) {
@@ -545,7 +541,16 @@ export default function SuperAdminActivityLogPage() {
             variant="underline"
             tabs={visibleTabs}
             activeTab={activeTab}
-            onChange={setActiveTab}
+            onChange={(tab) => {
+              // Task and Group Task statuses differ: a leftover one matches nothing.
+              // System and SOR logs have no task status or department: drop leftovers.
+              setFilters((p) =>
+                p.taskStatus === "ALL" && p.dept === "ALL" && p.subDept === "ALL"
+                  ? p
+                  : { ...p, taskStatus: "ALL", dept: "ALL", subDept: "ALL" },
+              );
+              setActiveTab(tab);
+            }}
             size="md"
           />
         }
@@ -555,7 +560,11 @@ export default function SuperAdminActivityLogPage() {
               filters={filters}
               setFilters={setFilters}
               employees={employees}
-              liveIndicator={<LiveIndicator active={liveAnim} />}
+              liveIndicator={
+                activeTab === "TASKS" ? null : <LiveIndicator active={liveAnim} />
+              }
+              showTaskFilters={showStatus}
+              statusOptions={activeTab === "GROUP" ? GROUP_TASK_STATUS_OPTIONS : TASK_STATUS_OPTIONS}
             />
           )
         }

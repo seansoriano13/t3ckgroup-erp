@@ -108,6 +108,52 @@ describe("groupTaskActivityService", () => {
       expect(systemOnly.map((e) => e.content)).toEqual(["A system event"])
     })
 
+    describe("task filters narrow the rows", () => {
+      let jade
+      let heldTask
+      let jadeTask
+
+      beforeEach(async () => {
+        jade = makeEmployee({ name: "Jade", department: "SALES", sub_department: "FIELD" })
+        heldTask = makeGroupTask({ title: "Held one", created_by: author.id, status: "ON_HOLD" })
+        jadeTask = makeGroupTask({ title: "Jade's group", created_by: jade.id, status: "ON_HOLD" })
+        await groupTaskActivityService.addComment(task.id, author.id, "On active task")
+        await groupTaskActivityService.addComment(heldTask.id, author.id, "On held task")
+        await groupTaskActivityService.addComment(jadeTask.id, jade.id, "On Jade's task")
+      })
+
+      it("shows only rows of tasks with the chosen status, each with its subject and status", async () => {
+        const rows = await groupTaskActivityService.getRecentGroupActivity({ taskStatus: "ON_HOLD" })
+
+        expect(rows.map((e) => e.content).sort()).toEqual(["On Jade's task", "On held task"])
+        expect(rows.every((e) => e.taskStatus === "ON_HOLD" && e.taskDescription)).toBe(true)
+      })
+
+      it("shows only rows of tasks created by the chosen owner", async () => {
+        const rows = await groupTaskActivityService.getRecentGroupActivity({ employeeId: jade.id })
+
+        expect(rows.map((e) => e.content)).toEqual(["On Jade's task"])
+        expect(rows[0].taskDescription).toBe("Jade's group")
+      })
+
+      it("shows only rows of tasks whose creator is in the department and sub-department", async () => {
+        const dept = await groupTaskActivityService.getRecentGroupActivity({ dept: "SALES" })
+        const sub = await groupTaskActivityService.getRecentGroupActivity({ dept: "SALES", subDept: "OFFICE" })
+
+        expect(dept.map((e) => e.content)).toEqual(["On Jade's task"])
+        expect(sub).toEqual([])
+      })
+
+      it("applies two filters together", async () => {
+        const rows = await groupTaskActivityService.getRecentGroupActivity({
+          taskStatus: "ON_HOLD",
+          employeeId: author.id,
+        })
+
+        expect(rows.map((e) => e.content)).toEqual(["On held task"])
+      })
+    })
+
     it("searches entry text", async () => {
       await groupTaskActivityService.addComment(task.id, author.id, "Escalated to purchasing")
       await groupTaskActivityService.addComment(task.id, author.id, "Nothing to report")
@@ -117,6 +163,36 @@ describe("groupTaskActivityService", () => {
       })
 
       expect(found.map((e) => e.content)).toEqual(["Escalated to purchasing"])
+    })
+
+    describe.each([",", "(", ")", "a,b", '"', "*", "\\", "50%", "a_b"])(
+      "searching for %s",
+      (text) => {
+        it("finds the entry that has it, in its content or its group task", async () => {
+          const other = makeGroupTask({ title: `Group ${text} here`, created_by: makeHead().id })
+          await groupTaskActivityService.addComment(task.id, author.id, `Note ${text} here`)
+          await groupTaskActivityService.addComment(other.id, author.id, "Plain")
+          await groupTaskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await groupTaskActivityService.getRecentGroupActivity({ search: text })
+
+          expect(found.map((e) => e.content).sort()).toEqual([`Note ${text} here`, "Plain"])
+        })
+
+        it("gives no rows, not an error, when nothing has it", async () => {
+          await groupTaskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await groupTaskActivityService.getRecentGroupActivity({ search: text })
+
+          expect(found).toEqual([])
+        })
+      },
+    )
+
+    it("searches a star as a star, not as a wildcard", async () => {
+      await groupTaskActivityService.addComment(task.id, author.id, "plain words")
+
+      expect(await groupTaskActivityService.getRecentGroupActivity({ search: "*" })).toEqual([])
     })
   })
 })

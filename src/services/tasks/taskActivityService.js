@@ -1,5 +1,8 @@
 import { supabase } from "../../lib/supabase";
 import { notificationService } from "../notificationService";
+import { creatorIdsForDepartment } from "../activityLogCreatorFilter";
+import { plainLogError } from "../../lib/activityLogSearch";
+import { activitySearchFilter } from "../activityLogSearchFilter";
 
 export const taskActivityService = {
   /**
@@ -110,6 +113,8 @@ export const taskActivityService = {
     authorId = "ALL",
     employeeId = "ALL",
     taskStatus = "ALL",
+    dept = "ALL",
+    subDept = "ALL",
     dateFrom = null,
     dateTo = null,
     search = "",
@@ -117,12 +122,21 @@ export const taskActivityService = {
     const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
     const safeOffset = Math.max(0, Number(offset) || 0);
 
+    // Task status, owner and department narrow the parent rows: an inner join
+    // on the task, only when one of them is set.
+    const creatorIds = await creatorIdsForDepartment({ dept, subDept });
+    if (creatorIds && creatorIds.length === 0) return [];
+    const narrowsTask =
+      (employeeId && employeeId !== "ALL") ||
+      (taskStatus && taskStatus !== "ALL") ||
+      creatorIds !== null;
+
     let query = supabase
       .from("task_activity")
       .select(
         `
         *,
-        task:tasks!task_activity_task_id_fkey(
+        task:tasks!task_activity_task_id_fkey${narrowsTask ? "!inner" : ""}(
           id,
           task_description,
           status,
@@ -142,39 +156,18 @@ export const taskActivityService = {
     }
     if (employeeId && employeeId !== "ALL") query = query.eq("task.logged_by", employeeId);
     if (taskStatus && taskStatus !== "ALL") query = query.eq("task.status", taskStatus);
+    if (creatorIds) query = query.in("task.logged_by", creatorIds);
 
     if (dateFrom) query = query.gte("created_at", dateFrom);
     if (dateTo) query = query.lte("created_at", dateTo);
 
-    const trimmed = (search || "").trim();
-    if (trimmed) {
-      const esc = trimmed.replace(/%/g, "\\%").replace(/_/g, "\\_");
-      const like = `%${esc}%`;
-
-      // We cannot OR directly against embedded `task.*` fields in PostgREST.
-      // Instead: find matching task IDs, then OR `content` with `task_id in (...)`.
-      const { data: tasksMatch, error: taskSearchErr } = await supabase
-        .from("tasks")
-        .select("id")
-        .ilike("task_description", like)
-        .limit(500);
-      if (taskSearchErr) throw taskSearchErr;
-
-      const ids = (tasksMatch || []).map((t) => t.id).filter(Boolean);
-      if (ids.length > 0) {
-        // PostgREST expects: task_id.in.(uuid1,uuid2,...)
-        const inList = ids.join(",");
-        query = query.or(`content.ilike.${like},task_id.in.(${inList})`);
-      } else {
-        query = query.ilike("content", like);
-      }
-    }
+    query = (await activitySearchFilter({ search, taskTable: "tasks", taskTextColumn: "task_description" }))(query);
 
     query = query.range(safeOffset, safeOffset + safeLimit - 1);
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) throw plainLogError(error);
 
     return (data || []).map((entry) => ({
       id: entry.id,

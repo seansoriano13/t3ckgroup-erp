@@ -1,7 +1,7 @@
 -- #1087 (spec #1083, tracker B2, B3): Activity form limits, held by the database too.
 --
 -- file_meeting_request is re-created from its latest body (20261217140000_1064_activity_settings.sql) and
--- edit_meeting_request from its latest body (20261218110000_1084_edit_no_change.sql, its no-change logic untouched).
+-- edit_meeting_request from its latest body (20261218160000_1084_edit_no_change.sql, its no-change logic untouched).
 -- Each gains three plain checks, and nothing else changes:
 --   * a meeting link, when there is one, must start with http:// or https:// and have no spaces;
 --   * the purpose is at most 500 characters (after trimming);

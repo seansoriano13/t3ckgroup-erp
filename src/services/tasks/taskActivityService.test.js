@@ -278,12 +278,119 @@ describe("taskActivityService", () => {
       expect(found.map((e) => e.content)).toEqual(["Escalated to the supplier"])
     })
 
+    describe.each([",", "(", ")", "a,b", '"', "*", "\\", "50%", "a_b"])(
+      "searching for %s",
+      (text) => {
+        it("finds the entry that has it, in its content or its task", async () => {
+          const other = makeTask({
+            logged_by: author.id,
+            category_id: makeCategory().category_id,
+            task_description: `Task ${text} here`,
+          })
+          await taskActivityService.addComment(task.id, author.id, `Note ${text} here`)
+          await taskActivityService.addComment(other.id, author.id, "Plain")
+          await taskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await taskActivityService.getRecentTaskActivity({ search: text })
+
+          expect(found.map((e) => e.content).sort()).toEqual([`Note ${text} here`, "Plain"])
+        })
+
+        it("gives no rows, not an error, when nothing has it", async () => {
+          await taskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await taskActivityService.getRecentTaskActivity({ search: text })
+
+          expect(found).toEqual([])
+        })
+      },
+    )
+
+    it("searches a star as a star, not as a wildcard", async () => {
+      await taskActivityService.addComment(task.id, author.id, "plain words")
+
+      expect(await taskActivityService.getRecentTaskActivity({ search: "*" })).toEqual([])
+    })
+
     it("caps the page size at 200 however large a limit is asked for", async () => {
       await taskActivityService.addComment(task.id, author.id, "One")
 
       await expect(
         taskActivityService.getRecentTaskActivity({ limit: 10000 }),
       ).resolves.toHaveLength(1)
+    })
+
+    describe("task filters narrow the rows", () => {
+      let jade
+      let doneTask
+      let jadeTask
+
+      beforeEach(async () => {
+        const category = makeCategory().category_id
+        jade = makeEmployee({ name: "Jade", department: "SALES", sub_department: "FIELD" })
+        doneTask = makeTask({ logged_by: author.id, category_id: category, status: "COMPLETED" })
+        jadeTask = makeTask({
+          logged_by: jade.id,
+          category_id: category,
+          status: "COMPLETED",
+          task_description: "Jade's job",
+        })
+        await taskActivityService.addComment(task.id, author.id, "On open task")
+        await taskActivityService.addComment(doneTask.id, author.id, "On done task")
+        await taskActivityService.addComment(jadeTask.id, jade.id, "On Jade's task")
+      })
+
+      it("shows only rows of tasks with the chosen status, each with its subject and status", async () => {
+        const rows = await taskActivityService.getRecentTaskActivity({ taskStatus: "COMPLETED" })
+
+        expect(rows.map((e) => e.content).sort()).toEqual(["On Jade's task", "On done task"])
+        expect(rows.every((e) => e.taskStatus === "COMPLETED" && e.taskDescription)).toBe(true)
+      })
+
+      it("shows only rows of tasks logged by the chosen owner", async () => {
+        const rows = await taskActivityService.getRecentTaskActivity({ employeeId: jade.id })
+
+        expect(rows.map((e) => e.content)).toEqual(["On Jade's task"])
+        expect(rows[0].taskDescription).toBe("Jade's job")
+      })
+
+      it("shows only rows of tasks whose creator is in the department", async () => {
+        const rows = await taskActivityService.getRecentTaskActivity({ dept: "SALES" })
+
+        expect(rows.map((e) => e.content)).toEqual(["On Jade's task"])
+      })
+
+      it("narrows by sub-department too", async () => {
+        const hit = await taskActivityService.getRecentTaskActivity({ dept: "SALES", subDept: "FIELD" })
+        const miss = await taskActivityService.getRecentTaskActivity({ dept: "SALES", subDept: "OFFICE" })
+
+        expect(hit).toHaveLength(1)
+        expect(miss).toEqual([])
+      })
+
+      it("returns nothing when no employee is in the department", async () => {
+        expect(await taskActivityService.getRecentTaskActivity({ dept: "NOWHERE" })).toEqual([])
+      })
+
+      it("applies two filters together", async () => {
+        const rows = await taskActivityService.getRecentTaskActivity({
+          taskStatus: "COMPLETED",
+          employeeId: author.id,
+        })
+
+        expect(rows.map((e) => e.content)).toEqual(["On done task"])
+      })
+
+      it("pages through a department filter", async () => {
+        await taskActivityService.addComment(jadeTask.id, jade.id, "Second on Jade's task")
+
+        const first = await taskActivityService.getRecentTaskActivity({ dept: "SALES", limit: 1 })
+        const second = await taskActivityService.getRecentTaskActivity({ dept: "SALES", limit: 1, offset: 1 })
+
+        expect(first).toHaveLength(1)
+        expect(second).toHaveLength(1)
+        expect(second[0].id).not.toBe(first[0].id)
+      })
     })
 
     it("pages with an offset", async () => {

@@ -3078,6 +3078,7 @@ alter table public."costing_tables" enable row level security;
 alter table public."costing_tender_line_prices" enable row level security;
 alter table public."costing_tender_lines" enable row level security;
 alter table public."costing_virtual_columns" enable row level security;
+alter table public."crm_lead_sources" enable row level security;
 alter table public."crm_pipeline_stages" enable row level security;
 alter table public."currency_rate_currencies" enable row level security;
 alter table public."currency_rates" enable row level security;
@@ -3114,6 +3115,7 @@ alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
 alter table public."ipas_work_marks" enable row level security;
 alter table public."lwop_leaves" enable row level security;
+alter table public."meal_break_settings" enable row level security;
 alter table public."meeting_request_days" enable row level security;
 alter table public."meeting_request_events" enable row level security;
 alter table public."meeting_request_participants" enable row level security;
@@ -3166,6 +3168,7 @@ alter table public."sor_stage_visits" enable row level security;
 alter table public."sor_stock_snapshots" enable row level security;
 alter table public."stage_conditions" enable row level security;
 alter table public."system_audit_logs" enable row level security;
+alter table public."system_updates" enable row level security;
 alter table public."task_activity" enable row level security;
 alter table public."task_tags" enable row level security;
 alter table public."tasks" enable row level security;
@@ -3690,6 +3693,27 @@ create policy "costing_virtual_columns_read" on public."costing_virtual_columns"
   for select
   to authenticated
   using (true);
+create policy "crm_lead_sources_delete" on public."crm_lead_sources"
+  as permissive
+  for delete
+  to authenticated
+  using (COALESCE(is_super_admin(), false));
+create policy "crm_lead_sources_insert" on public."crm_lead_sources"
+  as permissive
+  for insert
+  to authenticated
+  with check (COALESCE(is_super_admin(), false));
+create policy "crm_lead_sources_read" on public."crm_lead_sources"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "crm_lead_sources_update" on public."crm_lead_sources"
+  as permissive
+  for update
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
 create policy "crm_pipeline_stages_read" on public."crm_pipeline_stages"
   as permissive
   for select
@@ -4123,6 +4147,22 @@ create policy "lwop_leaves_withdraw" on public."lwop_leaves"
   to authenticated
   using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
   with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "meal_break_settings_insert" on public."meal_break_settings"
+  as permissive
+  for insert
+  to authenticated
+  with check ((COALESCE(is_hr(), false) OR COALESCE(is_super_admin(), false)));
+create policy "meal_break_settings_read" on public."meal_break_settings"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "meal_break_settings_update" on public."meal_break_settings"
+  as permissive
+  for update
+  to authenticated
+  using ((COALESCE(is_hr(), false) OR COALESCE(is_super_admin(), false)))
+  with check ((COALESCE(is_hr(), false) OR COALESCE(is_super_admin(), false)));
 create policy "meeting_request_days_read" on public."meeting_request_days"
   as permissive
   for select
@@ -4835,16 +4875,37 @@ create policy "stage_conditions_write" on public."stage_conditions"
 create policy "authenticated_insert_system_audit_logs" on public."system_audit_logs"
   as permissive
   for insert
-  to public
-  with check ((auth.uid() IS NOT NULL));
+  to authenticated
+  with check (((author_id IS NOT NULL) AND (author_id = get_employee_id())));
 create policy "hr_read_system_audit_logs" on public."system_audit_logs"
   as permissive
   for select
   to authenticated
-  using ((COALESCE(is_hr(), false) AND (entity_type = ANY (ARRAY['EMPLOYEE'::text, 'CATEGORY'::text, 'OVERTIME'::text, 'OFFSET_LEAVE'::text, 'SIL_LEAVE'::text, 'HR_SETTINGS'::text]))));
+  using ((COALESCE(is_hr(), false) AND (entity_type = ANY (ARRAY['EMPLOYEE'::text, 'CATEGORY'::text, 'OVERTIME'::text, 'OFFSET_LEAVE'::text, 'SIL_LEAVE'::text, 'LWOP_LEAVE'::text, 'MEETING_REQUEST'::text, 'HR_SETTINGS'::text]))));
 create policy "super_admin_all_system_audit_logs" on public."system_audit_logs"
   as permissive
   for all
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
+create policy "system_updates_delete" on public."system_updates"
+  as permissive
+  for delete
+  to authenticated
+  using (COALESCE(is_super_admin(), false));
+create policy "system_updates_insert" on public."system_updates"
+  as permissive
+  for insert
+  to authenticated
+  with check (COALESCE(is_super_admin(), false));
+create policy "system_updates_read" on public."system_updates"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "system_updates_update" on public."system_updates"
+  as permissive
+  for update
   to authenticated
   using (COALESCE(is_super_admin(), false))
   with check (COALESCE(is_super_admin(), false));
@@ -4859,11 +4920,16 @@ create policy "Enable insert for authenticated users" on public."task_activity"
   for insert
   to public
   with check (true);
-create policy "Enable read access for all users" on public."task_activity"
+create policy "Task activity follows the task read rule" on public."task_activity"
   as permissive
   for select
-  to public
-  using (true);
+  to authenticated
+  using ((( SELECT is_super_admin() AS is_super_admin) OR (author_id = ( SELECT get_employee_id() AS get_employee_id)) OR (EXISTS ( SELECT 1
+   FROM tasks t
+  WHERE ((t.id = task_activity.task_id) AND ((t.logged_by = ( SELECT get_employee_id() AS get_employee_id)) OR (t.reported_to = ( SELECT get_employee_id() AS get_employee_id)) OR (t.evaluated_by = ( SELECT get_employee_id() AS get_employee_id)) OR ( SELECT is_hr() AS is_hr) OR (( SELECT is_head() AS is_head) AND (EXISTS ( SELECT 1
+           FROM (employees me
+             JOIN employees creator ON ((creator.id = t.logged_by)))
+          WHERE ((me.id = ( SELECT get_employee_id() AS get_employee_id)) AND (NOT (me.department IS DISTINCT FROM creator.department))))))))))));
 create policy "task_tags_insert_management" on public."task_tags"
   as permissive
   for insert
