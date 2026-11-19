@@ -11,7 +11,7 @@
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
  *   dealOwner, support  Deal Team                          -> closed_book, decides
- *   outsider            Purchasing access, no part in it   -> closed_book, decides
+ *   outsider            Purchasing access, no part in it   -> cost (#1107: no Final Offer, no ABC panel), cannot decide
  *   stageParticipant    open Stage Participant window      -> participant tier
  *   finance             Finance access alone               -> no tier
  *   ipasSigner          on the final_acquire list          -> closed_book, decides
@@ -356,6 +356,17 @@ describe("who reads what of it", () => {
         }
     })
 
+    it("gives Purchasing the cost tier, with no Final Offer and no Bid Decision (#1107)", async () => {
+        // Purchasing access alone used to land in closed_book through costing_is_open(), so BidDecisionPanel showed the figures.
+        const read = await readMatrix("outsider")
+        expect(read.tier).toBe("cost")
+        expect("costing_bid_decisions" in read.tables).toBe(false)
+        expect((read.tables.costing_tender_line_prices ?? []).every((p) => !("final_offer_unit" in p))).toBe(true)
+        expect(await readMatrix("superAdmin")).toMatchObject({ tier: "closed_book" })
+        expect(await readMatrix("ipasSigner")).toMatchObject({ tier: "closed_book" })
+        expect(await readMatrix("dealOwner")).toMatchObject({ tier: "closed_book" })
+    })
+
     it("gives a Stage Participant nothing of it", async () => {
         for (const who of ["stageParticipant"]) {
             const read = await readMatrix(who)
@@ -365,7 +376,7 @@ describe("who reads what of it", () => {
     })
 
     it("gives Closed Book everything, the stamped figures included", async () => {
-        for (const who of ["ipasSigner", "superAdmin", "outsider"]) {
+        for (const who of ["ipasSigner", "superAdmin"]) {
             const read = await readMatrix(who)
             const decision = read.tables.costing_bid_decisions.find((r) => r.cleared_at === null)
             expect(decision.verdict, who).toBe("no_go")
@@ -375,11 +386,11 @@ describe("who reads what of it", () => {
     })
 
     it("lets only Closed Book select the table directly", async () => {
-        for (const who of ["ipasSigner", "dealOwner", "support", "outsider"]) {
+        for (const who of ["ipasSigner", "dealOwner", "support"]) {
             const closed = await (await clientFor(who)).from("costing_bid_decisions").select("id").eq("matrix_id", matrixId)
             expect(closed.data.length, who).toBeGreaterThan(0)
         }
-        for (const who of ["stageParticipant", "finance", "ordinary"]) {
+        for (const who of ["outsider", "stageParticipant", "finance", "ordinary"]) {
             const { data } = await (await clientFor(who)).from("costing_bid_decisions").select("id").eq("matrix_id", matrixId)
             expect(data, who).toHaveLength(0)
         }
