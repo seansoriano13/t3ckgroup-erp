@@ -83,7 +83,7 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
   const [confirmingGo, setConfirmingGo] = useState(false);
   const [confirmingUnlock, setConfirmingUnlock] = useState(false);
   const [showLow, setShowLow] = useState(false);
-  if (!tierReadsBidDecision(tier)) return null;
+  if (!tierReadsBidDecision(tier) || matrix.bidVisible === false) return null;
 
   // Spec #1031: only the decider list or a Super Admin decides; the read's canDecideLoss is exactly that right.
   const canDecide = tierDecidesBid(tier) && Boolean(matrix.canDecideLoss);

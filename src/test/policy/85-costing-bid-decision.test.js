@@ -11,7 +11,7 @@
  *
  * The cast, on one SOR (dealOwner and support are its Deal Team):
  *   dealOwner, support  Deal Team                          -> closed_book, decides
- *   outsider            Purchasing access, no part in it   -> cost (#1107: no Final Offer, no ABC panel), cannot decide
+ *   outsider            Purchasing access, no part in it   -> closed_book on the sheet, but no Bid Decision (#1107)
  *   stageParticipant    open Stage Participant window      -> participant tier
  *   finance             Finance access alone               -> no tier
  *   ipasSigner          on the final_acquire list          -> closed_book, decides
@@ -356,15 +356,19 @@ describe("who reads what of it", () => {
         }
     })
 
-    it("gives Purchasing the cost tier, with no Final Offer and no Bid Decision (#1107)", async () => {
-        // Purchasing access alone used to land in closed_book through costing_is_open(), so BidDecisionPanel showed the figures.
+    it("keeps the Closed Book for Purchasing but sends it no Bid Decision, figures or history (#1107)", async () => {
         const read = await readMatrix("outsider")
-        expect(read.tier).toBe("cost")
+        expect(read.tier).toBe("closed_book")
+        expect(read.bid_visible).toBe(false)
         expect("costing_bid_decisions" in read.tables).toBe(false)
-        expect((read.tables.costing_tender_line_prices ?? []).every((p) => !("final_offer_unit" in p))).toBe(true)
-        expect(await readMatrix("superAdmin")).toMatchObject({ tier: "closed_book" })
-        expect(await readMatrix("ipasSigner")).toMatchObject({ tier: "closed_book" })
-        expect(await readMatrix("dealOwner")).toMatchObject({ tier: "closed_book" })
+        expect(read.tables.costing_tender_line_prices.length).toBeGreaterThan(0)
+        for (const who of ["superAdmin", "ipasSigner", "dealOwner"]) {
+            const seen = await readMatrix(who)
+            expect(seen.bid_visible, who).toBe(true)
+            expect("costing_bid_decisions" in seen.tables, who).toBe(true)
+        }
+        const history = await (await clientFor("outsider")).rpc("costing_history", { p_opportunity_id: sorId, p_table: "costing_bid_decisions", p_limit: 200 })
+        expect(history.data).toHaveLength(0)
     })
 
     it("gives a Stage Participant nothing of it", async () => {
