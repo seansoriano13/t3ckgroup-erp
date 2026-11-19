@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldBox } from '@/components/ui/FieldBox';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { SelectField } from '@/components/ui/SelectField';
 import PeoplePicker from '@/components/ui/PeoplePicker';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
@@ -18,7 +19,7 @@ import { ACTIVITY_TYPE, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequ
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
 import { isIsoDate } from '@/utils/dateUtils.js';
 import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
-import { activityFingerprint, draftProblem, manilaInstant } from './meetingDraft.js';
+import { activityFingerprint, defaultSlot, draftProblems, manilaInstant } from './meetingDraft.js';
 import { useActivitySettings } from '@/hooks/useActivitySettings';
 import { enabledMeetingTypes, timeOptions } from '@/utils/activitySettings';
 import ActivityDayRows from './ActivityDayRows.jsx';
@@ -28,10 +29,22 @@ import { clashMessage, findClash, rangeWarnings, venueMeetings } from './meeting
 /**
  * The Activity form (#619, #1055). Mounted only while open, so it starts blank each time.
  * The database refuses a clash; this form only asks and shows what the service says.
+ * `clock` answers "what time is it now"; a test passes a fixed one.
  */
-export default function MeetingRequestDialog({ open, onClose, initial, editing = null, resend = false }) {
+export default function MeetingRequestDialog({ open, onClose, initial, editing = null, resend = false, clock = systemClock }) {
   if (!open) return null;
-  return <MeetingRequestForm onClose={onClose} initial={initial} editing={editing} resend={resend} />;
+  return <MeetingRequestForm onClose={onClose} initial={initial} editing={editing} resend={resend} clock={clock} />;
+}
+
+const systemClock = () => new Date();
+
+/** The reason a box is wrong, under that box. */
+function FieldProblem({ field, message }) {
+  return message ? (
+    <p className="mt-1 text-xs text-destructive" data-testid={`problem-${field}`}>
+      {message}
+    </p>
+  ) : null;
 }
 
 const NO_DATES = new Set();
@@ -69,7 +82,7 @@ function VenuePreview({ venueName, meetings }) {
 }
 
 /** `editing` is a saved request (from getRequest) to change; `resend` also sends a returned one again. */
-function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = false }) {
+function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = false, clock = systemClock }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   useMeetingRealtime();
@@ -87,11 +100,13 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [venuePick, setVenueId] = useState(editing?.venue_id ?? initial.venueId ?? '');
   // A saved request's days: the range, each day's own times, and the days that have already started.
   const saved = useMemo(() => (editing ? daysFromSaved(requestDays(editing)) : null), [editing]);
-  const [date, setDate] = useState(() => saved?.from ?? initial.date ?? manilaToday());
+  // A new Activity opens on a time that can still be filed: the default start, the next slot today, or tomorrow.
+  const [slot] = useState(() => defaultSlot(rules, clock(), initial.date));
+  const [date, setDate] = useState(() => saved?.from ?? (initial.start ? initial.date : undefined) ?? slot.date);
   const [dateTo, setDateTo] = useState(() => saved?.to ?? '');
   const [dayEdits, setDayEdits] = useState(() => saved?.edits ?? {});
-  const [start, setStart] = useState(saved?.start ?? initial.start ?? rules.defaultStart);
-  const [end, setEnd] = useState(saved?.end ?? initial.end ?? rules.defaultEnd);
+  const [start, setStart] = useState(saved?.start ?? initial.start ?? slot.start);
+  const [end, setEnd] = useState(saved?.end ?? initial.end ?? slot.end);
   const frozenDates = saved?.frozen ?? NO_DATES;
   const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');  // the Lead
   const [participants, setParticipants] = useState(() =>
@@ -101,6 +116,13 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [guestDraft, setGuestDraft] = useState('');
   const [guestEmailDraft, setGuestEmailDraft] = useState('');
   const [purpose, setPurpose] = useState(editing?.purpose ?? '');
+
+  // Anything typed or picked since the form opened: closing then asks first (#1086). An untouched form closes at once.
+  const draftNow = JSON.stringify([activityType, meetingType, meetingLink, venuePick, date, dateTo, dayEdits, start, end, facilitatorPick, participants, guests, guestDraft, guestEmailDraft, purpose]);
+  const [draftAtOpen] = useState(draftNow);
+  const touched = draftNow !== draftAtOpen;
+  const [discarding, setDiscarding] = useState(false);
+  const askToClose = () => (touched ? setDiscarding(true) : onClose());
 
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
   const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
@@ -158,7 +180,12 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       })
     : [];
 
-  const problem = clash ? clashMessage(clash) : draftProblem({ activityType, meetingType, meetingLink, venueId, date, start, end, days, facilitatorId, purpose, guests, multiDay, typeName: settings.types[activityType]?.name, maxDays: rules.maxDays });
+  // Each problem shows under its own box (`problemAt`), and the first one again just above the buttons.
+  const now = clock();
+  const problems = draftProblems({ activityType, meetingType, meetingLink, venueId, date, dateTo, start, end, days, facilitatorId, purpose, guests, multiDay, typeName: settings.types[activityType]?.name, maxDays: rules.maxDays }, now);
+  if (clash) problems.unshift({ field: 'time', message: clashMessage(clash) });
+  const problem = problems[0]?.message ?? null;
+  const problemAt = (field) => problems.find((p) => p.field === field)?.message;
 
   // Editing: "Save changes" stays off until something differs from the saved Activity (#1084). Send again is not held back.
   const dirty = !editing || resend || !dateOk || activityFingerprint({
@@ -232,9 +259,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   });
 
   return (
+    <>
     <ModalShell
       open
-      onOpenChange={(next) => !next && onClose()}
+      onOpenChange={(next) => !next && askToClose()}
       crumbs={['Calendar', editing ? 'Edit Activity' : 'New Activity']}
       title={editing ? 'Edit Activity' : 'New Activity'}
       actions={
@@ -269,6 +297,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
               placeholder="Select Venue..."
               className="w-full"
             />
+            <FieldProblem field="venue" message={problemAt('venue')} />
           </div>
         )}
         {isMeeting && needsLink(meetingType) && (
@@ -281,6 +310,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
               placeholder="Paste the link, e.g. https://meet.google.com/..."
               containerClassName="w-full"
             />
+            <FieldProblem field="link" message={problemAt('link')} />
           </div>
         )}
         <div>
@@ -288,24 +318,26 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <Input
             type="date"
             value={date}
-            min={manilaToday()}
+            min={manilaToday(now)}
             disabled={frozenDates.size > 0}
             onChange={(e) => setDate(e.target.value)}
             containerClassName="w-full"
             className="font-semibold"
           />
+          <FieldProblem field="date" message={problemAt('date')} />
         </div>
         {multiDay && (
           <div>
             <FieldBox label="To" className="mb-1.5 block" />
             <Input
               type="date"
-              value={rangeEnd}
+              value={dateTo || rangeEnd}
               min={date || undefined}
               onChange={(e) => setDateTo(e.target.value)}
               containerClassName="w-full"
               className="font-semibold"
             />
+            <FieldProblem field="dateTo" message={problemAt('dateTo')} />
           </div>
         )}
         {venueName && dateOk && <VenuePreview venueName={venueName} meetings={venueMeetings(rangeEntries, venueName)} />}
@@ -318,8 +350,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             <FieldBox label="End" className="mb-1.5 block" />
             <SelectField value={end} onChange={setEnd} options={times} className="w-full" />
           </div>
+          <FieldProblem field="time" message={problemAt('time')} />
         </div>
         {multiDay && <ActivityDayRows from={date} to={rangeEnd} edits={dayEdits} onEdit={setDayEdit} start={start} end={end} frozen={frozenDates} timeOptions={times} />}
+        {multiDay && problemAt('days') && <div className="sm:col-span-2"><FieldProblem field="days" message={problemAt('days')} /></div>}
         <div className="sm:col-span-2">
           <FieldBox label="Lead" className="mb-1.5 block" />
           <SelectField
@@ -329,6 +363,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
             placeholder="Select the Lead..."
             className="w-full"
           />
+          <FieldProblem field="lead" message={problemAt('lead')} />
         </div>
         <div className="sm:col-span-2">
           <FieldBox label="Participants" className="mb-1.5 block" />
@@ -391,11 +426,13 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
               ))}
             </ul>
           )}
+          <FieldProblem field="guests" message={problemAt('guests')} />
         </div>
         )}
         <div className="sm:col-span-2">
           <FieldBox label="Purpose" className="mb-1.5 block" />
           <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the Activity for?" />
+          <FieldProblem field="purpose" message={problemAt('purpose')} />
         </div>
       </div>
       {warnings.length > 0 && (
@@ -406,7 +443,23 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <li className="text-muted-foreground">You can still send it.</li>
         </ul>
       )}
-      {problem && <p className="text-xs text-muted-foreground">{problem}</p>}
+      {/* Pinned to the bottom of the scrolling body, so it sits just above the buttons even on a phone. */}
+      {problem && (
+        <p className="sticky bottom-0 -mx-5 mt-auto border-t border-border bg-background px-5 py-2 text-xs text-muted-foreground" data-testid="form-problem">
+          {problem}
+        </p>
+      )}
     </ModalShell>
+    <ConfirmDialog
+      open={discarding}
+      onOpenChange={setDiscarding}
+      title="Discard this Activity?"
+      description="What you entered will be lost."
+      confirmLabel="Discard"
+      cancelLabel="Keep editing"
+      tone="destructive"
+      onConfirm={() => onClose()}
+    />
+    </>
   );
 }

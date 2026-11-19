@@ -13,7 +13,8 @@ import { DEFAULT_ACTIVITY_SETTINGS, getActivitySettings, setActivitySettings } f
 
 const mockUser = { id: 'me', name: 'Me', is_head: true };
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: mockUser }) }));
-vi.mock('@/components/ui/ModalShell', () => ({ default: ({ children, actions }) => <div>{actions}{children}</div> }));
+// The real shell sends Esc, Cancel and the close button through onOpenChange(false); Cancel stands for all three here.
+vi.mock('@/components/ui/ModalShell', () => ({ default: ({ children, actions, onOpenChange }) => <div><button onClick={() => onOpenChange?.(false)}>Cancel</button>{actions}{children}</div> }));
 vi.mock('@/components/ui/PeoplePicker', () => ({ default: () => null }));
 vi.mock('@/components/offsets/HeadSelectField', () => ({ default: () => null }));
 vi.mock('@/services/calendarService', () => ({ calendarService: { fetchEntries: vi.fn() } }));
@@ -37,7 +38,7 @@ const meeting = (over) => ({
   ...over,
 });
 
-function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }, editing = null) {
+function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }, editing = null, { clock, onClose = () => {} } = {}) {
   employeeService.getAllEmployees.mockResolvedValue([
     { id: 'fac', name: 'Fay Facilitator', isHead: true },
     { id: 'me', name: 'Me', isHead: true },
@@ -52,7 +53,7 @@ function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <QueryClientProvider client={client}>
-      <MeetingRequestDialog open onClose={() => {}} initial={initial} editing={editing} />
+      <MeetingRequestDialog open onClose={onClose} initial={initial} editing={editing} clock={clock} />
     </QueryClientProvider>,
   );
   return { ...view, client };
@@ -77,7 +78,9 @@ describe('Activity form', () => {
 
   it('names the request holding the slot and stops the send', async () => {
     renderForm([meeting()]);
-    expect(await screen.findByText(/already held 09:00 to 10:00 for "Sales huddle" \(requested by Dana Lim\)/)).toBeInTheDocument();
+    // Under the time boxes and again just above the buttons.
+    await waitFor(() => expect(screen.getByTestId('form-problem')).toHaveTextContent(/already held 09:00 to 10:00 for "Sales huddle" \(requested by Dana Lim\)/));
+    expect(screen.getByTestId('problem-time')).toHaveTextContent(/already held 09:00 to 10:00/);
     expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
   });
 
@@ -119,7 +122,8 @@ describe('Activity form', () => {
     renderForm([]);
     await screen.findByText('Activity type');
     fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '' } });
-    expect(await screen.findByText('Choose a date.')).toBeInTheDocument();
+    expect(await screen.findByTestId('form-problem')).toHaveTextContent('Choose a date.');
+    expect(screen.getByTestId('problem-date')).toHaveTextContent('Choose a date.');
     expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
   });
 
@@ -316,6 +320,118 @@ describe('Activity form', () => {
       expect(screen.queryByText('To')).not.toBeInTheDocument();
       expect(screen.queryByTestId('activity-day-rows')).not.toBeInTheDocument();
       expect(document.querySelectorAll('input[type="date"]')).toHaveLength(1);
+    });
+
+    it('says "To cannot be before From.", keeps the typed To, and does not blame the days list', async () => {
+      renderForm([], { date: '2031-03-14' });
+      await screen.findByText('Activity type');
+      await pickType('Admin Task');
+      setTo('2031-03-16');
+      await screen.findByTestId('activity-day-rows');
+      // The first day is removed, so a To before From used to leave no day at all: "Keep at least one day."
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Fri, Mar 14' }));
+      setTo('2031-03-12');
+      expect(await screen.findByTestId('problem-dateTo')).toHaveTextContent('To cannot be before From.');
+      expect(screen.getByTestId('form-problem')).toHaveTextContent('To cannot be before From.');
+      expect(document.querySelectorAll('input[type="date"]')[1]).toHaveValue('2031-03-12');
+      expect(screen.queryByText('Keep at least one day.')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+      // Fixed: the message goes and the typed value was never lost.
+      setTo('2031-03-15');
+      await waitFor(() => expect(screen.queryByTestId('problem-dateTo')).not.toBeInTheDocument());
+    });
+  });
+
+  describe('opens on a time that can still be filed (#1086)', () => {
+    const manila = (ymd, hhmm) => () => new Date(`${ymd}T${hhmm}:00+08:00`);
+    const sendButton = () => screen.getByRole('button', { name: /Send request/ });
+    // The Start and End boxes: the ones showing a time of day.
+    const timeBoxes = () => screen.getAllByRole('combobox').map((c) => c.textContent.match(/^\s*(\d\d:\d\d)/)?.[1]).filter(Boolean);
+
+    it('at 14:00 Manila: today, 14:00 to 15:00, and Send is on once the Purpose is written', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '14:00') });
+      await screen.findByText('Activity type');
+      expect(document.querySelector('input[type="date"]')).toHaveValue('2031-03-10');
+      expect(timeBoxes()).toEqual(['14:00', '15:00']);
+      // Nothing is wrong with the time: once the remembered Venue is in, the only thing missing is the Purpose, and the reason says so.
+      await waitFor(() => expect(screen.getByTestId('form-problem')).toHaveTextContent('Write the purpose of the Activity.'));
+      expect(screen.queryByTestId('problem-time')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: 'Planning' } });
+      await waitFor(() => expect(sendButton()).toBeEnabled());
+      expect(screen.queryByTestId('form-problem')).not.toBeInTheDocument();
+    });
+
+    it('at 14:20 Manila: the next slot, 14:30, keeping the length of the default Activity', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '14:20') });
+      await screen.findByText('Activity type');
+      expect(timeBoxes()).toEqual(['14:30', '15:30']);
+    });
+
+    it('when today is over: tomorrow at the default start', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '22:30') });
+      await screen.findByText('Activity type');
+      expect(document.querySelector('input[type="date"]')).toHaveValue('2031-03-11');
+      expect(timeBoxes()).toEqual(['09:00', '10:00']);
+      expect(screen.queryByTestId('problem-time')).not.toBeInTheDocument();
+    });
+
+    it('shows the reason under its own box and just above the buttons', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '14:00') });
+      await screen.findByText('Activity type');
+      expect(screen.getByTestId('problem-purpose')).toHaveTextContent('Write the purpose of the Activity.');
+      // The first problem is the summary line; the Venue is still being remembered, so it comes first.
+      await waitFor(() => expect(screen.getByTestId('form-problem')).toHaveTextContent('Write the purpose of the Activity.'));
+      expect(screen.queryByTestId('problem-venue')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('closing a form with something in it (#1086)', () => {
+    it('asks "Discard this Activity?" after something was typed, and closes only on Discard', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: 'Planning' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(await screen.findByText('Discard this Activity?')).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+      // Keep editing: the question goes, the draft stays.
+      fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+      await waitFor(() => expect(screen.queryByText('Discard this Activity?')).not.toBeInTheDocument());
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByPlaceholderText('What is the Activity for?')).toHaveValue('Planning');
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks after a pick too, not only after typing', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '2031-03-12' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(await screen.findByText('Discard this Activity?')).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes at once when nothing was changed', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText('Discard this Activity?')).not.toBeInTheDocument();
+    });
+
+    it('closes at once when what was typed is taken back out', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      const purpose = screen.getByPlaceholderText('What is the Activity for?');
+      fireEvent.change(purpose, { target: { value: 'Planning' } });
+      fireEvent.change(purpose, { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 
