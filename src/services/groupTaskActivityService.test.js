@@ -164,5 +164,35 @@ describe("groupTaskActivityService", () => {
 
       expect(found.map((e) => e.content)).toEqual(["Escalated to purchasing"])
     })
+
+    describe.each([",", "(", ")", "a,b", '"', "*", "\\", "50%", "a_b"])(
+      "searching for %s",
+      (text) => {
+        it("finds the entry that has it, in its content or its group task", async () => {
+          const other = makeGroupTask({ title: `Group ${text} here`, created_by: makeHead().id })
+          await groupTaskActivityService.addComment(task.id, author.id, `Note ${text} here`)
+          await groupTaskActivityService.addComment(other.id, author.id, "Plain")
+          await groupTaskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await groupTaskActivityService.getRecentGroupActivity({ search: text })
+
+          expect(found.map((e) => e.content).sort()).toEqual([`Note ${text} here`, "Plain"])
+        })
+
+        it("gives no rows, not an error, when nothing has it", async () => {
+          await groupTaskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await groupTaskActivityService.getRecentGroupActivity({ search: text })
+
+          expect(found).toEqual([])
+        })
+      },
+    )
+
+    it("searches a star as a star, not as a wildcard", async () => {
+      await groupTaskActivityService.addComment(task.id, author.id, "plain words")
+
+      expect(await groupTaskActivityService.getRecentGroupActivity({ search: "*" })).toEqual([])
+    })
   })
 })
