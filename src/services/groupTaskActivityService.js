@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { creatorIdsForDepartment } from "./activityLogCreatorFilter";
+import { likePattern, quoteFilterValue, plainLogError } from "./activityLogSearch";
 
 export const groupTaskActivityService = {
   async getActivityForTask(taskId) {
@@ -248,8 +249,7 @@ export const groupTaskActivityService = {
 
     const trimmed = (search || "").trim();
     if (trimmed) {
-      const esc = trimmed.replace(/%/g, "\\%").replace(/_/g, "\\_");
-      const like = `%${esc}%`;
+      const like = likePattern(trimmed);
 
       const { data: tasksMatch, error: taskSearchErr } = await supabase
         .from("committee_tasks")
@@ -261,7 +261,9 @@ export const groupTaskActivityService = {
         const ids = (tasksMatch || []).map((t) => t.id).filter(Boolean);
         if (ids.length > 0) {
           const inList = ids.join(",");
-          query = query.or(`content.ilike.${like},task_id.in.(${inList})`);
+          query = query.or(
+            `content.ilike.${quoteFilterValue(like)},task_id.in.(${inList})`,
+          );
         } else {
           query = query.ilike("content", like);
         }
@@ -272,7 +274,7 @@ export const groupTaskActivityService = {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) throw plainLogError(error);
 
     return (data || []).map((entry) => ({
       id: entry.id,

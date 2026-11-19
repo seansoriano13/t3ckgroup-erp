@@ -1,6 +1,7 @@
 import { supabase } from "../../lib/supabase";
 import { notificationService } from "../notificationService";
 import { creatorIdsForDepartment } from "../activityLogCreatorFilter";
+import { likePattern, quoteFilterValue, plainLogError } from "../activityLogSearch";
 
 export const taskActivityService = {
   /**
@@ -161,8 +162,7 @@ export const taskActivityService = {
 
     const trimmed = (search || "").trim();
     if (trimmed) {
-      const esc = trimmed.replace(/%/g, "\\%").replace(/_/g, "\\_");
-      const like = `%${esc}%`;
+      const like = likePattern(trimmed);
 
       // We cannot OR directly against embedded `task.*` fields in PostgREST.
       // Instead: find matching task IDs, then OR `content` with `task_id in (...)`.
@@ -171,13 +171,15 @@ export const taskActivityService = {
         .select("id")
         .ilike("task_description", like)
         .limit(500);
-      if (taskSearchErr) throw taskSearchErr;
+      if (taskSearchErr) throw plainLogError(taskSearchErr);
 
       const ids = (tasksMatch || []).map((t) => t.id).filter(Boolean);
       if (ids.length > 0) {
         // PostgREST expects: task_id.in.(uuid1,uuid2,...)
         const inList = ids.join(",");
-        query = query.or(`content.ilike.${like},task_id.in.(${inList})`);
+        query = query.or(
+          `content.ilike.${quoteFilterValue(like)},task_id.in.(${inList})`,
+        );
       } else {
         query = query.ilike("content", like);
       }
@@ -187,7 +189,7 @@ export const taskActivityService = {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) throw plainLogError(error);
 
     return (data || []).map((entry) => ({
       id: entry.id,

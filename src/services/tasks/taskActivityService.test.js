@@ -278,6 +278,40 @@ describe("taskActivityService", () => {
       expect(found.map((e) => e.content)).toEqual(["Escalated to the supplier"])
     })
 
+    describe.each([",", "(", ")", "a,b", '"', "*", "\\", "50%", "a_b"])(
+      "searching for %s",
+      (text) => {
+        it("finds the entry that has it, in its content or its task", async () => {
+          const other = makeTask({
+            logged_by: author.id,
+            category_id: makeCategory().category_id,
+            task_description: `Task ${text} here`,
+          })
+          await taskActivityService.addComment(task.id, author.id, `Note ${text} here`)
+          await taskActivityService.addComment(other.id, author.id, "Plain")
+          await taskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await taskActivityService.getRecentTaskActivity({ search: text })
+
+          expect(found.map((e) => e.content).sort()).toEqual([`Note ${text} here`, "Plain"])
+        })
+
+        it("gives no rows, not an error, when nothing has it", async () => {
+          await taskActivityService.addComment(task.id, author.id, "Nothing special")
+
+          const found = await taskActivityService.getRecentTaskActivity({ search: text })
+
+          expect(found).toEqual([])
+        })
+      },
+    )
+
+    it("searches a star as a star, not as a wildcard", async () => {
+      await taskActivityService.addComment(task.id, author.id, "plain words")
+
+      expect(await taskActivityService.getRecentTaskActivity({ search: "*" })).toEqual([])
+    })
+
     it("caps the page size at 200 however large a limit is asked for", async () => {
       await taskActivityService.addComment(task.id, author.id, "One")
 

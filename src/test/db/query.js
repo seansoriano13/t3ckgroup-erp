@@ -46,8 +46,16 @@ function splitTopLevel(input, separator = ",") {
   let depth = 0
   let quoted = false
   let current = ""
+  let escaped = false
   for (const ch of input) {
-    if (ch === '"') quoted = !quoted
+    // A backslash inside quotes escapes the next character, so \" does not close them.
+    if (quoted && escaped) {
+      escaped = false
+      current += ch
+      continue
+    }
+    if (quoted && ch === "\\") escaped = true
+    else if (ch === '"') quoted = !quoted
     if (!quoted && ch === "(") depth += 1
     if (!quoted && ch === ")") depth -= 1
     if (!quoted && depth === 0 && ch === separator) {
@@ -64,7 +72,9 @@ function splitTopLevel(input, separator = ",") {
 function unquote(value) {
   const trimmed = value.trim()
   if (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) {
-    return trimmed.slice(1, -1)
+    // Inside quotes a backslash escapes the next character (PostgREST): \\ is
+    // one backslash and \" one quote. A LIKE pattern keeps its own \% escape.
+    return trimmed.slice(1, -1).replace(/\\([\\"])/g, "$1")
   }
   return trimmed
 }
