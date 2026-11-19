@@ -175,6 +175,32 @@ describe("quote length", () => {
     })
 })
 
+describe("banner address (#1116)", () => {
+    const refused = ["javascript:alert(1)", "http://example.com/b.png", "data:text/html;base64,AAAA", "not a url"]
+    for (const value of refused) {
+        it(`refuses ${value} as a banner path`, async () => {
+            const before = (await rowOf(ids.ordinary)).dashboard_banner_path
+            const result = await tryUpdate(clients.ordinary, "employees", ids.ordinary, { dashboard_banner_path: value })
+            expect(result.ok, `${value} was accepted`).toBe(false)
+            expect((await rowOf(ids.ordinary)).dashboard_banner_path).toBe(before)
+        })
+    }
+
+    for (const value of ["https://images.example.com/b.png?w=1600", "banners/abc/banner.png", null]) {
+        it(`accepts ${value === null ? "an empty banner" : value}`, async () => {
+            const result = await tryUpdate(clients.ordinary, "employees", ids.ordinary, { dashboard_banner_path: value })
+            expect(result.ok, result.message).toBe(true)
+            expect((await rowOf(ids.ordinary)).dashboard_banner_path).toBe(value)
+        })
+    }
+
+    it("lets an older bad banner stay while another field changes", async () => {
+        await serviceClient().from("employees").update({ dashboard_banner_path: "http://old.example.com/b.png" }).eq("id", ids.ordinary)
+        const result = await tryUpdate(clients.ordinary, "employees", ids.ordinary, { dashboard_quote: "still saves" })
+        expect(result.ok, result.message).toBe(true)
+    })
+})
+
 describe("HR and Super Admin are unchanged", () => {
     it("lets HR edit another person's department and role", async () => {
         const result = await tryUpdate(clients.hr, "employees", ids.ordinary, { department: "SALES", role: "CHANGED" })
