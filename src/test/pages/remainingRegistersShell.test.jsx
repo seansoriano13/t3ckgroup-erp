@@ -64,6 +64,7 @@ vi.mock("@/services/groupTaskActivityService", () => ({
 }))
 vi.mock("@/services/systemAuditLogService", () => ({
   HR_ENTITY_TYPES: [],
+  ENTITY_TYPE_LABELS: {},
   systemAuditLogService: {
     getRecentSystemActivity: vi.fn(async () => []),
     getRecentHrActivity: vi.fn(async () => []),

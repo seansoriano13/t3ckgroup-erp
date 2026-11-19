@@ -68,6 +68,7 @@ vi.mock("../../services/groupTaskActivityService", () => ({
 }));
 
 vi.mock("../../services/systemAuditLogService", () => ({
+  ENTITY_TYPE_LABELS: {},
   systemAuditLogService: {
     getRecentSystemActivity: vi.fn(async (params) => {
       if (params.entityType === "OPPORTUNITY") {
