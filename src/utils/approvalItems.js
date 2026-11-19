@@ -302,10 +302,27 @@ export function meetingChain(request) {
     ];
 }
 
+/** The events that put a request in front of HR (#1085); the queue's "Waiting" clock restarts on each. */
+const MEETING_ARRIVAL_EVENTS = new Set(["FILED", "EDITED", "RESENT"]);
+
+/**
+ * When the request last landed on HR: the time of its last FILED, EDITED or RESENT event, or the first
+ * filing when no events were loaded.
+ */
+export function meetingWaitingSince(request) {
+    let last = null;
+    for (const e of request.events ?? []) {
+        if (!MEETING_ARRIVAL_EVENTS.has(e.action) || !e.created_at) continue;
+        if (!last || new Date(e.created_at) > new Date(last)) last = e.created_at;
+    }
+    return last || request.created_at || request.starts_at;
+}
+
 /** An Activity waiting on the signed-in reviewer as an ApprovalItem (#624). */
 export function meetingToItem(request, now = Date.now()) {
     const a = request.applicant || {};
-    const clockAt = request.created_at || request.starts_at;
+    const firstFiledAt = request.created_at || request.starts_at;
+    const clockAt = meetingWaitingSince(request);
     return {
         id: request.id,
         queue: "meetings",
@@ -313,7 +330,7 @@ export function meetingToItem(request, now = Date.now()) {
         title: request.purpose,
         typeLabel: "Waiting for HR",
         person: { id: a.id, name: a.name || "Unknown", avatarPath: null, dept: a.department || "" },
-        submittedAt: clockAt,
+        submittedAt: firstFiledAt,
         clockAt,
         isStale: isStaleSince(clockAt, now),
         done: false,
