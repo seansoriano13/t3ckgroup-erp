@@ -32,3 +32,23 @@ export function formatWhen(iso) {
     minute: "2-digit",
   });
 }
+
+// What a System/SOR Logs row is about: the Venue, the label, or the quoted name
+// in the message (Category "X"); an employee row falls back to the employee.
+// Returns null when the row has none, so the caller keeps its own fallback.
+export function systemLogSubject(entry, employees = []) {
+  const meta = entry?.metadata || {};
+  const named = meta.venue || meta.label || meta.title;
+  if (typeof named === "string" && named.trim()) return named.trim();
+  const quoted = /"([^"]+)"/.exec(entry?.content || "");
+  if (quoted) return quoted[1];
+  if (entry?.entityType === "EMPLOYEE") {
+    return employees.find((e) => e.id === entry.entityId)?.name || null;
+  }
+  return null;
+}
+
+// A range typed backwards ("to" before "from") is swapped.
+export function orderDateRange(from, to) {
+  return from && to && to < from ? { dateFrom: to, dateTo: from } : { dateFrom: from, dateTo: to };
+}

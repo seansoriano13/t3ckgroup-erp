@@ -15,7 +15,7 @@ import ActivityLogFilterBar, {
   TASK_STATUS_OPTIONS,
 } from "../../../components/ActivityLogFilterBar";
 import { LiveIndicator, LogLoadError, LogPager } from "../../../components/ActivityLogParts";
-import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort } from "../../../lib/activityLog";
+import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort, systemLogSubject } from "../../../lib/activityLog";
 import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 import PageShell from "../../../components/ui/PageShell";
 import EmptyState from "../../../components/ui/EmptyState";
@@ -61,8 +61,8 @@ function tryParseChecklist(str) {
     ) {
       return parsed;
     }
-  } catch (e) {
-    console.error("Failed to parse checklist:", e);
+  } catch {
+    // Not JSON (for example the title "[PR] S07696"): plain text, not a checklist.
   }
   return null;
 }
@@ -409,11 +409,11 @@ export default function SuperAdminActivityLogPage() {
             <TableHeader>
               <TableRow>
                 <SortHead id="when" phone="meta" sortKey="when" sort={sort} onSort={toggle}>When</SortHead>
-                <SortHead id="type" phone="badge" sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
+                <SortHead id="type" phone={showStatus ? "hide" : "badge"} sortKey="type" sort={sort} onSort={toggle}>Type</SortHead>
                 <SortHead id="subject" phone="title" sortKey="subject" sort={sort} onSort={toggle}>Subject</SortHead>
                 <SortHead id="details" phone="meta" sortKey="details" sort={sort} onSort={toggle}>Details</SortHead>
                 <SortHead id="by" phone="meta" sortKey="by" sort={sort} onSort={toggle}>By</SortHead>
-                {showStatus && <SortHead id="status" phone="meta" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
+                {showStatus && <SortHead id="status" phone="badge" sortKey="status" sort={sort} onSort={toggle}>Status</SortHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -425,6 +425,9 @@ export default function SuperAdminActivityLogPage() {
                   (activeTab === "SYSTEM" && e.entityType === "OPPORTUNITY" && !!(e.entityId || e.taskId));
 
                 let displayTitle = e.taskDescription || `Task ${e.taskId}`;
+                if (!showStatus) {
+                  displayTitle = systemLogSubject(e, employees) || displayTitle;
+                }
                 let displayContent = e.content;
 
                 if ((activeTab === "SOR" || e.entityType === "OPPORTUNITY") && e.content) {
@@ -539,7 +542,12 @@ export default function SuperAdminActivityLogPage() {
             activeTab={activeTab}
             onChange={(tab) => {
               // Task and Group Task statuses differ: a leftover one matches nothing.
-              setFilters((p) => (p.taskStatus === "ALL" ? p : { ...p, taskStatus: "ALL" }));
+              // System and SOR logs have no task status or department: drop leftovers.
+              setFilters((p) =>
+                p.taskStatus === "ALL" && p.dept === "ALL" && p.subDept === "ALL"
+                  ? p
+                  : { ...p, taskStatus: "ALL", dept: "ALL", subDept: "ALL" },
+              );
               setActiveTab(tab);
             }}
             size="md"
@@ -554,6 +562,7 @@ export default function SuperAdminActivityLogPage() {
               liveIndicator={
                 activeTab === "TASKS" ? null : <LiveIndicator active={liveAnim} />
               }
+              taskFilters={showStatus}
               statusOptions={activeTab === "GROUP" ? GROUP_TASK_STATUS_OPTIONS : TASK_STATUS_OPTIONS}
             />
           )
