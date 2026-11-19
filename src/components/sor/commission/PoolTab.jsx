@@ -1,6 +1,5 @@
 import { sorsHref } from "@/utils/listLinks";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { useRecordParam } from "@/hooks/useRecordParam";
 import { ResponsiveContainer, BarChart, Bar, XAxis, Tooltip } from "recharts";
@@ -9,13 +8,10 @@ import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Avatar from "../../Avatar";
-import StatusBadge from "../../StatusBadge";
 import HighlightText from "../../HighlightText";
 import { formatPHP } from "../../../constants/sor";
-import { flowStageTone } from "../../../constants/salesFlow";
-import { salesFlowService } from "../../../services/salesFlowService";
 import { MASK, TONE, compactPHP, downloadLedgerCsv, monthlyPool, projectTypeInfo } from "./commissionView";
-import { Pager, Swatch } from "./parts";
+import { DealStageBadge, Pager, Swatch } from "./parts";
 import ReportFigure from "../../ui/ReportFigure";
 import TabGroup from "../../ui/TabGroup";
 import EmptyState from "../../ui/EmptyState";
@@ -51,21 +47,6 @@ export default function PoolTab({ access, departments }) {
   // The open deal is `?record=<sor id>`, so a refresh reopens it.
   const { recordId: openDealId, open: openDealRecord, close: closeDealRecord } = useRecordParam();
   const setOpenDealId = (id) => (id == null ? closeDealRecord() : openDealRecord(id));
-
-  // A SOR on a Sales Flow keeps a stale `status`; the Stage column reads its
-  // flow Stage, as the SORS List does. Only a SOR with no Sale Type shows `status`.
-  const { data: flowStagesIndex } = useQuery({
-    queryKey: ["allFlowStagesIndex"],
-    queryFn: () => salesFlowService.getAllStagesIndex(),
-  });
-  const stageBadgeOf = (d) => {
-    if (!d.saleTypeId) return <StatusBadge status={d.status} />;
-    const stage = flowStagesIndex?.stagesById?.[d.flowStageId];
-    if (!stage) return <StatusBadge label="—" theme="mauve" />;
-    const flow = flowStagesIndex.flowsById[stage.flow_id];
-    const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
-    return <StatusBadge label={stage.name} theme={flowStageTone(stage, flow, stagesOfFlow)} />;
-  };
 
   const ledger = useMemo(() => dashboard.dealLedger || [], [dashboard]);
   const months = useMemo(() => monthlyPool(ledger), [ledger]);
@@ -202,7 +183,7 @@ export default function PoolTab({ access, departments }) {
                         {d.projectTitle ? <> · <span><HighlightText text={d.projectTitle} search={search} /></span></> : null} · {projectTypeInfo(d.projectType)?.label ?? d.projectType}
                       </p>
                     </TableCell>
-                    <TableCell>{stageBadgeOf(d)}</TableCell>
+                    <TableCell><DealStageBadge deal={d} /></TableCell>
                     <TableCell className="text-muted-foreground">{d.participants?.dealOwner?.name ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums text-foreground">{formatPHP(d.contractValue)}</TableCell>
                     <TableCell className="text-right font-medium tabular-nums text-foreground">{canViewAllFinancials ? formatPHP(d.commissionPool) : MASK}</TableCell>
