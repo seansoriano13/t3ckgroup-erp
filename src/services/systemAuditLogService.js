@@ -13,6 +13,21 @@ export const HR_ENTITY_TYPES = [
   "HR_SETTINGS",
 ];
 
+/**
+ * The audit log only accepts a row written as yourself (#1094). A caller that
+ * does not name an author is written as the signed-in employee, so the row is
+ * still accepted; "System" rows (no author) come from database functions only.
+ */
+async function resolveAuthorId(authorId) {
+  if (authorId) return authorId;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.user?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 export const systemAuditLogService = {
   /**
    * Write a system-level admin action to the audit log
@@ -20,7 +35,7 @@ export const systemAuditLogService = {
   async addSystemEvent(entityType, entityId, content, metadata = null, authorId = null) {
     try {
       await supabase.from("system_audit_logs").insert({
-        author_id: authorId || null,
+        author_id: await resolveAuthorId(authorId),
         type: "SYSTEM",
         entity_type: entityType || null,
         entity_id: entityId ? String(entityId) : null,
@@ -38,7 +53,7 @@ export const systemAuditLogService = {
   async addApprovalEvent(entityType, entityId, content, metadata = null, authorId = null) {
     try {
       await supabase.from("system_audit_logs").insert({
-        author_id: authorId || null,
+        author_id: await resolveAuthorId(authorId),
         type: "APPROVAL",
         entity_type: entityType || null,
         entity_id: entityId ? String(entityId) : null,
