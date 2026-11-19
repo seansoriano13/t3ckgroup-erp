@@ -65,6 +65,26 @@ describe("system_audit_logs reads (Activity Log SOR/System/HR tabs)", () => {
         expect(await canRead(hr, "system_audit_logs", hrLogId)).toBe(true)
         expect(await canRead(hr, "system_audit_logs", logId)).toBe(false)
     })
+
+    it("an HR officer reads LWOP_LEAVE and MEETING_REQUEST logs, but not OPPORTUNITY", async () => {
+        const svc = serviceClient()
+        const rows = []
+        for (const entity_type of ["LWOP_LEAVE", "MEETING_REQUEST"]) {
+            const r = await svc.from("system_audit_logs")
+                .insert({ author_id: ids.superAdmin, type: "SYSTEM", entity_type, content: `${MARKER} ${entity_type}` })
+                .select("id").single()
+            if (r.error) throw new Error(r.error.message)
+            rows.push(r.data.id)
+        }
+        try {
+            const hr = await clientFor("hr")
+            for (const id of rows) expect(await canRead(hr, "system_audit_logs", id)).toBe(true)
+            expect(await canRead(hr, "system_audit_logs", logId)).toBe(false)
+            expect(await canRead(await clientFor("ordinary"), "system_audit_logs", rows[0])).toBe(false)
+        } finally {
+            await svc.from("system_audit_logs").delete().in("id", rows)
+        }
+    })
 })
 
 describe("Group Task under an SOR, member has no SOR access", () => {
