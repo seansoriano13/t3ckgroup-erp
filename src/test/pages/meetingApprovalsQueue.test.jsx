@@ -112,6 +112,19 @@ describe("HR Activities queue: one toast (A3)", () => {
     expect(toasts.plain).not.toHaveBeenCalled()
   })
 
+  it("also refreshes the Calendar's entries after a decision", async () => {
+    const user = setupUser()
+    const request = file("Quarterly planning")
+    event(request, "FILED", ago(0))
+    decideLikeTheDatabase(async () => {})
+    const view = renderQueue(request.id)
+    const key = ["calendar-entries", "2031-03-01", "2031-03-31", false]
+    view.client.setQueryData(key, [])
+
+    await user.click(await screen.findByRole("button", { name: /^Approve$/ }))
+    await waitFor(() => expect(view.client.getQueryState(key)?.isInvalidated).toBe(true))
+  })
+
   it("still says so for a link to a request someone else decided", async () => {
     const other = file("Already decided", undefined, "APPROVED")
     file("Still waiting")

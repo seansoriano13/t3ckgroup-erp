@@ -79,7 +79,7 @@ export default function SlideOver({
                 {/* On a phone the arrows and Close keep the top row; the title drops full width beneath it. */}
                 <div className="max-md:order-last max-md:basis-full">
                   <div className="mt-0.5 flex items-center gap-2">
-                    <DrawerTitle className="line-clamp-2 text-base font-bold max-md:line-clamp-none">{who.title}</DrawerTitle>
+                    <DrawerTitle className="min-w-0 break-words line-clamp-2 text-base font-bold max-md:line-clamp-none">{who.title}</DrawerTitle>
                     {who.badge}
                   </div>
                   {who.subtitle && <DrawerDescription className="mt-0.5 text-xs">{who.subtitle}</DrawerDescription>}

@@ -122,7 +122,7 @@ describe('the limits on the form (#1087)', () => {
   });
 
   it('refuses a link that is not a web link, under the link box', () => {
-    for (const meetingLink of ['javascript:alert(1)', 'not a url', 'meet.google.com/x', 'ftp://files/x', 'https://', 'mailto:a@b.co']) {
+    for (const meetingLink of ['javascript:alert(1)', 'not a url', 'meet.google.com/x', 'ftp://files/x', 'https://', 'mailto:a@b.co', 'https://meet.google.com/a b', 'https:// meet.google.com']) {
       expect(problemsAt({ ...draft, meetingLink })).toEqual([{ field: 'link', message: LINK_MESSAGE }]);
     }
     expect(problemAt1({ ...draft, meetingLink: 'javascript:alert(1)' })).toBe(LINK_MESSAGE);

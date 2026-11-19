@@ -189,9 +189,6 @@ begin
   if v_old_people is distinct from v_new_people then
     v_changed := v_changed || jsonb_build_object('participant_ids', jsonb_build_object('from', to_jsonb(v_old_people), 'to', to_jsonb(v_new_people)));
   end if;
-  if v_req.head_id is distinct from v_head then
-    v_changed := v_changed || jsonb_build_object('head_id', jsonb_build_object('from', v_req.head_id, 'to', v_head));
-  end if;
 
   -- #1084: an edit that changes no field is not an edit. The status stays (an approved Activity stays approved),
   -- no event row is written, and the caller is told so (the service then sends no notice and no audit line).
@@ -211,6 +208,11 @@ begin
       'participant_ids', to_jsonb(v_old_people),
       'old_participant_ids', to_jsonb(v_old_people)
     );
+  end if;
+  -- head_id is not part of the no-change test: an edit never keeps a head (v_head is always null here), so an
+  -- Activity saved with a head_id would otherwise never match. It is still written to the log of a real edit.
+  if v_req.head_id is distinct from v_head then
+    v_changed := v_changed || jsonb_build_object('head_id', jsonb_build_object('from', v_req.head_id, 'to', v_head));
   end if;
 
   -- Days: drop the ones not started that are no longer listed, add the ones not saved yet.

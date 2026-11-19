@@ -3,7 +3,7 @@
 -- file_meeting_request is re-created from its latest body (20261217140000_1064_activity_settings.sql) and
 -- edit_meeting_request from its latest body (20261218110000_1084_edit_no_change.sql, its no-change logic untouched).
 -- Each gains three plain checks, and nothing else changes:
---   * a meeting link, when there is one, must start with http:// or https://;
+--   * a meeting link, when there is one, must start with http:// or https:// and have no spaces;
 --   * the purpose is at most 500 characters (after trimming);
 --   * no day is more than one year ahead (Manila dates). An edit keeps a day that is already saved, as it does for
 --     the past rule, so an old Activity can still be edited.
@@ -53,7 +53,7 @@ begin
   end if;
   perform public.activity_fields_check(v_atype, v_type, p_venue_id, v_link);
   -- #1087: a meeting link is a web link.
-  if v_link is not null and v_link !~* '^https?://.' then
+  if v_link is not null and v_link !~* '^https?://\S+$' then
     raise exception 'The meeting link must start with http:// or https://' using errcode = '22023';
   end if;
   v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
@@ -205,7 +205,7 @@ begin
   end if;
   perform public.activity_fields_check(v_atype, v_type, p_venue_id, v_link);
   -- #1087: a meeting link is a web link.
-  if v_link is not null and v_link !~* '^https?://.' then
+  if v_link is not null and v_link !~* '^https?://\S+$' then
     raise exception 'The meeting link must start with http:// or https://' using errcode = '22023';
   end if;
   v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
@@ -338,9 +338,6 @@ begin
   if v_old_people is distinct from v_new_people then
     v_changed := v_changed || jsonb_build_object('participant_ids', jsonb_build_object('from', to_jsonb(v_old_people), 'to', to_jsonb(v_new_people)));
   end if;
-  if v_req.head_id is distinct from v_head then
-    v_changed := v_changed || jsonb_build_object('head_id', jsonb_build_object('from', v_req.head_id, 'to', v_head));
-  end if;
 
   -- #1084: an edit that changes no field is not an edit. The status stays (an approved Activity stays approved),
   -- no event row is written, and the caller is told so (the service then sends no notice and no audit line).
@@ -360,6 +357,11 @@ begin
       'participant_ids', to_jsonb(v_old_people),
       'old_participant_ids', to_jsonb(v_old_people)
     );
+  end if;
+  -- head_id is not part of the no-change test: an edit never keeps a head (v_head is always null here), so an
+  -- Activity saved with a head_id would otherwise never match. It is still written to the log of a real edit.
+  if v_req.head_id is distinct from v_head then
+    v_changed := v_changed || jsonb_build_object('head_id', jsonb_build_object('from', v_req.head_id, 'to', v_head));
   end if;
 
   -- Days: drop the ones not started that are no longer listed, add the ones not saved yet.
