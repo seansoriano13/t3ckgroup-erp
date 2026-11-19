@@ -218,21 +218,21 @@ export default function SuperAdminActivityLogPage() {
       });
     };
 
+    // Task Logs is not live: task_activity is not in the realtime publication
+    // (large table, see #1100), so it has no subscription and no LIVE badge.
     let sub;
-    if (activeTab === "TASKS")
-      sub = taskActivityService.subscribeToAllActivity(handleNewEntry);
-    else if (activeTab === "GROUP")
+    if (activeTab === "GROUP")
       sub = groupTaskActivityService.subscribeToAllActivity(handleNewEntry);
     else if (activeTab === "SYSTEM")
+      sub = systemAuditLogService.subscribeToAllActivity(handleNewEntry);
+    else if (activeTab === "SOR")
       sub = systemAuditLogService.subscribeToAllActivity(handleNewEntry);
 
     return () => {
       if (sub) {
-        if (activeTab === "TASKS")
-          taskActivityService.unsubscribeFromActivity(sub);
-        else if (activeTab === "GROUP")
+        if (activeTab === "GROUP")
           groupTaskActivityService.unsubscribeFromActivity(sub);
-        else if (activeTab === "SYSTEM")
+        else if (activeTab === "SYSTEM" || activeTab === "SOR")
           systemAuditLogService.unsubscribeFromActivity(sub);
       }
     };
@@ -555,7 +555,9 @@ export default function SuperAdminActivityLogPage() {
               filters={filters}
               setFilters={setFilters}
               employees={employees}
-              liveIndicator={<LiveIndicator active={liveAnim} />}
+              liveIndicator={
+                activeTab === "TASKS" ? null : <LiveIndicator active={liveAnim} />
+              }
             />
           )
         }
