@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
+import { ahead } from "./support/dates.js"
 
 const svc = () => serviceClient()
 const created = []
@@ -17,7 +18,7 @@ let venue
 
 // Manila 09:00 to 10:00 on a day, as UTC instants.
 const day = (offset, startH = 1, hours = 1) => {
-    const d = Date.UTC(2038, 0, 1 + offset, startH, 0, 0)
+    const d = Date.UTC(...ahead(120 + offset), startH, 0, 0)
     return { starts_at: new Date(d).toISOString(), ends_at: new Date(d + hours * 3_600_000).toISOString() }
 }
 

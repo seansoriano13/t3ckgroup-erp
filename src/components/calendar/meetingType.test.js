@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { draftProblem } from './meetingDraft.js';
+import { draftProblem as draftProblemAt } from './meetingDraft.js';
 import { findClash } from './meetingPreview.js';
 import { guestList, guestText, meetingPlace, needsLink, needsVenue, safeLink } from '@/services/meetingRequestService';
 
-const base = { date: '2099-01-02', start: '09:00', end: '10:00', facilitatorId: 'f', purpose: 'Sync' };
+// A fixed clock, so a draft's dates are ahead and within a year whatever day the tests run (#1087).
+const draftProblem = (draft, now = new Date('2031-01-01T08:00:00+08:00')) => draftProblemAt(draft, now);
+
+const base = { date: '2031-01-02', start: '09:00', end: '10:00', facilitatorId: 'f', purpose: 'Sync' };
 
 describe('meeting type rules in the form', () => {
   it('Onsite needs a Venue, Online needs a link, Hybrid needs both', () => {
@@ -28,7 +31,7 @@ describe('meeting type rules in the form', () => {
   });
 
   it('an Online meeting holds no Venue, so it never shows as a clash', () => {
-    const online = { kind: 'MEETING', venue: null, starts_at: '2099-01-02T01:00:00Z', ends_at: '2099-01-02T02:00:00Z' };
+    const online = { kind: 'MEETING', venue: null, starts_at: '2031-01-02T01:00:00Z', ends_at: '2031-01-02T02:00:00Z' };
     expect(findClash([online], 'Conference Room', online.starts_at, online.ends_at)).toBeNull();
   });
 });

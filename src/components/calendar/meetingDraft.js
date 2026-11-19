@@ -40,6 +40,20 @@ export function defaultSlot(rules, now = new Date(), day = null) {
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/** The most characters a purpose can hold (#1087). The database holds the same limit. */
+export const PURPOSE_MAX = 500;
+
+/** A meeting link is a web link: it starts with http:// or https:// (#1087). The database holds the same rule. */
+export const LINK_RULE = 'The meeting link must start with http:// or https://';
+export const isWebLink = (link) => /^https?:\/\/./i.test(String(link ?? '').trim());
+
+/** The latest date an Activity can be on: one year after today in Manila (#1087), as the database counts it. */
+export function latestDate(now = new Date()) {
+  const [y, m, d] = manilaToday(now).split('-').map(Number);
+  const lastDay = new Date(Date.UTC(y + 1, m, 0)).getUTCDate(); // 29 Feb falls back to 28 Feb, as Postgres does
+  return `${y + 1}-${String(m).padStart(2, '0')}-${String(Math.min(d, lastDay)).padStart(2, '0')}`;
+}
+
 /**
  * Everything that stops a draft from being filed, as a list of { field, message } in the order the form
  * reads. `field` says which box the message belongs under: 'venue', 'link', 'date', 'dateTo', 'time',
@@ -51,12 +65,19 @@ export function draftProblems({ activityType = 'MEETING', meetingType = 'ONSITE'
   const add = (field, message) => problems.push({ field, message });
   const isMeeting = activityType === 'MEETING';
   if (isMeeting && meetingType !== 'ONLINE' && !venueId) add('venue', 'Choose a Venue.');
-  if (isMeeting && meetingType !== 'ONSITE' && !String(meetingLink ?? '').trim()) add('link', 'Paste the meeting link.');
+  if (isMeeting && meetingType !== 'ONSITE') {
+    if (!String(meetingLink ?? '').trim()) add('link', 'Paste the meeting link.');
+    else if (!isWebLink(meetingLink)) add('link', `${LINK_RULE}.`);
+  }
   const dateOk = isIsoDate(date);
+  const latest = latestDate(now);
+  const tooFar = 'The date can be at most one year ahead.';
   if (!dateOk) add('date', 'Choose a date.');
+  else if (date > latest) add('date', tooFar);
   // "To" before "From" is said under the To box. The typed value stays until it is fixed.
   const backwards = multiDay && dateOk && isIsoDate(dateTo) && dateTo < date;
   if (backwards) add('dateTo', 'To cannot be before From.');
+  else if (multiDay && isIsoDate(dateTo) && dateTo > latest) add('dateTo', tooFar);
   const timesOk = Boolean(start && end);
   if (!timesOk) add('time', 'Choose a start and end time.');
   if (dateOk && timesOk) {
@@ -83,6 +104,7 @@ export function draftProblems({ activityType = 'MEETING', meetingType = 'ONSITE'
   }
   if (!facilitatorId) add('lead', 'Choose a Lead.');
   if (!purpose.trim()) add('purpose', 'Write the purpose of the Activity.');
+  else if ([...purpose.trim()].length > PURPOSE_MAX) add('purpose', `The purpose can be at most ${PURPOSE_MAX} characters.`);
   const badEmail = guests.find((g) => g.email && !EMAIL.test(g.email.trim()));
   if (badEmail) add('guests', `Check the email for ${badEmail.name}.`);
   return problems;
