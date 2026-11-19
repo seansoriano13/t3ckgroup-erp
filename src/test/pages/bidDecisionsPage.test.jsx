@@ -37,7 +37,7 @@ function renderQueue() {
     <MemoryRouter initialEntries={["/approvals/bid-decisions"]}>
       <Routes>
         <Route path="/approvals/bid-decisions" element={<BidDecisionsPage />} />
-        <Route path="/approvals" element={<p>The Approval Center home</p>} />
+        <Route path="/" element={<p>The home page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -80,17 +80,21 @@ describe("the Bid Decisions queue", () => {
     expect(await screen.findByText("No bid is waiting for a decision")).toBeInTheDocument();
   });
 
-  it("lets a Super Admin in, and sends anyone else back to the Approval Center", async () => {
+  it("lets a Super Admin in, and sends anyone else to the home page", async () => {
     stubRpc("costing_pending_bid_decisions", [pending]);
     mockUser.current = { id: "55555555-eeee-4eee-8eee-000000000005", isSuperAdmin: true };
     const first = renderQueue();
     expect(await screen.findByText("Rescue vehicle for the city")).toBeInTheDocument();
     first.unmount();
 
-    mockUser.current = { id: "66666666-ffff-4fff-8fff-000000000006", isHead: true };
-    renderQueue();
-    expect(await screen.findByText("The Approval Center home")).toBeInTheDocument();
-    expect(screen.queryByText("Rescue vehicle for the city")).not.toBeInTheDocument();
+    // A Sales Executive, plain staff and a Sales Director all land on the same page.
+    for (const who of [{ isHead: true, isSalesDirector: true }, { isSalesExecutive: true }, {}]) {
+      mockUser.current = { id: "66666666-ffff-4fff-8fff-000000000006", ...who };
+      const view = renderQueue();
+      expect(await screen.findByText("The home page")).toBeInTheDocument();
+      expect(screen.queryByText("Rescue vehicle for the city")).not.toBeInTheDocument();
+      view.unmount();
+    }
   });
 
   it("is a tab and a navigation entry for the deciders only", () => {
