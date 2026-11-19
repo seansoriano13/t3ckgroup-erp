@@ -5,6 +5,9 @@ import { supabase } from "../lib/supabase";
  * Department / Sub-department filters, or null when neither is set. The log
  * filters parent tasks by "created by one of these", so the department filter
  * runs on the server and paging follows it.
+ *
+ * The ids go into one `in.(...)` filter. That is fine here: a department is a few
+ * dozen people, so the list stays far below the URL size limit.
  */
 export async function creatorIdsForDepartment({ dept = "ALL", subDept = "ALL" } = {}) {
   const hasDept = dept && dept !== "ALL";

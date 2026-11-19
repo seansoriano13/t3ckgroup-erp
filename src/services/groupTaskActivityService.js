@@ -1,7 +1,8 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { creatorIdsForDepartment } from "./activityLogCreatorFilter";
-import { likePattern, quoteFilterValue, plainLogError } from "./activityLogSearch";
+import { plainLogError } from "../lib/activityLogSearch";
+import { activitySearchFilter } from "./activityLogSearchFilter";
 
 export const groupTaskActivityService = {
   async getActivityForTask(taskId) {
@@ -247,28 +248,7 @@ export const groupTaskActivityService = {
     if (dateFrom) query = query.gte("created_at", dateFrom);
     if (dateTo) query = query.lte("created_at", dateTo);
 
-    const trimmed = (search || "").trim();
-    if (trimmed) {
-      const like = likePattern(trimmed);
-
-      const { data: tasksMatch, error: taskSearchErr } = await supabase
-        .from("committee_tasks")
-        .select("id")
-        .ilike("title", like)
-        .limit(500);
-      
-      if (!taskSearchErr) {
-        const ids = (tasksMatch || []).map((t) => t.id).filter(Boolean);
-        if (ids.length > 0) {
-          const inList = ids.join(",");
-          query = query.or(
-            `content.ilike.${quoteFilterValue(like)},task_id.in.(${inList})`,
-          );
-        } else {
-          query = query.ilike("content", like);
-        }
-      }
-    }
+    query = (await activitySearchFilter({ search, taskTable: "committee_tasks", taskTextColumn: "title" }))(query);
 
     query = query.range(safeOffset, safeOffset + safeLimit - 1);
 

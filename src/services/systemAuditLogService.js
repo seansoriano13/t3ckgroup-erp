@@ -14,17 +14,43 @@ export const HR_ENTITY_TYPES = [
 ];
 
 /**
- * The audit log only accepts a row written as yourself (#1094). A caller that
- * does not name an author is written as the signed-in employee, so the row is
- * still accepted; "System" rows (no author) come from database functions only.
+ * The audit log only accepts a row written as yourself (#1094). The policy
+ * compares author_id with get_employee_id(), which finds the employee by the
+ * session email, so a caller that names no author is written as that same
+ * employee (not the auth user id, which differs). "System" rows (no author)
+ * come from database functions only.
  */
 async function resolveAuthorId(authorId) {
   if (authorId) return authorId;
   try {
     const { data } = await supabase.auth.getSession();
-    return data?.session?.user?.id || null;
+    const email = data?.session?.user?.email;
+    if (!email) return null;
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    return employee?.id || null;
   } catch {
     return null;
+  }
+}
+
+/** Inserts one row. A refused insert is logged, never thrown, so the admin action itself still succeeds. */
+async function insertEntry(type, entityType, entityId, content, metadata, authorId) {
+  try {
+    const { error } = await supabase.from("system_audit_logs").insert({
+      author_id: await resolveAuthorId(authorId),
+      type,
+      entity_type: entityType || null,
+      entity_id: entityId ? String(entityId) : null,
+      content,
+      metadata,
+    });
+    if (error) console.error(`Failed to log ${type} audit event:`, error);
+  } catch (err) {
+    console.error(`Failed to log ${type} audit event:`, err);
   }
 }
 
@@ -33,36 +59,14 @@ export const systemAuditLogService = {
    * Write a system-level admin action to the audit log
    */
   async addSystemEvent(entityType, entityId, content, metadata = null, authorId = null) {
-    try {
-      await supabase.from("system_audit_logs").insert({
-        author_id: await resolveAuthorId(authorId),
-        type: "SYSTEM",
-        entity_type: entityType || null,
-        entity_id: entityId ? String(entityId) : null,
-        content,
-        metadata,
-      });
-    } catch (err) {
-      console.error("Failed to log system audit event:", err);
-    }
+    await insertEntry("SYSTEM", entityType, entityId, content, metadata, authorId);
   },
 
   /**
    * Write an approval-type admin action (e.g. quota published)
    */
   async addApprovalEvent(entityType, entityId, content, metadata = null, authorId = null) {
-    try {
-      await supabase.from("system_audit_logs").insert({
-        author_id: await resolveAuthorId(authorId),
-        type: "APPROVAL",
-        entity_type: entityType || null,
-        entity_id: entityId ? String(entityId) : null,
-        content,
-        metadata,
-      });
-    } catch (err) {
-      console.error("Failed to log system approval event:", err);
-    }
+    await insertEntry("APPROVAL", entityType, entityId, content, metadata, authorId);
   },
 
   /**

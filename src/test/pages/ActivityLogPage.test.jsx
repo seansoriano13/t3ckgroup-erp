@@ -308,3 +308,20 @@ describe("SuperAdminActivityLogPage tab filters and polish", () => {
     expect(await screen.findByText("Boardroom A")).toBeInTheDocument();
   });
 });
+
+describe("SuperAdminActivityLogPage load errors (#1099)", () => {
+  it("shows the plain message and asks only once when the database answers 400", async () => {
+    const { taskActivityService } = await import("../../services/tasks/taskActivityService");
+    const { plainLogError } = await import("../../lib/activityLogSearch");
+    taskActivityService.getRecentTaskActivity.mockReset();
+    taskActivityService.getRecentTaskActivity.mockRejectedValue(
+      plainLogError({ status: 400, message: 'failed to parse logic tree ((content.ilike."%a,b%"))' }),
+    );
+
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    expect(await screen.findByText("Could not load the log. Try again.")).toBeInTheDocument();
+    expect(screen.queryByText(/logic tree/)).not.toBeInTheDocument();
+    expect(taskActivityService.getRecentTaskActivity).toHaveBeenCalledTimes(1);
+  });
+});

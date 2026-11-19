@@ -8,7 +8,8 @@
 --   * the caller is a Super Admin (reads all; Task Logs tab), or
 --   * the caller wrote the row (own replies stay readable), or
 --   * the caller can read the parent task (tasks RLS applies inside the subquery, so the opportunity-linked
---     gate of 20260926000000 carries over) AND is on the task: logger, reporter, HR, or a head.
+--     gate of 20260926000000 carries over) AND is on the task: logger, reporter, evaluator (the tasks table has
+--     no collaborator column), HR, or a head of the department the task's logger belongs to.
 -- An employee with no part in a task gets no rows. Insert and update rules are not touched.
 --
 -- Cost: the Super Admin check and the author check are wrapped in (select ...) so they run once per query,
@@ -22,7 +23,7 @@ drop policy if exists "Task activity follows the task read rule" on public.task_
 create policy "Task activity follows the task read rule" on public.task_activity
   as permissive
   for select
-  to public
+  to authenticated
   using (
     (select public.is_super_admin())
     or author_id = (select public.get_employee_id())
@@ -32,8 +33,18 @@ create policy "Task activity follows the task read rule" on public.task_activity
         and (
           t.logged_by = (select public.get_employee_id())
           or t.reported_to = (select public.get_employee_id())
+          or t.evaluated_by = (select public.get_employee_id())
           or (select public.is_hr())
-          or (select public.is_head())
+          or (
+            (select public.is_head())
+            and exists (
+              select 1
+              from public.employees me
+              join public.employees creator on creator.id = t.logged_by
+              where me.id = (select public.get_employee_id())
+                and me.department is not distinct from creator.department
+            )
+          )
         )
     )
   );

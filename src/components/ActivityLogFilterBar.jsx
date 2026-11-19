@@ -60,7 +60,7 @@ export default function ActivityLogFilterBar({
   employees = [],
   liveIndicator,
   statusOptions = TASK_STATUS_OPTIONS,
-  taskFilters = true,
+  showTaskFilters = true,
 }) {
   const set = (key) => (value) => setFilters((p) => ({ ...p, [key]: value }));
   const setDate = (key) => (value) =>
@@ -83,8 +83,8 @@ export default function ActivityLogFilterBar({
 
   const activeCount = [
     filters.employeeId !== "ALL",
-    taskFilters && filters.dept !== "ALL",
-    taskFilters && filters.subDept !== "ALL",
+    showTaskFilters && filters.dept !== "ALL",
+    showTaskFilters && filters.subDept !== "ALL",
     filters.dateFrom !== "",
     filters.dateTo !== "",
   ].filter(Boolean).length;
@@ -93,12 +93,12 @@ export default function ActivityLogFilterBar({
     activeCount > 0 ||
     filters.search !== "" ||
     filters.type !== "ALL" ||
-    (taskFilters && filters.taskStatus !== "ALL") ||
+    (showTaskFilters && filters.taskStatus !== "ALL") ||
     filters.authorId !== "ALL";
 
   return (
     <FilterBar
-      search={{ value: filters.search, onChange: set("search"), placeholder: taskFilters ? "Search content or task description" : "Search content" }}
+      search={{ value: filters.search, onChange: set("search"), placeholder: showTaskFilters ? "Search content or task description" : "Search content" }}
       chips={
         <>
           <FilterSelect
@@ -110,7 +110,7 @@ export default function ActivityLogFilterBar({
             className={chip}
             wrapperClassName="w-auto shrink-0"
           />
-          {taskFilters && (
+          {showTaskFilters && (
             <FilterSelect
               icon={Clock}
               label="Task status"
@@ -141,7 +141,7 @@ export default function ActivityLogFilterBar({
             value={filters.employeeId}
             onChange={set("employeeId")}
           />
-          {taskFilters && (<>
+          {showTaskFilters && (<>
           <FilterSelect
             icon={Building2}
             label="Department"

@@ -11,6 +11,7 @@ import { MARKER, makeTask } from "./support/rows.js"
 
 const svc = () => serviceClient()
 let taskId
+let otherDeptTaskId
 
 beforeAll(async () => {
     await ensureCastLoaded()
@@ -19,12 +20,19 @@ beforeAll(async () => {
         .from("task_activity")
         .insert({ task_id: taskId, author_id: ids.head, type: "COMMENT", content: `${MARKER} private task note` })
     if (error) throw new Error(`seed note: ${error.message}`)
+    // An OPERATIONS task nobody in SALES is on.
+    otherDeptTaskId = await makeTask({ loggedBy: ids.outsider })
+    const other = await svc()
+        .from("task_activity")
+        .insert({ task_id: otherDeptTaskId, author_id: ids.outsider, type: "COMMENT", content: `${MARKER} ops note` })
+    if (other.error) throw new Error(`seed ops note: ${other.error.message}`)
 })
 
 afterAll(async () => {
-    if (!taskId) return
-    await svc().from("task_activity").delete().eq("task_id", taskId)
-    await svc().from("tasks").delete().eq("id", taskId)
+    for (const id of [taskId, otherDeptTaskId].filter(Boolean)) {
+        await svc().from("task_activity").delete().eq("task_id", id)
+        await svc().from("tasks").delete().eq("id", id)
+    }
 })
 
 describe("task_activity read rule (#1097)", () => {
@@ -49,5 +57,19 @@ describe("task_activity read rule (#1097)", () => {
             expect(error).toBeNull()
             expect(data.length).toBeGreaterThanOrEqual(1)
         }
+    })
+
+    it("lets a head read a task in their own department they are not on", async () => {
+        const client = await clientFor("subHead")
+        const { data, error } = await client.from("task_activity").select("id").eq("task_id", taskId)
+        expect(error).toBeNull()
+        expect(data.length).toBe(1)
+    })
+
+    it("gives a head no rows for a task in another department", async () => {
+        const client = await clientFor("head")
+        const { data, error } = await client.from("task_activity").select("id").eq("task_id", otherDeptTaskId)
+        expect(error).toBeNull()
+        expect(data).toEqual([])
     })
 })

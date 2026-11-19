@@ -15,6 +15,7 @@ import ActivityLogFilterBar, {
   TASK_STATUS_OPTIONS,
 } from "../../../components/ActivityLogFilterBar";
 import { LiveIndicator, LogLoadError, LogPager } from "../../../components/ActivityLogParts";
+import { LOG_LOAD_ERROR_MESSAGE } from "../../../lib/activityLogSearch";
 import { DEFAULT_LOG_FILTERS, formatWhen, formatWhenShort, systemLogSubject } from "../../../lib/activityLog";
 import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 import PageShell from "../../../components/ui/PageShell";
@@ -284,6 +285,8 @@ export default function SuperAdminActivityLogPage() {
     },
     enabled: activeTab !== "HR",
     staleTime: 15_000,
+    // A 400 is a request the database refused; asking again cannot fix it.
+    retry: (failureCount, err) => err?.status !== 400 && failureCount < 2,
   });
 
   const filteredEntries = useMemo(() => {
@@ -388,7 +391,7 @@ export default function SuperAdminActivityLogPage() {
       <PageLoading label="activity log" />
     );
   } else if (isError) {
-    body = <LogLoadError title="Failed to load activity log" message={error?.message} />;
+    body = <LogLoadError title="Failed to load activity log" message={error?.message || LOG_LOAD_ERROR_MESSAGE} />;
   } else if (filteredEntries.length === 0) {
     body = (
       <>
@@ -562,7 +565,7 @@ export default function SuperAdminActivityLogPage() {
               liveIndicator={
                 activeTab === "TASKS" ? null : <LiveIndicator active={liveAnim} />
               }
-              taskFilters={showStatus}
+              showTaskFilters={showStatus}
               statusOptions={activeTab === "GROUP" ? GROUP_TASK_STATUS_OPTIONS : TASK_STATUS_OPTIONS}
             />
           )

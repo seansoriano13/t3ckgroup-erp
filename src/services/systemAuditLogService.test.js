@@ -215,13 +215,26 @@ describe("systemAuditLogService author on write (#1094)", () => {
     const self = makeEmployee({ name: "Self" })
     const spy = vi
       .spyOn(supabase.auth, "getSession")
-      .mockResolvedValue({ data: { session: { user: { id: self.id } } } })
+      .mockResolvedValue({ data: { session: { user: { id: "auth-user-id", email: self.email } } } })
 
     await systemAuditLogService.addSystemEvent("SETTINGS", "k", "changed")
 
     const [entry] = await systemAuditLogService.getRecentSystemActivity()
     expect(entry.authorId).toBe(self.id)
     spy.mockRestore()
+  })
+
+  it("logs a refused insert instead of hiding it", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {})
+    const insert = vi.fn().mockResolvedValue({ error: { code: "42501", message: "denied" } })
+    const from = vi.spyOn(supabase, "from").mockReturnValue({ insert })
+
+    await systemAuditLogService.addSystemEvent("SETTINGS", "k", "changed", null, "someone")
+
+    expect(insert).toHaveBeenCalled()
+    expect(err).toHaveBeenCalled()
+    from.mockRestore()
+    err.mockRestore()
   })
 
   it("keeps the author the caller names", async () => {
