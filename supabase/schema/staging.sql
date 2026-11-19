@@ -2164,7 +2164,6 @@ alter table transmittal_stages add constraint "transmittal_stages_pkey" PRIMARY 
 alter table transmittals add constraint "transmittals_pkey" PRIMARY KEY (id);
 alter table undertime_requests add constraint "undertime_requests_pkey" PRIMARY KEY (id);
 alter table verification_rate_limits add constraint "verification_rate_limits_pkey" PRIMARY KEY (ip_address);
-alter table calendar_venues add constraint "calendar_venues_name_key" UNIQUE (name);
 alter table categories add constraint "categories_category_id_key" UNIQUE (category_id);
 alter table commission_departments add constraint "commission_departments_key_key" UNIQUE (key);
 alter table commission_departments add constraint "commission_departments_name_key" UNIQUE (name);
@@ -2847,6 +2846,7 @@ alter table meeting_requests add constraint "meeting_requests_venue_clash" TRIGG
 
 CREATE INDEX bug_report_notes_report_idx ON public.bug_report_notes USING btree (report_id, created_at);
 CREATE INDEX bug_reports_created_at_idx ON public.bug_reports USING btree (created_at DESC);
+CREATE UNIQUE INDEX calendar_venues_name_lower_key ON public.calendar_venues USING btree (lower(name));
 CREATE INDEX commission_positions_department_id_idx ON public.commission_positions USING btree (department_id);
 CREATE INDEX commission_rates_rate_type_idx ON public.commission_rates USING btree (rate_type);
 CREATE INDEX commission_splits_project_type_idx ON public.commission_splits USING btree (project_type);
@@ -13822,7 +13822,7 @@ declare
   v_action text;
 begin
   if v_actor is null then
-    raise exception 'Sign in to decide a Meeting Request.' using errcode = '42501';
+    raise exception 'Sign in to decide an Activity.' using errcode = '42501';
   end if;
 
   if p_decision not in ('APPROVE', 'DECLINE', 'RETURN') then
@@ -13835,23 +13835,23 @@ begin
 
   select * into v_req from public.meeting_requests where id = p_request_id for update;
   if not found then
-    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+    raise exception 'Activity not found.' using errcode = 'P0002';
   end if;
 
   if v_req.status <> 'PENDING_HR' then
-    raise exception 'This Meeting Request is not waiting for a decision.' using errcode = '22023';
+    raise exception 'This Activity is not waiting for a decision.' using errcode = '22023';
   end if;
 
   if v_req.applicant_id = v_actor then
-    raise exception 'You cannot decide your own Meeting Request.' using errcode = '42501';
+    raise exception 'You cannot decide your own Activity.' using errcode = '42501';
   end if;
 
   if not v_is_hr then
-    raise exception 'Only HR can decide a Meeting Request.' using errcode = '42501';
+    raise exception 'Only HR can decide an Activity.' using errcode = '42501';
   end if;
 
   if p_decision in ('DECLINE', 'RETURN') and v_note is null then
-    raise exception 'Write a note to % a Meeting Request.', lower(p_decision) using errcode = '22023';
+    raise exception 'Write a note to % an Activity.', lower(p_decision) using errcode = '22023';
   end if;
 
   v_to := case p_decision when 'APPROVE' then 'APPROVED' when 'DECLINE' then 'DECLINED' else 'RETURNED' end;
@@ -14372,6 +14372,10 @@ begin
     v_type := 'ONSITE';
   end if;
   perform public.activity_fields_check(v_atype, v_type, p_venue_id, v_link);
+  -- #1087: a meeting link is a web link.
+  if v_link is not null and v_link !~* '^https?://\S+$' then
+    raise exception 'The meeting link must start with http:// or https://' using errcode = '22023';
+  end if;
   v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
 
   -- Days that have started stay exactly as they are.
@@ -14384,6 +14388,17 @@ begin
       )
   ) then
     raise exception 'A day that has already started cannot be changed or removed.' using errcode = '22023';
+  end if;
+  -- #1087: a day that is not already saved is at most one year ahead (Manila dates, the same as the form).
+  if exists (
+    select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+    where (x.starts_at at time zone 'Asia/Manila')::date > (now() at time zone 'Asia/Manila')::date + interval '1 year'
+      and not exists (
+        select 1 from public.meeting_request_days d
+        where d.request_id = p_request_id and d.starts_at = x.starts_at and d.ends_at = x.ends_at
+      )
+  ) then
+    raise exception 'An Activity cannot be more than one year ahead.' using errcode = '22023';
   end if;
   -- Any day that is not already saved must be in the future.
   if exists (
@@ -14413,6 +14428,9 @@ begin
 
   if v_purpose = '' then
     raise exception 'Write the purpose of the Activity.' using errcode = '22023';
+  end if;
+  if char_length(v_purpose) > 500 then
+    raise exception 'The purpose can be at most 500 characters.' using errcode = '22023';
   end if;
 
   -- An edit may keep the Activity's own type, even one its filer could not file today (an Admin Task a
@@ -14488,6 +14506,28 @@ begin
   if v_old_people is distinct from v_new_people then
     v_changed := v_changed || jsonb_build_object('participant_ids', jsonb_build_object('from', to_jsonb(v_old_people), 'to', to_jsonb(v_new_people)));
   end if;
+
+  -- #1084: an edit that changes no field is not an edit. The status stays (an approved Activity stays approved),
+  -- no event row is written, and the caller is told so (the service then sends no notice and no audit line).
+  -- Everything above ran first, so a bad value is still refused.
+  if v_changed = '{}'::jsonb then
+    return jsonb_build_object(
+      'id', p_request_id,
+      'action', 'NO_CHANGE',
+      'no_change', true,
+      'from_status', v_req.status,
+      'to_status', v_req.status,
+      'changed_fields', '{}'::jsonb,
+      'head_id', v_req.head_id,
+      'applicant_id', v_req.applicant_id,
+      'facilitator_id', v_req.facilitator_id,
+      'old_facilitator_id', v_req.facilitator_id,
+      'participant_ids', to_jsonb(v_old_people),
+      'old_participant_ids', to_jsonb(v_old_people)
+    );
+  end if;
+  -- head_id is not part of the no-change test: an edit never keeps a head (v_head is always null here), so an
+  -- Activity saved with a head_id would otherwise never match. It is still written to the log of a real edit.
   if v_req.head_id is distinct from v_head then
     v_changed := v_changed || jsonb_build_object('head_id', jsonb_build_object('from', v_req.head_id, 'to', v_head));
   end if;
@@ -14601,7 +14641,18 @@ begin
     v_type := 'ONSITE';
   end if;
   perform public.activity_fields_check(v_atype, v_type, p_venue_id, v_link);
+  -- #1087: a meeting link is a web link.
+  if v_link is not null and v_link !~* '^https?://\S+$' then
+    raise exception 'The meeting link must start with http:// or https://' using errcode = '22023';
+  end if;
   v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
+  -- #1087: no day is more than one year ahead (Manila dates, the same as the form).
+  if exists (
+    select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
+    where (x.starts_at at time zone 'Asia/Manila')::date > (now() at time zone 'Asia/Manila')::date + interval '1 year'
+  ) then
+    raise exception 'An Activity cannot be more than one year ahead.' using errcode = '22023';
+  end if;
 
   if not public.activity_can_file(v_applicant, v_atype) then
     raise exception 'Only a department head can file the % type.', public.activity_type_phrase(v_atype) using errcode = '42501';
@@ -14620,6 +14671,9 @@ begin
 
   if coalesce(btrim(p_purpose), '') = '' then
     raise exception 'Write the purpose of the Activity.' using errcode = '22023';
+  end if;
+  if char_length(btrim(p_purpose)) > 500 then
+    raise exception 'The purpose can be at most 500 characters.' using errcode = '22023';
   end if;
 
   v_status := case when public.activity_needs_hr(v_atype, p_venue_id, v_applicant) then 'PENDING_HR' else 'APPROVED' end;
@@ -20359,7 +20413,7 @@ CREATE OR REPLACE FUNCTION public.meeting_requests_guard_insert()
 AS $function$
 begin
   if new.starts_at < now() then
-    raise exception 'A meeting cannot start in the past.' using errcode = '22023';
+    raise exception 'An Activity cannot start in the past.' using errcode = '22023';
   end if;
   return new;
 end;
@@ -23794,24 +23848,24 @@ declare
   v_to text;
 begin
   if v_actor is null then
-    raise exception 'Sign in to send a Meeting Request again.' using errcode = '42501';
+    raise exception 'Sign in to send an Activity again.' using errcode = '42501';
   end if;
 
   select * into v_req from public.meeting_requests where id = p_request_id for update;
   if not found then
-    raise exception 'Meeting Request not found.' using errcode = 'P0002';
+    raise exception 'Activity not found.' using errcode = 'P0002';
   end if;
 
   if v_req.applicant_id <> v_actor then
-    raise exception 'Only the person who filed this Meeting Request can send it again.' using errcode = '42501';
+    raise exception 'Only the person who filed this Activity can send it again.' using errcode = '42501';
   end if;
 
   if v_req.status <> 'RETURNED' then
-    raise exception 'Only a returned Meeting Request can be sent again.' using errcode = '22023';
+    raise exception 'Only a returned Activity can be sent again.' using errcode = '22023';
   end if;
 
   if v_req.starts_at <= now() then
-    raise exception 'This meeting has already started, so it can no longer be sent again.' using errcode = '22023';
+    raise exception 'This Activity has already started, so it can no longer be sent again.' using errcode = '22023';
   end if;
 
   v_to := 'PENDING_HR';

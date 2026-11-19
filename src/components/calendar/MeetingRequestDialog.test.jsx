@@ -13,7 +13,8 @@ import { DEFAULT_ACTIVITY_SETTINGS, getActivitySettings, setActivitySettings } f
 
 const mockUser = { id: 'me', name: 'Me', is_head: true };
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: mockUser }) }));
-vi.mock('@/components/ui/ModalShell', () => ({ default: ({ children, actions }) => <div>{actions}{children}</div> }));
+// The real shell sends Esc, Cancel and the close button through onOpenChange(false); Cancel stands for all three here.
+vi.mock('@/components/ui/ModalShell', () => ({ default: ({ children, actions, onOpenChange }) => <div><button onClick={() => onOpenChange?.(false)}>Cancel</button>{actions}{children}</div> }));
 vi.mock('@/components/ui/PeoplePicker', () => ({ default: () => null }));
 vi.mock('@/components/offsets/HeadSelectField', () => ({ default: () => null }));
 vi.mock('@/services/calendarService', () => ({ calendarService: { fetchEntries: vi.fn() } }));
@@ -37,7 +38,10 @@ const meeting = (over) => ({
   ...over,
 });
 
-function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }, editing = null) {
+// The form's clock when a test sets none: early 2031, so its 2031 dates are ahead and within a year (#1087).
+const defaultClock = () => new Date('2031-01-01T08:00:00+08:00');
+
+function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end: '10:00' }, editing = null, { clock = defaultClock, onClose = () => {} } = {}) {
   employeeService.getAllEmployees.mockResolvedValue([
     { id: 'fac', name: 'Fay Facilitator', isHead: true },
     { id: 'me', name: 'Me', isHead: true },
@@ -52,7 +56,7 @@ function renderForm(entries, initial = { date: '2031-03-10', start: '09:00', end
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <QueryClientProvider client={client}>
-      <MeetingRequestDialog open onClose={() => {}} initial={initial} editing={editing} />
+      <MeetingRequestDialog open onClose={onClose} initial={initial} editing={editing} clock={clock} />
     </QueryClientProvider>,
   );
   return { ...view, client };
@@ -77,7 +81,9 @@ describe('Activity form', () => {
 
   it('names the request holding the slot and stops the send', async () => {
     renderForm([meeting()]);
-    expect(await screen.findByText(/already held 09:00 to 10:00 for "Sales huddle" \(requested by Dana Lim\)/)).toBeInTheDocument();
+    // Under the time boxes and again just above the buttons.
+    await waitFor(() => expect(screen.getByTestId('form-problem')).toHaveTextContent(/already held 09:00 to 10:00 for "Sales huddle" \(requested by Dana Lim\)/));
+    expect(screen.getByTestId('problem-time')).toHaveTextContent(/already held 09:00 to 10:00/);
     expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
   });
 
@@ -119,7 +125,8 @@ describe('Activity form', () => {
     renderForm([]);
     await screen.findByText('Activity type');
     fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '' } });
-    expect(await screen.findByText('Choose a date.')).toBeInTheDocument();
+    expect(await screen.findByTestId('form-problem')).toHaveTextContent('Choose a date.');
+    expect(screen.getByTestId('problem-date')).toHaveTextContent('Choose a date.');
     expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
   });
 
@@ -316,6 +323,288 @@ describe('Activity form', () => {
       expect(screen.queryByText('To')).not.toBeInTheDocument();
       expect(screen.queryByTestId('activity-day-rows')).not.toBeInTheDocument();
       expect(document.querySelectorAll('input[type="date"]')).toHaveLength(1);
+    });
+
+    it('says "To cannot be before From.", keeps the typed To, and does not blame the days list', async () => {
+      renderForm([], { date: '2031-03-14' });
+      await screen.findByText('Activity type');
+      await pickType('Admin Task');
+      setTo('2031-03-16');
+      await screen.findByTestId('activity-day-rows');
+      // The first day is removed, so a To before From used to leave no day at all: "Keep at least one day."
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Fri, Mar 14' }));
+      setTo('2031-03-12');
+      expect(await screen.findByTestId('problem-dateTo')).toHaveTextContent('To cannot be before From.');
+      expect(screen.getByTestId('form-problem')).toHaveTextContent('To cannot be before From.');
+      expect(document.querySelectorAll('input[type="date"]')[1]).toHaveValue('2031-03-12');
+      expect(screen.queryByText('Keep at least one day.')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+      // Fixed: the message goes and the typed value was never lost.
+      setTo('2031-03-15');
+      await waitFor(() => expect(screen.queryByTestId('problem-dateTo')).not.toBeInTheDocument());
+    });
+  });
+
+  describe('opens on a time that can still be filed (#1086)', () => {
+    const manila = (ymd, hhmm) => () => new Date(`${ymd}T${hhmm}:00+08:00`);
+    const sendButton = () => screen.getByRole('button', { name: /Send request/ });
+    // The Start and End boxes: the ones showing a time of day.
+    const timeBoxes = () => screen.getAllByRole('combobox').map((c) => c.textContent.match(/^\s*(\d\d:\d\d)/)?.[1]).filter(Boolean);
+
+    it('at 14:00 Manila: today, 14:00 to 15:00, and Send is on once the Purpose is written', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '14:00') });
+      await screen.findByText('Activity type');
+      expect(document.querySelector('input[type="date"]')).toHaveValue('2031-03-10');
+      expect(timeBoxes()).toEqual(['14:00', '15:00']);
+      // Nothing is wrong with the time: once the remembered Venue is in, the only thing missing is the Purpose, and the reason says so.
+      await waitFor(() => expect(screen.getByTestId('form-problem')).toHaveTextContent('Write the purpose of the Activity.'));
+      expect(screen.queryByTestId('problem-time')).not.toBeInTheDocument();
+      fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: 'Planning' } });
+      await waitFor(() => expect(sendButton()).toBeEnabled());
+      expect(screen.queryByTestId('form-problem')).not.toBeInTheDocument();
+    });
+
+    it('at 14:20 Manila: the next slot, 14:30, keeping the length of the default Activity', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '14:20') });
+      await screen.findByText('Activity type');
+      expect(timeBoxes()).toEqual(['14:30', '15:30']);
+    });
+
+    it('when today is over: tomorrow at the default start', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '22:30') });
+      await screen.findByText('Activity type');
+      expect(document.querySelector('input[type="date"]')).toHaveValue('2031-03-11');
+      expect(timeBoxes()).toEqual(['09:00', '10:00']);
+      expect(screen.queryByTestId('problem-time')).not.toBeInTheDocument();
+    });
+
+    it('shows the reason under its own box and just above the buttons', async () => {
+      renderForm([], {}, null, { clock: manila('2031-03-10', '14:00') });
+      await screen.findByText('Activity type');
+      expect(screen.getByTestId('problem-purpose')).toHaveTextContent('Write the purpose of the Activity.');
+      // The first problem is the summary line; the Venue is still being remembered, so it comes first.
+      await waitFor(() => expect(screen.getByTestId('form-problem')).toHaveTextContent('Write the purpose of the Activity.'));
+      expect(screen.queryByTestId('problem-venue')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('closing a form with something in it (#1086)', () => {
+    it('asks "Discard this Activity?" after something was typed, and closes only on Discard', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: 'Planning' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(await screen.findByText('Discard this Activity?')).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+      // Keep editing: the question goes, the draft stays.
+      fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+      await waitFor(() => expect(screen.queryByText('Discard this Activity?')).not.toBeInTheDocument());
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByPlaceholderText('What is the Activity for?')).toHaveValue('Planning');
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Discard' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks after a pick too, not only after typing', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '2031-03-12' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(await screen.findByText('Discard this Activity?')).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes at once when nothing was changed', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText('Discard this Activity?')).not.toBeInTheDocument();
+    });
+
+    it('closes at once when what was typed is taken back out', async () => {
+      const onClose = vi.fn();
+      renderForm([], undefined, null, { onClose });
+      await screen.findByText('Activity type');
+      const purpose = screen.getByPlaceholderText('What is the Activity for?');
+      fireEvent.change(purpose, { target: { value: 'Planning' } });
+      fireEvent.change(purpose, { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('editing a saved Activity (#1084)', () => {
+    const saved = (over) => ({
+      id: 'r1',
+      status: 'APPROVED',
+      activity_type: 'MEETING',
+      meeting_type: 'ONSITE',
+      meeting_link: null,
+      venue_id: 'v1',
+      facilitator_id: 'fac',
+      participants: [],
+      guests: [],
+      guest_emails: [],
+      purpose: 'Sales huddle',
+      starts_at: at('2031-03-10', '09:00'),
+      ends_at: at('2031-03-10', '10:00'),
+      days: [{ starts_at: at('2031-03-10', '09:00'), ends_at: at('2031-03-10', '10:00') }],
+      ...over,
+    });
+    const saveButton = () => screen.getByRole('button', { name: 'Save changes' });
+    const typePurpose = (text) => fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: text } });
+
+    it('keeps "Save changes" off until something is different', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      expect(saveButton()).toBeDisabled();
+    });
+
+    it('turns it on for a changed purpose, and off again when the change is put back', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      typePurpose('Sales huddle, moved');
+      expect(saveButton()).toBeEnabled();
+      typePurpose('Sales huddle');
+      expect(saveButton()).toBeDisabled();
+    });
+
+    it('turns it on for a changed end time', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await user.click(screen.getAllByRole('combobox').find((c) => c.textContent.includes('10:00')));
+      await user.click(await screen.findByRole('option', { name: '11:00' }));
+      expect(saveButton()).toBeEnabled();
+    });
+
+    it('turns it on for an added Guest, but not for a Guest that is only typed', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await user.type(screen.getByPlaceholderText('Name'), 'Mr. Visitor');
+      expect(saveButton()).toBeDisabled();
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(saveButton()).toBeEnabled();
+    });
+
+    it('does not hold back "Send again" on a returned Activity', async () => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      employeeService.getAllEmployees.mockResolvedValue([{ id: 'fac', name: 'Fay Facilitator', isHead: true }]);
+      meetingRequestService.listVenues.mockResolvedValue([{ id: 'v1', name: 'Conference Room' }]);
+      meetingRequestService.lastPicks.mockResolvedValue(null);
+      calendarService.fetchEntries.mockResolvedValue([]);
+      render(
+        <QueryClientProvider client={client}>
+          <MeetingRequestDialog open onClose={() => {}} editing={saved({ status: 'RETURNED' })} resend clock={defaultClock} />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('Activity type');
+      expect(screen.getByRole('button', { name: 'Send again' })).toBeEnabled();
+    });
+  });
+
+  describe('Guests are a name plus an email (#1087)', () => {
+    const addGuest = async (user, name, email = '') => {
+      const nameBox = screen.getByPlaceholderText('Name');
+      const emailBox = screen.getByPlaceholderText('Email (optional)');
+      fireEvent.change(nameBox, { target: { value: name } });
+      fireEvent.change(emailBox, { target: { value: email } });
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+    };
+
+    it('says "Already added." for the same name and email, and keeps one Guest', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      expect(screen.queryByTestId('guest-note')).not.toBeInTheDocument();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      expect(screen.getByTestId('guest-note')).toHaveTextContent('Already added.');
+      expect(screen.getAllByRole('button', { name: 'Remove Ana Cruz' })).toHaveLength(1);
+    });
+
+    it('adds the same name with another email, and the same name with no email', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      await addGuest(user, 'Ana Cruz', 'ana@other.example');
+      await addGuest(user, 'Ana Cruz');
+      expect(screen.queryByTestId('guest-note')).not.toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Remove Ana Cruz' })).toHaveLength(3);
+      expect(screen.getByText('Ana Cruz <ana@other.example>')).toBeInTheDocument();
+    });
+
+    it('takes away only the Guest that was clicked, and clears the message when the person types on', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await addGuest(user, 'Ana Cruz', 'ana@example.com');
+      await addGuest(user, 'Ana Cruz', 'ana@other.example');
+      await user.click(screen.getAllByRole('button', { name: 'Remove Ana Cruz' })[0]);
+      expect(screen.queryByText('Ana Cruz <ana@example.com>')).not.toBeInTheDocument();
+      expect(screen.getByText('Ana Cruz <ana@other.example>')).toBeInTheDocument();
+      await addGuest(user, 'Ana Cruz', 'ana@other.example');
+      expect(screen.getByTestId('guest-note')).toBeInTheDocument();
+      await user.type(screen.getByPlaceholderText('Name'), ' Jr');
+      expect(screen.queryByTestId('guest-note')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('purpose, meeting link and date limits (#1087)', () => {
+    const purposeBox = () => screen.getByPlaceholderText('What is the Activity for?');
+
+    it('counts the purpose, and stops the send at 501 characters with a message', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      expect(screen.getByTestId('purpose-counter')).toHaveTextContent('0 / 500');
+      fireEvent.change(purposeBox(), { target: { value: 'a'.repeat(500) } });
+      expect(screen.getByTestId('purpose-counter')).toHaveTextContent('500 / 500');
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
+      expect(screen.queryByTestId('problem-purpose')).not.toBeInTheDocument();
+      fireEvent.change(purposeBox(), { target: { value: 'a'.repeat(501) } });
+      expect(screen.getByTestId('purpose-counter')).toHaveTextContent('501 / 500');
+      expect(screen.getByTestId('problem-purpose')).toHaveTextContent('The purpose can be at most 500 characters.');
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+    });
+
+    it('says under the link box that it must be a web link, and stops the send for anything else', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await user.click(screen.getAllByRole('combobox')[1]);
+      await user.click(await screen.findByRole('option', { name: 'Online' }));
+      const link = await screen.findByPlaceholderText(/Paste the link/);
+      expect(screen.getByTestId('link-hint')).toHaveTextContent('The link must start with http:// or https://');
+      fireEvent.change(purposeBox(), { target: { value: 'Planning' } });
+      for (const bad of ['javascript:alert(1)', 'not a url']) {
+        fireEvent.change(link, { target: { value: bad } });
+        expect(screen.getByTestId('problem-link')).toHaveTextContent('The meeting link must start with http:// or https://.');
+        expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+      }
+      fireEvent.change(link, { target: { value: 'https://meet.google.com/x' } });
+      expect(screen.queryByTestId('problem-link')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
+    });
+
+    it('stops the send for a date more than a year ahead, and offers no later date', async () => {
+      renderForm([]);
+      await screen.findByText('Activity type');
+      fireEvent.change(purposeBox(), { target: { value: 'Planning' } });
+      const date = document.querySelector('input[type="date"]');
+      expect(date).toHaveAttribute('max', '2032-01-01');
+      fireEvent.change(date, { target: { value: '2032-02-01' } });
+      expect(screen.getByTestId('problem-date')).toHaveTextContent('The date can be at most one year ahead.');
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeDisabled();
+      fireEvent.change(date, { target: { value: '2032-01-01' } });
+      expect(screen.queryByTestId('problem-date')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Send request/ })).toBeEnabled();
     });
   });
 });

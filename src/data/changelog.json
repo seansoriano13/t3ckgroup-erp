@@ -2,15 +2,33 @@
     {
         "date": "2026-11-19",
         "title": "Activity Log fixes",
-        "version": "1.11.4",
+        "version": "1.11.5",
         "changes": [
             "Task Logs no longer shows a LIVE badge it cannot back up.",
             "The Activity Log filters now work: Task status, Department and Sub-department narrow the list.",
             "Searching the Activity Log works with commas and special characters in your text.",
-            "Only a Super Admin can change Settings.",
+            "Only a Super Admin can change Lead Sources and post System Announcements.",
             "HR Logs now shows every type of HR entry.",
             "Task Logs rows on a phone now show the Status."
         ]
+    },
+    {
+        "date": "2026-11-19",
+        "title": "Activity form checks, Venue delete and HR History",
+        "version": "1.11.4",
+        "changes": [
+            "The New Activity form now opens ready to file. It starts at the next free time today, or tomorrow when today has no time left.",
+            "Each reason a form cannot be filed yet now shows right under its own box, not only at the bottom.",
+            "A meeting link must start with http:// or https:// and have no spaces. A purpose can be up to 500 characters, and a date can be up to one year ahead.",
+            "If you close the form after typing something, it asks Discard this Activity? first.",
+            "Editing an Activity and saving without a change keeps it approved. It no longer goes back to waiting for HR.",
+            "Deleting a Venue now asks you first. Venue names are the same whatever the capitals, so Room A and room a cannot both exist. Clearing a name while renaming puts the old name back.",
+            "The HR Activities queue now has a History tab. You get one message after you decide, not two.",
+            "Waiting in the HR queue counts from the last time the Activity was filed, not from the first.",
+            "Long words in a purpose now wrap instead of running off the page.",
+            "The wording now says Activity everywhere, including the Cancel text, the Status row and the Activity Log."
+        ],
+        "link": "/release-notes"
     },
     {
         "date": "2026-11-17",

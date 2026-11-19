@@ -64,13 +64,13 @@ export function useNavBadges(user) {
   const canSeeMeetings = isSuperAdmin || isHr;
   // Live like the Calendar (#1063): another approver's decision or a new filing moves the count at once.
   useMeetingRealtime({ enabled: !!user?.id && canSeeMeetings });
-  const { data: pendingMeetings = [] } = useQuery({
+  const { data: pendingMeetings = 0 } = useQuery({
     queryKey: ["meeting-requests", "nav-badge", isHr, isSuperAdmin],
-    queryFn: () => meetingRequestService.listPendingForApprover({ isHr, isSuperAdmin }),
+    queryFn: () => meetingRequestService.countPendingForApprover({ isHr, isSuperAdmin }),
     enabled: !!user?.id && canSeeMeetings,
     staleTime: 0,
   });
-  const meetingApprovals = canSeeMeetings ? pendingMeetings.length : 0;
+  const meetingApprovals = canSeeMeetings ? pendingMeetings : 0;
 
   // 3. My SORs — deals this person was called into and still has an open
   // window on. Every employee can hold one, so this is not gated on a role.

@@ -12,15 +12,17 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
+import { ahead, mondayOnOrAfter } from "./support/dates.js"
 
 const svc = () => serviceClient()
 const created = []
 let venue
 
 const HOUR = 3_600_000
-// Manila 09:00 on 2035-01-01 + (n days), shifted by a block so tests never share dates.
+// Manila 09:00 on a Monday about two weeks ahead + (n days), shifted by a block so tests never share dates (#1087: no day is more than a year ahead).
+const FIRST_MONDAY = mondayOnOrAfter(14)
 const dayAt = (n, startHour = 9, endHour = 10) => {
-    const base = Date.UTC(2035, 0, 1 + n, 0, 0, 0) - 8 * HOUR
+    const base = Date.UTC(...ahead(FIRST_MONDAY + n), 0, 0, 0) - 8 * HOUR
     return { starts_at: new Date(base + startHour * HOUR).toISOString(), ends_at: new Date(base + endHour * HOUR).toISOString() }
 }
 // A day counted from today (Manila), for tests that move days into the past and so must stay inside the day limit.
@@ -31,8 +33,8 @@ const soonAt = (n, startHour = 9, endHour = 10) => {
 }
 const manilaDay = (iso) => new Date(new Date(iso).getTime() + 8 * HOUR).toISOString().slice(0, 10)
 
-let block = 100
-const nextBlock = () => (block += 20)
+let block = 0
+const nextBlock = () => (block += 14)
 
 const file = async (who, over = {}) => {
     const days = over.p_days ?? [dayAt(nextBlock())]
@@ -106,7 +108,7 @@ afterAll(async () => {
 describe("the day rows", () => {
     it("files a three-day task, Saturday included, and the parent holds the first start and last end", async () => {
         let sat = nextBlock()
-        while (sat % 7 !== 5) sat += 1 // 2035-01-01 is a Monday, so offset 5 is a Saturday
+        while (sat % 7 !== 5) sat += 1 // offset 0 is a Monday, so offset 5 is a Saturday
         const days = [dayAt(sat - 1), dayAt(sat, 8, 12), dayAt(sat + 1, 13, 14)]
         const { id, error } = await file("head", { p_days: days })
         expect(error).toBeNull()

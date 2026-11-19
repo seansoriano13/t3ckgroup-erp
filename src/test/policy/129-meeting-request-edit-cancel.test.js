@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
+import { ahead } from "./support/dates.js"
 
 const svc = () => serviceClient()
 const created = []
@@ -18,7 +19,7 @@ let venue
 let otherVenue
 let slot = 0
 
-const iso = (n) => new Date(Date.UTC(2033, 5, 1, 1, 0, 0) + n * 15 * 60_000).toISOString()
+const iso = (n) => new Date(Date.UTC(...ahead(30), 1, 0, 0) + n * 15 * 60_000).toISOString()
 
 // Each request gets its own 15-minute slot far in the future, so nothing clashes unless a test makes it.
 const seed = async (status = "PENDING_HR", { applicant = "ordinary", head = ids.head, startsAt, endsAt } = {}) => {
