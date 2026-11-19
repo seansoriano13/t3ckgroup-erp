@@ -570,6 +570,21 @@ describe("aggregateOpportunityCommissions", () => {
     expect(agg.totalContractValue).toBe(500_000);
   });
 
+  it("leaves an AWARDED deal with no Contract Date out of Projected (#1105)", () => {
+    const unstamped = { ...opp1, id: "opp-unstamped", contract_date: null };
+    const args = {
+      opportunities: [unstamped, oppPipeline],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+    };
+    const projected = aggregateOpportunityCommissions({ ...args, scope: "FORECAST" });
+    const realized = aggregateOpportunityCommissions({ ...args, scope: "REALIZED" });
+
+    expect(projected.totalContractValue).toBe(500_000);
+    expect(realized.totalContractValue).toBe(0);
+  });
+
   it("counts an AWARDED deal with a Contract Date in Realized only", () => {
     const args = {
       opportunities: [opp1, oppPipeline],

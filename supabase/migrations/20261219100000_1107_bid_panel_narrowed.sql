@@ -30,7 +30,7 @@ create policy costing_bid_decisions_read on public.costing_bid_decisions
     and public.costing_sees_bid(public.costing_matrix_opp(matrix_id))
   );
 
--- costing_matrix_read (was: 20261107130000_703): no Bid Decision table unless costing_sees_bid; reports bid_visible.
+-- costing_matrix_read (was: the live body, which finds the matrix through costing_subject_matrix for standalone Evaluations): no Bid Decision table unless costing_sees_bid; reports bid_visible.
 create or replace function public.costing_matrix_read(p_opportunity_id uuid)
 returns jsonb
 language plpgsql
@@ -52,7 +52,7 @@ begin
   if v_tier is null then
     return null;
   end if;
-  select id into v_matrix from public.costing_matrices where opportunity_id = p_opportunity_id;
+  select public.costing_subject_matrix(p_opportunity_id) into v_matrix;
   if v_matrix is null then
     return null;
   end if;
@@ -94,7 +94,7 @@ begin
 end;
 $$;
 
--- costing_history (was: 20261018100000): no Bid Decision events unless costing_sees_bid.
+-- costing_history (was: the live body, same costing_subject_matrix lookup): no Bid Decision events unless costing_sees_bid.
 create or replace function public.costing_history(
   p_opportunity_id uuid,
   p_table text default null,
@@ -115,7 +115,7 @@ begin
   if v_tier is null then
     return null;
   end if;
-  select id into v_matrix from public.costing_matrices where opportunity_id = p_opportunity_id;
+  select public.costing_subject_matrix(p_opportunity_id) into v_matrix;
   if v_matrix is null then
     return null;
   end if;

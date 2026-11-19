@@ -18,7 +18,7 @@ import {
   BID_VERDICT_LABEL,
   tierDecidesBid,
   tierReads,
-  tierReadsBidDecision,
+  readsBid,
 } from "../../constants/costing";
 import { formatDate } from "../../utils/formatDate";
 import { pesos } from "./gridFormat";
@@ -148,7 +148,7 @@ export default function BidDecisionPanel({
   const [reason, setReason] = useState("");
   const [confirmingGo, setConfirmingGo] = useState(false);
   const [confirmingUnlock, setConfirmingUnlock] = useState(false);
-  if (!tierReadsBidDecision(tier) || matrix.bidVisible === false) return null;
+  if (!readsBid(matrix)) return null;
 
   const canDecide = tierDecidesBid(tier) && Boolean(matrix.canDecideLoss);
   const ready = tenderLines.length > 0 && totals.missingOffer === 0;

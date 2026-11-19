@@ -2,6 +2,7 @@ import { sorCodeOf } from "./sorCode.js";
 import { manilaToday } from "@/lib/manilaDate.js";
 import {
   isLostOpportunity,
+  isRealizedOpportunity,
   PIPELINE_STAGE_SEED,
 } from "../constants/sor";
 
@@ -27,16 +28,19 @@ export function assertPercentagesSumTo100(percentages, { label = "Percentages", 
   }
 }
 
+/** True when the value is a number from 0 to 100. Never throws; screens use it to gate Save, the service throws on the same rule. */
+export function isPercentInRange(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 && number <= 100;
+}
+
 /**
  * Throws if any percentage is not a number between 0 and 100. The sum check
  * above cannot catch a negative share balanced by an oversized one.
  */
 export function assertPercentagesInRange(percentages, { label = "Percentages" } = {}) {
-  for (const percent of percentages) {
-    const value = Number(percent);
-    if (!Number.isFinite(value) || value < 0 || value > 100) {
-      throw new Error(`${label} must each be between 0% and 100%.`);
-    }
+  if (!percentages.every(isPercentInRange)) {
+    throw new Error(`${label} must each be between 0% and 100%.`);
   }
 }
 
@@ -270,9 +274,11 @@ export function aggregateOpportunityCommissions({
     }
 
     // Projected counts only open deals before Awarded; a deal with a Contract
-    // Date is Realized and must not be counted twice.
+    // Date is Realized and must not be counted twice. A deal already at Awarded
+    // or later with no Contract Date (#1105) is in neither set, so it is left
+    // out here too; its stage is read the way the ledger table reads it.
     if (scope === "FORECAST") {
-      if (isRealizedCommissionOpportunity(opp, stages)) return false;
+      if (isRealizedCommissionOpportunity(opp, stages) || isRealizedOpportunity(opp, stages)) return false;
     }
 
     if (dateFilter?.startDate || dateFilter?.endDate) {

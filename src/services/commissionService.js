@@ -10,6 +10,12 @@ import {
 } from "../utils/commission";
 import { getCurrentLocalDate } from "../utils/formatDate";
 
+/** Refuses a list of percentages that is out of range or does not sum to 100, before anything is written. */
+function assertValidPercentages(list, { label }) {
+  assertPercentagesInRange(list, { label });
+  assertPercentagesSumTo100(list, { label });
+}
+
 const RATE_TYPE_LIST = [RATE_TYPES.VAT, RATE_TYPES.WITHHOLDING, RATE_TYPES.POOL];
 
 // Retention (issue #42) is creatable and listable like any other rate, but
@@ -196,11 +202,7 @@ async function createRate({ rateType, percent, effectiveFrom }, actorId) {
 async function saveDepartmentAllocations(departments, actorId) {
   await requireSuperAdmin(actorId);
 
-  assertPercentagesInRange(departments.map((department) => department.allocationPercent), { label: "Department allocations" });
-  assertPercentagesSumTo100(
-    departments.map((department) => department.allocationPercent),
-    { label: "Department allocations" },
-  );
+  assertValidPercentages(departments.map((department) => department.allocationPercent), { label: "Department allocations" });
 
   for (const department of departments) {
     const { error } = await supabase
@@ -239,11 +241,7 @@ async function getPositions(departmentId) {
 async function savePositionAllocations(departmentId, positions, actorId) {
   await requireSuperAdmin(actorId);
 
-  assertPercentagesInRange(positions.map((position) => position.allocationPercent), { label: "Position allocations" });
-  assertPercentagesSumTo100(
-    positions.map((position) => position.allocationPercent),
-    { label: "Position allocations" },
-  );
+  assertValidPercentages(positions.map((position) => position.allocationPercent), { label: "Position allocations" });
 
   const existing = positions.filter((position) => position.id);
   const fresh = positions.filter((position) => !position.id);
@@ -286,11 +284,7 @@ async function savePositionAllocations(departmentId, positions, actorId) {
 async function saveSplitsForProjectType(projectType, splits, actorId) {
   await requireSalesDirectorOrSuperAdmin(actorId);
 
-  assertPercentagesInRange(splits.map((split) => split.percent), { label: "Commission Split percentages" });
-  assertPercentagesSumTo100(
-    splits.map((split) => split.percent),
-    { label: "Commission Split percentages" },
-  );
+  assertValidPercentages(splits.map((split) => split.percent), { label: "Commission Split percentages" });
 
   const { error } = await supabase.from("commission_splits").upsert(
     splits.map((split) => ({
