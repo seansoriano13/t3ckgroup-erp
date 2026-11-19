@@ -705,6 +705,25 @@ describe("offerVsAbc (#942)", () => {
     expect(r.lines.map((l) => l.id)).toEqual(["a"]);
     expect(offerVsAbc([]).low).toBe(false);
   });
+
+  it("uses the typed offer total when the offer is typed as one total (#1108)", () => {
+    const lines = [{ id: "a", quantity: 1, abc_unit: 1000, final_offer_unit: 900 }];
+    const typed = offerVsAbc(lines, null, { mode: "total_only", total: 400 });
+    expect(typed.percent).toBe(40);
+    expect(typed.low).toBe(true);
+    expect(typed.lines).toEqual([]);
+  });
+
+  it("adds the lines up when the offer is set line by line, same percent as without a setting (#1108)", () => {
+    const lines = [
+      { id: "a", quantity: 1, abc_unit: 1000, final_offer_unit: 600 },
+      { id: "b", quantity: 1, abc_unit: 1000, final_offer_unit: 600 },
+    ];
+    const byLine = offerVsAbc(lines, null, { mode: "by_line", total: 100 });
+    expect(byLine.percent).toBe(60);
+    expect(byLine.low).toBe(false);
+    expect(offerVsAbc(lines).percent).toBe(byLine.percent);
+  });
 });
 
 describe("a row costed by Acquire only (#787)", () => {
