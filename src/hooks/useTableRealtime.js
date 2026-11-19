@@ -48,19 +48,23 @@ function subscribeToTable(table, listener) {
  * `debounceMs` coalesces a burst of signals (a bulk write, or a stage move that
  * touches the row twice) into one invalidation at the end of it — for a
  * consumer whose refetch is a whole list rather than one row.
+ *
+ * `onSignal` replaces the invalidation: a consumer that folds signals from several tables (or
+ * from its own mutations) into one refresh passes its own handler. Keep it stable (useCallback).
  */
-export function useTableRealtime(table, { invalidateKeys = [], debounceMs = 0 } = {}) {
+export function useTableRealtime(table, { invalidateKeys = [], debounceMs = 0, onSignal = null } = {}) {
   const queryClient = useQueryClient();
   const keysSignature = JSON.stringify(invalidateKeys);
 
   useEffect(() => {
-    if (!table || invalidateKeys.length === 0) return undefined;
+    if (!table || (invalidateKeys.length === 0 && !onSignal)) return undefined;
 
     let timer = null;
     const invalidate = () => {
       invalidateKeys.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
     };
-    const unsubscribe = subscribeToTable(table, () => {
+    const unsubscribe = subscribeToTable(table, (payload) => {
+      if (onSignal) return onSignal(payload);
       if (!debounceMs) return invalidate();
       clearTimeout(timer);
       timer = setTimeout(invalidate, debounceMs);
@@ -71,5 +75,5 @@ export function useTableRealtime(table, { invalidateKeys = [], debounceMs = 0 } 
       unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, keysSignature, debounceMs, queryClient]);
+  }, [table, keysSignature, debounceMs, queryClient, onSignal]);
 }

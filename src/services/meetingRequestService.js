@@ -114,6 +114,22 @@ const REQUEST_SELECT = `*,
   participants:meeting_request_participants(employee_id, employee:employees(id, name)),
   days:meeting_request_days(id, starts_at, ends_at)`;
 
+/** Ids per read: a long queue's ids in one `in (...)` would pass the URL length limit. */
+const EVENT_READ_CHUNK = 100;
+
+/** The events of these requests, oldest first within each request (#1085). Read in chunks of ids. */
+async function loadEvents(requestIds) {
+  const chunks = [];
+  for (let i = 0; i < requestIds.length; i += EVENT_READ_CHUNK) chunks.push(requestIds.slice(i, i + EVENT_READ_CHUNK));
+  const reads = await Promise.all(
+    chunks.map((ids) => supabase.from('meeting_request_events').select('*, actor:employees(id, name)').in('request_id', ids).order('created_at')),
+  );
+  return reads.flatMap(({ data, error }) => {
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+}
+
 const timeRange = (startsAt, endsAt) => `${manilaTime(startsAt)} to ${manilaTime(endsAt)}`;
 
 async function describeHolder({ venueId, startsAt, endsAt, days = null }) {
@@ -130,6 +146,21 @@ async function describeHolder({ venueId, startsAt, endsAt, days = null }) {
     `${holder.venue_name ?? 'That Venue'} is already held ${timeRange(holder.starts_at, holder.ends_at)} ` +
     `for "${holder.purpose}" (requested by ${holder.applicant_name}). Pick another time.`
   );
+}
+
+async function pendingRows({ isHr = false, isSuperAdmin = false } = {}) {
+  if (!isHr && !isSuperAdmin) return [];
+  const { data, error } = await supabase.from('meeting_requests').select(REQUEST_SELECT).eq('status', MEETING_STATUS.PENDING_HR).order('created_at');
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** How many are waiting on HR: a head-only count, so no row and none of its joins are read. */
+async function pendingCount({ isHr = false, isSuperAdmin = false } = {}) {
+  if (!isHr && !isSuperAdmin) return 0;
+  const { count, error } = await supabase.from('meeting_requests').select('id', { count: 'exact', head: true }).eq('status', MEETING_STATUS.PENDING_HR);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 export const meetingRequestService = {
@@ -333,13 +364,8 @@ export const meetingRequestService = {
   async getRequest(id) {
     const { data, error } = await supabase.from('meeting_requests').select(REQUEST_SELECT).eq('id', id).single();
     if (error) throw new Error(error.message);
-    const { data: events, error: eventsError } = await supabase
-      .from('meeting_request_events')
-      .select('*, actor:employees(id, name)')
-      .eq('request_id', id)
-      .order('created_at');
-    if (eventsError) throw new Error(eventsError.message);
-    return { ...data, events: events ?? [] };
+    const events = await loadEvents([id]);
+    return { ...data, events };
   },
 
   /** Requests where the employee is the applicant, the Lead or a Participant, newest first. */
@@ -370,16 +396,16 @@ export const meetingRequestService = {
    * their own is left waiting to be hidden.
    */
   async listPendingForApprover({ isHr = false, isSuperAdmin = false } = {}) {
-    if (!isHr && !isSuperAdmin) return [];
-    const query = supabase.from('meeting_requests').select(REQUEST_SELECT).eq('status', MEETING_STATUS.PENDING_HR).order('created_at');
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    const rows = await pendingRows({ isHr, isSuperAdmin });
+    if (!rows.length) return rows;
+    // The panel's History and the queue's Waiting time (#1085) both read the events, so the list carries them.
+    const events = await loadEvents(rows.map((r) => r.id));
+    return rows.map((r) => ({ ...r, events: events.filter((e) => e.request_id === r.id) }));
   },
 
   /** The count behind the sidebar badge (same filter as the queue). */
   async countPendingForApprover(args) {
-    return (await this.listPendingForApprover(args)).length;
+    return pendingCount(args);
   },
 
   /**
@@ -406,6 +432,8 @@ export const meetingRequestService = {
       if (error.code === EXCLUSION_VIOLATION) throw new Error(await describeHolder({ venueId, startsAt, endsAt, days }));
       throw new Error(error.message);
     }
+    // Nothing differed (#1084): the status stays, the database wrote no event, so there is nothing to tell anyone.
+    if (data?.action === 'NO_CHANGE') return data;
     await this.afterChange(data, { actor });
     return data;
   },

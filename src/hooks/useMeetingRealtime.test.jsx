@@ -1,3 +1,4 @@
+import { waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useMeetingRealtime } from "./useMeetingRealtime"
 import { renderHookWithQuery } from "@/test/support"
@@ -43,12 +44,27 @@ describe("useMeetingRealtime", () => {
     unmount()
   })
 
-  it("a change refreshes the Calendar and every Meeting Request query", () => {
+  it("a change refreshes the Calendar and every Meeting Request query, once", async () => {
     const { client: queryClient, unmount } = renderHookWithQuery(() => useMeetingRealtime())
     const spy = vi.spyOn(queryClient, "invalidateQueries")
     state.handlers[0].handler({})
-    const keys = spy.mock.calls.map((c) => c[0].queryKey)
-    expect(keys).toEqual([["calendar-entries"], ["meeting-requests"]])
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    const { predicate } = spy.mock.calls[0][0]
+    const matches = (key) => predicate({ queryKey: key })
+    expect(matches(["calendar-entries", "2031-03-01", "2031-03-31", false])).toBe(true)
+    expect(matches(["meeting-requests", "mine", "u1"])).toBe(true)
+    expect(matches(["employees"])).toBe(false)
+    unmount()
+  })
+
+  it("a burst of signals on all three tables is one refresh", async () => {
+    const { client: queryClient, unmount } = renderHookWithQuery(() => useMeetingRealtime())
+    const spy = vi.spyOn(queryClient, "invalidateQueries")
+    state.handlers.forEach((h) => h.handler({}))
+    state.handlers.forEach((h) => h.handler({}))
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1))
+    await new Promise((r) => setTimeout(r, 400))
+    expect(spy).toHaveBeenCalledTimes(1)
     unmount()
   })
 

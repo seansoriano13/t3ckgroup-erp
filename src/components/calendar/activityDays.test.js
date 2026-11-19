@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { daysFromSaved, daysPayload, keptDays, rangeDays } from './activityDays.js';
-import { draftProblem } from './meetingDraft.js';
+import { draftProblem as draftProblemAt } from './meetingDraft.js';
 import { activityWhen, lastDayStart, requestDays } from '@/services/meetingRequestService';
+
+// A fixed clock, so a draft's dates are ahead and within a year whatever day the tests run (#1087).
+const draftProblem = (draft, now = new Date('2031-01-01T08:00:00+08:00')) => draftProblemAt(draft, now);
 
 describe('Activity range days (#1056)', () => {
   it('lists every date in the range, a weekend included', () => {
@@ -39,11 +42,11 @@ describe('Activity range days (#1056)', () => {
   });
 
   it('checks every day of a range, naming the bad one', () => {
-    const base = { activityType: 'OPERATIONS_TASK', date: '2099-01-02', start: '09:00', end: '10:00', facilitatorId: 'f', purpose: 'Count' };
-    const ok = [{ date: '2099-01-02', start: '09:00', end: '10:00' }, { date: '2099-01-03', start: '09:00', end: '12:00' }];
+    const base = { activityType: 'OPERATIONS_TASK', date: '2031-01-02', start: '09:00', end: '10:00', facilitatorId: 'f', purpose: 'Count' };
+    const ok = [{ date: '2031-01-02', start: '09:00', end: '10:00' }, { date: '2031-01-03', start: '09:00', end: '12:00' }];
     expect(draftProblem({ ...base, days: ok })).toBeNull();
     expect(draftProblem({ ...base, days: [] })).toBe('Keep at least one day.');
-    expect(draftProblem({ ...base, days: [ok[0], { date: '2099-01-03', start: '12:00', end: '09:00' }] })).toBe('2099-01-03: the Activity must end after it starts.');
+    expect(draftProblem({ ...base, days: [ok[0], { date: '2031-01-03', start: '12:00', end: '09:00' }] })).toBe('2031-01-03: the Activity must end after it starts.');
     expect(draftProblem({ ...base, activityType: 'MEETING', venueId: 'v', days: ok })).toBe('A Meeting is one day.');
   });
 

@@ -238,7 +238,7 @@ One thing the company does at a set time, filed by an employee: a Meeting, an Ad
 _Avoid_: Meeting Request, Booking, Task (alone)
 
 **Activity type**:
-Which of the four an Activity is: Meeting, Admin Task, Operations Task or Event. Only a Meeting has a Venue, a meeting type (Onsite, Online or Hybrid) and a meeting link. Only a department head can file an Event. HR approves an Event and a Meeting with a Venue (Onsite or Hybrid); every other Activity is approved the moment it is filed.
+Which of the four an Activity is: Meeting, Admin Task, Operations Task or Event. Only a Meeting has a Venue, a meeting type (Onsite, Online or Hybrid) and a meeting link. Only a department head can file an Event. HR approves a Meeting with a Venue (Onsite or Hybrid). An Event waits for HR only when HR switches "Waits for HR" on for Events in Settings > Activities; the app default is off, so an Event is approved the moment a head files it. Every other Activity is approved the moment it is filed.
 _Avoid_: Category, Kind
 
 **Venue**:
