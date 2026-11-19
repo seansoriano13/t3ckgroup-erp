@@ -25,6 +25,7 @@ function renderPage() {
       <Routes>
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/login" element={<div>Login Screen</div>} />
+        <Route path="/profile" element={<div>Profile Screen</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -142,7 +143,7 @@ describe("ResetPassword page", () => {
   // Landing (c). A signed-in employee who wanders onto the route has a real
   // session, so consulting getSession() would hand them the form; the way to
   // change a password you know is the profile screen.
-  it("tells a signed-in visitor with no reset link to use the emailed one", async () => {
+  it("points a signed-in visitor with no reset link to My Profile", async () => {
     stubLocation({ hash: "", search: "" });
     vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
       data: { session: { user: { id: "auth-1", email: "ana@t3ckgroup.test" } } },
@@ -155,8 +156,12 @@ describe("ResetPassword page", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText(/open this page from the link/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText("To change your password, use Change Password on My Profile."),
+      ).toBeInTheDocument(),
     );
+    expect(screen.getByRole("link", { name: /my profile/i })).toHaveAttribute("href", "/profile");
+    expect(screen.queryByText(/back to login/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
     // ...and it does not claim the link expired, because there was no link.
     expect(screen.queryByText(/open only once/i)).not.toBeInTheDocument();
@@ -255,7 +260,7 @@ describe("ResetPassword page", () => {
       });
 
       const { unmount } = renderPage();
-      await screen.findByText(/open this page from the link/i);
+      await screen.findByText(/change password on my profile/i);
       expect(isRecoveryActive()).toBe(true);
 
       unmount();

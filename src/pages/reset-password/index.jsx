@@ -39,6 +39,8 @@ const EXPIRED_COPY =
   "Your reset link has expired, or it has already been opened once.";
 const NO_TOKEN_COPY =
   "Open this page from the link in your password-reset email.";
+const SIGNED_IN_COPY =
+  "To change your password, use Change Password on My Profile.";
 
 /**
  * What the URL said when the app booted, falling back to the live URL.
@@ -86,6 +88,7 @@ function scrubTokenFromUrl() {
 export default function ResetPassword() {
   const [phase, setPhase] = useState("verifying"); // "verifying" | "ready" | "invalid"
   const [invalidReason, setInvalidReason] = useState("");
+  const [signedIn, setSignedIn] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -152,7 +155,14 @@ export default function ResetPassword() {
       // visitor has a perfectly good session, so asking getSession() here would
       // hand them the form; the way to change a known password is the profile
       // screen, and the way here is the emailed link.
-      done("invalid", NO_TOKEN_COPY);
+      // A signed-in visitor is pointed to My Profile instead of the email link.
+      supabase.auth
+        .getSession()
+        .then(({ data }) => {
+          if (!settled && data?.session) setSignedIn(true);
+        })
+        .catch(() => {})
+        .finally(() => done("invalid", NO_TOKEN_COPY));
     } else {
       // Older `/auth/v1/verify` link: it arrives already exchanged. A late
       // recovery session (detectSessionInUrl finishing) flips us to the form;
@@ -262,7 +272,9 @@ export default function ResetPassword() {
           <h1 className="text-2xl font-bold text-mauve-12">
             Can&rsquo;t reset your password
           </h1>
-          <p className="text-mauve-10 text-sm">{invalidReason}</p>
+          <p className="text-mauve-10 text-sm">
+            {signedIn && invalidReason === NO_TOKEN_COPY ? SIGNED_IN_COPY : invalidReason}
+          </p>
           {invalidReason !== NO_TOKEN_COPY && (
             <p className="text-mauve-10 text-sm">
               Reset links open only once and time out after a while &mdash; request
@@ -270,10 +282,10 @@ export default function ResetPassword() {
             </p>
           )}
           <Link
-            to="/login"
+            to={signedIn && invalidReason === NO_TOKEN_COPY ? "/profile" : "/login"}
             className="inline-block bg-mauve-3 hover:bg-mauve-4 border border-mauve-6 text-mauve-12 px-6 py-3 rounded-xl font-bold transition-all"
           >
-            Back to login
+            {signedIn && invalidReason === NO_TOKEN_COPY ? "Go to My Profile" : "Back to login"}
           </Link>
         </div>
       </div>
