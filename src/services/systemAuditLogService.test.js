@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { HR_ENTITY_TYPES, systemAuditLogService } from "./systemAuditLogService"
+import { supabase } from "@/lib/supabase"
 import { makeEmployee, makeHrEmployee, makeSuperAdmin } from "@/test/factories"
 
 /**
@@ -206,5 +207,28 @@ describe("systemAuditLogService", () => {
 
       expect(feed.map((e) => e.content)).toEqual(["About Ana"])
     })
+  })
+})
+
+describe("systemAuditLogService author on write (#1094)", () => {
+  it("sends the signed-in employee's own id when the caller names no author", async () => {
+    const self = makeEmployee({ name: "Self" })
+    const spy = vi
+      .spyOn(supabase.auth, "getSession")
+      .mockResolvedValue({ data: { session: { user: { id: self.id } } } })
+
+    await systemAuditLogService.addSystemEvent("SETTINGS", "k", "changed")
+
+    const [entry] = await systemAuditLogService.getRecentSystemActivity()
+    expect(entry.authorId).toBe(self.id)
+    spy.mockRestore()
+  })
+
+  it("keeps the author the caller names", async () => {
+    const actor = makeSuperAdmin()
+    await systemAuditLogService.addApprovalEvent("EMPLOYEE", "e1", "approved", null, actor.id)
+
+    const [entry] = await systemAuditLogService.getRecentSystemActivity()
+    expect(entry.authorId).toBe(actor.id)
   })
 })
