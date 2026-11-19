@@ -406,6 +406,8 @@ export const meetingRequestService = {
       if (error.code === EXCLUSION_VIOLATION) throw new Error(await describeHolder({ venueId, startsAt, endsAt, days }));
       throw new Error(error.message);
     }
+    // Nothing differed (#1084): the status stays, the database wrote no event, so there is nothing to tell anyone.
+    if (data?.action === 'NO_CHANGE') return data;
     await this.afterChange(data, { actor });
     return data;
   },

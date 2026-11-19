@@ -18,7 +18,7 @@ import { ACTIVITY_TYPE, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequ
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
 import { isIsoDate } from '@/utils/dateUtils.js';
 import { manilaToday, manilaTime } from '@/lib/manilaDate.js';
-import { draftProblem, manilaInstant } from './meetingDraft.js';
+import { activityFingerprint, draftProblem, manilaInstant } from './meetingDraft.js';
 import { useActivitySettings } from '@/hooks/useActivitySettings';
 import { enabledMeetingTypes, timeOptions } from '@/utils/activitySettings';
 import ActivityDayRows from './ActivityDayRows.jsx';
@@ -160,6 +160,21 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
 
   const problem = clash ? clashMessage(clash) : draftProblem({ activityType, meetingType, meetingLink, venueId, date, start, end, days, facilitatorId, purpose, guests, multiDay, typeName: settings.types[activityType]?.name, maxDays: rules.maxDays });
 
+  // Editing: "Save changes" stays off until something differs from the saved Activity (#1084). Send again is not held back.
+  const dirty = !editing || resend || !dateOk || activityFingerprint({
+    activityType, meetingType, meetingLink: isMeeting && needsLink(meetingType) ? meetingLink : '', venueId, days: daysPayload(days), facilitatorId, participantIds, guests, purpose,
+  }) !== activityFingerprint({
+    activityType: editing.activity_type,
+    meetingType: editing.meeting_type,
+    meetingLink: editing.meeting_link,
+    venueId: editing.venue_id,
+    days: requestDays(editing).map((d) => ({ startsAt: d.starts_at, endsAt: d.ends_at })),
+    facilitatorId: editing.facilitator_id,
+    participantIds: (editing.participants ?? []).map((p) => p.employee_id),
+    guests: guestList(editing.guests, editing.guest_emails),
+    purpose: editing.purpose,
+  });
+
   const addGuest = () => {
     const name = guestDraft.trim();
     if (name && !guests.some((g) => g.name === name)) setGuests([...guests, { name, email: guestEmailDraft.trim() }]);
@@ -223,7 +238,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       crumbs={['Calendar', editing ? 'Edit Activity' : 'New Activity']}
       title={editing ? 'Edit Activity' : 'New Activity'}
       actions={
-        <Button disabled={Boolean(problem) || mutation.isPending} onClick={() => mutation.mutate()}>
+        <Button disabled={Boolean(problem) || !dirty || mutation.isPending} onClick={() => mutation.mutate()}>
           {mutation.isPending ? 'Sending…' : resend ? 'Send again' : editing ? 'Save changes' : 'Send request'}
         </Button>
       }
