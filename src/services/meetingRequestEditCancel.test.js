@@ -137,7 +137,7 @@ describe("meetingRequestService edit, resend and cancel", () => {
 
   it("surfaces the database's refusal and sends nothing", async () => {
     stubRpc("cancel_meeting_request", () => {
-      throw pgrstError("22023", "This meeting has already started, so it can no longer be cancelled.", { status: 400 })
+      throw pgrstError("22023", "This Activity has already started, so it can no longer be cancelled.", { status: 400 })
     })
     await expect(meetingRequestService.cancel({ requestId: request.id, actor: applicant })).rejects.toThrow(/already started/)
     await waitForNetworkIdle()

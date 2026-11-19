@@ -13,6 +13,11 @@ export const HR_ENTITY_TYPES = [
   "HR_SETTINGS",
 ];
 
+// The words a log shows for an entity type whose code is older than its screen name. The code in the
+// database stays (MEETING_REQUEST); only what people read changes. An Activity was a Meeting Request.
+// Every screen that shows an entity type reads this map, so the word is written once.
+export const ENTITY_TYPE_LABELS = { MEETING_REQUEST: "Activity" };
+
 /**
  * The audit log only accepts a row written as yourself (#1094). The policy
  * compares author_id with get_employee_id(), which finds the employee by the
@@ -120,7 +125,7 @@ export const systemAuditLogService = {
       id: entry.id,
       taskId: entry.entity_id || null,
       taskDescription: entry.entity_type
-        ? `[${entry.entity_type}]`
+        ? `[${ENTITY_TYPE_LABELS[entry.entity_type]?.toUpperCase() ?? entry.entity_type}]`
         : "[SYSTEM]",
       taskStatus: null,
       taskCreatorDept: null,

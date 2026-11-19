@@ -14,6 +14,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
+import { ahead } from "./support/dates.js"
 
 const svc = () => serviceClient()
 const created = []
@@ -51,9 +52,9 @@ const setGeneral = async (patch) => {
     if (error) throw new Error(error.message)
 }
 
-// One Manila day per slot number, 09:00 to 10:00, so no two requests clash at a Venue.
+// One Manila day per slot number (folded to stay inside one year ahead, #1087), 09:00 to 10:00; these Activities have no Venue.
 const day = (n, startH = 1, hours = 1) => {
-    const d = Date.UTC(2037, 0, 1 + n, startH, 0, 0)
+    const d = Date.UTC(...ahead(180 + (n % 150)), startH, 0, 0)
     return { starts_at: new Date(d).toISOString(), ends_at: new Date(d + hours * 3_600_000).toISOString() }
 }
 let n = 0

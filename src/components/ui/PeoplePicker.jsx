@@ -4,7 +4,7 @@ import { Plus, Search, User, Users, Building2, BadgeCheck, Globe, X } from "luci
 
 import Dropdown from "@/components/ui/Dropdown";
 import { cn } from "@/lib/utils";
-import { employeeService } from "@/services/employeeService";
+import { useEmployees } from "@/hooks/useEmployees";
 import { employeeGroupService } from "@/services/employeeGroupService";
 import { DEAL_TEAM_ROLES, SELECTOR_TYPES, departmentOptions, selectorKey, teamOptions } from "@/utils/resolvePeople";
 
@@ -36,10 +36,7 @@ export default function PeoplePicker({
   const [search, setSearch] = useState("");
   const full = single && value.length > 0;
 
-  const { data: employees = [] } = useQuery({
-    queryKey: ["employees"],
-    queryFn: () => employeeService.getAllEmployees(),
-  });
+  const { data: employees = [] } = useEmployees();
   const { data: groups = [] } = useQuery({
     queryKey: ["employeeGroups", "all"],
     queryFn: () => employeeGroupService.list({ includeArchived: true }),

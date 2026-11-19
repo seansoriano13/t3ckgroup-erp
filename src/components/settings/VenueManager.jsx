@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useAuth } from "@/context/AuthContext";
 import { meetingRequestService } from "@/services/meetingRequestService";
 
@@ -13,6 +14,7 @@ export default function VenueManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [newName, setNewName] = useState("");
+  const [deleting, setDeleting] = useState(null); // the Venue the question is about
 
   const { data: venues = [], isLoading } = useQuery({
     queryKey: ["calendar-venues", "all"],
@@ -40,9 +42,13 @@ export default function VenueManager() {
     change.mutate(() => meetingRequestService.reorderVenues(next, user?.id));
   };
 
-  const rename = (venue, value) => {
-    const name = value.trim();
-    if (!name || name === venue.name) return;
+  // An empty or unchanged name puts the saved name back in the box, so the page shows what is stored.
+  const rename = (venue, input) => {
+    const name = input.value.trim();
+    if (!name || name === venue.name) {
+      input.value = venue.name;
+      return;
+    }
     change.mutate(() => meetingRequestService.renameVenue(venue, name, user?.id));
   };
 
@@ -81,7 +87,7 @@ export default function VenueManager() {
                   key={venue.name}
                   defaultValue={venue.name}
                   aria-label={`Name of ${venue.name}`}
-                  onBlur={(e) => rename(venue, e.target.value)}
+                  onBlur={(e) => rename(venue, e.target)}
                   onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                   className="flex-1"
                 />
@@ -97,12 +103,7 @@ export default function VenueManager() {
                   size="icon"
                   aria-label={`Delete ${venue.name}`}
                   disabled={change.isPending}
-                  onClick={() =>
-                    change.mutate(async () => {
-                      await meetingRequestService.deleteVenue(venue, user?.id);
-                      toast.success("Venue deleted.");
-                    })
-                  }
+                  onClick={() => setDeleting(venue)}
                 >
                   <Trash2 size={14} />
                 </Button>
@@ -111,6 +112,22 @@ export default function VenueManager() {
           </ul>
         )}
       </div>
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={`Delete ${deleting?.name ?? ""}?`}
+        description="This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        tone="destructive"
+        onConfirm={() => {
+          const venue = deleting;
+          change.mutate(async () => {
+            await meetingRequestService.deleteVenue(venue, user?.id);
+            toast.success("Venue deleted.");
+          });
+        }}
+      />
     </div>
   );
 }

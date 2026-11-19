@@ -149,6 +149,15 @@ describe("systemAuditLogService", () => {
 
       expect(feed[0].taskDescription).toBe("[EMPLOYEE]")
     })
+
+    it("labels an Activity entry as an Activity, not a Meeting request", async () => {
+      await systemAuditLogService.addSystemEvent("MEETING_REQUEST", "m1", "Dani filed an Activity")
+
+      const feed = await systemAuditLogService.getRecentSystemActivity({ entityType: "MEETING_REQUEST" })
+
+      expect(feed[0].taskDescription).toBe("[ACTIVITY]")
+      expect(feed[0].entityType).toBe("MEETING_REQUEST")
+    })
   })
 
   describe("the HR feed", () => {

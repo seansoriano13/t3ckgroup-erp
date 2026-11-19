@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Layers, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -10,6 +10,7 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import { meetingRequestService } from "../../../services/meetingRequestService";
 import { meetingToItem } from "../../../utils/approvalItems.js";
 import { useRecordParam } from "../../../hooks/useRecordParam";
+import { refreshActivityQueries } from "../../../hooks/activityQueries";
 import { APPROVAL_QUEUES, useApprovalQueues } from "../_components/useApprovalQueues";
 import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
 import { ApprovalToolbar } from "../_components/ApprovalToolbar";
@@ -62,23 +63,32 @@ function MeetingApprovalsQueue() {
   // #1027: a link to a request that is no longer in the queue (someone else decided it first) says so and clears the address.
   const queueReady = !q.isLoadingMeetings && !q.isErrorMeetings;
   const inQueue = all.some((i) => String(i.id) === recordId);
+  // The request this person is deciding right now leaves the queue before the answer comes back (the live
+  // update beats the notifications). It is not "someone else's", so it gets no toast (#1085).
+  const deciding = useRef(new Set());
   useEffect(() => {
-    if (!queueReady || !recordId || inQueue) return;
+    if (!queueReady || !recordId || inQueue || deciding.current.has(recordId)) return;
     toast("This request is not waiting on you any more.");
     closeRecord();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueReady, recordId, inQueue]);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["meeting-requests"] });
+  // The queue's own key sits under "meeting-requests", so this refreshes it along with the Calendar (#1090).
+  const refresh = () => refreshActivityQueries(queryClient);
 
   const decide = useMutation({
-    mutationFn: ({ item, decision, note }) =>
-      meetingRequestService.decide({ requestId: item.id, decision, note, actor: user }),
-    onSuccess: (_d, { decision }) => {
+    mutationFn: ({ item, decision, note }) => {
+      deciding.current.add(String(item.id));
+      return meetingRequestService.decide({ requestId: item.id, decision, note, actor: user });
+    },
+    onSuccess: (_d, { decision, afterDecided }) => {
+      // Move the address on before the refresh drops the item from the queue.
+      afterDecided?.();
       toast.success(DONE_TEXT[decision]);
       refresh();
     },
     onError: (err) => toast.error(err.message || "Could not record the decision."),
+    onSettled: (_d, _e, { item }) => deciding.current.delete(String(item.id)),
   });
 
   const stepAfter = (item) => {
@@ -88,7 +98,7 @@ function MeetingApprovalsQueue() {
     if (next) stepRecord(next.id);
     else closeRecord();
   };
-  const onDecide = (item, decision, note) => decide.mutate({ item, decision, note }, { onSuccess: () => stepAfter(item) });
+  const onDecide = (item, decision, note) => decide.mutate({ item, decision, note, afterDecided: () => stepAfter(item) });
   const busy = decide.isPending;
 
   if (q.isErrorMeetings) return <QueryError className="m-6" title="Activities could not be loaded." onRetry={q.refetchMeetings} />;

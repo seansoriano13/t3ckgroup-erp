@@ -23,9 +23,9 @@ export default function MyMeetingRequests() {
   return (
     <ul className="flex flex-col gap-2" data-testid="my-meeting-requests">
       {data.map((r) => (
-        <li key={r.id} className="rounded-lg border border-border bg-card p-3 text-sm">
+        <li key={r.id} className="break-words rounded-lg border border-border bg-card p-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-semibold">{r.purpose}</span>
+            <span className="min-w-0 break-words font-semibold">{r.purpose}</span>
             <span className="rounded-full border border-border px-2 py-0.5 text-xs font-medium">
               {MEETING_STATUS_LABEL[r.status] ?? r.status}
             </span>
@@ -36,7 +36,7 @@ export default function MyMeetingRequests() {
           {r.return_note && r.status === 'RETURNED' && <p className="mt-1 text-xs">Returned: {r.return_note}</p>}
           {r.cancel_reason && r.status === 'CANCELLED' && <p className="mt-1 text-xs">Cancelled: {r.cancel_reason}</p>}
           <div className="mt-2">
-            <MeetingActions allowHr={false} request={{ id: r.id, status: r.status, startsAt: lastDayStart(r), applicantId: r.applicant_id }} />
+            <MeetingActions allowHr={false} request={{ id: r.id, status: r.status, startsAt: lastDayStart(r), applicantId: r.applicant_id, hasVenue: Boolean(r.venue_id ?? r.venue) }} />
           </div>
         </li>
       ))}

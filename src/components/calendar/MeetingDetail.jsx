@@ -24,7 +24,7 @@ export default function MeetingDetail({ entry }) {
       <DetailSection title="Activity">
         <dl>
           {d.activity_type && <DetailRow label="Activity type">{ACTIVITY_TYPE_LABEL[d.activity_type] ?? d.activity_type}</DetailRow>}
-          <DetailRow label="Purpose">{d.purpose}</DetailRow>
+          <DetailRow label="Purpose"><span className="break-words">{d.purpose}</span></DetailRow>
           {d.meeting_type && <DetailRow label="Meeting type">{MEETING_TYPE_LABEL[d.meeting_type] ?? d.meeting_type}</DetailRow>}
           {(d.venue ?? entry.venue) && <DetailRow label="Venue">{d.venue ?? entry.venue}</DetailRow>}
           {d.meeting_link && (
@@ -34,7 +34,7 @@ export default function MeetingDetail({ entry }) {
                   {d.meeting_link}
                 </ExternalLink>
               ) : (
-                d.meeting_link
+                <span className="break-words">{d.meeting_link}</span>
               )}
             </DetailRow>
           )}
@@ -62,13 +62,13 @@ export default function MeetingDetail({ entry }) {
               </ul>
             </DetailRow>
           )}
-          <DetailRow label="Stage">{MEETING_STATUS_LABEL[d.stage] ?? d.stage}</DetailRow>
+          <DetailRow label="Status">{MEETING_STATUS_LABEL[d.stage] ?? d.stage}</DetailRow>
           <DetailRow label="Lead">{d.facilitator?.name}</DetailRow>
           <DetailRow label="Participants">{participants.length ? participants.map((p) => p.name).join(', ') : 'None'}</DetailRow>
-          <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(', ') : 'None'}</DetailRow>
+          <DetailRow label="Guests"><span className="break-words">{guests.length ? guests.map(guestText).join(', ') : 'None'}</span></DetailRow>
         </dl>
       </DetailSection>
-      <MeetingActions request={{ id: d.request_id ?? entry.group_id ?? entry.id, status: d.stage, startsAt: d.last_day_starts_at ?? entry.starts_at, applicantId: person.id }} />
+      <MeetingActions request={{ id: d.request_id ?? entry.group_id ?? entry.id, status: d.stage, startsAt: d.last_day_starts_at ?? entry.starts_at, applicantId: person.id, hasVenue: Boolean(d.venue ?? entry.venue) }} />
     </SlideOverBody>
   );
 }
