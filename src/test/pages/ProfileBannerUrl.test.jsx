@@ -30,7 +30,7 @@ vi.mock("../../services/signatureService", () => ({ signatureService: {} }))
 vi.mock("../../services/passwordService", () => ({ passwordService: {} }))
 vi.mock("../../services/aiService", () => ({ aiService: {} }))
 
-import ProfilePage from "./index"
+import ProfilePage from "@/pages/profile/index"
 
 const MESSAGE = "Enter a web address that starts with https://"
 

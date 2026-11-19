@@ -266,6 +266,7 @@ export default function ResetPassword() {
   }
 
   if (phase === "invalid") {
+    const showProfileHint = signedIn && invalidReason === NO_TOKEN_COPY;
     return (
       <div className="min-h-screen flex items-center justify-center bg-mauve-2 px-4">
         <div className="bg-card max-w-md w-full rounded-2xl border border-mauve-6 shadow-sm p-8 space-y-4 text-center">
@@ -273,7 +274,7 @@ export default function ResetPassword() {
             Can&rsquo;t reset your password
           </h1>
           <p className="text-mauve-10 text-sm">
-            {signedIn && invalidReason === NO_TOKEN_COPY ? SIGNED_IN_COPY : invalidReason}
+            {showProfileHint ? SIGNED_IN_COPY : invalidReason}
           </p>
           {invalidReason !== NO_TOKEN_COPY && (
             <p className="text-mauve-10 text-sm">
@@ -282,10 +283,10 @@ export default function ResetPassword() {
             </p>
           )}
           <Link
-            to={signedIn && invalidReason === NO_TOKEN_COPY ? "/profile" : "/login"}
+            to={showProfileHint ? "/profile" : "/login"}
             className="inline-block bg-mauve-3 hover:bg-mauve-4 border border-mauve-6 text-mauve-12 px-6 py-3 rounded-xl font-bold transition-all"
           >
-            {signedIn && invalidReason === NO_TOKEN_COPY ? "Go to My Profile" : "Back to login"}
+            {showProfileHint ? "Go to My Profile" : "Back to login"}
           </Link>
         </div>
       </div>

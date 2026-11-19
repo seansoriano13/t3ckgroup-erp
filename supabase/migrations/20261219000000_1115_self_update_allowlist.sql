@@ -10,6 +10,9 @@
 -- last_seen_changelog_version (the changelog modal writes it from the browser).
 -- Anything else raises 42501. HR and Super Admin rules are unchanged.
 -- dashboard_quote is also limited to 100 characters, for every caller.
+-- (#1116) dashboard_banner_path must be empty, an https:// address or a storage
+-- path (no scheme before the first slash); javascript:, http:, data: are refused
+-- for every caller. Only checked when the banner changes.
 --
 -- Prior shape: 20261013100700_ipas_signoffs.sql. Every earlier rule is kept.
 -- SAFE TO RUN AT ANY TIME: one `create or replace`, no data change. Idempotent.
@@ -27,6 +30,7 @@ DECLARE
   v_caller_is_hr             BOOLEAN;
   v_caller_can_manage_leaves BOOLEAN;
   v_caller_is_role_simulator BOOLEAN;
+  v_is_privileged            BOOLEAN;
   v_self_allowed             text[] := ARRAY[
     'avatar_path', 'dashboard_banner_path', 'dashboard_quote', 'signature_path',
     'updated_at', 'last_seen_changelog_version'
@@ -39,12 +43,26 @@ BEGIN
   FROM   public.employees
   WHERE  id = v_caller_id;
 
+  v_is_privileged := (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE);
+
   -- Quote length (#1115). Only checked when the quote changes, so an older,
   -- longer quote does not block an unrelated edit of that person.
   IF NEW.dashboard_quote IS DISTINCT FROM OLD.dashboard_quote
      AND char_length(NEW.dashboard_quote) > 100
   THEN
     RAISE EXCEPTION 'The quote can be at most 100 characters.'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Banner address (#1116). Allowed: empty, an https:// address, or a storage
+  -- path (no scheme before the first slash).
+  IF NEW.dashboard_banner_path IS DISTINCT FROM OLD.dashboard_banner_path
+     AND NEW.dashboard_banner_path IS NOT NULL
+     AND NEW.dashboard_banner_path <> ''
+     AND NEW.dashboard_banner_path !~* '^https://'
+     AND NEW.dashboard_banner_path !~ '^[^:/]*/'
+  THEN
+    RAISE EXCEPTION 'The banner must be a web address that starts with https://.'
       USING ERRCODE = '23514';
   END IF;
 
@@ -58,7 +76,7 @@ BEGIN
   -- employee row (service role, migration) is trusted, as before.
   IF v_caller_id IS NOT NULL
      AND OLD.id = v_caller_id
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND (to_jsonb(NEW) - v_self_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_self_allowed)
   THEN
     RAISE EXCEPTION
@@ -66,7 +84,7 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  IF NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+  IF NOT v_is_privileged THEN
     IF NEW.is_super_admin IS DISTINCT FROM OLD.is_super_admin THEN
       NEW.is_super_admin := OLD.is_super_admin;
     END IF;
@@ -108,7 +126,7 @@ BEGIN
   -- employee row is the service role or a migration, and is trusted.
   IF v_caller_id IS NOT NULL
      AND (
-       NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+       NOT v_is_privileged
        OR (OLD.id = v_caller_id AND NOT (v_caller_is_super_admin IS TRUE))
      )
   THEN
@@ -122,7 +140,7 @@ BEGIN
 
   -- Call sign (#247). Only HR and Super Admins set one, their own included.
   IF v_caller_id IS NOT NULL
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND NEW.call_sign IS DISTINCT FROM OLD.call_sign
   THEN
     NEW.call_sign := OLD.call_sign;
@@ -131,13 +149,13 @@ BEGIN
   -- Nobody edits their own hidden-navigation override — server-side, not by
   -- hiding the control — and only HR/Super Admin may edit anyone else's.
   IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
-    IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+    IF OLD.id = v_caller_id OR NOT v_is_privileged THEN
       NEW.hidden_nav_keys := OLD.hidden_nav_keys;
     END IF;
   END IF;
 
   IF v_caller_can_manage_leaves IS TRUE
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND OLD.id IS DISTINCT FROM v_caller_id
   THEN
     NEW := jsonb_populate_record(OLD, jsonb_build_object(

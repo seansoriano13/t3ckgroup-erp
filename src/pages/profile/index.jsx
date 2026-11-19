@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const bannerInputRef = useRef(null);
 
   const isHttpUrl = (value) => /^https?:\/\//i.test(value || "");
+  const isHttpsUrl = (value) => /^https:\/\//i.test(value || "");
 
   const [customQuote, setCustomQuote] = useState(() => user?.dashboardQuote || "");
   const [prevDashboardQuote, setPrevDashboardQuote] = useState(
@@ -321,7 +322,7 @@ export default function ProfilePage() {
 
   // A typed banner address must be https:// (the server refuses anything else).
   const bannerUrlInvalid =
-    hasBannerUrl && !/^https:\/\//i.test(bannerUrlInput.trim());
+    hasBannerUrl && !isHttpsUrl(bannerUrlInput.trim());
 
   const hasChanges =
     !!avatarFile ||
