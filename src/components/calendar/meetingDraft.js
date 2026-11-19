@@ -43,3 +43,23 @@ export function draftProblem({ activityType = 'MEETING', meetingType = 'ONSITE',
   if (badEmail) return `Check the email for ${badEmail.name}.`;
   return null;
 }
+
+/**
+ * Everything an edit can change, in one comparable string (#1084). The same fields the database compares in
+ * `edit_meeting_request`: type, Meeting type, link, Venue, every day and its times, Lead, Participants, Guests, purpose.
+ * Pieces a type does not use (a Venue on a task, a link on an Onsite Meeting) arrive empty. `days` are
+ * { startsAt, endsAt } instants in any ISO form; they are compared as moments, not as text.
+ */
+export function activityFingerprint({ activityType, meetingType, meetingLink, venueId, days, facilitatorId, participantIds = [], guests = [], purpose }) {
+  return JSON.stringify({
+    activityType,
+    meetingType: activityType === 'MEETING' ? meetingType : null,
+    meetingLink: String(meetingLink ?? '').trim() || null,
+    venueId: venueId || null,
+    days: days.map((d) => [new Date(d.startsAt).getTime(), new Date(d.endsAt).getTime()]).sort((a, b) => a[0] - b[0]),
+    facilitatorId: facilitatorId || null,
+    participantIds: [...participantIds].sort(),
+    guests: guests.map((g) => [String(g.name ?? '').trim(), String(g.email ?? '').trim()]),
+    purpose: String(purpose ?? '').trim(),
+  });
+}

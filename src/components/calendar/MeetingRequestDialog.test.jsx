@@ -318,4 +318,75 @@ describe('Activity form', () => {
       expect(document.querySelectorAll('input[type="date"]')).toHaveLength(1);
     });
   });
+
+  describe('editing a saved Activity (#1084)', () => {
+    const saved = (over) => ({
+      id: 'r1',
+      status: 'APPROVED',
+      activity_type: 'MEETING',
+      meeting_type: 'ONSITE',
+      meeting_link: null,
+      venue_id: 'v1',
+      facilitator_id: 'fac',
+      participants: [],
+      guests: [],
+      guest_emails: [],
+      purpose: 'Sales huddle',
+      starts_at: at('2031-03-10', '09:00'),
+      ends_at: at('2031-03-10', '10:00'),
+      days: [{ starts_at: at('2031-03-10', '09:00'), ends_at: at('2031-03-10', '10:00') }],
+      ...over,
+    });
+    const saveButton = () => screen.getByRole('button', { name: 'Save changes' });
+    const typePurpose = (text) => fireEvent.change(screen.getByPlaceholderText('What is the Activity for?'), { target: { value: text } });
+
+    it('keeps "Save changes" off until something is different', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      expect(saveButton()).toBeDisabled();
+    });
+
+    it('turns it on for a changed purpose, and off again when the change is put back', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      typePurpose('Sales huddle, moved');
+      expect(saveButton()).toBeEnabled();
+      typePurpose('Sales huddle');
+      expect(saveButton()).toBeDisabled();
+    });
+
+    it('turns it on for a changed end time', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await user.click(screen.getAllByRole('combobox').find((c) => c.textContent.includes('10:00')));
+      await user.click(await screen.findByRole('option', { name: '11:00' }));
+      expect(saveButton()).toBeEnabled();
+    });
+
+    it('turns it on for an added Guest, but not for a Guest that is only typed', async () => {
+      renderForm([], {}, saved());
+      await screen.findByText('Activity type');
+      const user = userEvent.setup();
+      await user.type(screen.getByPlaceholderText('Name'), 'Mr. Visitor');
+      expect(saveButton()).toBeDisabled();
+      await user.click(screen.getByRole('button', { name: 'Add' }));
+      expect(saveButton()).toBeEnabled();
+    });
+
+    it('does not hold back "Send again" on a returned Activity', async () => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      employeeService.getAllEmployees.mockResolvedValue([{ id: 'fac', name: 'Fay Facilitator', isHead: true }]);
+      meetingRequestService.listVenues.mockResolvedValue([{ id: 'v1', name: 'Conference Room' }]);
+      meetingRequestService.lastPicks.mockResolvedValue(null);
+      calendarService.fetchEntries.mockResolvedValue([]);
+      render(
+        <QueryClientProvider client={client}>
+          <MeetingRequestDialog open onClose={() => {}} editing={saved({ status: 'RETURNED' })} resend />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('Activity type');
+      expect(screen.getByRole('button', { name: 'Send again' })).toBeEnabled();
+    });
+  });
 });

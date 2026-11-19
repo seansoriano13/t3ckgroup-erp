@@ -207,3 +207,64 @@ describe("meetingRequestService.fileRequest over several days (#1056)", () => {
     expect(body.p_starts_at).toBe(days[0].startsAt)
   })
 })
+
+/**
+ * #1084: an edit that changes nothing is a no-op in the database (policy tier, 1084-edit-no-change). Here the service
+ * has only to stay quiet on that answer, and to keep telling HR once when something did change.
+ */
+describe("meetingRequestService.editRequest (#1084)", () => {
+  let venue
+  let applicant
+  let request
+
+  const edit = () =>
+    meetingRequestService.editRequest({
+      requestId: request.id,
+      venueId: venue.id,
+      startsAt: request.starts_at,
+      endsAt: request.ends_at,
+      facilitatorId: applicant.id,
+      purpose: "Quarterly planning",
+      actor: applicant,
+    })
+  const base = () => ({ id: request.id, from_status: "APPROVED", applicant_id: applicant.id, facilitator_id: applicant.id, old_facilitator_id: applicant.id, participant_ids: [], old_participant_ids: [] })
+
+  beforeEach(() => {
+    venue = insertRow("calendar_venues", { name: "Conference Room", active: true, sort_order: 1 })
+    applicant = makeEmployee({ name: "Ana Reyes" })
+    makeHrEmployee({ name: "HR Officer" })
+    request = insertRow("meeting_requests", {
+      applicant_id: applicant.id,
+      venue_id: venue.id,
+      starts_at: "2031-03-10T01:00:00.000Z",
+      ends_at: "2031-03-10T02:00:00.000Z",
+      facilitator_id: applicant.id,
+      purpose: "Quarterly planning",
+      guests: [],
+      activity_type: "MEETING",
+      meeting_type: "ONSITE",
+      status: "APPROVED",
+    })
+  })
+
+  it("sends no notification and writes no audit line when nothing changed", async () => {
+    stubRpc("edit_meeting_request", () => ({ ...base(), action: "NO_CHANGE", no_change: true, to_status: "APPROVED", changed_fields: {} }))
+    const result = await edit()
+    await waitForNetworkIdle()
+
+    expect(result.action).toBe("NO_CHANGE")
+    expect(db.rows("notifications")).toHaveLength(0)
+    expect(db.rows("system_audit_logs").filter((e) => e.entity_type === "MEETING_REQUEST")).toHaveLength(0)
+  })
+
+  it("tells HR once, and writes the audit line, when a real change sends it back", async () => {
+    stubRpc("edit_meeting_request", () => ({ ...base(), action: "EDITED", to_status: "PENDING_HR", changed_fields: { ends_at: { from: "a", to: "b" } } }))
+    await edit()
+    await waitForNetworkIdle()
+
+    const hrIds = db.rows("employees").filter((e) => e.is_hr).map((e) => e.id)
+    const told = db.rows("notifications").filter((n) => n.type === "MEETING_REQUEST").map((n) => n.recipient_id)
+    expect(told.sort()).toEqual(hrIds.sort())
+    expect(db.rows("system_audit_logs").filter((e) => e.entity_type === "MEETING_REQUEST")).toHaveLength(1)
+  })
+})
