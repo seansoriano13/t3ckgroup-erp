@@ -1,5 +1,18 @@
 [
     {
+        "date": "2026-11-19",
+        "title": "Activity Log fixes",
+        "version": "1.11.4",
+        "changes": [
+            "Task Logs no longer shows a LIVE badge it cannot back up.",
+            "The Activity Log filters now work: Task status, Department and Sub-department narrow the list.",
+            "Searching the Activity Log works with commas and special characters in your text.",
+            "Only a Super Admin can change Settings.",
+            "HR Logs now shows every type of HR entry.",
+            "Task Logs rows on a phone now show the Status."
+        ]
+    },
+    {
         "date": "2026-11-17",
         "title": "Activity rules and a better Calendar",
         "version": "1.11.3",
