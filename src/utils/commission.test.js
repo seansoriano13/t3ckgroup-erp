@@ -555,7 +555,7 @@ describe("aggregateOpportunityCommissions", () => {
     expect(agg.totalCommissionPool).toBe(0);
   });
 
-  it("includes early pipeline deals when scope is FORECAST", () => {
+  it("counts only open deals before Awarded when scope is FORECAST", () => {
     const agg = aggregateOpportunityCommissions({
       opportunities: [opp1, opp2, oppPipeline, oppLost],
       ratesResolver: () => RATES,
@@ -564,9 +564,23 @@ describe("aggregateOpportunityCommissions", () => {
       scope: "FORECAST",
     });
 
-    expect(agg.totalDealsCount).toBe(3); // excludes oppLost
-    expect(agg.wonDealsCount).toBe(2);
-    expect(agg.totalContractValue).toBe(3_500_000);
+    expect(agg.totalDealsCount).toBe(1); // only oppPipeline
+    expect(agg.wonDealsCount).toBe(0);
+    expect(agg.totalContractValue).toBe(500_000);
+  });
+
+  it("counts an AWARDED deal with a Contract Date in Realized only", () => {
+    const args = {
+      opportunities: [opp1, oppPipeline],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+    };
+    const realized = aggregateOpportunityCommissions({ ...args, scope: "REALIZED" });
+    const projected = aggregateOpportunityCommissions({ ...args, scope: "FORECAST" });
+
+    expect(realized.totalContractValue).toBe(1_000_000);
+    expect(projected.totalContractValue).toBe(500_000);
   });
 
   it("filters by date range correctly", () => {

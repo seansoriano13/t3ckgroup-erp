@@ -256,6 +256,12 @@ export function aggregateOpportunityCommissions({
       if (!isRealizedCommissionOpportunity(opp, stages)) return false;
     }
 
+    // Projected counts only open deals before Awarded; a deal with a Contract
+    // Date is Realized and must not be counted twice.
+    if (scope === "FORECAST") {
+      if (isRealizedCommissionOpportunity(opp, stages)) return false;
+    }
+
     if (dateFilter?.startDate || dateFilter?.endDate) {
       const targetDate = opp[dateFilter.dateField || "contract_date"] || opp.created_at?.slice(0, 10);
       if (dateFilter.startDate && targetDate && targetDate < dateFilter.startDate) return false;
