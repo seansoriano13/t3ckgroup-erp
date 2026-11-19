@@ -93,7 +93,7 @@ afterAll(async () => {
 
 describe("the meeting link", () => {
     it("refuses a link that is not a web link when filing, for an Online and a Hybrid Meeting", async () => {
-        for (const link of ["javascript:alert(1)", "not a url", "meet.example.test/x", "ftp://files.example.test/x", "https://", "mailto:a@example.test"]) {
+        for (const link of ["javascript:alert(1)", "not a url", "meet.example.test/x", "ftp://files.example.test/x", "https://", "mailto:a@example.test", "https://meet.example.test/a b", "https:// meet.example.test", "https://meet.example.test/a\tb"]) {
             const { error } = await file("ordinary", { p_meeting_link: link })
             expect(error?.message, link).toMatch(LINK_MESSAGE)
         }

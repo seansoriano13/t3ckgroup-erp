@@ -114,15 +114,20 @@ const REQUEST_SELECT = `*,
   participants:meeting_request_participants(employee_id, employee:employees(id, name)),
   days:meeting_request_days(id, starts_at, ends_at)`;
 
-/** The events of these requests, oldest first (#1085). One read serves a whole list. */
+/** Ids per read: a long queue's ids in one `in (...)` would pass the URL length limit. */
+const EVENT_READ_CHUNK = 100;
+
+/** The events of these requests, oldest first within each request (#1085). Read in chunks of ids. */
 async function loadEvents(requestIds) {
-  const { data, error } = await supabase
-    .from('meeting_request_events')
-    .select('*, actor:employees(id, name)')
-    .in('request_id', requestIds)
-    .order('created_at');
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  const chunks = [];
+  for (let i = 0; i < requestIds.length; i += EVENT_READ_CHUNK) chunks.push(requestIds.slice(i, i + EVENT_READ_CHUNK));
+  const reads = await Promise.all(
+    chunks.map((ids) => supabase.from('meeting_request_events').select('*, actor:employees(id, name)').in('request_id', ids).order('created_at')),
+  );
+  return reads.flatMap(({ data, error }) => {
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
 }
 
 const timeRange = (startsAt, endsAt) => `${manilaTime(startsAt)} to ${manilaTime(endsAt)}`;
@@ -148,6 +153,14 @@ async function pendingRows({ isHr = false, isSuperAdmin = false } = {}) {
   const { data, error } = await supabase.from('meeting_requests').select(REQUEST_SELECT).eq('status', MEETING_STATUS.PENDING_HR).order('created_at');
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+/** How many are waiting on HR: a head-only count, so no row and none of its joins are read. */
+async function pendingCount({ isHr = false, isSuperAdmin = false } = {}) {
+  if (!isHr && !isSuperAdmin) return 0;
+  const { count, error } = await supabase.from('meeting_requests').select('id', { count: 'exact', head: true }).eq('status', MEETING_STATUS.PENDING_HR);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 export const meetingRequestService = {
@@ -392,7 +405,7 @@ export const meetingRequestService = {
 
   /** The count behind the sidebar badge (same filter as the queue). */
   async countPendingForApprover(args) {
-    return (await pendingRows(args)).length;
+    return pendingCount(args);
   },
 
   /**

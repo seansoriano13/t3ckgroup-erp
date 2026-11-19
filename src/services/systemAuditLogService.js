@@ -15,10 +15,8 @@ export const HR_ENTITY_TYPES = [
 
 // The words a log shows for an entity type whose code is older than its screen name. The code in the
 // database stays (MEETING_REQUEST); only what people read changes. An Activity was a Meeting Request.
+// Every screen that shows an entity type reads this map, so the word is written once.
 export const ENTITY_TYPE_LABELS = { MEETING_REQUEST: "Activity" };
-
-/** What a log shows for an entity type: its screen word, else the code written out. */
-export const entityTypeLabel = (code) => ENTITY_TYPE_LABELS[code] ?? code;
 
 export const systemAuditLogService = {
   /**

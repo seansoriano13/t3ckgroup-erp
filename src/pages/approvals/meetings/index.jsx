@@ -10,6 +10,7 @@ import ProtectedRoute from "../../../components/ProtectedRoute";
 import { meetingRequestService } from "../../../services/meetingRequestService";
 import { meetingToItem } from "../../../utils/approvalItems.js";
 import { useRecordParam } from "../../../hooks/useRecordParam";
+import { refreshActivityQueries } from "../../../hooks/activityQueries";
 import { APPROVAL_QUEUES, useApprovalQueues } from "../_components/useApprovalQueues";
 import { ApprovalCenterLayout } from "../_components/ApprovalCenterLayout";
 import { ApprovalToolbar } from "../_components/ApprovalToolbar";
@@ -72,7 +73,8 @@ function MeetingApprovalsQueue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueReady, recordId, inQueue]);
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["meeting-requests"] });
+  // The queue's own key sits under "meeting-requests", so this refreshes it along with the Calendar (#1090).
+  const refresh = () => refreshActivityQueries(queryClient);
 
   const decide = useMutation({
     mutationFn: ({ item, decision, note }) => {

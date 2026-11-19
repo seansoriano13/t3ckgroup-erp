@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/context/AuthContext';
 import { meetingRequestService } from '@/services/meetingRequestService';
+import { refreshActivityQueries } from '@/hooks/activityQueries';
 import { getPermissionContext } from '@/utils/permissions';
 import MeetingRequestDialog from './MeetingRequestDialog';
 import { meetingActions } from './meetingActions.js';
@@ -31,8 +32,7 @@ export default function MeetingActions({ request, onDone, allowHr = true }) {
   });
 
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['calendar-entries'] });
-    queryClient.invalidateQueries({ queryKey: ['meeting-requests'] });
+    refreshActivityQueries(queryClient);
     onDone?.();
   };
 

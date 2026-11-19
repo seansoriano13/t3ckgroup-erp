@@ -43,9 +43,9 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 /** The most characters a purpose can hold (#1087). The database holds the same limit. */
 export const PURPOSE_MAX = 500;
 
-/** A meeting link is a web link: it starts with http:// or https:// (#1087). The database holds the same rule. */
+/** A meeting link is a web link: it starts with http:// or https:// and has no spaces (#1087). The database holds the same rule. */
 export const LINK_RULE = 'The meeting link must start with http:// or https://';
-export const isWebLink = (link) => /^https?:\/\/./i.test(String(link ?? '').trim());
+export const isWebLink = (link) => /^https?:\/\/\S+$/i.test(String(link ?? '').trim());
 
 /** The latest date an Activity can be on: one year after today in Manila (#1087), as the database counts it. */
 export function latestDate(now = new Date()) {

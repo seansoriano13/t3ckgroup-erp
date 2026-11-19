@@ -144,6 +144,21 @@ describe("an edit with no differing field", () => {
         expect((await events(filed.data)).length).toBe(eventsBefore)
     })
 
+    it("is a no-op when the saved head_id is not null, because an edit never compares the head", async () => {
+        const id = await approvedRoomMeeting()
+        const { error: headError } = await svc().from("meeting_requests").update({ head_id: ids.head }).eq("id", id)
+        expect(headError).toBeNull()
+        const before = await row(id)
+        const eventsBefore = (await events(id)).length
+
+        const { data, error } = await edit(id)
+        expect(error).toBeNull()
+        expect(data).toMatchObject({ id, action: "NO_CHANGE", no_change: true, from_status: "APPROVED", to_status: "APPROVED", changed_fields: {} })
+
+        expect(await row(id)).toEqual(before)
+        expect((await events(id)).length).toBe(eventsBefore)
+    })
+
     it("still refuses a value the function refuses", async () => {
         const id = await approvedRoomMeeting()
         const { error } = await edit(id, { p_purpose: "   " })

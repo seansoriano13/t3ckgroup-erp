@@ -268,3 +268,34 @@ describe("meetingRequestService.editRequest (#1084)", () => {
     expect(db.rows("system_audit_logs").filter((e) => e.entity_type === "MEETING_REQUEST")).toHaveLength(1)
   })
 })
+
+/** The HR queue's count and its events read (#1083 review): a head-only count, and the events in chunks of ids. */
+describe("meetingRequestService pending queue", () => {
+  it("counts the requests waiting on HR, and nobody else's queue", async () => {
+    const applicant = makeEmployee({ name: "Ana Reyes" })
+    const venue = insertRow("calendar_venues", { name: "Conference Room", active: true, sort_order: 1 })
+    const filed = (status) =>
+      insertRow("meeting_requests", { applicant_id: applicant.id, venue_id: venue.id, starts_at: "2031-03-10T01:00:00.000Z", ends_at: "2031-03-10T02:00:00.000Z", facilitator_id: applicant.id, purpose: "Sync", guests: [], status })
+    filed("PENDING_HR")
+    filed("PENDING_HR")
+    filed("APPROVED")
+
+    expect(await meetingRequestService.countPendingForApprover({ isHr: true })).toBe(2)
+    expect(await meetingRequestService.countPendingForApprover({ isSuperAdmin: true })).toBe(2)
+    expect(await meetingRequestService.countPendingForApprover({})).toBe(0)
+  })
+
+  it("gives every request in a long queue its own events", async () => {
+    const applicant = makeEmployee({ name: "Ana Reyes" })
+    const venue = insertRow("calendar_venues", { name: "Conference Room", active: true, sort_order: 1 })
+    const requests = Array.from({ length: 230 }, (_, i) => {
+      const r = insertRow("meeting_requests", { applicant_id: applicant.id, venue_id: venue.id, starts_at: "2031-03-10T01:00:00.000Z", ends_at: "2031-03-10T02:00:00.000Z", facilitator_id: applicant.id, purpose: `Sync ${i}`, guests: [], status: "PENDING_HR" })
+      insertRow("meeting_request_events", { request_id: r.id, actor_id: applicant.id, action: "FILED", from_status: null, to_status: "PENDING_HR" })
+      return r
+    })
+
+    const queue = await meetingRequestService.listPendingForApprover({ isHr: true })
+    expect(queue).toHaveLength(requests.length)
+    for (const row of queue) expect(row.events.map((e) => e.request_id)).toEqual([row.id])
+  })
+})
