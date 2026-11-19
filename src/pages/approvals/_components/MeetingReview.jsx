@@ -14,10 +14,14 @@ const EVENT_LABEL = {
   HEAD_APPROVED: "Head approved",
   HEAD_DECLINED: "Head declined",
   HEAD_RETURNED: "Head returned",
-  HR_APPROVED: "HR approved",
-  HR_DECLINED: "HR declined",
-  HR_RETURNED: "HR returned",
+  HR_APPROVED: "Approved",
+  HR_DECLINED: "Declined",
+  HR_RETURNED: "Returned",
   HR_OVERRIDE: "HR skipped the head step",
+  EDITED: "Edited",
+  RESENT: "Sent again",
+  CANCELLED: "Cancelled",
+  HR_CANCELLED: "Cancelled by HR",
 };
 
 /**
@@ -53,6 +57,7 @@ export function MeetingReview({ item, onDecide, isSubmitting }) {
               </DetailRow>
             )}
             <DetailRow label="When">{activityWhen(req)}</DetailRow>
+            <DetailRow label="First filed">{formatManilaDateTime(item.submittedAt)}</DetailRow>
             <DetailRow label="Lead">{req.facilitator?.name}</DetailRow>
             <DetailRow label="Participants">{people.length ? people.join(", ") : "None"}</DetailRow>
             <DetailRow label="Guests">{guests.length ? guests.map(guestText).join(", ") : "None"}</DetailRow>
