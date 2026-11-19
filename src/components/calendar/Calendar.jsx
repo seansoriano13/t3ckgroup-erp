@@ -28,6 +28,7 @@ import { GANTT_WEEKS, ganttDays, layoutRange, layoutTitle, parseCalendarParams, 
 import { useCalendarLayers } from '@/components/calendar/useCalendarLayers';
 import { ENTRY_PARAM, entryAddress, findEntry, parseEntryAddress } from '@/components/calendar/entryAddress.js';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
+import { useCalendarEntries } from '@/hooks/activityQueries';
 import { useIsPhone } from "@/hooks/useScreenBand";
 
 const LAYOUT_KEY = 'calendar.layout';
@@ -128,10 +129,7 @@ export default function Calendar({ presetLayers = null, onWithdraw = null, onPic
 
   const { from, to } = layoutRange(layout, anchor, weeks);
   const includePending = canSeePending && showPending;
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['calendar-entries', from, to, includePending],
-    queryFn: () => calendarService.fetchEntries({ from, to, includePending }),
-  });
+  const { data, isLoading, error, refetch } = useCalendarEntries({ from, to, includePending });
 
   const all = data ?? [];
   const options = peopleOptions(all);

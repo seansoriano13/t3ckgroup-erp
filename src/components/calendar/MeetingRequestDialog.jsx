@@ -11,8 +11,8 @@ import { SelectField } from '@/components/ui/SelectField';
 import PeoplePicker from '@/components/ui/PeoplePicker';
 import { useMeetingRealtime } from '@/hooks/useMeetingRealtime';
 import { useAuth } from '@/context/AuthContext';
-import { calendarService } from '@/services/calendarService';
-import { employeeService } from '@/services/employeeService';
+import { useCalendarEntries, refreshActivityQueries } from '@/hooks/activityQueries';
+import { useEmployees } from '@/hooks/useEmployees';
 import { formTypeOptions } from '@/utils/activityFiling';
 import { ACTIVITY_TYPE, MEETING_TYPE, MEETING_TYPE_LABEL, guestList, meetingRequestService, needsLink, needsVenue, requestDays } from '@/services/meetingRequestService';
 import { SELECTOR_TYPES } from '@/utils/resolvePeople';
@@ -103,7 +103,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [purpose, setPurpose] = useState(editing?.purpose ?? '');
 
   const { data: venues = [] } = useQuery({ queryKey: ['calendar-venues'], queryFn: () => meetingRequestService.listVenues() });
-  const { data: employees = [] } = useQuery({ queryKey: ['employees'], queryFn: () => employeeService.getAllEmployees() });
+  const { data: employees = [] } = useEmployees();
   const people = useMemo(() => [...employees].sort((a, b) => a.name.localeCompare(b.name)), [employees]);
   // The form offers only what the viewer may file; the database refuses the rest (#1063).
   const typeOptions = formTypeOptions(user, editing?.activity_type, settings).map((t) => ({ value: t, label: settings.types[t].name }));
@@ -133,11 +133,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     ? [{ date, start, end, frozen: false }]
     : keptDays(date, rangeEnd, dayEdits, start, end, frozenDates);
   // Every day of the range, so the soft warnings cover each day. A Meeting's range is its one day.
-  const { data: rangeAll = [] } = useQuery({
-    queryKey: ['meeting-requests', 'form-range', date, rangeEnd],
-    queryFn: () => calendarService.fetchEntries({ from: date, to: rangeEnd }),
-    enabled: dateOk && !sending,
-  });
+  const { data: rangeAll = [] } = useCalendarEntries({ from: date, to: rangeEnd, enabled: dateOk && !sending });
   // Editing: the request's own slot is not a clash with itself.
   const rangeEntries = useMemo(() => (editing ? rangeAll.filter((e) => (e.group_id ?? e.id) !== editing.id) : rangeAll), [rangeAll, editing]);
   const setDayEdit = (day, edit) => setDayEdits((prev) => ({ ...prev, [day]: edit }));
@@ -206,8 +202,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
     },
     onSuccess: () => {
       toast.success(editing ? (resend ? 'Activity sent again.' : 'Activity updated.') : 'Activity filed.');
-      queryClient.invalidateQueries({ queryKey: ['calendar-entries'] });
-      queryClient.invalidateQueries({ queryKey: ['meeting-requests'] });
+      refreshActivityQueries(queryClient);
       onClose(true);
     },
     onError: (err) => {
