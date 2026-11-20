@@ -31,6 +31,7 @@ import {
   normalizePoNumber,
 } from "../../constants/procurement";
 import { ipasErrorMessage } from "../../utils/ipas";
+import { IPAS_LIMITS, textLengthIssue } from "../../utils/ipasLimits";
 import { ipasListKey } from "./ipasKeys";
 
 const options = (values, labels) =>
@@ -124,7 +125,9 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
   });
 
   const isProject = form.purpose === IPAS_PURPOSE.PROJECT;
+  const remarksIssue = textLengthIssue(form.remarks, "Remarks", IPAS_LIMITS.remarks);
   const ready =
+    !remarksIssue &&
     !!checked &&
     !checked.live &&
     form.priority !== "" &&
@@ -244,6 +247,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
 
             <FieldBox label="Remarks" bare>
               <Textarea
+                error={remarksIssue}
                 value={form.remarks}
                 onChange={(e) => set("remarks")(e.target.value)}
                 rows={2}
