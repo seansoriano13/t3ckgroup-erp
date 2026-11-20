@@ -594,19 +594,6 @@ export const taskMutationService = {
         );
       }
 
-      // Self-verify
-      const isSelfVerify =
-        payload?.status === TASK_STATUS.COMPLETE &&
-        payload?.evaluatedBy !== undefined &&
-        payload?.remarks === "Self-Verified (System Bypass)";
-      if (isSelfVerify) {
-        taskActivityService.addSystemEvent(
-          taskId,
-          `Self-verified by ${editorName} (System Bypass).`,
-          { event: "SELF_VERIFIED", grade: payload.grade },
-        );
-      }
-
       // Task recalled (from AWAITING_APPROVAL)
       const isRecall =
         payload?.status === TASK_STATUS.INCOMPLETE &&

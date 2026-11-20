@@ -25,7 +25,6 @@ const TaskFooter = ({ actions, permissions, state }) => {
     onDelete,
     onUndoVerify,
     onSubmitApproval,
-    onSelfVerify,
     onRecallTask,
     onResubmit,
   } = actions;
@@ -111,9 +110,8 @@ const TaskFooter = ({ actions, permissions, state }) => {
               </Button>
             )}
 
-            {/* --- SUBMIT FOR REVIEW (Marketing always / All when setting enabled) --- */}
-            {(state.isMarketing || state.universalTaskSubmission) &&
-              isOwner &&
+            {/* --- SUBMIT FOR REVIEW (the owner of an open or returned task) --- */}
+            {isOwner &&
               (task.status === TASK_STATUS.INCOMPLETE ||
                 task.status === TASK_STATUS.NOT_APPROVED) && (
                 <Button
@@ -136,21 +134,9 @@ const TaskFooter = ({ actions, permissions, state }) => {
                 </Button>
               )}
 
-            {(state.isMarketing || state.universalTaskSubmission) &&
-              isOwner &&
+            {isOwner &&
               task.status === TASK_STATUS.AWAITING_APPROVAL && (
                 <div className="flex flex-wrap items-center gap-2.5">
-                  {state.isDelayed && state.enableSelfVerification && (
-                    <Button
-                      variant="ghost"
-                      onClick={onSelfVerify}
-                      className="h-8 rounded-lg px-5 text-sm font-bold border border-violet-6 bg-violet-3 text-violet-11 hover:bg-violet-4 hover:text-violet-11 shadow-sm gap-1.5"
-                      title="Bypass unresponsive head approval"
-                    >
-                      <ShieldCheck size={15} /> Self-Verify
-                    </Button>
-                  )}
-
                   <Button
                     variant="ghost"
                     onClick={onRecallTask}
@@ -163,7 +149,7 @@ const TaskFooter = ({ actions, permissions, state }) => {
 
                   <div className="text-label uppercase tracking-widest font-bold text-blue-10 flex items-center gap-1.5 px-2">
                     <Clock size={16} />
-                    {state.isDelayed && state.enableVisualShaming ? (
+                    {state.isDelayed ? (
                       <span className="text-destructive animate-pulse">
                         DELAYED
                       </span>
