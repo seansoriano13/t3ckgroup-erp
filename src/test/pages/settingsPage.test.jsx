@@ -4,7 +4,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import SettingsPage from "@/pages/settings/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee, makeHrEmployee, makeSuperAdmin } from "@/test/factories";
-import { appSettingsService } from "@/services/appSettingsService";
+import { leadSourceService } from "@/services/leadSourceService";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -54,12 +54,12 @@ describe("SettingsPage", () => {
 
   it("shows an employee only General, and bounces a forbidden tab without a history entry", async () => {
     mockUser.current = makeEmployee({ name: "Rank And File" });
-    renderAt("/settings?tab=approvals");
+    renderAt("/settings?tab=groups");
 
     expect(await screen.findByText("App preferences")).toBeInTheDocument();
     expect(tabNames()).toEqual(["General"]);
     await waitFor(() => expect(screen.getByTestId("loc")).toHaveTextContent("?tab=general|REPLACE"));
-    expect(screen.queryByText("Approval rules", { selector: "h2" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Employee groups", { selector: "h2" })).not.toBeInTheDocument();
   });
 
   it("shows an HR Officer General, HR & Schedule and Venues, with no Working Week", async () => {
@@ -86,18 +86,17 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByRole("tab", { name: "Payment methods", hidden: true })).toBeInTheDocument();
     expect(tabNames()).toEqual(expect.arrayContaining(["General", "Purchasing"]));
-    expect(screen.queryByRole("tab", { name: "Approval Rules", hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Employee Groups", hidden: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Sign-off lists", hidden: true })).not.toBeInTheDocument();
   });
 
-  it("shows a Super Admin all ten tabs, each on its own key", async () => {
+  it("shows a Super Admin all nine tabs, each on its own key", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
     renderAt("/settings");
 
     await screen.findByText("App preferences");
     expect(tabNames()).toEqual([
       "General",
-      "Approval Rules",
       "HR & Schedule",
       "Venues",
       "Activities",
@@ -109,13 +108,10 @@ describe("SettingsPage", () => {
     ]);
 
     // Tab switches replace history (ui-audit F08) so Back leaves Settings.
-    await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
-    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|REPLACE");
-    await waitFor(() => expect(screen.getByText("Ops Manager Marketing Approvals")).toBeInTheDocument());
-    expect(screen.queryByText("App preferences")).not.toBeInTheDocument();
-
     await setupUser().click(screen.getByRole("tab", { name: "Sales Configuration", hidden: true }));
+    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=sales|REPLACE");
     expect(await screen.findByText("Lead sources")).toBeInTheDocument();
+    expect(screen.queryByText("App preferences")).not.toBeInTheDocument();
     expect(screen.getByText("Commission Pool")).toBeInTheDocument();
 
     await setupUser().click(screen.getByRole("tab", { name: "Purchasing", hidden: true }));
@@ -123,15 +119,15 @@ describe("SettingsPage", () => {
     expect(await screen.findByRole("tab", { name: "Sign-off lists", hidden: true })).toBeInTheDocument();
   });
 
-  it("issues no settings request until the Approval Rules tab opens", async () => {
+  it("issues no lead source request until the Sales Configuration tab opens", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
-    const spy = vi.spyOn(appSettingsService, "getAppSettings");
+    const spy = vi.spyOn(leadSourceService, "getAllLeadSources");
     renderAt("/settings");
 
     await screen.findByText("App preferences");
     expect(spy).not.toHaveBeenCalled();
 
-    await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
+    await setupUser().click(screen.getByRole("tab", { name: "Sales Configuration", hidden: true }));
     await waitFor(() => expect(spy).toHaveBeenCalled());
   });
 
