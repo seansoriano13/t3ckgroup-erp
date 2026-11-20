@@ -24011,10 +24011,21 @@ declare
   v_target_form_field_ids uuid[];
   v_target_follow_up_stage_ids uuid[];
   v_won_stage_id uuid;
+  v_award_stage_id uuid;
+  v_contract_stage_id uuid;
   v_blockers text[] := array[]::text[];
   v_rec record;
   v_elem jsonb;
 begin
+  -- #884: a signed-in employee must be a Super Admin or a Flow editor. RLS would
+  -- refuse the writes below anyway; this says so plainly, before anything changes.
+  -- With no signed-in user (the service role, or a direct database connection
+  -- such as scripts/transfer-sales-flows.mjs) auth.role() is not
+  -- 'authenticated', so operator tooling is not gated here.
+  if auth.role() = 'authenticated' and not (is_super_admin() or can_edit_sales_flows()) then
+    raise exception 'Only a Super Admin or a Flow editor can restore a Sales Flow.'
+      using errcode = '42501';
+  end if;
   -- Lock the Sales Flow row first (ADR 0013 / lock_sales_flow).
   select * into v_flow from sales_flows where id = p_flow_id for update;
   if not found then
@@ -24034,6 +24045,8 @@ begin
 
   v_data := v_snapshot.snapshot_data;
   v_won_stage_id := nullif(v_data->>'wonStageId', '')::uuid;
+  v_award_stage_id := nullif(v_data->>'awardStageId', '')::uuid;
+  v_contract_stage_id := nullif(v_data->>'contractStageId', '')::uuid;
 
   select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
     into v_target_stage_ids
@@ -24075,11 +24088,12 @@ begin
 
   -- From here the draft is reshaped to match the target, keeping ids. Clear
   -- the Won Stage first so a dropped Stage that held it can be deleted.
-  update sales_flows set won_stage_id = null, updated_at = now() where id = p_flow_id;
+  update sales_flows set won_stage_id = null, award_stage_id = null, contract_stage_id = null, updated_at = now() where id = p_flow_id;
 
   -- Two Stages can swap names. The one-name-per-flow index is checked row by
   -- row, so park every surviving Stage on a unique placeholder first.
-  update flow_stages set name = '__restore__' || id::text where flow_id = p_flow_id;
+  -- The one-flag-per-flow index is checked row by row too, so clear the flag here and set it from the target.
+  update flow_stages set name = '__restore__' || id::text, buying_opens_here = false where flow_id = p_flow_id;
 
   -- Drop the Stages the target does not have. Their edges, conditions and
   -- actions go by cascade; the check above proved no SOR is referenced.
@@ -24091,7 +24105,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stages', '[]'::jsonb)) as e
   loop
     insert into flow_stages (
-      id, flow_id, name, sort_order, is_terminal, terminal_outcome, pos_x, pos_y, color, bracket_label, created_at, updated_at
+      id, flow_id, name, sort_order, is_terminal, terminal_outcome, buying_opens_here, pos_x, pos_y, color, bracket_label, created_at, updated_at
     )
     values (
       (v_elem->>'id')::uuid,
@@ -24100,6 +24114,7 @@ begin
       coalesce((v_elem->>'sort_order')::int, 0),
       coalesce((v_elem->>'is_terminal')::boolean, false),
       case when coalesce((v_elem->>'is_terminal')::boolean, false) then nullif(v_elem->>'terminal_outcome', '') end,
+      coalesce((v_elem->>'buying_opens_here')::boolean, false),
       coalesce((v_elem->>'pos_x')::int, 0),
       coalesce((v_elem->>'pos_y')::int, 0),
       nullif(v_elem->>'color', ''),
@@ -24112,6 +24127,7 @@ begin
       sort_order = excluded.sort_order,
       is_terminal = excluded.is_terminal,
       terminal_outcome = excluded.terminal_outcome,
+      buying_opens_here = excluded.buying_opens_here,
       pos_x = excluded.pos_x,
       pos_y = excluded.pos_y,
       color = excluded.color,
@@ -24224,7 +24240,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stageFields', '[]'::jsonb)) as e
   loop
     insert into flow_stage_fields (
-      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at
+      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at, show_when
     )
     values (
       (v_elem->>'id')::uuid,
@@ -24239,7 +24255,8 @@ begin
       coalesce((v_elem->>'sort_order')::int, 0),
       nullif(v_elem->>'archived_at', '')::timestamptz,
       coalesce((v_elem->>'created_at')::timestamptz, now()),
-      now()
+      now(),
+      case when jsonb_typeof(v_elem->'show_when') = 'object' then v_elem->'show_when' end
     )
     on conflict (id) do update set
       stage_id = excluded.stage_id,
@@ -24252,6 +24269,7 @@ begin
       is_required = excluded.is_required,
       sort_order = excluded.sort_order,
       archived_at = excluded.archived_at,
+      show_when = excluded.show_when,
       updated_at = now();
   end loop;
 
@@ -24369,6 +24387,8 @@ begin
 
   update sales_flows
      set won_stage_id = v_won_stage_id,
+         award_stage_id = v_award_stage_id,
+         contract_stage_id = v_contract_stage_id,
          updated_at = now()
    where id = p_flow_id
   returning * into v_flow;
@@ -25981,13 +26001,17 @@ begin
       select (f->>'id')::uuid as id,
              f->>'label' as label,
              f->>'source' as source,
-             f->>'sor_field' as sor_field
+             f->>'sor_field' as sor_field,
+             f->'show_when' as show_when
         from jsonb_array_elements(v_snapshot_data->'stageFields') f
        where (f->>'stage_id')::uuid = OLD.flow_stage_id
          and coalesce((f->>'is_required')::boolean, false) = true
          and f->>'archived_at' is null
        order by coalesce((f->>'sort_order')::integer, 0)
     loop
+      if not stage_field_shown(v_field.show_when, to_jsonb(NEW), v_current_visit_id) then
+        continue;
+      end if;
       if v_field.source = 'sor' then
         v_field_val := to_jsonb(NEW) ->> v_field.sor_field;
         if v_field_val is null or btrim(v_field_val) = '' then
@@ -26013,13 +26037,16 @@ begin
     end loop;
   else
     for v_field in
-      select id, label, source, sor_field
+      select id, label, source, sor_field, show_when
         from public.flow_stage_fields
        where stage_id = OLD.flow_stage_id
          and is_required = true
          and archived_at is null
        order by sort_order, created_at
     loop
+      if not stage_field_shown(v_field.show_when, to_jsonb(NEW), v_current_visit_id) then
+        continue;
+      end if;
       if v_field.source = 'sor' then
         v_field_val := to_jsonb(NEW) ->> v_field.sor_field;
         if v_field_val is null or btrim(v_field_val) = '' then
@@ -31243,42 +31270,35 @@ DECLARE
   app_valid BOOLEAN;
   appr_valid BOOLEAN;
 BEGIN
-  -- Signed-in HR / Super Admin are not limited.
-  IF COALESCE(public.is_hr(), false) OR COALESCE(public.is_super_admin(), false) THEN
-    client_ip := NULL;
+  -- Extract client IP
+  client_ip := current_setting('request.headers', true)::json->>'x-forwarded-for';
+  IF client_ip IS NULL THEN
+    client_ip := 'unknown';
   ELSE
-    -- Extract an address the caller cannot set.
-    client_ip := NULLIF(btrim(current_setting('request.headers', true)::json->>'cf-connecting-ip'), '');
-    IF client_ip IS NULL THEN
-      client_ip := NULLIF(btrim(split_part(
-        current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
-        GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
-      )), '');
-    END IF;
-    IF client_ip IS NULL THEN
-      client_ip := 'unknown';
-    END IF;
+    client_ip := split_part(client_ip, ',', 1);
+  END IF;
 
-    SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
-    IF FOUND THEN
-      IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
-        IF rate_limit_row.request_count >= 20 THEN
-          RAISE EXCEPTION 'verify_rate_limited' USING ERRCODE = 'VF429';
-        ELSE
-          UPDATE public.verification_rate_limits
-          SET request_count = request_count + 1, last_request = NOW()
-          WHERE ip_address = client_ip;
-        END IF;
+  -- Simple rate limiting logic
+  SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
+  IF FOUND THEN
+    IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
+      IF rate_limit_row.request_count >= 20 THEN
+        RAISE EXCEPTION 'Rate limit exceeded. Please try again later.';
       ELSE
         UPDATE public.verification_rate_limits
-        SET request_count = 1, last_request = NOW()
+        SET request_count = request_count + 1, last_request = NOW()
         WHERE ip_address = client_ip;
       END IF;
     ELSE
-      INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
-      VALUES (client_ip, 1, NOW());
+      UPDATE public.verification_rate_limits
+      SET request_count = 1, last_request = NOW()
+      WHERE ip_address = client_ip;
     END IF;
+  ELSE
+    INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
+    VALUES (client_ip, 1, NOW());
   END IF;
+
 
   -- Try SIL Leaves
   SELECT s.*, e.name AS employee_name, c.label AS category_label,
