@@ -222,7 +222,7 @@ export const NAV_MODULES = {
         link: "/purchasing/ipas",
         icon: ReceiptText,
         isPermitted: (ctx) =>
-          ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.isIpasSigner,
+          ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.hasLogisticsFlow || ctx.isIpasSigner,
       },
       // Transmittals (#252): the TG03 slips. Read by the IPAS readers and the
       // four Transmittal staff lists; the database refuses everyone else.
@@ -235,6 +235,7 @@ export const NAV_MODULES = {
           ctx.isSuperAdmin ||
           ctx.hasPurchasingFlow ||
           ctx.hasFinanceFlow ||
+          ctx.hasLogisticsFlow ||
           ctx.isIpasSigner ||
           ctx.isIpasApprover ||
           ctx.isTransmittalStaff,

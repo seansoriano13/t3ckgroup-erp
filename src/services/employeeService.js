@@ -73,7 +73,7 @@ async function ipasListMembership(employee) {
     // member of only those is not an IPAS signer.
     const keys = (data || []).map((row) => row.list_key);
     const ipasKeys = keys.filter((key) => !TRANSMITTAL_STAFF_LISTS.includes(key));
-    const readsAnyway = employee.has_purchasing_flow || employee.has_finance_flow || employee.is_super_admin;
+    const readsAnyway = employee.has_purchasing_flow || employee.has_finance_flow || employee.has_logistics_flow || employee.is_super_admin;
     return {
       isIpasSigner: !readsAnyway && ipasKeys.length > 0,
       isIpasApprover: ipasKeys.some((key) => IPAS_SIGNER_LISTS.includes(key)),
@@ -241,6 +241,7 @@ export const employeeService = {
       // and the flag grants nothing until a Super Admin turns it on anyway.
       has_purchasing_flow: !!data.has_purchasing_flow,
       has_finance_flow: !!data.has_finance_flow,
+      has_logistics_flow: !!data.has_logistics_flow,
       call_sign: data.call_sign ?? null,
       has_retail_access: !!data.has_retail_access,
       has_bug_report_access: !!data.has_bug_report_access,
@@ -282,6 +283,7 @@ export const employeeService = {
       has_task_flow: employee.has_task_flow,
       has_purchasing_flow: !!employee.has_purchasing_flow,
       has_finance_flow: !!employee.has_finance_flow,
+      has_logistics_flow: !!employee.has_logistics_flow,
       call_sign: employee.call_sign ?? null,
       has_retail_access: !!employee.has_retail_access,
       has_bug_report_access: !!employee.has_bug_report_access,
@@ -404,6 +406,7 @@ export const employeeService = {
           has_task_flow: employeeData.has_task_flow,
           has_purchasing_flow: employeeData.has_purchasing_flow,
           has_finance_flow: employeeData.has_finance_flow ?? false,
+          has_logistics_flow: employeeData.has_logistics_flow ?? false,
           call_sign: cleanCallSign(employeeData.call_sign),
           // Open for Sales by default; an explicit choice from the form wins.
           has_retail_access:
@@ -465,6 +468,7 @@ export const employeeService = {
         has_task_flow: employeeData.has_task_flow,
         has_purchasing_flow: employeeData.has_purchasing_flow,
         has_finance_flow: employeeData.has_finance_flow,
+        has_logistics_flow: employeeData.has_logistics_flow,
         // Only touched when the caller says so: HR and Super Admins set it
         // (the database keeps it as it was for anyone else).
         call_sign: employeeData.call_sign !== undefined ? cleanCallSign(employeeData.call_sign) : undefined,

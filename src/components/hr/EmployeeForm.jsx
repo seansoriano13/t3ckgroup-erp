@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, Landmark, ChevronDown, Clock, EyeOff, X, Workflow } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ShoppingBag, Bug, Landmark, Truck, ChevronDown, Clock, EyeOff, X, Workflow } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ export default function EmployeeForm({
     has_task_flow: true,
     has_purchasing_flow: false,
     has_finance_flow: false,
+    has_logistics_flow: false,
     call_sign: "",
     has_retail_access: false,
     has_bug_report_access: false,
@@ -65,6 +66,8 @@ export default function EmployeeForm({
       has_task_flow: true,
       has_purchasing_flow: false,
       has_finance_flow: false,
+      has_logistics_flow: false,
+    has_logistics_flow: false,
       call_sign: "",
       has_retail_access: false,
       has_bug_report_access: false,
@@ -513,6 +516,19 @@ export default function EmployeeForm({
             }
             activeColor="bg-blue-3 text-blue-10"
             hoverColor="group-hover:bg-blue-2"
+          />
+
+          {/* Logistics — IPAS (#1152): read every IPAS, set its status and Direct delivery. Not bank details, not the Logistics sign-off list. */}
+          <AccessSwitch
+            label="Logistics"
+            description="Read every IPAS, set its status and Direct delivery (no bank details)"
+            icon={Truck}
+            checked={formData.has_logistics_flow}
+            onChange={(val) =>
+              setFormData((prev) => ({ ...prev, has_logistics_flow: val }))
+            }
+            activeColor="bg-green-3 text-green-10"
+            hoverColor="group-hover:bg-green-2"
           />
 
           {/* Task Flow */}
