@@ -1,6 +1,14 @@
 [
     {
         "date": "2026-11-20",
+        "title": "Emoji reaction pop-up fix",
+        "version": "1.11.7",
+        "changes": [
+            "The emoji reaction pop-up in chats now opens right next to its button and is never cut off by the window around it."
+        ]
+    },
+    {
+        "date": "2026-11-20",
         "title": "Profile safety checks",
         "version": "1.11.7",
         "changes": [
