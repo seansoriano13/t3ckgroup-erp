@@ -169,7 +169,8 @@ comment on function public.transmittal_create(jsonb, uuid[], uuid[], jsonb) is
 revoke all on function public.transmittal_create(jsonb, uuid[], uuid[], jsonb) from public, anon;
 grant execute on function public.transmittal_create(jsonb, uuid[], uuid[], jsonb) to authenticated;
 
--- ipas_raise_from_odoo: the advisory lock is the only change.
+-- ipas_raise_from_odoo: the advisory lock is the only change. Same key as the #1128 insert trigger, which
+-- locks too late: the number default is drawn before a BEFORE INSERT trigger runs.
 create or replace function public.ipas_raise_from_odoo(
   p_actor uuid,
   p_po_number text,
@@ -234,7 +235,7 @@ begin
 
   -- #1129: one raise per PO at a time. The loser waits here, then finds the winner's IPAS and is
   -- refused before the insert draws an IPAS number.
-  perform pg_advisory_xact_lock(hashtextextended('ipas_raise:' || v_po, 0));
+  perform pg_advisory_xact_lock(hashtextextended('ipas_live_po:' || v_po, 0));
 
   select i.number into v_existing
     from public.ipas i
