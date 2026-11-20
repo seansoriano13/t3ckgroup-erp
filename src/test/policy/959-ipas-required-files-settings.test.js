@@ -47,12 +47,18 @@ const setSwitches = (proof, charge) =>
     sql().query(`update public.ipas_file_rules set proof_on_every_payment = $1, file_on_every_charge = $2`, [proof, charge])
 const missing = async (ipasId, section) =>
     (await sql().query(`select public._ipas_missing_documents($1, $2) as m`, [ipasId, section])).rows[0].m
-const attach = async (ipasId, label) =>
-    sql().query(
-        `insert into public.ipas_documents (ipas_id, kind_id, attachment_url) values ($1, $2, $3)
-         on conflict (ipas_id, kind_id) where kind_id is not null do update set attachment_url = excluded.attachment_url`,
-        [ipasId, await kindId(label), FILE],
+const attach = async (ipasId, label) => {
+    const { rows } = await sql().query(
+        `insert into public.ipas_documents (ipas_id, kind_id) values ($1, $2)
+         on conflict (ipas_id, kind_id) where kind_id is not null do update set updated_at = now() returning id`,
+        [ipasId, await kindId(label)],
     )
+    await sql().query(
+        `insert into public.ipas_document_files (document_id, url, file_name)
+         select $1, $2, 'file.pdf' where not exists (select 1 from public.ipas_document_files where document_id = $1)`,
+        [rows[0].id, FILE],
+    )
+}
 const signPrepared = (ipasId, section) =>
     svc().from("ipas_signoffs").insert({ ipas_id: ipasId, section, role: "prepared", signed_by: ids.outsider })
 

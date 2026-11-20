@@ -156,8 +156,19 @@ export const tickDocument = (documentId, side, value) =>
     [side === "finance" ? "finance_has" : "purchasing_has"]: Boolean(value),
   }));
 
-export const attachDocument = (documentId, url) =>
-  mapRows("documents", documentId, (row) => ({ ...row, attachment_url: (url || "").trim() || null }));
+/** One more file on a document (#1153). `file` is `{ url, fileName }`. */
+export const addDocumentFile = (documentId, { url, fileName }) =>
+  mapRows("documents", documentId, (row) => ({
+    ...row,
+    files: [
+      ...(row.files ?? []),
+      { id: optimisticId(), document_id: documentId, url: (url || "").trim(), file_name: fileName || "File", created_at: nowIso() },
+    ],
+  }));
+
+/** One file off a document; the others stay. */
+export const removeDocumentFile = (documentId, fileId) =>
+  mapRows("documents", documentId, (row) => ({ ...row, files: (row.files ?? []).filter((file) => file.id !== fileId) }));
 
 export const removeDocument = (documentId) => (raw) => ({
   ...raw,
@@ -179,6 +190,7 @@ export const addDocument =
         purchasing_has: false,
         finance_has: false,
         attachment_url: null,
+        files: [],
         created_at: nowIso(),
       },
     ],

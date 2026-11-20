@@ -11,7 +11,7 @@ import { requiredKindsByPart } from "@/utils/ipasDocuments";
 export function makeReady(row, logisticsBy, { source = "local" } = {}) {
   const wanted = Object.values(requiredKindsByPart({ options: db.rows("ipas_options") }, source)).flat();
   for (const kind of wanted) {
-    db.seed("ipas_documents", {
+    const document = db.seed("ipas_documents", {
       ipas_id: row.id,
       kind_id: kind.id,
       label: null,
@@ -19,6 +19,7 @@ export function makeReady(row, logisticsBy, { source = "local" } = {}) {
       purchasing_has: true,
       finance_has: true,
     });
+    db.seed("ipas_document_files", { document_id: document.id, url: `https://res.cloudinary.com/demo/raw/upload/${kind.id}.pdf`, file_name: `${kind.id}.pdf` });
   }
   db.seed("ipas_signoffs", {
     ipas_id: row.id,

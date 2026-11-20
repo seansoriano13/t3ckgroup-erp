@@ -349,7 +349,7 @@ export const ipasService = {
         .order("created_at", { ascending: true }),
       supabase.from("ipas_options").select("*"),
       supabase.from("ipas_file_rules").select("*").maybeSingle(),
-      supabase.from("ipas_documents").select("*").eq("ipas_id", id).order("created_at", { ascending: true }),
+      readDocumentsWithFiles(id),
       readBankDetails(id),
       transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
@@ -819,15 +819,22 @@ export const ipasService = {
   },
 
   /**
-   * Attaches a file to a document (Purchasing), or removes it with a blank
-   * `attachmentUrl`. The link comes from the Cloudinary upload, as a payment's
-   * proof does. Returns the row.
+   * Adds one file to a document (Purchasing): `{ url, fileName }`. The link comes from the upload and must
+   * be to the app's own file store. A document holds any number of files (#1153). Returns the file row.
    */
-  async setDocument(documentId, { attachmentUrl = "" } = {}) {
-    const { data, error } = await supabase.rpc("ipas_set_document_attachment", {
+  async addDocumentFile(documentId, { url = "", fileName = "" } = {}) {
+    const { data, error } = await supabase.rpc("ipas_add_document_file", {
       p_document_id: documentId,
-      p_attachment_url: (attachmentUrl || "").trim() || null,
+      p_url: (url || "").trim(),
+      p_file_name: (fileName || "").trim() || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes one file of a document (Purchasing); the document's other files stay. Returns the removed row. */
+  async removeDocumentFile(fileId) {
+    const { data, error } = await supabase.rpc("ipas_remove_document_file", { p_file_id: fileId });
     if (error) throw error;
     return data;
   },
@@ -1518,6 +1525,7 @@ export const ipasService = {
       .eq("state", IPAS_STATE.OPEN);
     if (ipasError) throw ipasError;
     const ipasById = new Map((ipasRows || []).map((ipas) => [ipas.id, ipas]));
+    const documentsByIpas = await readFilesForReview([...ipasById.keys()]);
 
     return waiting
       .filter((entry) => ipasById.has(entry.ipasId))
@@ -1543,6 +1551,8 @@ export const ipasService = {
           preparedAt: madeReady.signedAt,
           readyAt: madeReady.signedAt,
           steps: entry.steps ?? null,
+          // The documents that hold files, each with its files, for the reviewer (#1153).
+          documents: documentsByIpas.get(ipas.id) ?? [],
         };
       })
       .sort((a, b) => String(a.readyAt).localeCompare(String(b.readyAt)));
@@ -1756,6 +1766,46 @@ function stageNotification(stage, { label, section, role }) {
 }
 
 /**
+ * An IPAS's document rows, each with its files (#1153) as `files`. The files come in a second query for
+ * the documents' ids, so a document with none gets an empty list.
+ */
+async function readDocumentsWithFiles(ipasId) {
+  const documents = await supabase.from("ipas_documents").select("*").eq("ipas_id", ipasId).order("created_at", { ascending: true });
+  if (documents.error || !documents.data?.length) return documents;
+  return { ...documents, data: await attachFiles(documents.data) };
+}
+
+async function attachFiles(documents) {
+  const { data, error } = await supabase
+    .from("ipas_document_files")
+    .select("*")
+    .in("document_id", documents.map((d) => d.id))
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const byDocument = new Map();
+  for (const file of data || []) byDocument.set(file.document_id, [...(byDocument.get(file.document_id) ?? []), file]);
+  return documents.map((d) => ({ ...d, files: byDocument.get(d.id) ?? [] }));
+}
+
+/** Per IPAS id, its documents that hold at least one file: `[{ id, label, files: [{ id, url, fileName }] }]`. */
+async function readFilesForReview(ipasIds) {
+  const out = new Map();
+  if (ipasIds.length === 0) return out;
+  const [documents, options] = await Promise.all([
+    supabase.from("ipas_documents").select("*").in("ipas_id", ipasIds).order("created_at", { ascending: true }),
+    supabase.from("ipas_options").select("*"),
+  ]);
+  for (const result of [documents, options]) if (result.error) throw result.error;
+  if (!documents.data?.length) return out;
+  const shaped = shapeDocuments(await attachFiles(documents.data), options.data || []);
+  for (const doc of shaped) {
+    if (!doc.hasFile) continue;
+    out.set(doc.ipas_id, [...(out.get(doc.ipas_id) ?? []), { id: doc.id, label: doc.label, files: doc.files }]);
+  }
+  return out;
+}
+
+/**
  * What Filing looks at on one IPAS: whether its Approved could file (costs
  * complete, Received, Noted and Checked given) and the required documents nobody
  * has ticked. One read each; nothing is written.
@@ -1763,7 +1813,7 @@ function stageNotification(stage, { label, section, role }) {
 async function readFilingState(id) {
   const [ipas, documents, options, signoffs] = await Promise.all([
     supabase.from("ipas").select("id, source, state, computation_status").eq("id", id).maybeSingle(),
-    supabase.from("ipas_documents").select("*").eq("ipas_id", id),
+    readDocumentsWithFiles(id),
     supabase.from("ipas_options").select("*"),
     supabase
       .from("ipas_signoffs")

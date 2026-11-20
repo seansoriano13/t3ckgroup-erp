@@ -619,16 +619,30 @@ function IpasPage({ onClose }) {
     },
   });
 
+  // One file at a time, so each shows at once and a failure leaves the others in place (#1153).
   const attach = useMutation({
-    mutationFn: ({ document, url }) => ipasService.setDocument(document.id, { attachmentUrl: url }),
-    onMutate: ({ document, url }) => ({ rollback: patchCache(optimistic.attachDocument(document.id, url)) }),
-    onSuccess: (_, { url }) => {
-      toast.success(url ? "File attached." : "Attachment removed.");
+    mutationFn: ({ document, file }) => ipasService.addDocumentFile(document.id, { url: file.url, fileName: file.fileName }),
+    onMutate: ({ document, file }) => ({ rollback: patchCache(optimistic.addDocumentFile(document.id, file)) }),
+    onSuccess: () => {
+      toast.success("File attached.");
       changed();
     },
     onError: (error, vars, context) => {
       context?.rollback?.();
       failChange(error, () => attach.mutate(vars));
+    },
+  });
+
+  const detach = useMutation({
+    mutationFn: ({ file }) => ipasService.removeDocumentFile(file.id),
+    onMutate: ({ document, file }) => ({ rollback: patchCache(optimistic.removeDocumentFile(document.id, file.id)) }),
+    onSuccess: () => {
+      toast.success("File removed.");
+      changed();
+    },
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => detach.mutate(vars));
     },
   });
 
@@ -721,7 +735,8 @@ function IpasPage({ onClose }) {
         for (const item of plan.documents.add) await once(item.key, () => ipasService.addDocument(id, item.choice));
         for (const item of plan.documents.update) {
           await once(item.key, async () => {
-            if (item.attachmentUrl !== undefined) await ipasService.setDocument(item.id, { attachmentUrl: item.attachmentUrl });
+            for (const fileId of item.removeFileIds ?? []) await ipasService.removeDocumentFile(fileId);
+            for (const file of item.addFiles ?? []) await ipasService.addDocumentFile(item.id, file);
             if (item.purchasing !== undefined) await ipasService.tickDocument(item.id, IPAS_TICK_SIDE.PURCHASING, item.purchasing);
             if (item.finance !== undefined) await ipasService.tickDocument(item.id, IPAS_TICK_SIDE.FINANCE, item.finance);
           });
@@ -959,8 +974,8 @@ function IpasPage({ onClose }) {
     removeBlankCharges: (rows) => setRemoving({ type: "blank-charges", rows }),
     tickDocument: (document, side, value) => tick.mutate({ document, side, value }),
     // attach's onError has already toasted the reason; the catch keeps the rejection from escaping.
-    attach: (document, url) => attach.mutateAsync({ document, url }).catch(() => {}),
-    removeAttachment: (document) => attach.mutate({ document, url: "" }),
+    attach: (document, file) => attach.mutateAsync({ document, file }).catch(() => {}),
+    removeAttachment: (document, file) => detach.mutate({ document, file }),
     suggestDocuments: () => suggest.mutate(),
     removeDocument: setRemovingDocument,
     pickLocation: (optionId) => locate.mutate(optionId),

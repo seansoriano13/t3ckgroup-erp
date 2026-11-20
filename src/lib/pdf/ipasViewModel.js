@@ -276,7 +276,12 @@ function documentsOf(part, documents, snapshot) {
     filing: (doc) => doc.isFiling,
     finance: (doc) => !doc.isFiling && !claimed(doc),
   }[part];
-  return documents.filter(pick).map((doc) => ({ label: doc.label, have: Boolean(doc.purchasingHas || doc.financeHas || doc.attachmentUrl) }));
+  return documents.filter(pick).map((doc) => ({
+    label: doc.label,
+    have: Boolean(doc.purchasingHas || doc.financeHas || doc.attachmentUrl),
+    // Every file of the document by its name (#1153).
+    files: (doc.files ?? []).map((file) => file.fileName),
+  }));
 }
 
 /** The Landed cost table's rows (ticket #710) as paper reads them. */

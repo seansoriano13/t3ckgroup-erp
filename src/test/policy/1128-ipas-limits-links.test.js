@@ -131,11 +131,11 @@ describe("own-file links", () => {
     it("refuses another site's link as a document, accepts an uploaded file", async () => {
         const ipas = await raise()
         const doc = (await svc().from("ipas_documents").select("id").eq("ipas_id", ipas.id).limit(1).single()).data
-        const refused = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: OTHER })
+        const refused = await rpc("outsider", "ipas_add_document_file", { p_document_id: doc.id, p_url: OTHER, p_file_name: "x.pdf" })
         expect(refused.error?.message).toContain("not a link to another site")
-        const accepted = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: OWN })
+        const accepted = await rpc("outsider", "ipas_add_document_file", { p_document_id: doc.id, p_url: OWN, p_file_name: "1128.pdf" })
         expect(accepted.error).toBeNull()
-        expect(accepted.data.attachment_url).toBe(OWN)
+        expect(accepted.data.url).toBe(OWN)
     })
 
     it("refuses another site's link on a hand-added document and on a payment's proof", async () => {

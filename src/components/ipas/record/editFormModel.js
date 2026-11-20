@@ -176,7 +176,8 @@ export const documentDraft = (document) => ({
   id: document.id,
   purchasingHas: Boolean(document.purchasingHas),
   financeHas: Boolean(document.financeHas),
-  attachmentUrl: document.attachmentUrl ?? "",
+  // The document's files (#1153): saved ones carry their id, a file picked in this edit has none yet.
+  files: (document.files ?? []).map((file) => ({ id: file.id, url: file.url, fileName: file.fileName })),
 });
 
 /** A new document row: `choice` is a document kind's id or BY_HAND, `label` the typed name. */
@@ -586,8 +587,11 @@ export function planSave(form, base) {
     if (row.purchasingHas !== before.purchasingHas)
       item.purchasing = row.purchasingHas;
     if (row.financeHas !== before.financeHas) item.finance = row.financeHas;
-    if (row.attachmentUrl !== before.attachmentUrl)
-      item.attachmentUrl = row.attachmentUrl;
+    const kept = new Set(row.files.filter((file) => file.id).map((file) => file.id));
+    const removed = before.files.filter((file) => file.id && !kept.has(file.id)).map((file) => file.id);
+    const added = row.files.filter((file) => !file.id).map((file) => ({ url: file.url, fileName: file.fileName }));
+    if (removed.length > 0) item.removeFileIds = removed;
+    if (added.length > 0) item.addFiles = added;
     plan.documents.update.push(item);
   }
 
