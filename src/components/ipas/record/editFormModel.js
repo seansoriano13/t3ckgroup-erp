@@ -96,7 +96,7 @@ const text = (value) =>
 
 function actualCheckingItem(ipas) {
   return (
-    (ipas.buyerTrack ?? []).find((item) => item.key === "actual_checking") ??
+    (ipas.buyerFacts ?? []).find((item) => item.key === "actual_checking") ??
     null
   );
 }

@@ -1127,7 +1127,7 @@ function IpasPage({ onClose }) {
                 editKey={editKey}
                 onEdit={openEdit}
                 onDone={backToPreview}
-                canSave={canChange || canRecord || canTickFinance}
+                canSave={canChange || canRecord || canTickFinance || canSetStatusStep}
                 savedCount={savedCount}
                 saving={saveAll.isPending}
                 onSave={(plan) => saveAll.mutateAsync(plan)}

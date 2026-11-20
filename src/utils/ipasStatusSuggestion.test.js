@@ -39,9 +39,9 @@ describe("suggestStatus (#1155)", () => {
   })
 
   it("ignores Transmittals on a Direct delivery, but not the Odoo receipt", () => {
-    expect(suggestStatus(ipasOf({ status: "out_for_delivery", slips: [{ id: "t1" }], directDelivery: true }))).toBeNull()
+    expect(suggestStatus(ipasOf({ status: "out_for_delivery", slips: [{ id: "t1" }], direct_delivery: true }))).toBeNull()
     const received = { purchaseOrder: { ticked: true }, receivedInOdoo: { ticked: true } }
-    expect(suggestStatus(ipasOf({ status: "ordered", statuses: received, directDelivery: true }))).toMatchObject({ step: "delivered" })
+    expect(suggestStatus(ipasOf({ status: "ordered", statuses: received, direct_delivery: true }))).toMatchObject({ step: "delivered" })
   })
 
   it("suggests nothing on a filed or cancelled IPAS", () => {

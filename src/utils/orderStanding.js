@@ -23,7 +23,7 @@
  *   costsCompletedAt (when costs went complete, or null),
  *   section3Submitted and section3Approved (section 3, stored 6, has a live Submitted / Approved),
  *   status (the stored IPAS Status key) and statusSteps ([{ step, on }], each reached step's
- *   day, 'YYYY-MM-DD'), buyerTrack (the shaped items with key, ticked: only Received in
+ *   day, 'YYYY-MM-DD'), buyerFacts (the shaped items with key, ticked: only Received in
  *   Odoo, Create Bill and Actual Checking are read), and
  *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
  *   lines) and hasDraftTransmittal (a draft names it: raised, not yet submitted).
@@ -36,6 +36,7 @@
  */
 
 import {
+  ORDER_AGEING_STEPS,
   ORDER_GROUP,
   ORDER_OWNER,
 } from "../constants/orderMonitoring";
@@ -81,9 +82,12 @@ export function daysBetweenManila(since, today) {
   return Math.max(0, Math.round((to - from) / DAY_MS));
 }
 
+// Only a step that can have a rule has one: Received in Odoo, Create Bill and Actual Checking never go late (#1156).
+const AGEING_KEYS = new Set(ORDER_AGEING_STEPS.map((step) => step.key));
+
 const ruleLookup = (rules) => {
   const days = new Map();
-  for (const rule of Array.isArray(rules) ? rules : []) days.set(rule.step, rule.days ?? null);
+  for (const rule of Array.isArray(rules) ? rules : []) if (AGEING_KEYS.has(rule.step)) days.set(rule.step, rule.days ?? null);
   return (step) => days.get(step) ?? null;
 };
 
@@ -220,7 +224,7 @@ const reachedMs = (order, step) => instantOf((order.statusSteps ?? []).find((ite
 const isDelivered = (order) => IPAS_STATUSES.indexOf(statusOf(order)) >= IPAS_STATUSES.indexOf(IPAS_STATUS.DELIVERED);
 
 /** The next thing, its owner and the moment its wait began (ms). */
-function nextThing(order, slips, track) {
+function nextThing(order, slips, buyerFacts) {
   const na = unresolvedNa(order, slips);
   if (na) {
     return {
@@ -316,7 +320,7 @@ function nextThing(order, slips, track) {
   const deliveredSince = reachedMs(order, IPAS_STATUS.DELIVERED) ?? instantOf(order.createdAt);
   // Actual Checking is a Warehouse or Technical check; a Direct delivery has none (#1158).
   const facts = order.directDelivery ? AFTER_DELIVERED_FACTS.filter((key) => key !== "actual_checking") : AFTER_DELIVERED_FACTS;
-  const open = facts.map((key) => track.find((item) => item.key === key)).find(
+  const open = facts.map((key) => buyerFacts.find((item) => item.key === key)).find(
     (item) => item && !item.ticked,
   );
   if (open) {
@@ -370,8 +374,8 @@ export function orderStanding(order, rules, today) {
   }
 
   const slips = order.slips ?? [];
-  const track = order.buyerTrack ?? [];
-  const found = nextThing(order, slips, track);
+  const buyerFacts = order.buyerFacts ?? [];
+  const found = nextThing(order, slips, buyerFacts);
   const since = Number.isFinite(found.since) ? found.since : instantOf(order.createdAt);
   const daysWaiting = daysBetweenManila(since, today);
   const ruleDays = ruleFor(found.step);

@@ -544,6 +544,29 @@ describe("a filed or cancelled IPAS", () => {
     })
 })
 
+// The old Supplier Origin and Import Clearance dates stay in the table, read-only (#1151). The functions that
+// typed them are retired (1154 tests that), but the table's own checks are still in force.
+describe("the old date columns", () => {
+    it("keep Supplier Origin empty on a Local IPAS, even against a direct write", async () => {
+        const ipas = await raise("local")
+        const refused = await sql()
+            .query(`update public.ipas set shipped_out_on = '2026-10-01' where id = $1`, [ipas.id])
+            .then(() => null, (error) => error)
+        expect(refused?.code).toBe("23514")
+        expect(refused?.constraint).toBe("ipas_supplier_origin_import_chk")
+        expect(await ipasRow(ipas.id)).toMatchObject({ shipped_out_on: null, onboard_on: null, arrived_in_ph_on: null, arrived_in_whs_on: null })
+    })
+
+    it("keep Import Clearance empty on a Local IPAS, even against a direct write", async () => {
+        const ipas = await raise("local")
+        const refused = await sql()
+            .query(`update public.ipas set import_clearance_on = '2026-10-05' where id = $1`, [ipas.id])
+            .then(() => null, (e) => e)
+        expect(refused?.constraint).toBe("ipas_import_clearance_import_chk")
+        expect((await ipasRow(ipas.id)).import_clearance_on).toBeNull()
+    })
+})
+
 describe("the buyer track", () => {
     it("stamps Actual Checking by Purchasing, with who and when, and clears it", async () => {
         const ipas = await raise("local")

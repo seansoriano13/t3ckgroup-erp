@@ -25,7 +25,7 @@ const order = (slips) => ({
   createdAt: "2026-10-01T00:00:00Z",
   updatedAt: "2026-10-01T00:00:00Z",
   computationStatus: null,
-  buyerTrack: [],
+  buyerFacts: [],
   slips,
 });
 
@@ -239,15 +239,15 @@ describe("The IPAS Status steps (#1156)", () => {
       { key: "create_bill", ticked: true },
       { key: "actual_checking", ticked: false },
     ];
-    expect(orderStanding({ ...direct, buyerTrack: track }, [], TODAY).next.step).not.toBe("actual_checking");
-    expect(orderStanding({ ...direct, directDelivery: false, buyerTrack: track }, [], TODAY).next.step).toBe("no_transmittal");
+    expect(orderStanding({ ...direct, buyerFacts: track }, [], TODAY).next.step).not.toBe("actual_checking");
+    expect(orderStanding({ ...direct, directDelivery: false, buyerFacts: track }, [], TODAY).next.step).toBe("no_transmittal");
   });
 
   it("after Delivered and a Transmittal, asks for Received in Odoo, then Create Bill, then Actual Checking", () => {
     const track = (ticked) => ["received_in_odoo", "create_bill", "actual_checking"].map((key) => ({ key, ticked: ticked.includes(key) }));
     const done = { stage: "warehouse_checking", completed_at: "2026-10-16T08:00:00Z" };
     const withSlip = [slip("s1", "TG03-0001", { state: "closed", stages: [done] })];
-    const base = (ticked) => ({ ...at("delivered", "2026-10-15"), slips: withSlip, buyerTrack: track(ticked) });
+    const base = (ticked) => ({ ...at("delivered", "2026-10-15"), slips: withSlip, buyerFacts: track(ticked) });
 
     expect(orderStanding(base([]), [], TODAY).next).toMatchObject({ step: "received_in_odoo", owner: "warehouse" });
     expect(orderStanding(base(["received_in_odoo"]), [], TODAY).next).toMatchObject({ step: "create_bill", owner: "finance" });
@@ -262,7 +262,7 @@ describe("The IPAS Status steps (#1156)", () => {
     const input = {
       ...at("delivered", "2026-09-01"),
       slips: [slip("s1", "TG03-0001", { state: "closed", stages: [done] })],
-      buyerTrack: [{ key: "received_in_odoo", ticked: false }],
+      buyerFacts: [{ key: "received_in_odoo", ticked: false }],
     };
     const standing = orderStanding(input, [{ step: "received_in_odoo", days: 1 }], TODAY);
     expect(standing.ruleDays).toBeNull();

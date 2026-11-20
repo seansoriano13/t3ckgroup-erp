@@ -251,6 +251,7 @@ export const NAV_MODULES = {
           ctx.isSuperAdmin ||
           ctx.hasPurchasingFlow ||
           ctx.hasFinanceFlow ||
+          ctx.hasLogisticsFlow ||
           ctx.isIpasSigner ||
           ctx.isTransmittalWarehouse,
       },

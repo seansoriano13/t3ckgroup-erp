@@ -8,10 +8,9 @@ import { matchesSearch, sorSearchFields } from "./sorSearch";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
 import {
-  buildBuyerTrack,
+  buildBuyerFacts,
   missingSuggestions,
   shapeDocuments,
-  supplierOriginOf,
   unfiledRequiredDocuments,
 } from "./ipasDocuments";
 import { section7Signoffs, sectionSignoffs, shapeSignoffs } from "./ipasSignoffs";
@@ -275,7 +274,6 @@ export function shapeIpas(row, sors = [], extras = null) {
     },
     // The required documents nobody has ticked: what Approving section 7 warns about.
     filingWarnings: unfiledRequiredDocuments(sections.documents ?? [], row.source),
-    supplierOrigin: supplierOriginOf(row),
     // The IPAS Status steps reached, in order, each with its day and who set it (ADR 0054).
     statusSteps: shapeStatusSteps(row.status_steps),
     entity: ipasEntity(row),
@@ -498,7 +496,7 @@ function shapeDocumentsAndTrack(row, { documents = [], options = [], payments = 
     itemLocation: locationId ? (options.find((option) => option.id === locationId) ?? null) : null,
     itemLocationSource: derived.itemLocation.source,
     slips: derived.transmittals,
-    buyerTrack: buildBuyerTrack(row, statuses, {
+    buyerFacts: buildBuyerFacts(row, statuses, {
       hasProof: Boolean(paymentSummary?.hasProof),
       proofCount,
       transmittal: derived.governed ? derived : null,

@@ -33,7 +33,6 @@ import { changeNoteSummary, formatAmount, ipasErrorMessage } from "../../utils/i
 import { ipasService } from "../../services/ipasService";
 import { ipasKey } from "./ipasKeys";
 import { Input } from "../ui/input";
-import { buildBuyerTrack } from "../../utils/ipasDocuments";
 import IpasStatusSteps from "./IpasStatusSteps";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatPercent, paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
@@ -638,8 +637,7 @@ function TrackStatus({ item, canChange, onEdit, onStamp, onClearStamp }) {
 
 /** What Odoo says beside each Odoo-stamped status. */
 function odooDetail(key, statuses) {
-  const { purchaseOrder, receivedInOdoo, createBill } = statuses;
-  if (key === "purchase_order") return ODOO_PO_STATE_LABELS[purchaseOrder.state] ?? null;
+  const { receivedInOdoo, createBill } = statuses;
   if (key === "received_in_odoo") {
     const received = receivedInOdoo.ticked
       ? "Received"
@@ -661,9 +659,6 @@ function odooDetail(key, statuses) {
   }
   return null;
 }
-
-/** The buyer facts that stay beside the IPAS Status: plain facts, not steps. */
-const BUYER_FACT_KEYS = ["with_pop", "received_in_odoo", "create_bill", "actual_checking"];
 
 /**
  * Section 4's Status (#1154, ADR 0054): the step picker, then the buyer facts that stay as plain facts
@@ -687,7 +682,7 @@ export function IpasStatusSection({
 }) {
   const canChange = useEditable(granted);
   const canSetStatus = useEditable(grantedStatus);
-  const track = (ipas.buyerTrack ?? buildBuyerTrack(ipas, ipas.statuses)).filter((item) => BUYER_FACT_KEYS.includes(item.key));
+  const track = ipas.buyerFacts ?? [];
 
   return (
     <IpasSection title={ipasSectionLabel("status")} aside="Pick the step the order is at.">

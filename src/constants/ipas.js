@@ -78,36 +78,28 @@ export const IPAS_STATE_FILTER_ALL = "all";
  * an Import IPAS. A cancelled IPAS has none. Separate from the state above and from the
  * Computation status. On-Hold is a flag on top of the step (`ipas.on_hold`), not a step.
  */
-export const IPAS_STATUS = {
-  ORDER_DRAFT: "order_draft",
-  PAYMENT_APPROVAL: "payment_approval",
-  ORDERED: "ordered",
-  PROCESSING: "processing",
-  SHIPPED: "shipped",
-  IN_TRANSIT: "in_transit",
-  CUSTOMS: "customs",
-  LOCAL_HUB: "local_hub",
-  OUT_FOR_DELIVERY: "out_for_delivery",
-  DELIVERED: "delivered",
-  DONE: "done",
-};
+const IPAS_STATUS_STEPS = [
+  { key: "order_draft", label: "Order-Draft" },
+  { key: "payment_approval", label: "Payment Approval" },
+  { key: "ordered", label: "Ordered" },
+  { key: "processing", label: "Processing / Preparing Shipment" },
+  { key: "shipped", label: "Shipped / Picked Up" },
+  { key: "in_transit", label: "In Transit" },
+  { key: "customs", label: "Customs / Port Hold" },
+  { key: "local_hub", label: "Arrived at Local Hub" },
+  { key: "out_for_delivery", label: "Out for Delivery" },
+  { key: "delivered", label: "Delivered" },
+  { key: "done", label: "Done" },
+];
+
+// The steps are listed once, above, in order. The key is the stored value; its upper-case name is the
+// constant ("in_transit" -> IPAS_STATUS.IN_TRANSIT) and the name of its colour in IPAS_STATUS_THEME.
+export const IPAS_STATUS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key }) => [key.toUpperCase(), key]));
 
 /** In order: the order the list's filter and sort use. */
-export const IPAS_STATUSES = Object.values(IPAS_STATUS);
+export const IPAS_STATUSES = IPAS_STATUS_STEPS.map(({ key }) => key);
 
-export const IPAS_STATUS_LABELS = {
-  [IPAS_STATUS.ORDER_DRAFT]: "Order-Draft",
-  [IPAS_STATUS.PAYMENT_APPROVAL]: "Payment Approval",
-  [IPAS_STATUS.ORDERED]: "Ordered",
-  [IPAS_STATUS.PROCESSING]: "Processing / Preparing Shipment",
-  [IPAS_STATUS.SHIPPED]: "Shipped / Picked Up",
-  [IPAS_STATUS.IN_TRANSIT]: "In Transit",
-  [IPAS_STATUS.CUSTOMS]: "Customs / Port Hold",
-  [IPAS_STATUS.LOCAL_HUB]: "Arrived at Local Hub",
-  [IPAS_STATUS.OUT_FOR_DELIVERY]: "Out for Delivery",
-  [IPAS_STATUS.DELIVERED]: "Delivered",
-  [IPAS_STATUS.DONE]: "Done",
-};
+export const IPAS_STATUS_LABELS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label]));
 
 /** The list filter's value for an IPAS that is On-Hold (a flag over its step, not a step). */
 export const IPAS_ON_HOLD_FILTER = "on_hold";
@@ -372,8 +364,8 @@ export const IPAS_TICK_SIDE_LABELS = {
 };
 
 /**
- * Supplier Origin (#246): four typed dates, Import only. `column` is the ipas
- * column and the RPC key, `field` the camelCase name the service takes.
+ * Supplier Origin (#246, retired by #1151): the four old typed dates. Only the History reads these now,
+ * to name a `supplier_origin_changed` line; `column` is the ipas column.
  */
 export const IPAS_SUPPLIER_ORIGIN_FIELDS = [
   { field: "shippedOut", column: "shipped_out_on", label: "Shipped Out" },
@@ -382,17 +374,10 @@ export const IPAS_SUPPLIER_ORIGIN_FIELDS = [
   { field: "arrivedInWhs", column: "arrived_in_whs_on", label: "Arrived in Whs." },
 ];
 
-/** The buyer-track statuses a person types (ipas_set_typed_status). */
-export const IPAS_TYPED_STATUS = {
-  IMPORT_CLEARANCE: "import_clearance",
-  DELIVERED: "delivered",
-};
-
-export const IPAS_TYPED_STATUSES = [IPAS_TYPED_STATUS.IMPORT_CLEARANCE, IPAS_TYPED_STATUS.DELIVERED];
-
+/** The names of the old typed buyer-track dates, so the history of an IPAS that had them still reads (ipas_set_typed_status is retired). */
 export const IPAS_TYPED_STATUS_LABELS = {
-  [IPAS_TYPED_STATUS.IMPORT_CLEARANCE]: "Import Clearance",
-  [IPAS_TYPED_STATUS.DELIVERED]: "Delivered",
+  import_clearance: "Import Clearance",
+  delivered: "Delivered",
 };
 
 /**
@@ -407,20 +392,6 @@ export const IPAS_STATUS_SOURCE = {
   DERIVED: "derived",
   TYPED: "typed",
   STAMPED: "stamped",
-};
-
-/**
- * The buyer track's items by key, as the SOR's IPAS summary names them
- * (`ipas_summaries_for_sor` returns the key and the tick, never a label).
- */
-export const IPAS_BUYER_TRACK_LABELS = {
-  purchase_order: "Purchase Order",
-  with_pop: "With P.O.P",
-  import_clearance: "Import Clearance",
-  delivered: "Delivered",
-  received_in_odoo: "Received in Odoo",
-  create_bill: "Create Bill",
-  actual_checking: "Actual Checking",
 };
 
 export const IPAS_OPTION_LIST_LABELS = {

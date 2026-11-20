@@ -420,8 +420,8 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
     })
   })
 
-  describe("the buyer track", () => {
-    const track = async (id) => Object.fromEntries((await read(id)).buyerTrack.map((item) => [item.key, item]))
+  describe("the buyer facts", () => {
+    const track = async (id) => Object.fromEntries((await read(id)).buyerFacts.map((item) => [item.key, item]))
     const proofUrl = "https://res.cloudinary.com/demo/image/upload/pop.jpg"
     const payment = (over = {}) => ({
       kind: "payment",
@@ -431,16 +431,13 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       ...over,
     })
 
-    it("lists the statuses in the sheet's order, with Import Clearance on an Import IPAS only", async () => {
+    it("lists only the facts that stay beside the IPAS Status, the same on either Source", async () => {
       const importIpas = await raise("import", "P03050")
       const localIpas = await raise("local", "P03051")
+      const facts = ["with_pop", "received_in_odoo", "create_bill", "actual_checking"]
 
-      expect((await read(importIpas.id)).buyerTrack.map((i) => i.key)).toEqual([
-        "purchase_order", "with_pop", "import_clearance", "delivered", "received_in_odoo", "create_bill", "actual_checking",
-      ])
-      expect((await read(localIpas.id)).buyerTrack.map((i) => i.key)).toEqual([
-        "purchase_order", "with_pop", "delivered", "received_in_odoo", "create_bill", "actual_checking",
-      ])
+      expect((await read(importIpas.id)).buyerFacts.map((i) => i.key)).toEqual(facts)
+      expect((await read(localIpas.id)).buyerFacts.map((i) => i.key)).toEqual(facts)
     })
 
     it("says where each status came from", async () => {
@@ -448,14 +445,10 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
 
       const items = await track(ipas.id)
 
-      expect(items.purchase_order.source).toBe(IPAS_STATUS_SOURCE.ODOO)
       expect(items.received_in_odoo.source).toBe(IPAS_STATUS_SOURCE.ODOO)
       expect(items.create_bill.source).toBe(IPAS_STATUS_SOURCE.ODOO)
       expect(items.with_pop.source).toBe(IPAS_STATUS_SOURCE.DERIVED)
-      expect(items.import_clearance.source).toBe(IPAS_STATUS_SOURCE.TYPED)
-      expect(items.delivered.source).toBe(IPAS_STATUS_SOURCE.TYPED)
       expect(items.actual_checking.source).toBe(IPAS_STATUS_SOURCE.STAMPED)
-      expect(items.purchase_order.ticked).toBe(true)
     })
 
     it("stamps With P.O.P when a payment carries proof, and drops it when the proof goes", async () => {

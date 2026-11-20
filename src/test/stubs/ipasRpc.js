@@ -471,11 +471,12 @@ export function stubIpasRpcs({
     })
   })
 
+  const num = (value) => (/^[0-9]+(\.[0-9]+)?$/.test(String(value ?? "")) ? Number(value) : 0)
+
   stubRpc("ipas_summaries_for_sor", (args) => {
     if (!sorReader) return []
     const sorId = args.p_opportunity_id
     const wanted = new Set(rowsOf("ipas_sors").filter((s) => s.opportunity_id === sorId).map((s) => s.ipas_id))
-    const num = (value) => (/^[0-9]+(\.[0-9]+)?$/.test(String(value ?? "")) ? Number(value) : 0)
     const rank = { open: 0, filed: 1, cancelled: 2 }
 
     return rowsOf("ipas")
@@ -484,25 +485,6 @@ export function stubIpasRpcs({
       .map((row) => {
         const copy = row.odoo_copy ?? {}
         const live = new Set(liveSignoffs(row.id).map((s) => `${s.section}:${s.role}`))
-        const hasProof = rowsOf("ipas_payments").some((p) => p.ipas_id === row.id && (p.proof_url ?? "") !== "")
-        const total = num(copy.receipts?.total)
-        const done = num(copy.receipts?.done)
-        const status = copy.receipts?.status
-        let received = "none"
-        if (status === "partial") received = "partial"
-        else if (status === "full" || (total > 0 && done >= total)) received = "received"
-        else if (done > 0) received = "partial"
-
-        const item = (key, ticked, partial = false) => ({ key, ticked: Boolean(ticked), partial })
-        const track = [
-          item("purchase_order", ["purchase", "done"].includes(copy.po?.state)),
-          item("with_pop", hasProof),
-          ...(row.source === "import" ? [item("import_clearance", row.import_clearance_on)] : []),
-          item("delivered", row.delivered_on),
-          item("received_in_odoo", received === "received", received === "partial"),
-          item("create_bill", num(copy.bills?.count) > 0),
-          item("actual_checking", row.actual_checking_by),
-        ]
         const roles = (section, names) => Object.fromEntries(names.map((r) => [r, live.has(`${section}:${r}`)]))
 
         return {
@@ -512,7 +494,6 @@ export function stubIpasRpcs({
           supplier: (copy.supplier?.name ?? "").trim() || null,
           purpose: row.purpose,
           state: row.state,
-          buyer_track: track,
           computation_status: row.computation_status ?? "encoding",
           signoffs: {
             1: roles(1, ["prepared", "approved"]),
@@ -550,6 +531,15 @@ export function stubIpasRpcs({
 
   // #265: the dates and Transmittal facts the SOR section needs for each
   // order's standing. The same gate as the summary; dates and slip facts only.
+  const receivedState = (copy = {}) => {
+    const total = num(copy?.receipts?.total)
+    const done = num(copy?.receipts?.done)
+    const status = copy?.receipts?.status
+    if (status === "partial") return "partial"
+    if (status === "full" || (total > 0 && done >= total)) return "received"
+    return done > 0 ? "partial" : "none"
+  }
+
   stubRpc("ipas_standing_for_sor", (args) => {
     if (!sorReader) return []
     const sorId = args.p_opportunity_id
@@ -609,6 +599,13 @@ export function stubIpasRpcs({
           actual_checking_at: row.actual_checking_at ?? null,
           slips,
           on_hold: row.on_hold === true,
+          status: row.status ?? null,
+          status_steps: rowsOf("ipas_status_steps")
+            .filter((st) => st.ipas_id === row.id)
+            .map((st) => ({ step: st.step, reached_on: st.reached_on })),
+          received_state: receivedState(row.odoo_copy),
+          has_bill: num(row.odoo_copy?.bills?.count) > 0,
+          direct_delivery: row.direct_delivery === true,
         }
       })
   })

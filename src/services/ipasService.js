@@ -1635,7 +1635,7 @@ export const ipasService = {
   /**
    * The Project IPAS naming an SOR, as a summary, for anyone who can read the
    * SOR (#249). Each row: `{ id, number, poNumber, supplier, purpose, state,
-   * buyerTrack[{ key, label, ticked, partial }], computationStatus,
+   * status, statusReachedOn, onHold, directDelivery, computationStatus,
    * signoffs[{ section, name, steps[{ role, label, done }] }] }`. It carries no
    * payments, charges, bank details or Landed Cost: the database's function
    * returns none, so a Deal Team member with no Purchasing or Finance access

@@ -603,7 +603,7 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.currency).toBe("Php")
       expect(row.value).toBe(1000)
       expect(row.ageDays).toBe(15)
-      expect(row.buyerTrack.find((item) => item.key === "purchase_order").ticked).toBe(true)
+      expect(row).not.toHaveProperty("buyerTrack")
       expect(row.status).toBe("order_draft")
       expect(row.statusSteps).toEqual([{ step: "order_draft", on: "2026-10-01" }])
       expect(row.transmittals).toMatchObject({ count: 1, naCount: 1 })
@@ -734,42 +734,6 @@ describe("orderMonitoringService: what needs doing", () => {
       const ipas = seedOrder({ lines: [{ ...LINE(30001), name: "Cutter" }, { ...LINE(30002), name: "Blade" }] })
 
       expect(rowsFor(await listAll(), ipas).item).toEqual({ name: "Cutter", more: 1 })
-    })
-  })
-
-  describe("the register (#264): the track", () => {
-    it("marks each step stamped, typed or pending, as the IPAS page does", async () => {
-      const ipas = seedOrder({ source: "import", importClearanceOn: "2026-10-12" })
-      seedPayment(ipas)
-
-      const row = rowsFor(await listAll(), ipas)
-      const mark = (key) => row.buyerTrack.find((item) => item.key === key).mark
-
-      expect(row.buyerTrack).toHaveLength(7)
-      expect(mark("purchase_order")).toBe("stamped")
-      expect(mark("with_pop")).toBe("stamped")
-      expect(mark("import_clearance")).toBe("typed")
-      expect(mark("delivered")).toBe("pending")
-      expect(mark("received_in_odoo")).toBe("pending")
-      expect(mark("create_bill")).toBe("pending")
-      expect(mark("actual_checking")).toBe("pending")
-    })
-
-    it("marks a typed Delivered date typed, and one stamped from a Transmittal stamped", async () => {
-      const typed = seedOrder({ deliveredOn: "2026-10-14" })
-      const slipped = seedOrder()
-      seedSlip({ stages: { warehouse_checking: at(10) }, lines: [{ ipas: slipped, odooPoLineId: slipped.odoo_copy.lines[0].line_id }] })
-
-      const rows = await listAll()
-
-      expect(rowsFor(rows, typed).buyerTrack.find((i) => i.key === "delivered").mark).toBe("typed")
-      expect(rowsFor(rows, slipped).buyerTrack.find((i) => i.key === "delivered").mark).toBe("stamped")
-    })
-
-    it("draws no Import Clearance for a Local order", async () => {
-      const ipas = seedOrder({ source: "local" })
-
-      expect(rowsFor(await listAll(), ipas).buyerTrack.map((i) => i.key)).not.toContain("import_clearance")
     })
   })
 

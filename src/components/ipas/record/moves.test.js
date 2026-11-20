@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cardMovesFor, footerMovesFor } from "./moves";
+import { canEditSection, cardMovesFor, footerMovesFor } from "./moves";
 
 const none = { canApprove: false, canPrepare: false, returnMode: null };
 const noRole = { canGive: false };
@@ -99,5 +99,16 @@ describe("cardMovesFor: section 4 earliest", () => {
 
     expect(labels(card.moves)).toEqual(["Note section 6", "Check section 6"]);
     expect(card.also).toEqual([]);
+  });
+});
+
+describe("canEditSection: Logistics access (#1158)", () => {
+  it("opens 4 Delivery to someone who may only switch Direct delivery, and nothing else", () => {
+    const logistics = { can: { change: false, record: false, tickFinance: false, pickLocation: false, setDirectDelivery: true } };
+
+    expect(canEditSection("delivery", logistics)).toBe(true);
+    expect(canEditSection("order", logistics)).toBe(false);
+    expect(canEditSection("documents", logistics)).toBe(false);
+    expect(canEditSection("delivery", { can: { change: false, pickLocation: false, setDirectDelivery: false } })).toBe(false);
   });
 });

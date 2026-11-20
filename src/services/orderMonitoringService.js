@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_STATE, IPAS_STATUS_SOURCE } from "../constants/ipas";
+import { IPAS_STATE } from "../constants/ipas";
 import { ORDER_GROUP } from "../constants/orderMonitoring";
 import { TRANSMITTAL_RATING } from "../constants/transmittals";
 import { orderAgeingRulesService } from "./orderAgeingRulesService";
@@ -139,7 +139,7 @@ async function loadOrders(today) {
         costsCompletedAt: costsAt.get(row.id),
         section3Submitted: section3.submitted.has(row.id),
         section3Approved: section3.approved.has(row.id),
-        buyerTrack: shaped.buyerTrack,
+        buyerFacts: shaped.buyerFacts,
         status: row.status,
         statusSteps: shaped.statusSteps,
         slips: named,
@@ -151,7 +151,7 @@ async function loadOrders(today) {
       today,
     );
 
-    const received = shaped.buyerTrack.find((step) => step.key === "received_in_odoo")?.ticked ?? false;
+    const received = shaped.buyerFacts.find((step) => step.key === "received_in_odoo")?.ticked ?? false;
     const deadline = deadlineMark({
       dueAt: earliestDueAt((sorsByIpas.get(row.id) ?? []).map((sor) => sor.opportunity_id), deadlines),
       receivedInOdoo: received,
@@ -174,7 +174,6 @@ async function loadOrders(today) {
       ageDays: daysBetweenManila(row.created_at, today),
       odooFetchedAt: row.odoo_fetched_at ?? null,
       item: itemOf(shaped.lines),
-      buyerTrack: shaped.buyerTrack.map(trackStepOf),
       // The IPAS Status the list shows, with the day it was reached (#1157).
       status: ipasFigures(shaped).status,
       statusSteps: shaped.statusSteps.map(({ step, on }) => ({ step, on })),
@@ -239,18 +238,6 @@ async function readCostsCompleteAt(ids) {
     if (!previous || event.created_at > previous) latest.set(event.ipas_id, event.created_at);
   }
   return latest;
-}
-
-/**
- * One track step as the register draws it. `mark` is pending until the step is
- * ticked; then typed when a person typed its date (Import Clearance, a typed
- * Delivered), otherwise stamped (Odoo, payments, a Transmittal, a hand stamp),
- * the same split the IPAS page's status section shows.
- */
-function trackStepOf({ key, label, ticked, partial, source, on }) {
-  let mark = "pending";
-  if (ticked) mark = source === IPAS_STATUS_SOURCE.TYPED ? "typed" : "stamped";
-  return { key, label, ticked, partial: Boolean(partial), mark, on: on ?? null };
 }
 
 /** The item column: the first line's name and how many more lines follow. */

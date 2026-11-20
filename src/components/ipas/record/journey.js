@@ -73,7 +73,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   // Logistics signed means what it needed was in when it was signed: those items stay ticked.
   const logisticsSigned = Boolean(s8?.approved);
   // Direct delivery (#1158): the goods never reach our warehouse, so no Item Location and no Transmittal are asked for.
-  const direct = ipas.direct_delivery === true || ipas.directDelivery === true;
+  const direct = ipas.direct_delivery === true;
   const located = direct || logisticsSigned || Boolean(ipas.itemLocation || ipas.item_location_id);
   const carried = direct || logisticsSigned || (ipas.slips ?? []).length > 0;
   const arrived = logisticsSigned || hasDelivered(ipas);

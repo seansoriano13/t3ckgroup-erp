@@ -8,7 +8,6 @@
  */
 
 import {
-  IPAS_BUYER_TRACK_LABELS,
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_STATE,
@@ -23,7 +22,6 @@ import {
  * Costing Matrix's money tier and null for everyone else.
  */
 export const IPAS_SUMMARY_KEYS = [
-  "buyer_track",
   "computation_status",
   "direct_delivery",
   "ipas_id",
@@ -64,19 +62,6 @@ const SECTION_STEPS = {
 
 const asObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 
-/** The buyer track's ticks with their names, in the order the database gives them. */
-function shapeTrack(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item) => item && typeof item === "object" && typeof item.key === "string")
-    .map((item) => ({
-      key: item.key,
-      label: IPAS_BUYER_TRACK_LABELS[item.key] ?? item.key,
-      ticked: item.ticked === true,
-      partial: item.partial === true,
-    }));
-}
-
 /**
  * The sign-off progress by section: `{ section, name, steps: [{ role, label,
  * done }], done, total }`, for stored sections 1, 3, 6 and 7.
@@ -99,7 +84,6 @@ export function signoffProgress(signoffs) {
 /** One `ipas_summaries_for_sor` row as the SOR's IPAS section reads it, or null. */
 export function shapeIpasSummary(row) {
   if (!row || typeof row !== "object" || !row.ipas_id) return null;
-  const buyerTrack = shapeTrack(row.buyer_track);
   return {
     id: row.ipas_id,
     number: row.number ?? "",
@@ -112,10 +96,6 @@ export function shapeIpasSummary(row) {
     statusReachedOn: row.status_reached_on ?? null,
     onHold: row.on_hold === true,
     directDelivery: row.direct_delivery === true,
-    // Kept for the SOR's standing (ipasSorStandingService); the page no longer shows it.
-    buyerTrack,
-    trackDone: buyerTrack.filter((item) => item.ticked).length,
-    trackTotal: buyerTrack.length,
     computationStatus: row.computation_status ?? null,
     computationLabel:
       IPAS_COMPUTATION_STATUS_LABELS[row.computation_status] ??

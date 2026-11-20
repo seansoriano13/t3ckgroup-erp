@@ -171,9 +171,9 @@ describe("sign-offs", () => {
 describe("the stamp and bank details", () => {
   it("stamps Actual Checking and clears it", () => {
     const stamped = edit.reshapeIpas(cached(), edit.stampActualChecking({ stamped: true, by }))
-    expect(stamped.buyerTrack.find((item) => item.key === "actual_checking")).toMatchObject({ ticked: true, by: { name: "Ana" } })
+    expect(stamped.buyerFacts.find((item) => item.key === "actual_checking")).toMatchObject({ ticked: true, by: { name: "Ana" } })
     const cleared = edit.reshapeIpas(stamped, edit.stampActualChecking({ stamped: false, by }))
-    expect(cleared.buyerTrack.find((item) => item.key === "actual_checking").ticked).toBe(false)
+    expect(cleared.buyerFacts.find((item) => item.key === "actual_checking").ticked).toBe(false)
   })
 
   it("shows bank details typed, keeping the flag the database set", () => {

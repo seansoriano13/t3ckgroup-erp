@@ -1,4 +1,4 @@
-import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipasStatusesFor } from "../constants/ipas";
+import { IPAS_REQUEST_SECTION, IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipasStatusesFor } from "../constants/ipas";
 
 /**
  * What the IPAS already knows that matches a later status step (#1155, ADR 0054). It only suggests:
@@ -14,7 +14,7 @@ import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipasStatusesFor } from "..
  * `{ step, label, because }` or null. `because` is the plain sentence that leads the question.
  *
  *   ipas  the shaped IPAS: `state`, `source`, `status`, `statuses` (Odoo), `signoffSections`, `slips`,
- *         `directDelivery` or the raw `direct_delivery` (#1158; absent reads as false)
+ *         `direct_delivery` (#1158; absent reads as false)
  */
 export function suggestStatus(ipas) {
   if (!ipas || ipas.state !== IPAS_STATE.OPEN || !ipas.status) return null;
@@ -22,10 +22,10 @@ export function suggestStatus(ipas) {
   const current = steps.indexOf(ipas.status);
   if (current < 0) return null;
 
-  const direct = ipas.directDelivery === true || ipas.direct_delivery === true;
+  const direct = ipas.direct_delivery === true;
   const odoo = ipas.statuses ?? {};
   const matches = [];
-  if (ipas.signoffSections?.[1]?.prepared) {
+  if (ipas.signoffSections?.[IPAS_REQUEST_SECTION]?.prepared) {
     matches.push({ step: IPAS_STATUS.PAYMENT_APPROVAL, because: "Section 1 is prepared." });
   }
   if (odoo.purchaseOrder?.ticked) {

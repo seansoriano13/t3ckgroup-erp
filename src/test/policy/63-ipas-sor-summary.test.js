@@ -14,7 +14,7 @@
  * and `superAdmin` read every IPAS.
  *
  * Everything runs through the real `ipas_create`, `ipas_add_payment`,
- * `ipas_add_charge`, `ipas_set_bank_details`, `ipas_set_typed_status` and
+ * `ipas_add_charge`, `ipas_set_bank_details`, `ipas_set_status` and
  * `ipas_sign`.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -140,7 +140,7 @@ beforeAll(async () => {
         }),
         "ipas_set_bank_details",
     )
-    await ok(sql().query(`update public.ipas set delivered_on = $2 where id = $1`, [both.id, "2026-10-08"]), "delivered")
+    await ok(rpc("outsider", "ipas_set_status", { p_ipas_id: both.id, p_step: "delivered", p_reached_on: null }), "delivered")
     await ok(rpc("outsider", "ipas_set_header", { p_ipas_id: both.id, p_fields: { computation_status: "encoded" } }), "encoded")
     await ok(rpc("outsider", "ipas_sign", { p_ipas_id: both.id, p_section: 1, p_role: "prepared" }), "section 1 prepared")
 
@@ -195,7 +195,6 @@ describe("the summary of an SOR's IPAS", () => {
     it("has exactly the agreed key set: the IPAS Status and its day, no payment or bank column, Landed Cost only as total and mark (#283, #1157)", async () => {
         const [row] = await summaries("dealOwner", sorA)
         expect(Object.keys(row).sort()).toEqual([
-            "buyer_track",
             "computation_status",
             "direct_delivery",
             "ipas_id",
@@ -211,7 +210,6 @@ describe("the summary of an SOR's IPAS", () => {
             "status_reached_on",
             "supplier",
         ])
-        for (const item of row.buyer_track) expect(Object.keys(item).sort()).toEqual(["key", "partial", "ticked"])
         expect(Object.keys(row.signoffs).sort()).toEqual(["1", "3", "6", "7"])
         expect(Object.keys(row.signoffs["1"]).sort()).toEqual(["approved", "prepared"])
         expect(Object.keys(row.signoffs["7"]).sort()).toEqual(["approved", "checked", "noted", "received"])
@@ -227,24 +225,21 @@ describe("the summary of an SOR's IPAS", () => {
         }
     })
 
-    it("reflects the buyer track, computation status and live sign-offs", async () => {
+    it("reflects the IPAS Status, computation status and live sign-offs", async () => {
         const rows = await summaries("dealOwner", sorA)
-        const track = Object.fromEntries(rows.find((r) => r.ipas_id === both.id).buyer_track.map((i) => [i.key, i]))
-        expect(track.purchase_order.ticked).toBe(true)
-        expect(track.with_pop.ticked).toBe(true) // a payment carries proof; the link isn't returned
-        expect(track.delivered.ticked).toBe(true)
-        expect(track.create_bill.ticked).toBe(false)
-        expect(track.received_in_odoo).toMatchObject({ ticked: false, partial: false })
-        expect(track.actual_checking.ticked).toBe(false)
-        expect(track).not.toHaveProperty("import_clearance") // a Local IPAS has none
+        for (const row of rows) expect(row).not.toHaveProperty("buyer_track")
+
+        // `both` was set to Delivered above; a fresh Import IPAS still reads Order-Draft. The day is the step's own.
+        const delivered = rows.find((r) => r.ipas_id === both.id)
+        expect(delivered).toMatchObject({ status: "delivered", on_hold: false, direct_delivery: false })
+        expect(delivered.status_reached_on).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+        expect(rows.find((r) => r.ipas_id === onlyA.id)).toMatchObject({ status: "order_draft", on_hold: false })
+        expect(rows.find((r) => r.ipas_id === cancelled.id).status).toBeNull()
 
         const both1 = rows.find((r) => r.ipas_id === both.id)
         expect(both1.signoffs["1"]).toEqual({ prepared: true, approved: false })
         expect(both1.signoffs["3"]).toEqual({ prepared: false, approved: false })
 
-        const importTrack = rows.find((r) => r.ipas_id === onlyA.id).buyer_track.map((i) => i.key)
-        expect(importTrack).toContain("import_clearance")
-        expect(rows.find((r) => r.ipas_id === onlyA.id).buyer_track.find((i) => i.key === "with_pop").ticked).toBe(false)
     })
 })
 

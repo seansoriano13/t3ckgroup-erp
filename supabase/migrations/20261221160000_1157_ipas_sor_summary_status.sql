@@ -2,8 +2,8 @@
 --
 -- ipas_summaries_for_sor (latest: 20261025110000_586) now also returns status, status_reached_on
 -- (the day the current step was reached), on_hold and direct_delivery. direct_delivery is a false
--- column until T6 (#1158) adds ipas.direct_delivery. The page shows the status; the buyer track ticks
--- stay in the payload only because the SOR standing still reads them. Still no payments, charges,
+-- column until T6 (#1158) adds ipas.direct_delivery. The buyer track ticks are gone from the payload: the
+-- SOR's standing reads its Odoo facts from ipas_standing_for_sor. Still no payments, charges,
 -- bank details or Landed Cost for a reader without the cost tier.
 
 drop function if exists public.ipas_summaries_for_sor(uuid);
@@ -16,7 +16,6 @@ returns table (
   supplier text,
   purpose text,
   state text,
-  buyer_track jsonb,
   computation_status text,
   signoffs jsonb,
   landed_cost_total_php numeric,
@@ -38,25 +37,6 @@ as $function$
     nullif(btrim(i.odoo_copy #>> '{supplier,name}'), ''),
     i.purpose,
     i.state,
-    case when i.source = 'import'
-      then jsonb_build_array(
-        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
-        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'import_clearance', 'ticked', i.import_clearance_on is not null, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
-        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
-        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
-      )
-      else jsonb_build_array(
-        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
-        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
-        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
-        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
-      )
-    end,
     i.computation_status,
     jsonb_build_object(
       '1', jsonb_build_object(
@@ -86,56 +66,10 @@ as $function$
     false
   from public.ipas i
   cross join lateral (
-    select
-      i.odoo_copy #>> '{po,state}' as po_state,
-      i.odoo_copy #>> '{receipts,status}' as receipts_status,
-      case when (i.odoo_copy #>> '{receipts,total}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{receipts,total}')::numeric else 0 end as receipts_total,
-      case when (i.odoo_copy #>> '{receipts,done}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{receipts,done}')::numeric else 0 end as receipts_done,
-      case when (i.odoo_copy #>> '{bills,count}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{bills,count}')::numeric else 0 end as bill_count
-  ) o
-  cross join lateral (
-    select case
-      when o.receipts_status = 'partial' then 'partial'
-      when o.receipts_status = 'full' or (o.receipts_total > 0 and o.receipts_done >= o.receipts_total) then 'received'
-      when o.receipts_done > 0 then 'partial'
-      else 'none'
-    end as received_state
-  ) rs
-  cross join lateral (
-    select exists (
-      select 1 from public.ipas_payments p
-      where p.ipas_id = i.id and coalesce(p.proof_url, '') <> ''
-    ) as has_proof
-  ) pop
-  cross join lateral (
     select coalesce(array_agg(so.section::text || ':' || so.role), '{}'::text[]) as live
     from public.ipas_signoffs so
     where so.ipas_id = i.id and so.cleared_at is null
   ) lv
-  cross join lateral (
-    select
-      coalesce(bool_or(first_done), false) as delivered,
-      coalesce(count(*) > 0 and bool_and(check_done), false) as checked
-    from (
-      select
-        exists (
-          select 1 from public.transmittal_stages st
-           where st.transmittal_id = t.id and st.completed_at is not null
-             and st.stage = case when t.check_warehouse then 'warehouse_checking' else 'technical_inspection' end
-        ) as first_done,
-        exists (
-          select 1 from public.transmittal_stages st
-           where st.transmittal_id = t.id and st.completed_at is not null
-             and st.stage = case when t.check_technical then 'technical_inspection' else 'warehouse_checking' end
-        ) as check_done
-      from public.transmittals t
-      where t.state not in ('draft', 'cancelled')
-        and exists (select 1 from public.transmittal_lines l where l.transmittal_id = t.id and l.ipas_id = i.id)
-    ) slips
-  ) tg
   -- #283: the IPAS's Landed Cost total and mark, for cost-tier readers only.
   cross join lateral (
     select

@@ -29,11 +29,18 @@ export default function IpasStatusPill({ status, onHold = false, note = null, on
     );
   }
 
+  // A held pill, read-only or a button: the same marks, label and look either way.
   const label = `On-Hold · ${stepLabel}`;
   const title = note ? `${label}: ${note}` : label;
+  const held = {
+    "data-testid": "ipas-status-pill",
+    "data-status": status,
+    "data-on-hold": "true",
+    className: `${SHAPE} ${HELD_STYLE} ${className}`,
+  };
   if (!onClick) {
     return (
-      <span data-testid="ipas-status-pill" data-status={status} data-on-hold="true" title={title} className={`${SHAPE} ${HELD_STYLE} ${className}`}>
+      <span {...held} title={title}>
         {label}
       </span>
     );
@@ -42,16 +49,14 @@ export default function IpasStatusPill({ status, onHold = false, note = null, on
     <Button
       type="button"
       variant="ghost"
-      data-testid="ipas-status-pill"
-      data-status={status}
-      data-on-hold="true"
+      {...held}
+      className={`h-5 rounded-full px-2 text-label font-bold ${held.className}`}
       title={`${title}. Click to clear On-Hold.`}
       aria-label={`${label}. Clear On-Hold`}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
       }}
-      className={`${SHAPE} h-5 rounded-full px-2 text-label font-bold ${HELD_STYLE} ${className}`}
     >
       {label}
     </Button>

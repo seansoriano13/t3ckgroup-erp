@@ -164,7 +164,8 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
               <Tick
                 label="Direct delivery to client"
                 checked={form.directDelivery}
-                disabled={disabled || money?.can?.setDirectDelivery === false}
+                // Its own right (Purchasing or Logistics access), not the section's: Logistics access alone may switch it.
+                disabled={!(money?.can?.setDirectDelivery ?? !disabled)}
                 onChange={(v) => set("directDelivery", v)}
               />
             </div>

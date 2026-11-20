@@ -6,7 +6,7 @@ import {
   derivedItemLocationId,
   section5Rows,
 } from "./ipasTransmittals";
-import { buildBuyerTrack } from "./ipasDocuments";
+import { buildBuyerFacts } from "./ipasDocuments";
 
 const WH_ONLY = { check_warehouse: true, check_technical: false };
 const BOTH = { check_warehouse: true, check_technical: true };
@@ -131,7 +131,7 @@ describe("Actual Checking", () => {
   });
 });
 
-describe("the buyer track reads the Transmittals", () => {
+describe("the buyer facts read the Transmittals", () => {
   const row = { source: "local", delivered_on: null, actual_checking_by: null };
   const odoo = {
     purchaseOrder: { ticked: true },
@@ -140,19 +140,13 @@ describe("the buyer track reads the Transmittals", () => {
   };
 
   it("keeps the hand stamp when no Transmittal governs", () => {
-    const track = buildBuyerTrack(row, odoo, { transmittal: null });
+    const track = buildBuyerFacts(row, odoo, { transmittal: null });
     expect(track.find((i) => i.key === "actual_checking").source).toBe("stamped");
   });
 
   it("marks Actual Checking pending with n of m and no stamp to hand-set", () => {
     const transmittal = deriveTransmittalTrack([slip("a", { ...BOTH, stages: [stage(WH, "2026-10-10T09:00:00Z")] })], {});
-    const item = buildBuyerTrack(row, odoo, { transmittal }).find((i) => i.key === "actual_checking");
+    const item = buildBuyerFacts(row, odoo, { transmittal }).find((i) => i.key === "actual_checking");
     expect(item).toMatchObject({ source: "derived", partial: true, ticked: false, detail: "pending (0 of 1)" });
-  });
-
-  it("marks Delivered stamped from the slips", () => {
-    const transmittal = deriveTransmittalTrack([slip("a", { stages: [stage(WH, "2026-10-11T10:00:00Z")] })], {});
-    const item = buildBuyerTrack(row, odoo, { transmittal }).find((i) => i.key === "delivered");
-    expect(item).toMatchObject({ source: "derived", via: "transmittals", ticked: true, on: "2026-10-11T10:00:00Z" });
   });
 });

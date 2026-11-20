@@ -1,3 +1,4 @@
+import { IPAS_STATUS, IPAS_STATUSES } from "../constants/ipas";
 import { ORDER_GROUP, ORDER_OWNER, ORDER_OWNER_LABELS } from "../constants/orderMonitoring";
 import { deadlineMark } from "./deliveryDeadline";
 import {
@@ -38,8 +39,9 @@ export const MOVE_BAND = { NOW: "now", WAITING: "waiting", CLEAR: "clear" };
 
 const NO_SOR = "no-sor";
 
-/** An order whose goods are Received in Odoo is no longer "Purchased (not received)". */
-const isReceived = (order) => Boolean(order.buyerTrack?.find((step) => step.key === "received_in_odoo")?.ticked);
+/** An order whose IPAS Status is Delivered or later is no longer "Purchased (not received)" (ADR 0054). */
+const DELIVERED_AT = IPAS_STATUSES.indexOf(IPAS_STATUS.DELIVERED);
+const isReceived = (order) => IPAS_STATUSES.indexOf(order.status) >= DELIVERED_AT;
 
 /**
  * A Costing Matrix row with no item count is a Bid Decision still pending (#891): a move of its own,
@@ -237,13 +239,8 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
   const projectFilter = Boolean(buyerId || canvasserId || noCanvass);
   const ipasRowIds = new Set(rows.filter((row) => row.target_kind === "ipas").map((row) => row.target_id));
   const orderById = new Map(orders.map((o) => [o.id, o]));
-  const isRowReceived = (r) => {
-    if (isReceived(r)) return true;
-    if (r.target_kind === "ipas" && orderById.has(r.target_id)) {
-      return isReceived(orderById.get(r.target_id));
-    }
-    return false;
-  };
+  // A dashboard row carries no IPAS Status of its own; an IPAS row reads its order's.
+  const isRowReceived = (r) => r.target_kind === "ipas" && orderById.has(r.target_id) && isReceived(orderById.get(r.target_id));
 
   const sors = new Map();
   const sorOf = (key, seed) => {

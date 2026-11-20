@@ -106,14 +106,14 @@ describe("stages", () => {
     expect(sors[0].byStage.purchased).toBe(1);
   });
 
-  it("does not count an open order already Received in Odoo as Purchased (not received)", () => {
-    const received = order({ buyerTrack: [{ key: "received_in_odoo", ticked: true }] });
+  it("does not count an open order already Delivered as Purchased (not received)", () => {
+    const received = order({ status: "delivered" });
     const { sors } = buildTracker({ rows: [], orders: [received], today: TODAY });
     expect(sors).toHaveLength(0);
   });
 
   it("does not count or list a Received order under Purchased (not received)", () => {
-    const received = order({ id: "ip-rec", buyerTrack: [{ key: "received_in_odoo", ticked: true }] });
+    const received = order({ id: "ip-rec", status: "delivered" });
     const openOrder = order({ id: "ip-open" });
     const { sors } = buildTracker({ rows: [], orders: [received, openOrder], today: TODAY });
     expect(sors[0].byStage.purchased).toBe(1);
@@ -121,7 +121,7 @@ describe("stages", () => {
   });
 
   it("does not count or display a Received line under Purchased (not received)", () => {
-    const receivedOrder = order({ id: "ip-1", buyerTrack: [{ key: "received_in_odoo", ticked: true }] });
+    const receivedOrder = order({ id: "ip-1", status: "delivered" });
     const openRow = row({ grp: "to_purchase", item_count: 2 });
     const receivedLine = ipasRow({ target_id: "ip-1" });
     const { sors } = buildTracker({

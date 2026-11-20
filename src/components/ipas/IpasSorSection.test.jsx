@@ -20,11 +20,6 @@ const summary = (over = {}) => ({
   status_reached_on: "2026-11-18",
   on_hold: false,
   direct_delivery: false,
-  buyer_track: [
-    { key: "purchase_order", ticked: true, partial: false },
-    { key: "with_pop", ticked: false, partial: false },
-    { key: "received_in_odoo", ticked: false, partial: true },
-  ],
   computation_status: "encoded",
   signoffs: {
     1: { prepared: true, approved: true },
@@ -123,26 +118,33 @@ describe("IpasSorSection (#249)", () => {
         actual_checking_stamped: false,
         actual_checking_at: null,
         slips: [],
+        status: "in_transit",
+        status_steps: [{ step: "in_transit", reached_on: "2026-10-01" }],
+        received_state: "none",
+        has_bill: false,
+        direct_delivery: false,
       },
     ])
     renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
 
     const line = await screen.findByTestId("ipas-next-thing")
-    expect(line).toHaveTextContent("With P.O.P — no payment carries proof")
-    expect(line).toHaveTextContent("Finance")
+    expect(line).toHaveTextContent("In Transit")
+    expect(line).toHaveTextContent("Supplier, forwarder or port")
     expect(line).toHaveTextContent("days waiting")
   })
 
   it("marks a row late once it waits past its rule (#265)", async () => {
     authUser = { id: "emp-1" }
     stubRpc("ipas_summaries_for_sor", [summary()])
-    db.seed("order_ageing_rules", { step: "with_pop", days: 10 })
+    db.seed("order_ageing_rules", { step: "in_transit", days: 10 })
     stubRpc("ipas_standing_for_sor", [
       {
         ipas_id: "ipas-1", source: "local", created_at: "2026-10-01T04:00:00Z", updated_at: "2026-10-01T04:00:00Z",
         costs_completed_at: null, proof_paid_on: null, shipped_out_on: null, onboard_on: null, arrived_in_ph_on: null,
         arrived_in_whs_on: null, import_clearance_on: null, delivered_on: null, actual_checking_stamped: false,
         actual_checking_at: null, slips: [],
+        status: "in_transit", status_steps: [{ step: "in_transit", reached_on: "2026-10-01" }],
+        received_state: "none", has_bill: false, direct_delivery: false,
       },
     ])
     renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
