@@ -156,8 +156,19 @@ export const tickDocument = (documentId, side, value) =>
     [side === "finance" ? "finance_has" : "purchasing_has"]: Boolean(value),
   }));
 
-export const attachDocument = (documentId, url) =>
-  mapRows("documents", documentId, (row) => ({ ...row, attachment_url: (url || "").trim() || null }));
+/** One more file on a document (#1153). `file` is `{ url, fileName }`. */
+export const addDocumentFile = (documentId, { url, fileName }) =>
+  mapRows("documents", documentId, (row) => ({
+    ...row,
+    files: [
+      ...(row.files ?? []),
+      { id: optimisticId(), document_id: documentId, url: (url || "").trim(), file_name: fileName || "File", created_at: nowIso() },
+    ],
+  }));
+
+/** One file off a document; the others stay. */
+export const removeDocumentFile = (documentId, fileId) =>
+  mapRows("documents", documentId, (row) => ({ ...row, files: (row.files ?? []).filter((file) => file.id !== fileId) }));
 
 export const removeDocument = (documentId) => (raw) => ({
   ...raw,
@@ -179,6 +190,7 @@ export const addDocument =
         purchasing_has: false,
         finance_has: false,
         attachment_url: null,
+        files: [],
         created_at: nowIso(),
       },
     ],
@@ -259,28 +271,9 @@ export function returnSection({ section, undo = false, by, reason }) {
   };
 }
 
-// ── Typed dates, the stamp, the location ────────────────────────────────────
+// ── The stamp, the location ────────────────────────────────────
 
 export const setItemLocation = (optionId) => setRow({ item_location_id: optionId || null });
-
-/** A buyer-track status typed (`import_clearance` or `delivered`), or cleared with a blank date. */
-export const setTypedStatus =
-  ({ status, date, by }) =>
-  (raw) => {
-    const text = (date ?? "").trim();
-    return {
-      ...raw,
-      row: {
-        ...raw.row,
-        [`${status}_on`]: text === "" ? null : text,
-        [`${status}_typed_at`]: text === "" ? null : nowIso(),
-        [`${status}_typer`]: text === "" || !by ? null : { id: by.id, name: by.name },
-      },
-    };
-  };
-
-/** Supplier Origin dates, by their stored column. */
-export const setOriginDates = (columns) => setRow(columns);
 
 /** Actual Checking stamped by `by`, or cleared. */
 export const stampActualChecking =

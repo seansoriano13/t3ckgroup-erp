@@ -38,13 +38,16 @@ async function tryDelete(client, table, step) {
 }
 
 const STEPS = [
-    "purchase_order",
-    "with_pop",
-    "import_clearance",
+    "order_draft",
+    "payment_approval",
+    "ordered",
+    "processing",
+    "shipped",
+    "in_transit",
+    "customs",
+    "local_hub",
+    "out_for_delivery",
     "delivered",
-    "received_in_odoo",
-    "create_bill",
-    "actual_checking",
     "no_transmittal",
     "check_open",
     "section_3_approval",
@@ -108,21 +111,21 @@ describe("order_ageing_rules: writes", () => {
     it("lets Purchasing access set and clear a rule", async () => {
         const client = await clientFor("outsider")
 
-        expect(await tryUpdate(client, "order_ageing_rules", "import_clearance", { days: 3 })).toEqual({ ok: true, affected: 1 })
-        expect(await storedDays("import_clearance")).toBe(3)
+        expect(await tryUpdate(client, "order_ageing_rules", "customs", { days: 3 })).toEqual({ ok: true, affected: 1 })
+        expect(await storedDays("customs")).toBe(3)
 
-        expect(await tryUpdate(client, "order_ageing_rules", "import_clearance", { days: null })).toEqual({ ok: true, affected: 1 })
-        expect(await storedDays("import_clearance")).toBeNull()
+        expect(await tryUpdate(client, "order_ageing_rules", "customs", { days: null })).toEqual({ ok: true, affected: 1 })
+        expect(await storedDays("customs")).toBeNull()
     })
 
     it("lets a Super Admin set and clear a rule", async () => {
         const client = await clientFor("superAdmin")
 
-        expect(await tryUpdate(client, "order_ageing_rules", "create_bill", { days: 7 })).toEqual({ ok: true, affected: 1 })
-        expect(await storedDays("create_bill")).toBe(7)
+        expect(await tryUpdate(client, "order_ageing_rules", "in_transit", { days: 7 })).toEqual({ ok: true, affected: 1 })
+        expect(await storedDays("in_transit")).toBe(7)
 
-        expect(await tryUpdate(client, "order_ageing_rules", "create_bill", { days: null })).toEqual({ ok: true, affected: 1 })
-        expect(await storedDays("create_bill")).toBeNull()
+        expect(await tryUpdate(client, "order_ageing_rules", "in_transit", { days: null })).toEqual({ ok: true, affected: 1 })
+        expect(await storedDays("in_transit")).toBeNull()
     })
 
     it("refuses a Finance officer, who holds no Purchasing access", async () => {
@@ -168,8 +171,8 @@ describe("order_ageing_rules: the database's own checks", () => {
     it("refuses zero and negative days", async () => {
         const client = await clientFor("superAdmin")
 
-        expect(await tryUpdate(client, "order_ageing_rules", "with_pop", { days: 0 })).toMatchObject({ ok: false, code: CHECK_VIOLATION })
-        expect(await tryUpdate(client, "order_ageing_rules", "with_pop", { days: -4 })).toMatchObject({ ok: false, code: CHECK_VIOLATION })
-        expect(await storedDays("with_pop")).toBeNull()
+        expect(await tryUpdate(client, "order_ageing_rules", "shipped", { days: 0 })).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+        expect(await tryUpdate(client, "order_ageing_rules", "shipped", { days: -4 })).toMatchObject({ ok: false, code: CHECK_VIOLATION })
+        expect(await storedDays("shipped")).toBeNull()
     })
 })

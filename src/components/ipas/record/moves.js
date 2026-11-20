@@ -211,7 +211,8 @@ export function canEditSection(key, { can }) {
     case "costs":
       return can.change || can.record;
     case "delivery":
-      return can.change || can.pickLocation;
+      // Logistics access reaches the Direct delivery switch here without Purchasing access (#1158).
+      return can.change || can.pickLocation || can.setDirectDelivery === true;
     case "documents":
       return can.change || can.tickFinance;
     default:

@@ -15,6 +15,7 @@ import {
   IPAS_EVENT_LABELS,
   IPAS_HEADER_FIELD,
   IPAS_STATUS_SOURCE,
+  IPAS_STATUS_LABELS,
   IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TICK_SIDE_LABELS,
   IPAS_TYPED_STATUS_LABELS,
@@ -32,7 +33,7 @@ import { changeNoteSummary, formatAmount, ipasErrorMessage } from "../../utils/i
 import { ipasService } from "../../services/ipasService";
 import { ipasKey } from "./ipasKeys";
 import { Input } from "../ui/input";
-import { buildBuyerTrack } from "../../utils/ipasDocuments";
+import IpasStatusSteps from "./IpasStatusSteps";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatPercent, paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { formatDate } from "../../utils/formatDate.js";
@@ -636,8 +637,7 @@ function TrackStatus({ item, canChange, onEdit, onStamp, onClearStamp }) {
 
 /** What Odoo says beside each Odoo-stamped status. */
 function odooDetail(key, statuses) {
-  const { purchaseOrder, receivedInOdoo, createBill } = statuses;
-  if (key === "purchase_order") return ODOO_PO_STATE_LABELS[purchaseOrder.state] ?? null;
+  const { receivedInOdoo, createBill } = statuses;
   if (key === "received_in_odoo") {
     const received = receivedInOdoo.ticked
       ? "Received"
@@ -661,52 +661,35 @@ function odooDetail(key, statuses) {
 }
 
 /**
- * Supplier Origin: four typed dates, shown only on an Import IPAS (a Local
- * IPAS has no such block, and the database refuses the dates there).
- */
-function SupplierOrigin({ ipas, canChange, onEdit }) {
-  const origin = ipas.supplierOrigin;
-  if (!origin) return null;
-
-  return (
-    <div className="space-y-2" data-testid="ipas-supplier-origin">
-      <SectionHeader title="Supplier Origin" className="border-b-0 pb-2">
-        {canChange && (
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={onEdit}>
-            <Pencil size={14} />
-            Edit dates
-          </Button>
-        )}
-      </SectionHeader>
-      <DetailGrid
-        items={IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, label }) => ({
-          label,
-          value: origin[field] ? formatDay(origin[field]) : null,
-        }))}
-      />
-    </div>
-  );
-}
-
-/**
- * Section 6, Status: Supplier Origin (Import only) and the buyer track. Each
- * status says where it came from: the three Odoo ones are stamped from Odoo and
- * can't be ticked by hand, With P.O.P is derived from the payments, Import
- * Clearance (Import only) and Delivered are typed, and Actual Checking is
- * stamped by Purchasing, the last three showing who and when.
+ * Section 4's Status (#1154, ADR 0054): the step picker, then the buyer facts that stay as plain facts
+ * (With P.O.P, Received in Odoo, Create Bill, Actual Checking with its hand stamp). Each fact says where it
+ * came from: Received in Odoo and Create Bill are stamped from Odoo, With P.O.P is derived from the payments,
+ * and Actual Checking is stamped by Purchasing.
  *
- *   canChange   Purchasing on an open IPAS: types the dates and stamps
+ *   canSetStatus  Purchasing access, Logistics access or a Super Admin: picks the step
+ *   canChange     Purchasing on an open IPAS: stamps Actual Checking
  */
-export function IpasStatusSection({ ipas, canChange: granted = false, onEditOrigin, onEditStatus, onStamp, onClearStamp }) {
+export function IpasStatusSection({
+  ipas,
+  canChange: granted = false,
+  canSetStatus: grantedStatus = false,
+  onPickStatus,
+  onEditStatusDate,
+  onSuggestStatus,
+  suggestingStatus = false,
+  onStamp,
+  onClearStamp,
+}) {
   const canChange = useEditable(granted);
-  const track = ipas.buyerTrack ?? buildBuyerTrack(ipas, ipas.statuses);
+  const canSetStatus = useEditable(grantedStatus);
+  const track = ipas.buyerFacts ?? [];
 
   return (
-    <IpasSection title={ipasSectionLabel("status")} aside="Each status shows where it came from.">
+    <IpasSection title={ipasSectionLabel("status")} aside="Pick the step the order is at.">
       <div className="space-y-4">
-        <SupplierOrigin ipas={ipas} canChange={canChange} onEdit={onEditOrigin} />
+        <IpasStatusSteps ipas={ipas} canSet={canSetStatus} onPick={onPickStatus} onEditDate={onEditStatusDate} onSuggest={onSuggestStatus} suggesting={suggestingStatus} />
         <div>
-          <SectionHeader title="Buyer track" className="border-b-0 pb-2" />
+          <SectionHeader title="Buyer facts" className="border-b-0 pb-2" />
           <ul className="mt-1 divide-y divide-border">
             {track.map((item) => (
               <TrackStatus
@@ -719,7 +702,6 @@ export function IpasStatusSection({ ipas, canChange: granted = false, onEditOrig
                       : item.detail,
                 }}
                 canChange={canChange}
-                onEdit={onEditStatus}
                 onStamp={onStamp}
                 onClearStamp={onClearStamp}
               />
@@ -926,6 +908,18 @@ function eventDetail(event) {
       const name = IPAS_TYPED_STATUS_LABELS[detail.status] ?? detail.status;
       return detail.to ? `${name}: ${formatDay(detail.to)}` : `${name}: cleared`;
     }
+    case "status_changed": {
+      const from = IPAS_STATUS_LABELS[detail.from] ?? detail.from ?? "none";
+      const to = IPAS_STATUS_LABELS[detail.to] ?? detail.to;
+      const cleared = (detail.cleared ?? []).map((step) => IPAS_STATUS_LABELS[step] ?? step);
+      return [`${from} → ${to}${detail.date ? ` · ${formatDay(detail.date)}` : ""}`, cleared.length ? `cleared ${cleared.join(", ")}` : null]
+        .filter(Boolean)
+        .join(" · ");
+    }
+    case "status_date_changed":
+      return `${IPAS_STATUS_LABELS[detail.step] ?? detail.step}: ${detail.from ? `${formatDay(detail.from)} → ` : ""}${formatDay(detail.to)}`;
+    case "direct_delivery_changed":
+      return detail.to ? "Direct delivery to client: on" : "Direct delivery to client: off";
     case "item_location_changed":
       return detail.to ? `Item Location: ${detail.to}` : "Item Location: cleared";
     case "on_hold_set":

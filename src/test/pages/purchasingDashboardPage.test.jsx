@@ -150,8 +150,8 @@ describe("Purchasing Dashboard page", () => {
     const tracker = await screen.findByRole("row", { name: /S07983 — Ambulance, open/ });
     expect(within(tracker).getByRole("img", { name: "Not checked: 4 items" })).toBeInTheDocument();
     expect(within(tracker).getByRole("img", { name: "Purchased (not received): 1 items" })).toBeInTheDocument();
-    // Purchasing owes the first step on a draft PO, and it is the order's next move.
-    expect(within(tracker).getByText("Purchase Order — no PO confirmed yet")).toBeInTheDocument();
+    // An order with no stored status is at Order-Draft, which Purchasing owes, and it is the order's next move.
+    expect(within(tracker).getByText("Order-Draft")).toBeInTheDocument();
   });
 
   it("opens a SOR in the slide-over, in the URL: what is next, then the stages with their records", async () => {

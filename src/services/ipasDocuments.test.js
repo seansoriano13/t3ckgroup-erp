@@ -5,7 +5,8 @@ import { http, HttpResponse } from "msw"
 import { server, stubEdgeFunction } from "@/test/msw/server"
 import { makeEmployee } from "@/test/factories"
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc"
-import { IPAS_STATUS_SOURCE } from "@/constants/ipas"
+import { IPAS_STATUS_SOURCE, ipasStatusesFor } from "@/constants/ipas"
+import { supabase } from "@/lib/supabase"
 import { filingChecklist, unfiledDocuments } from "@/utils/ipasDocuments"
 
 /**
@@ -244,18 +245,32 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
   })
 
   describe("attachments, removal and the filing checklist", () => {
-    it("attaches a file and removes it, keeping both in history", async () => {
+    it("holds several files on one document, removes one at a time, and keeps both in history", async () => {
       const ipas = await raise("import", "P03030")
       const bir = doc(await read(ipas.id), "BIR 2307")
-      const url = "https://res.cloudinary.com/demo/raw/upload/2307.pdf"
+      const base = "https://res.cloudinary.com/demo/raw/upload"
 
-      await ipasService.setDocument(bir.id, { attachmentUrl: ` ${url} ` })
-      expect(doc(await read(ipas.id), "BIR 2307").attachmentUrl).toBe(url)
+      for (const name of ["page-1.pdf", "page-2.pdf", "page-3.pdf"]) {
+        await ipasService.addDocumentFile(bir.id, { url: ` ${base}/${name} `, fileName: name })
+      }
+      let shaped = doc(await read(ipas.id), "BIR 2307")
+      expect(shaped.files.map((f) => f.fileName)).toEqual(["page-1.pdf", "page-2.pdf", "page-3.pdf"])
+      expect(shaped.hasFile).toBe(true)
 
-      await ipasService.setDocument(bir.id, { attachmentUrl: "" })
-      expect(doc(await read(ipas.id), "BIR 2307").attachmentUrl).toBeNull()
+      await ipasService.removeDocumentFile(shaped.files[1].id)
+      shaped = doc(await read(ipas.id), "BIR 2307")
+      expect(shaped.files.map((f) => f.fileName)).toEqual(["page-1.pdf", "page-3.pdf"])
+
+      for (const file of shaped.files) await ipasService.removeDocumentFile(file.id)
+      shaped = doc(await read(ipas.id), "BIR 2307")
+      expect(shaped.files).toEqual([])
+      expect(shaped.hasFile).toBe(false)
       expect(eventsOf("document_attachment_set", "document_attachment_removed").map((e) => e.kind)).toEqual([
         "document_attachment_set",
+        "document_attachment_set",
+        "document_attachment_set",
+        "document_attachment_removed",
+        "document_attachment_removed",
         "document_attachment_removed",
       ])
     })
@@ -308,49 +323,108 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
     })
   })
 
-  describe("Supplier Origin", () => {
-    const dates = { shippedOut: "2026-10-01", onboard: "2026-10-03", arrivedInPh: "2026-10-09", arrivedInWhs: "2026-10-11" }
+  describe("the IPAS Status, set by hand (#1154)", () => {
+    const day = (offset = 0) => new Date(Date.now() + offset * 86_400_000 + 8 * 3_600_000).toISOString().slice(0, 10)
+    const stepsOf = async (id) => (await read(id)).statusSteps.map((s) => [s.step, s.on])
 
-    it("takes the four dates on an Import IPAS and shows them", async () => {
+    it("starts a new IPAS at Order-Draft, dated its raise day", async () => {
       const ipas = await raise("import", "P03040")
 
-      await ipasService.setSupplierOrigin(ipas.id, dates)
+      const opened = await read(ipas.id)
 
-      expect((await read(ipas.id)).supplierOrigin).toEqual(dates)
-      expect(eventsOf("supplier_origin_changed")).toHaveLength(1)
+      expect(opened.status).toBe("order_draft")
+      expect(opened.statusSteps.map((s) => s.step)).toEqual(["order_draft"])
     })
 
-    it("changes only what is given and clears with a blank", async () => {
+    it("skips steps and leaves them blank, then deletes the later rows going back, and the history shows both moves", async () => {
       const ipas = await raise("import", "P03041")
-      await ipasService.setSupplierOrigin(ipas.id, dates)
 
-      await ipasService.setSupplierOrigin(ipas.id, { onboard: "" })
+      await ipasService.setStatus(ipas.id, "ordered", day(-7))
+      await ipasService.setStatus(ipas.id, "in_transit", day(-2))
+      expect((await stepsOf(ipas.id)).map(([step]) => step)).toEqual(["order_draft", "ordered", "in_transit"])
 
-      expect((await read(ipas.id)).supplierOrigin).toEqual({ ...dates, onboard: null })
+      await ipasService.setStatus(ipas.id, "ordered")
+
+      const opened = await read(ipas.id)
+      expect(opened.status).toBe("ordered")
+      expect(opened.statusSteps.map((s) => s.step)).toEqual(["order_draft", "ordered"])
+      expect(eventsOf("status_changed").map((e) => [e.detail.from, e.detail.to])).toEqual([
+        ["order_draft", "ordered"],
+        ["ordered", "in_transit"],
+        ["in_transit", "ordered"],
+      ])
+      expect(eventsOf("status_changed").at(-1).detail.cleared).toEqual(["in_transit"])
     })
 
-    it("is absent on a Local IPAS, and refused there", async () => {
-      const ipas = await raise("local", "P03042")
+    it("accepts last week and a day before an earlier step, and refuses tomorrow and Done", async () => {
+      const ipas = await raise("import", "P03042")
 
-      expect((await read(ipas.id)).supplierOrigin).toBeNull()
-      await expect(ipasService.setSupplierOrigin(ipas.id, dates)).rejects.toMatchObject({ code: "22023" })
-      expect(db.rows("ipas")[0].shipped_out_on ?? null).toBeNull()
-      expect(eventsOf("supplier_origin_changed")).toEqual([])
+      await ipasService.setStatus(ipas.id, "ordered", day(-7))
+      await expect(ipasService.setStatus(ipas.id, "shipped", day(1))).rejects.toMatchObject({ code: "22023" })
+      await expect(ipasService.setStatus(ipas.id, "done")).rejects.toMatchObject({ code: "IPAS_INVALID" })
+      expect((await read(ipas.id)).status).toBe("ordered")
+      await ipasService.setStatus(ipas.id, "shipped", day(-30))
+      expect((await read(ipas.id)).status).toBe("shipped")
     })
 
-    it("refuses a half-typed date with a sentence, and nothing at all", async () => {
-      const ipas = await raise("import", "P03043")
+    it("refuses Customs, Local Hub and Out for Delivery on a Local IPAS, and the picker does not offer them", async () => {
+      const ipas = await raise("local", "P03043")
 
-      await expect(ipasService.setSupplierOrigin(ipas.id, { shippedOut: "2026-10-" })).rejects.toMatchObject({
-        code: "IPAS_INVALID",
-        message: "Shipped Out must be a date.",
-      })
-      await expect(ipasService.setSupplierOrigin(ipas.id, {})).rejects.toMatchObject({ code: "IPAS_INVALID" })
+      for (const step of ["customs", "local_hub", "out_for_delivery"]) {
+        await expect(ipasService.setStatus(ipas.id, step)).rejects.toMatchObject({ code: "22023" })
+      }
+      expect(ipasStatusesFor("local")).not.toContain("customs")
+      expect(ipasStatusesFor("import")).toContain("customs")
+    })
+
+    it("changes the day of a step already reached, even out of order with its neighbours (the page warns)", async () => {
+      const ipas = await raise("import", "P03044")
+      await ipasService.setStatus(ipas.id, "ordered", day(-9))
+      await ipasService.setStatus(ipas.id, "shipped", day(-3))
+
+      await ipasService.setStatusDate(ipas.id, "ordered", day(-5))
+
+      expect((await stepsOf(ipas.id)).find(([step]) => step === "ordered")[1]).toBe(day(-5))
+      await ipasService.setStatusDate(ipas.id, "ordered", day(-1))
+      expect((await stepsOf(ipas.id)).find(([step]) => step === "ordered")[1]).toBe(day(-1))
+      // A step not reached yet has no day to change.
+      await expect(ipasService.setStatusDate(ipas.id, "processing", day(-4))).rejects.toMatchObject({ code: "22023" })
+    })
+
+    it("refuses Finance alone, lets Logistics access set it", async () => {
+      const ipas = await raise("import", "P03045")
+
+      stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true })
+      await expect(ipasService.setStatus(ipas.id, "ordered")).rejects.toMatchObject({ code: "42501" })
+
+      stubIpasRpcs({ actorId: finance.id, purchasing: false, logistics: true })
+      await ipasService.setStatus(ipas.id, "ordered")
+      expect((await read(ipas.id)).status).toBe("ordered")
+    })
+
+    it("keeps On-Hold as a flag over the step", async () => {
+      const ipas = await raise("import", "P03046")
+      await ipasService.setStatus(ipas.id, "in_transit")
+
+      await ipasService.setOnHold(ipas.id, true, "Waiting on the broker")
+
+      const opened = await read(ipas.id)
+      expect(opened.status).toBe("in_transit")
+      expect(opened.on_hold).toBe(true)
+    })
+
+    it("retires the Supplier Origin and typed status writers", async () => {
+      const ipas = await raise("import", "P03047")
+
+      expect(ipasService.setSupplierOrigin).toBeUndefined()
+      expect(ipasService.setTypedStatus).toBeUndefined()
+      const direct = await supabase.rpc("ipas_set_typed_status", { p_ipas_id: ipas.id, p_status: "delivered", p_date: "2026-10-09" })
+      expect(direct.error?.code).toBe("42501")
     })
   })
 
-  describe("the buyer track", () => {
-    const track = async (id) => Object.fromEntries((await read(id)).buyerTrack.map((item) => [item.key, item]))
+  describe("the buyer facts", () => {
+    const track = async (id) => Object.fromEntries((await read(id)).buyerFacts.map((item) => [item.key, item]))
     const proofUrl = "https://res.cloudinary.com/demo/image/upload/pop.jpg"
     const payment = (over = {}) => ({
       kind: "payment",
@@ -360,16 +434,13 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       ...over,
     })
 
-    it("lists the statuses in the sheet's order, with Import Clearance on an Import IPAS only", async () => {
+    it("lists only the facts that stay beside the IPAS Status, the same on either Source", async () => {
       const importIpas = await raise("import", "P03050")
       const localIpas = await raise("local", "P03051")
+      const facts = ["with_pop", "received_in_odoo", "create_bill", "actual_checking"]
 
-      expect((await read(importIpas.id)).buyerTrack.map((i) => i.key)).toEqual([
-        "purchase_order", "with_pop", "import_clearance", "delivered", "received_in_odoo", "create_bill", "actual_checking",
-      ])
-      expect((await read(localIpas.id)).buyerTrack.map((i) => i.key)).toEqual([
-        "purchase_order", "with_pop", "delivered", "received_in_odoo", "create_bill", "actual_checking",
-      ])
+      expect((await read(importIpas.id)).buyerFacts.map((i) => i.key)).toEqual(facts)
+      expect((await read(localIpas.id)).buyerFacts.map((i) => i.key)).toEqual(facts)
     })
 
     it("says where each status came from", async () => {
@@ -377,14 +448,10 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
 
       const items = await track(ipas.id)
 
-      expect(items.purchase_order.source).toBe(IPAS_STATUS_SOURCE.ODOO)
       expect(items.received_in_odoo.source).toBe(IPAS_STATUS_SOURCE.ODOO)
       expect(items.create_bill.source).toBe(IPAS_STATUS_SOURCE.ODOO)
       expect(items.with_pop.source).toBe(IPAS_STATUS_SOURCE.DERIVED)
-      expect(items.import_clearance.source).toBe(IPAS_STATUS_SOURCE.TYPED)
-      expect(items.delivered.source).toBe(IPAS_STATUS_SOURCE.TYPED)
       expect(items.actual_checking.source).toBe(IPAS_STATUS_SOURCE.STAMPED)
-      expect(items.purchase_order.ticked).toBe(true)
     })
 
     it("stamps With P.O.P when a payment carries proof, and drops it when the proof goes", async () => {
@@ -414,40 +481,6 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       expect((await track(ipas.id)).with_pop.ticked).toBe(false)
     })
 
-    it("types Import Clearance and Delivered with who typed them and when", async () => {
-      const ipas = await raise("import", "P03055")
-
-      await ipasService.setTypedStatus(ipas.id, "import_clearance", "2026-10-05")
-      await ipasService.setTypedStatus(ipas.id, "delivered", "2026-10-09")
-
-      const items = await track(ipas.id)
-      expect(items.import_clearance).toMatchObject({ ticked: true, on: "2026-10-05", by: { id: buyer.id, name: "Buyer" } })
-      expect(items.import_clearance.at).toBeTruthy()
-      expect(items.delivered).toMatchObject({ ticked: true, on: "2026-10-09", by: { id: buyer.id } })
-      expect(eventsOf("status_typed").map((e) => [e.actor_id, e.detail.status, e.detail.to])).toEqual([
-        [buyer.id, "import_clearance", "2026-10-05"],
-        [buyer.id, "delivered", "2026-10-09"],
-      ])
-    })
-
-    it("clears a typed status, who and when with it", async () => {
-      const ipas = await raise("import", "P03056")
-      await ipasService.setTypedStatus(ipas.id, "delivered", "2026-10-09")
-
-      await ipasService.setTypedStatus(ipas.id, "delivered", "")
-
-      expect((await track(ipas.id)).delivered).toMatchObject({ ticked: false, on: null, by: null, at: null })
-      expect(eventsOf("status_cleared")).toHaveLength(1)
-    })
-
-    it("refuses Import Clearance on a Local IPAS, a status that isn't typed and a half-typed date", async () => {
-      const ipas = await raise("local", "P03057")
-
-      await expect(ipasService.setTypedStatus(ipas.id, "import_clearance", "2026-10-05")).rejects.toMatchObject({ code: "22023" })
-      await expect(ipasService.setTypedStatus(ipas.id, "actual_checking", "2026-10-05")).rejects.toMatchObject({ code: "IPAS_INVALID" })
-      await expect(ipasService.setTypedStatus(ipas.id, "delivered", "10/05")).rejects.toMatchObject({ code: "IPAS_INVALID" })
-    })
-
     it("stamps Actual Checking by Purchasing, with who and when, and clears it", async () => {
       const ipas = await raise("local", "P03058")
 
@@ -462,12 +495,11 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       expect((await track(ipas.id)).actual_checking).toMatchObject({ ticked: false, by: null })
     })
 
-    it("refuses Actual Checking, Delivered and Import Clearance to Finance", async () => {
+    it("refuses Actual Checking to Finance", async () => {
       const ipas = await raise("import", "P03059")
       asFinance()
 
       await expect(ipasService.stampActualChecking(ipas.id)).rejects.toMatchObject({ code: "42501" })
-      await expect(ipasService.setTypedStatus(ipas.id, "delivered", "2026-10-09")).rejects.toMatchObject({ code: "42501" })
     })
   })
 

@@ -1,13 +1,9 @@
-import { useState } from "react";
-import { ListPlus, Paperclip, Plus, Trash2, X } from "lucide-react";
+import { ListPlus, Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
-import { ExternalLink } from "../ui/external-link";
-import { FileInput } from "../ui/FileInput";
 import SectionHeader from "../ui/SectionHeader";
-import Spinner from "../ui/Spinner";
 import LinerList from "@/components/record/LinerList";
 import StatusBadge from "../StatusBadge";
 import {
@@ -19,9 +15,8 @@ import {
 } from "../../constants/ipas";
 import ReadTick from "@/components/record/ReadTick";
 import { useEditable, useInDrawer } from "@/components/record/sectionChrome";
-import { ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
 import { fileRulesOf, requiredFilesByPart } from "../../utils/ipasDocuments";
-import { uploadDocumentFile } from "./uploadDocumentFile";
+import { DocumentFiles } from "./DocumentFiles";
 
 /**
  * Section 3's documents (#246): one list, two ticks per row. Purchasing has it
@@ -53,18 +48,13 @@ export function IpasDocuments({
   const inDrawer = useInDrawer();
   const documents = ipas.documents ?? [];
   const suggested = ipas.suggestedDocuments ?? [];
-  const [uploadingId, setUploadingId] = useState(null);
   const required = requiredFilesByPart(documents, ipas.payments ?? [], ipas.source, fileRulesOf(ipas));
 
-  const attach = async (document, [file]) => {
-    setUploadingId(document.id);
+  const attach = async (document, picked) => {
     try {
-      const url = await uploadDocumentFile(file);
-      if (url) await onAttach(document, url);
+      for (const file of picked) await onAttach(document, file);
     } catch (error) {
       toast.error(error?.message || "The file couldn't be attached.");
-    } finally {
-      setUploadingId(null);
     }
   };
 
@@ -134,42 +124,14 @@ export function IpasDocuments({
           subWrap: true,
           actions: (
             <span className="flex shrink-0 flex-wrap items-center justify-end gap-x-4 gap-y-1 text-xs">
-              {document.attachmentUrl ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <ExternalLink
-                    href={document.attachmentUrl}
-                    className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
-                  >
-                    <Paperclip size={12} aria-hidden="true" />
-                    View
-                  </ExternalLink>
-                  {canChange && (
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="text-muted-foreground"
-                      aria-label={`Remove the attachment of ${document.label}`}
-                      onClick={() => onRemoveAttachment(document)}
-                    >
-                      <X />
-                    </Button>
-                  )}
-                </span>
-              ) : canChange ? (
-                <FileInput
-                  accept={ALLOWED_EXTENSIONS_STRING}
-                  disabled={uploadingId === document.id}
-                  onFiles={(files) => attach(document, files)}
-                  size="xs"
-                  className="gap-1"
-                  aria-label={`Attach a file to ${document.label}`}
-                >
-                  {uploadingId === document.id ? <Spinner size="sm" /> : <Paperclip size={12} aria-hidden="true" />}
-                  {uploadingId === document.id ? "Uploading…" : "Attach"}
-                </FileInput>
-              ) : (
-                <span className="text-muted-foreground">No attachment</span>
-              )}
+              <DocumentFiles
+                label={document.label}
+                files={document.files}
+                canChange={canChange}
+                missing={!document.hasFile}
+                onAdd={(picked) => attach(document, picked)}
+                onRemove={(file) => onRemoveAttachment(document, file)}
+              />
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                 {IPAS_TICK_SIDE_LABELS[IPAS_TICK_SIDE.PURCHASING]}
                 {inDrawer ? (

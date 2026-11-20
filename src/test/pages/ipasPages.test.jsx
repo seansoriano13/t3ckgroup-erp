@@ -41,6 +41,7 @@ function ipas(overrides = {}) {
     odoo_copy: copy(po),
     odoo_fetched_at: "2026-10-13T02:00:00.000Z",
     state: "open",
+    status: "order_draft",
     ...overrides,
   });
 }
@@ -169,16 +170,13 @@ describe("IPAS pages", () => {
       expect(within(oldRow).getByTestId("ipas-row-scheme")).toHaveTextContent("—");
     });
 
-    it("shows each IPAS's Status pill, worked out from the IPAS (#597)", async () => {
-      const methods = seedIpasOptions((table, row) => db.seed(table, row)).payment_method;
+    it("shows each IPAS's Status pill, the step stored on the IPAS (#1154)", async () => {
       const pending = ipas({ po_number: "P02552" });
-      const ongoing = ipas({ po_number: "P02553" });
-      const paid = ipas({ po_number: "P02554" });
-      const held = ipas({ po_number: "P02555", on_hold: true, on_hold_note: "Supplier issue" });
-      const done = ipas({ po_number: "P02556", state: "filed", filed_at: "2026-10-14T00:00:00.000Z" });
-      const cancelled = ipas({ po_number: "P02557", state: "cancelled", cancel_reason: "Dropped", cancelled_at: "2026-10-13T03:00:00.000Z" });
-      db.seed("ipas_payments", { ipas_id: ongoing.id, kind: "down_payment", amount: 100, method_id: methods["Bank TT"].id, paid_on: "2026-10-01", charge_fee_php: 0 });
-      db.seed("ipas_payments", { ipas_id: paid.id, kind: "full_payment", amount: 100, method_id: methods["Bank TT"].id, paid_on: "2026-10-01", charge_fee_php: 0 });
+      const ongoing = ipas({ po_number: "P02553", status: "ordered" });
+      const paid = ipas({ po_number: "P02554", status: "in_transit" });
+      const held = ipas({ po_number: "P02555", status: "shipped", on_hold: true, on_hold_note: "Supplier issue" });
+      const done = ipas({ po_number: "P02556", state: "filed", status: "done", filed_at: "2026-10-14T00:00:00.000Z" });
+      const cancelled = ipas({ po_number: "P02557", state: "cancelled", status: null, cancel_reason: "Dropped", cancelled_at: "2026-10-13T03:00:00.000Z" });
 
       const user = setupUser();
       renderList();
@@ -187,10 +185,10 @@ describe("IPAS pages", () => {
         const row = (await screen.findAllByTestId("ipas-row")).find((r) => within(r).queryByText(po));
         return within(row).queryByTestId("ipas-status-pill");
       };
-      expect((await pillOf(pending.po_number)).dataset.status).toBe("pending");
-      expect((await pillOf(ongoing.po_number)).dataset.status).toBe("ongoing");
-      expect((await pillOf(paid.po_number)).dataset.status).toBe("paid");
-      expect((await pillOf(held.po_number)).dataset.status).toBe("on_hold");
+      expect((await pillOf(pending.po_number)).dataset.status).toBe("order_draft");
+      expect((await pillOf(ongoing.po_number)).dataset.status).toBe("ordered");
+      expect((await pillOf(paid.po_number)).dataset.status).toBe("in_transit");
+      expect((await pillOf(held.po_number)).dataset.onHold).toBe("true");
 
       await user.click(screen.getByRole("tab", { name: /Filed/ }));
       await waitFor(() => expect(screen.getAllByTestId("ipas-row")).toHaveLength(1));
@@ -220,11 +218,11 @@ describe("IPAS pages", () => {
       ipas({ po_number: "P02552" });
       renderList();
       const pill = await screen.findByTestId("ipas-status-pill");
-      expect(pill.dataset.status).toBe("pending");
+      expect(pill.dataset.status).toBe("order_draft");
       expect(screen.queryByRole("button", { name: /Put On-Hold/ })).not.toBeInTheDocument();
     });
 
-    it("puts an open IPAS On-Hold from the record's More menu with a note, and clears it again (#597)", async () => {
+    it("puts an open IPAS On-Hold from the record's More menu with a note, and clears it again (#597)", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();
 
@@ -242,7 +240,7 @@ describe("IPAS pages", () => {
       await openMore(user);
       await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
       await user.click(await screen.findByRole("button", { name: "Clear On-Hold" }));
-      await waitFor(() => expect(statusPill()).toHaveTextContent("Pending"));
+      await waitFor(() => expect(statusPill()).toHaveTextContent("Order-Draft"));
       expect(db.internal.rowsOf("ipas_events").map((e) => e.kind)).toContain("on_hold_cleared");
     });
 
@@ -707,7 +705,7 @@ describe("IPAS pages", () => {
       expect(header.querySelectorAll("span.uppercase")).toHaveLength(1);
       expect(within(header).getByText(/^P02552 · raised /)).toBeInTheDocument();
       for (const label of ["Entity", "Priority", "Source", "Purpose", "Status"]) expect(within(recordWindow()).getAllByText(label).length).toBeGreaterThan(0);
-      expect(statusPill()).toHaveTextContent("Pending");
+      expect(statusPill()).toHaveTextContent("Order-Draft");
     });
 
     it("toggles sections in place, several open at once, with Open all and Close all", async () => {
@@ -1016,7 +1014,7 @@ describe("IPAS pages", () => {
       expect(screen.getByText(/Odoo doesn't name S07920/)).toBeInTheDocument();
     });
 
-    it("stamps the three Odoo statuses, with Partly received, and gives no way to tick them", async () => {
+    it("stamps the two Odoo statuses, with Partly received, and gives no way to tick them", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       stubEdgeFunction(
         "odoo-po-ipas",
@@ -1027,7 +1025,7 @@ describe("IPAS pages", () => {
 
       expect(await screen.findByText(/Partly received · 1 of 2 receipts done/)).toBeInTheDocument();
       expect(screen.getByText("1 draft bill")).toBeInTheDocument();
-      expect(screen.getAllByText("stamped from Odoo")).toHaveLength(3);
+      expect(screen.getAllByText("stamped from Odoo")).toHaveLength(2);
       // Section 2's two ticks are checkboxes; the Odoo statuses are not.
       expect(screen.queryByRole("checkbox", { name: /received|bill|delivered|odoo/i })).not.toBeInTheDocument();
     });

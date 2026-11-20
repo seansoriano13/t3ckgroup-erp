@@ -9,12 +9,14 @@ import {
   IPAS_PART_NO,
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
+  IPAS_REQUEST_SECTION,
   IPAS_SECTION_7_ROLES,
   IPAS_SOURCE_LABELS,
   IPAS_STATE,
+  IPAS_STATUS_LABELS,
   ipasSectionLabel,
 } from "@/constants/ipas";
-import { formatAmount } from "@/utils/ipas";
+import { formatAmount, statusDayOf } from "@/utils/ipas";
 import { billCheckView } from "@/utils/ipasBillCheck";
 import { ipasFigures } from "@/utils/ipasFigures";
 import { filingChecklist, fileRulesOf, missingDocumentsByPart } from "@/utils/ipasDocuments";
@@ -89,7 +91,7 @@ export function digestIpas(ipas, signerLists = null) {
   const bill = billCheckView(figures);
 
   // Sign-offs.
-  const s1 = ipas.signoffSections[1];
+  const s1 = ipas.signoffSections[IPAS_REQUEST_SECTION];
   const s3 = ipas.signoffSections[3];
   const s6 = ipas.signoffSections[6];
   const s7 = ipas.signoffSections[7];
@@ -112,13 +114,17 @@ export function digestIpas(ipas, signerLists = null) {
     // Per part, the documents whose file is missing; a part signs only once its list is empty (#711).
     missingByPart: missingDocumentsByPart(documents, ipas.payments ?? [], ipas.source, fileRulesOf(ipas)),
   };
-  const trackItems = ipas.buyerTrack ?? [];
-  const track = {
-    items: trackItems,
-    done: trackItems.filter((item) => item.ticked).length,
-    total: trackItems.length,
-    last: [...trackItems].reverse().find((item) => item.ticked) ?? null,
+  // The IPAS Status: the step the order is at, the day it was reached and the On-Hold flag (ADR 0054).
+  const statusKey = figures.status;
+  const statusNow = {
+    key: statusKey ?? null,
+    label: statusKey ? (IPAS_STATUS_LABELS[statusKey] ?? statusKey) : null,
+    on: statusKey ? statusDayOf(ipas, statusKey) : null,
+    onHold: Boolean(figures.onHold),
   };
+  const statusText = statusNow.label
+    ? `${statusNow.onHold ? "On-Hold · " : ""}${statusNow.label}${statusNow.on ? ` · ${formatDay(statusNow.on)}` : ""}`
+    : null;
 
   const events = ipas.events ?? [];
   const lastEvent = events[events.length - 1] ?? null;
@@ -155,10 +161,7 @@ export function digestIpas(ipas, signerLists = null) {
         : null,
     ]),
     logistics: ipas.itemLocation?.label ?? "Item Location not set",
-    status: join([
-      `${track.done} of ${track.total} on the buyer track`,
-      track.last ? `latest: ${track.last.label}${track.last.on ? ` ${formatDay(track.last.on)}` : ""}` : null,
-    ]),
+    status: statusText ?? "No status",
     costing: join([
       `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus] ?? "not set"}`,
       s6.approved ? "approved" : s6.prepared ? "awaiting approval" : null,
@@ -197,7 +200,7 @@ export function digestIpas(ipas, signerLists = null) {
     delivery: join([
       ipas.itemLocation?.label ?? "Item Location not set",
       (ipas.slips ?? []).length > 0 ? plural(ipas.slips.length, "Transmittal", "Transmittals") : "no Transmittal yet",
-      track.last ? `latest: ${track.last.label}` : null,
+      statusNow.label ? `status: ${statusNow.label}` : null,
     ]),
     documents: missingFiles.length > 0
       ? `${missingFiles.length} still missing · ${docs.attached} attached`
@@ -228,7 +231,7 @@ export function digestIpas(ipas, signerLists = null) {
     docs,
     order: orderProgress(ipas),
     paymentsProgress: paymentsProgress(ipas),
-    track,
+    status: statusNow,
     lines,
     lastEvent,
   };

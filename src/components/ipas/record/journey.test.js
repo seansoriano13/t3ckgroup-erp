@@ -16,6 +16,21 @@ const run = ({ ipas = ipasOf(), dig = digest(), can = {} } = {}) =>
   journeyFor({ ipas, digest: dig, lists: {}, userId: "u1", can: { purchasing: false, change: false, record: false, pickLocation: false, ...can } });
 const item = (journey, key) => journey.ready.find((entry) => entry.key === key);
 
+describe("journeyFor: Direct delivery (#1158)", () => {
+  it("drops the Item Location and Transmittal items, and Logistics never asks for them", () => {
+    const journey = run({ ipas: ipasOf({ direct_delivery: true }) });
+    expect(item(journey, "location")).toBeUndefined();
+    expect(item(journey, "transmittal")).toBeUndefined();
+    expect(item(journey, "logistics").line).not.toMatch(/Item Location|Transmittal/);
+  });
+
+  it("keeps both items while it is off", () => {
+    const journey = run();
+    expect(item(journey, "location")).toBeTruthy();
+    expect(item(journey, "transmittal")).toBeTruthy();
+  });
+});
+
 describe("journeyFor: Finance (#937)", () => {
   const missingProof = digest({ docs: { missingByPart: { purchasing: ["Proforma Invoice"], finance: ["Proof of payment of Oct 1, 2026"], costing: [], filing: [] } } });
   const foreign = ipasOf({ currency: "USD", payments: [{ forex_rate: null }] });

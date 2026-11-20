@@ -103,6 +103,18 @@ export const IPAS_STATUS_THEME = {
   PROVISIONAL: STATUS_THEME.AMBER,
   FINAL: STATUS_THEME.GREEN,
   NOT_AVAILABLE: STATUS_THEME.MAUVE,
+  // The IPAS Status steps (ADR 0054, spec #1151), set by hand. DONE is below; a
+  // DELIVERED step reads the Procurement outcome's colour (also green).
+  ORDER_DRAFT: STATUS_THEME.MAUVE,
+  PAYMENT_APPROVAL: STATUS_THEME.AMBER,
+  ORDERED: STATUS_THEME.BLUE,
+  PROCESSING: STATUS_THEME.VIOLET,
+  SHIPPED: STATUS_THEME.TEAL,
+  IN_TRANSIT: STATUS_THEME.TEAL,
+  CUSTOMS: STATUS_THEME.RED,
+  LOCAL_HUB: STATUS_THEME.ORANGE,
+  OUT_FOR_DELIVERY: STATUS_THEME.ORANGE,
+  DELIVERED: STATUS_THEME.GREEN,
   // The record page's progress ladder (record/statePalette.js) and the SOR
   // summary's tracks: done, the one thing that is next, partly done, not yet.
   DONE: STATUS_THEME.GREEN,

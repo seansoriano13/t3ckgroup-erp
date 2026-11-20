@@ -1,7 +1,7 @@
 /**
  * Finance and the IPAS files (#937, spec #927): Finance attaches proof of payment
  * (a payment's proof_url, through ipas_update_payment) and cannot attach a document
- * (ipas_set_document_attachment is Purchasing's). Purchasing can do both.
+ * (ipas_add_document_file is Purchasing's). Purchasing can do both.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -67,13 +67,13 @@ describe("Finance and IPAS files (#937)", () => {
     it("refuses Finance attaching any other document", async () => {
         const doc = (await svc().from("ipas_documents").select("id").eq("ipas_id", ipasId).limit(1)).data?.[0]
         expect(doc).toBeTruthy()
-        const { error } = await rpc("finance", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: PROOF })
+        const { error } = await rpc("finance", "ipas_add_document_file", { p_document_id: doc.id, p_url: PROOF, p_file_name: "proof.pdf" })
         expect(error?.code).toBe("42501")
     })
 
     it("still lets Purchasing attach a document", async () => {
         const doc = (await svc().from("ipas_documents").select("id").eq("ipas_id", ipasId).limit(1)).data?.[0]
-        const { error } = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: PROOF })
+        const { error } = await rpc("outsider", "ipas_add_document_file", { p_document_id: doc.id, p_url: PROOF, p_file_name: "proof.pdf" })
         expect(error).toBeNull()
     })
 })

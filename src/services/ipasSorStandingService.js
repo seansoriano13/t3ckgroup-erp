@@ -1,10 +1,11 @@
 import { supabase } from "../lib/supabase";
 import { IPAS_COSTING_SECTION, IPAS_STATE } from "../constants/ipas";
 import { section3StateOf } from "../utils/ipasSignoffs";
-import { buildBuyerTrack } from "../utils/ipasDocuments";
+import { buildBuyerFacts } from "../utils/ipasDocuments";
 import { deriveTransmittalTrack } from "../utils/ipasTransmittals";
 import { orderStanding } from "../utils/orderStanding";
 import { orderStandingInput, submittedSlips } from "../utils/orderAgeing";
+import { shapeStatusSteps } from "../utils/ipas";
 import { ipasService } from "./ipasService";
 import { orderAgeingRulesService } from "./orderAgeingRulesService";
 
@@ -27,13 +28,11 @@ import { orderAgeingRulesService } from "./orderAgeingRulesService";
  * step 5 and can call this as it is.
  */
 
-/** The statuses `buildBuyerTrack` reads, taken from the summary's own ticks. */
-function odooStatusesOf(summary) {
-  const item = (key) => summary.buyerTrack.find((entry) => entry.key === key);
+/** The Odoo facts `buildBuyerFacts` reads, taken from the standing facts' own receipt and bill columns. */
+function odooStatusesOf(facts) {
   return {
-    purchaseOrder: { ticked: Boolean(item("purchase_order")?.ticked) },
-    receivedInOdoo: { ticked: Boolean(item("received_in_odoo")?.ticked), partial: Boolean(item("received_in_odoo")?.partial) },
-    createBill: { ticked: Boolean(item("create_bill")?.ticked) },
+    receivedInOdoo: { ticked: facts.received_state === "received", partial: facts.received_state === "partial" },
+    createBill: { ticked: facts.has_bill === true },
   };
 }
 
@@ -54,19 +53,15 @@ function standingOf(summary, facts, rules, today) {
     actualCheckingBy: facts.actual_checking_stamped,
     actualCheckingAt: facts.actual_checking_at,
   });
-  const buyerTrack = buildBuyerTrack(
+  const buyerFacts = buildBuyerFacts(
     {
       source: facts.source,
-      import_clearance_on: facts.import_clearance_on,
       delivered_on: facts.delivered_on,
       actual_checking_by: facts.actual_checking_stamped ? "stamped" : null,
       actual_checking_at: facts.actual_checking_at,
     },
-    odooStatusesOf(summary),
-    {
-      hasProof: Boolean(summary.buyerTrack.find((entry) => entry.key === "with_pop")?.ticked),
-      transmittal: derived.governed ? derived : null,
-    },
+    odooStatusesOf(facts),
+    { transmittal: derived.governed ? derived : null },
   );
   const standing = orderStanding(
     orderStandingInput({
@@ -79,12 +74,12 @@ function standingOf(summary, facts, rules, today) {
       costsCompletedAt: facts.costs_completed_at,
       section3Submitted: section3.submitted,
       section3Approved: section3.approved,
-      buyerTrack,
-      proofPaidOn: facts.proof_paid_on,
-      arrivedInPhOn: facts.arrived_in_ph_on,
-      origins: facts,
+      buyerFacts,
+      status: facts.status,
+      statusSteps: shapeStatusSteps(facts.status_steps),
       slips: named,
       onHold: facts.on_hold === true,
+      directDelivery: facts.direct_delivery === true,
     }),
     rules,
     today,

@@ -8,10 +8,10 @@
  */
 
 import {
-  IPAS_BUYER_TRACK_LABELS,
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_STATE,
+  IPAS_STATUS_LABELS,
   ipasSectionName,
 } from "../constants/ipas";
 
@@ -22,16 +22,19 @@ import {
  * Costing Matrix's money tier and null for everyone else.
  */
 export const IPAS_SUMMARY_KEYS = [
-  "buyer_track",
   "computation_status",
+  "direct_delivery",
   "ipas_id",
   "landed_cost_mark",
   "landed_cost_total_php",
   "number",
+  "on_hold",
   "po_number",
   "purpose",
   "signoffs",
   "state",
+  "status",
+  "status_reached_on",
   "supplier",
 ];
 
@@ -59,19 +62,6 @@ const SECTION_STEPS = {
 
 const asObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 
-/** The buyer track's ticks with their names, in the order the database gives them. */
-function shapeTrack(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((item) => item && typeof item === "object" && typeof item.key === "string")
-    .map((item) => ({
-      key: item.key,
-      label: IPAS_BUYER_TRACK_LABELS[item.key] ?? item.key,
-      ticked: item.ticked === true,
-      partial: item.partial === true,
-    }));
-}
-
 /**
  * The sign-off progress by section: `{ section, name, steps: [{ role, label,
  * done }], done, total }`, for stored sections 1, 3, 6 and 7.
@@ -94,7 +84,6 @@ export function signoffProgress(signoffs) {
 /** One `ipas_summaries_for_sor` row as the SOR's IPAS section reads it, or null. */
 export function shapeIpasSummary(row) {
   if (!row || typeof row !== "object" || !row.ipas_id) return null;
-  const buyerTrack = shapeTrack(row.buyer_track);
   return {
     id: row.ipas_id,
     number: row.number ?? "",
@@ -102,9 +91,11 @@ export function shapeIpasSummary(row) {
     supplier: row.supplier || null,
     purpose: row.purpose ?? null,
     state: row.state ?? null,
-    buyerTrack,
-    trackDone: buyerTrack.filter((item) => item.ticked).length,
-    trackTotal: buyerTrack.length,
+    // #1157: the IPAS Status, the day it was reached, the On-Hold flag and Direct delivery.
+    status: IPAS_STATUS_LABELS[row.status] ? row.status : null,
+    statusReachedOn: row.status_reached_on ?? null,
+    onHold: row.on_hold === true,
+    directDelivery: row.direct_delivery === true,
     computationStatus: row.computation_status ?? null,
     computationLabel:
       IPAS_COMPUTATION_STATUS_LABELS[row.computation_status] ??
@@ -125,4 +116,15 @@ export function shapeIpasSummary(row) {
 /** The summaries of a result, in the database's order, leaving out anything unusable. */
 export function shapeIpasSummaries(rows) {
   return (Array.isArray(rows) ? rows : []).map(shapeIpasSummary).filter(Boolean);
+}
+
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A day as "Nov 18" (the SOR card is tight); the year joins only when it is not this year's. */
+export function shortDay(value, today = new Date()) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ""));
+  if (!match) return "";
+  const [, year, month, day] = match;
+  const base = `${SHORT_MONTHS[Number(month) - 1]} ${Number(day)}`;
+  return Number(year) === today.getFullYear() ? base : `${base}, ${year}`;
 }

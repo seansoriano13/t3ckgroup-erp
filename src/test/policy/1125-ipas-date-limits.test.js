@@ -1,9 +1,9 @@
 /**
  * Date limits on IPAS money and typed dates (#1125, spec #1123, tracker A3).
  *
- * A payment's paid-on date, a charge's date and the typed Delivered / Import Clearance dates must run from
+ * A payment's paid-on date, a charge's date and the IPAS Status dates must run from
  * 2015-01-01 to today (Asia/Manila). Today is accepted; tomorrow and 2014-12-31 are refused with a sentence,
- * by ipas_save_payment, ipas_add_charge, ipas_update_charge, ipas_fill_charge and ipas_set_typed_status.
+ * by ipas_save_payment, ipas_add_charge, ipas_update_charge and ipas_fill_charge, and the status dates (#1154) by ipas_set_status.
  * `outsider` holds Purchasing access.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -66,7 +66,7 @@ const savePayment = (ipasId, paidOn, over = {}) =>
         ...over,
     })
 const addCharge = (ipasId, on) => rpc("outsider", "ipas_add_charge", { p_ipas_id: ipasId, p_kind_id: kindId, p_charged_on: on, p_amount_php: 100 })
-const setTyped = (ipasId, status, date) => rpc("outsider", "ipas_set_typed_status", { p_ipas_id: ipasId, p_status: status, p_date: date })
+const setStep = (ipasId, step, date) => rpc("outsider", "ipas_set_status", { p_ipas_id: ipasId, p_step: step, p_reached_on: date })
 
 const CAST_IDS = () => CAST_KEYS.map((k) => ids[k])
 
@@ -140,18 +140,18 @@ describe("a charge's date", () => {
     })
 })
 
-describe("the typed Delivered and Import Clearance dates (ipas_set_typed_status)", () => {
+
+describe("the IPAS Status dates (ipas_set_status)", () => {
     it("accepts today and refuses tomorrow and 2014-12-31 for Delivered", async () => {
         const ipas = await raise()
-        expect((await setTyped(ipas.id, "delivered", TOMORROW())).error?.message).toContain("the delivered date cannot be after today")
-        expect((await setTyped(ipas.id, "delivered", "2014-12-31")).error?.message).toContain("cannot be before January 1, 2015")
-        expect((await setTyped(ipas.id, "delivered", TODAY())).error).toBeNull()
+        expect((await setStep(ipas.id, "delivered", TOMORROW())).error?.message).toContain("the Delivered date cannot be after today")
+        expect((await setStep(ipas.id, "delivered", "2014-12-31")).error?.message).toContain("cannot be before January 1, 2015")
+        expect((await setStep(ipas.id, "delivered", TODAY())).error).toBeNull()
     })
 
-    it("holds Import Clearance to the same limits, and a blank date still clears it", async () => {
+    it("holds Customs / Port Hold to the same limits on an Import IPAS", async () => {
         const ipas = await raise("import")
-        expect((await setTyped(ipas.id, "import_clearance", TOMORROW())).error?.message).toContain("the import clearance date cannot be after today")
-        expect((await setTyped(ipas.id, "import_clearance", TODAY())).error).toBeNull()
-        expect((await setTyped(ipas.id, "import_clearance", null)).error).toBeNull()
+        expect((await setStep(ipas.id, "customs", TOMORROW())).error?.message).toContain("the Customs / Port Hold date cannot be after today")
+        expect((await setStep(ipas.id, "customs", TODAY())).error).toBeNull()
     })
 })

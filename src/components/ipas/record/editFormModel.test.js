@@ -28,8 +28,7 @@ const ipas = (over = {}) => ({
   googleSheet: false,
   ganttChart: false,
   item_location_id: null,
-  supplierOrigin: null,
-  buyerTrack: [],
+  buyerFacts: [],
   currency: "PHP",
   payments: [],
   charges: [],
@@ -45,6 +44,13 @@ describe("IPAS edit form model", () => {
   it("starts from the stored values, with an override box blank until it is overridden", () => {
     const form = formFromIpas(ipas({ contact: "R. Cruz", piQtAmount: 8400 }));
     expect(form).toMatchObject({ entity: "", analytic: "A-1", contact: "R. Cruz", piQtAmount: "8400" });
+  });
+
+  it("asks for no Item Location on a Direct delivery (#1158)", () => {
+    const form = formFromIpas(ipas({ contact: "R. Cruz", direct_delivery: true }));
+    expect(form.directDelivery).toBe(true);
+    expect(missingFields(form).map((m) => m.id)).not.toContain("f-location");
+    expect(missingFields({ ...form, directDelivery: false }).map((m) => m.id)).toContain("f-location");
   });
 
   it("lists the required boxes still empty and counts them per section", () => {
@@ -100,7 +106,7 @@ describe("IPAS edit form model", () => {
       );
       expect(form.payments).toEqual([expect.objectContaining({ id: "pay-1", amount: "8325", methodId: "m-1", forexRate: "" })]);
       expect(form.charges[0]).toMatchObject({ kindId: "k-1", amountPhp: "300" });
-      expect(form.documents[0]).toMatchObject({ purchasingHas: true, attachmentUrl: "" });
+      expect(form.documents[0]).toMatchObject({ purchasingHas: true, files: [] });
       expect(form).toMatchObject({ bankName: "BDO", freight: "f-1", split: "quantity", computationStatus: "encoding" });
     });
 
@@ -149,7 +155,7 @@ describe("IPAS edit form model", () => {
         computationStatus: "encoded",
         bankName: "BPI",
         payments: [{ ...base.payments[0], amount: "8000" }, added],
-        documents: [{ ...base.documents[0], purchasingHas: true, attachmentUrl: "https://x/y.pdf" }, { ...newDocumentDraft(), choice: "kind-1" }],
+        documents: [{ ...base.documents[0], purchasingHas: true, files: [{ url: "https://x/y.pdf", fileName: "y.pdf" }] }, { ...newDocumentDraft(), choice: "kind-1" }],
       };
       expect(changeCount(form, base)).toBe(8);
       const plan = planSave(form, base);
@@ -157,14 +163,14 @@ describe("IPAS edit form model", () => {
       expect(plan.header).toEqual({ freightServiceId: "f-9", landedCostSplit: "equal" });
       expect(plan.payments.update).toEqual([expect.objectContaining({ id: "pay-1", values: expect.objectContaining({ amount: "8000" }) })]);
       expect(plan.payments.add).toEqual([expect.objectContaining({ key: added.key })]);
-      expect(plan.documents.update).toEqual([{ key: "d-1", id: "d-1", purchasing: true, attachmentUrl: "https://x/y.pdf" }]);
+      expect(plan.documents.update).toEqual([{ key: "d-1", id: "d-1", purchasing: true, addFiles: [{ url: "https://x/y.pdf", fileName: "y.pdf" }] }]);
       expect(plan.documents.add).toEqual([expect.objectContaining({ choice: { kindId: "kind-1" } })]);
       expect(plan.bank).toEqual({ bankName: "BPI", accountName: "", accountNumber: "" });
       expect(plan.status).toBe("encoded");
       expect(planIsEmpty(plan)).toBe(false);
     });
 
-    it("refuses a payment, a charge and a typed date outside 2015-01-01..today, and takes today", () => {
+    it("refuses a payment, a charge and a date outside 2015-01-01..today, and takes today", () => {
       const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
       const base = formFromIpas(ipas());
       const pay = (paidOn) => ({ ...base, payments: [{ ...newPaymentDraft(), amount: "5", methodId: "m-1", paidOn }] });
@@ -175,9 +181,6 @@ describe("IPAS edit form model", () => {
       expect(planSave(chg(tomorrow), base).error).toBe("Charge 1: The charge date cannot be after today.");
       expect(planSave(chg("2014-12-31"), base).error).toBe("Charge 1: The charge date cannot be before January 1, 2015.");
       expect(planSave(chg(ipasDateMax()), base).error).toBeNull();
-      expect(planSave({ ...base, delivered: tomorrow }, base).error).toBe("The Delivered date cannot be after today.");
-      expect(planSave({ ...base, importClearance: "2014-12-31" }, base).error).toBe("The Import Clearance date cannot be before January 1, 2015.");
-      expect(planSave({ ...base, delivered: ipasDateMax() }, base).error).toBeNull();
     });
 
     it("sends nothing and says why when a payment can't be saved yet", () => {

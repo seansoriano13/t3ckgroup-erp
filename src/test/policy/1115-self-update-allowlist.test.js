@@ -58,6 +58,7 @@ const REFUSED_PATCHES = {
     has_retail_access: true,
     has_bug_report_access: true,
     has_finance_flow: true,
+    has_logistics_flow: true,
     call_sign: "9115",
 }
 

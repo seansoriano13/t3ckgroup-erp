@@ -72,30 +72,50 @@ export const IPAS_STATE_LABELS = {
 export const IPAS_STATE_FILTER_ALL = "all";
 
 /**
- * The IPAS Status (spec #595, #597): the six steps the sheet kept, worked out from
- * the IPAS by utils/ipasFigures.js and never stored. Only On-Hold is set by a person
- * (`ipas.on_hold`). A cancelled IPAS has none. Separate from the state above and from
- * the Computation status. In the order the filter lists them.
+ * The IPAS Status (spec #1151, ADR 0054): set by hand on the record, in the team's own
+ * words, and stored (`ipas.status`, with each step's day in `ipas_status_steps`). Done comes
+ * only from filing. Customs / Port Hold, Arrived at Local Hub and Out for Delivery belong to
+ * an Import IPAS. A cancelled IPAS has none. Separate from the state above and from the
+ * Computation status. On-Hold is a flag on top of the step (`ipas.on_hold`), not a step.
  */
-export const IPAS_STATUS = {
-  PENDING: "pending",
-  REQUESTED: "requested",
-  ONGOING: "ongoing",
-  PAID: "paid",
-  DONE: "done",
-  ON_HOLD: "on_hold",
-};
+const IPAS_STATUS_STEPS = [
+  { key: "order_draft", label: "Order-Draft" },
+  { key: "payment_approval", label: "Payment Approval" },
+  { key: "ordered", label: "Ordered" },
+  { key: "processing", label: "Processing / Preparing Shipment" },
+  { key: "shipped", label: "Shipped / Picked Up" },
+  { key: "in_transit", label: "In Transit" },
+  { key: "customs", label: "Customs / Port Hold" },
+  { key: "local_hub", label: "Arrived at Local Hub" },
+  { key: "out_for_delivery", label: "Out for Delivery" },
+  { key: "delivered", label: "Delivered" },
+  { key: "done", label: "Done" },
+];
 
-export const IPAS_STATUSES = Object.values(IPAS_STATUS);
+// The steps are listed once, above, in order. The key is the stored value; its upper-case name is the
+// constant ("in_transit" -> IPAS_STATUS.IN_TRANSIT) and the name of its colour in IPAS_STATUS_THEME.
+export const IPAS_STATUS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key }) => [key.toUpperCase(), key]));
 
-export const IPAS_STATUS_LABELS = {
-  [IPAS_STATUS.PENDING]: "Pending",
-  [IPAS_STATUS.REQUESTED]: "Requested",
-  [IPAS_STATUS.ONGOING]: "Ongoing",
-  [IPAS_STATUS.PAID]: "Paid",
-  [IPAS_STATUS.DONE]: "Done",
-  [IPAS_STATUS.ON_HOLD]: "On-Hold",
-};
+/** In order: the order the list's filter and sort use. */
+export const IPAS_STATUSES = IPAS_STATUS_STEPS.map(({ key }) => key);
+
+export const IPAS_STATUS_LABELS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label]));
+
+/** The list filter's value for an IPAS that is On-Hold (a flag over its step, not a step). */
+export const IPAS_ON_HOLD_FILTER = "on_hold";
+
+/** The steps only an Import IPAS has. */
+export const IPAS_IMPORT_ONLY_STATUSES = [IPAS_STATUS.CUSTOMS, IPAS_STATUS.LOCAL_HUB, IPAS_STATUS.OUT_FOR_DELIVERY];
+
+/** The steps an IPAS of this source goes through, in order (Done last). */
+export function ipasStatusesFor(source) {
+  return source === IPAS_SOURCE.LOCAL
+    ? IPAS_STATUSES.filter((step) => !IPAS_IMPORT_ONLY_STATUSES.includes(step))
+    : IPAS_STATUSES;
+}
+
+/** The steps a person can pick: every step of the source but Done, which comes from filing. */
+export const ipasPickableStatusesFor = (source) => ipasStatusesFor(source).filter((step) => step !== IPAS_STATUS.DONE);
 
 /**
  * Why a PO couldn't become an IPAS, for the screen to say apart:
@@ -344,8 +364,8 @@ export const IPAS_TICK_SIDE_LABELS = {
 };
 
 /**
- * Supplier Origin (#246): four typed dates, Import only. `column` is the ipas
- * column and the RPC key, `field` the camelCase name the service takes.
+ * Supplier Origin (#246, retired by #1151): the four old typed dates. Only the History reads these now,
+ * to name a `supplier_origin_changed` line; `column` is the ipas column.
  */
 export const IPAS_SUPPLIER_ORIGIN_FIELDS = [
   { field: "shippedOut", column: "shipped_out_on", label: "Shipped Out" },
@@ -354,17 +374,10 @@ export const IPAS_SUPPLIER_ORIGIN_FIELDS = [
   { field: "arrivedInWhs", column: "arrived_in_whs_on", label: "Arrived in Whs." },
 ];
 
-/** The buyer-track statuses a person types (ipas_set_typed_status). */
-export const IPAS_TYPED_STATUS = {
-  IMPORT_CLEARANCE: "import_clearance",
-  DELIVERED: "delivered",
-};
-
-export const IPAS_TYPED_STATUSES = [IPAS_TYPED_STATUS.IMPORT_CLEARANCE, IPAS_TYPED_STATUS.DELIVERED];
-
+/** The names of the old typed buyer-track dates, so the history of an IPAS that had them still reads (ipas_set_typed_status is retired). */
 export const IPAS_TYPED_STATUS_LABELS = {
-  [IPAS_TYPED_STATUS.IMPORT_CLEARANCE]: "Import Clearance",
-  [IPAS_TYPED_STATUS.DELIVERED]: "Delivered",
+  import_clearance: "Import Clearance",
+  delivered: "Delivered",
 };
 
 /**
@@ -379,20 +392,6 @@ export const IPAS_STATUS_SOURCE = {
   DERIVED: "derived",
   TYPED: "typed",
   STAMPED: "stamped",
-};
-
-/**
- * The buyer track's items by key, as the SOR's IPAS summary names them
- * (`ipas_summaries_for_sor` returns the key and the tick, never a label).
- */
-export const IPAS_BUYER_TRACK_LABELS = {
-  purchase_order: "Purchase Order",
-  with_pop: "With P.O.P",
-  import_clearance: "Import Clearance",
-  delivered: "Delivered",
-  received_in_odoo: "Received in Odoo",
-  create_bill: "Create Bill",
-  actual_checking: "Actual Checking",
 };
 
 export const IPAS_OPTION_LIST_LABELS = {
@@ -678,9 +677,12 @@ export const IPAS_EVENT_LABELS = {
   supplier_origin_changed: "Supplier Origin changed",
   status_typed: "Status typed",
   status_cleared: "Status cleared",
+  status_changed: "Status changed",
+  status_date_changed: "Status date changed",
   actual_checking_stamped: "Actual Checking stamped",
   actual_checking_cleared: "Actual Checking cleared",
   item_location_changed: "Item Location changed",
+  direct_delivery_changed: "Direct delivery changed",
   on_hold_set: "Put On-Hold",
   on_hold_changed: "On-Hold note changed",
   on_hold_cleared: "On-Hold cleared",

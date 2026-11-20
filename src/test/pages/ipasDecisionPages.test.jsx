@@ -129,7 +129,7 @@ describe("IPAS rail: Your move and the filed state", () => {
     const region = await screen.findByRole("region", { name: "Your move" });
     expect(within(region).getByRole("heading", { name: "Your move" })).toBeInTheDocument();
     expect(within(region).getByTestId("ipas-journey-headline")).toHaveTextContent("Your turn: Attach the files.");
-    expect(within(region).getByRole("heading", { name: /^1\. Get it ready/ })).toHaveTextContent("3 of 8 done");
+    expect(within(region).getByRole("heading", { name: /^1\. Get it ready/ })).toHaveTextContent("3 of 9 done");
 
     expect(within(item(region, "files")).getByRole("button", { name: "Attach in 5 · Documents" })).toBeInTheDocument();
     expect(within(item(region, "location")).getByRole("button", { name: "Pick it in 4 · Delivery" })).toBeInTheDocument();
@@ -172,7 +172,7 @@ describe("IPAS rail: Your move and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(within(region).getByRole("heading", { name: /^1\. Get it ready/ })).toHaveTextContent("8 of 8 done");
+    expect(within(region).getByRole("heading", { name: /^1\. Get it ready/ })).toHaveTextContent("9 of 9 done");
     expect(within(region).queryByTestId("ipas-journey-files")).not.toBeInTheDocument();
     await user.click(within(region).getByRole("button", { name: "Show what was done" }));
     expect(item(region, "files")).toHaveTextContent("done");
@@ -295,7 +295,7 @@ describe("IPAS rail: Your move and the filed state", () => {
     renderDetail(row.id);
 
     const region = await screen.findByRole("region", { name: "Your move" });
-    expect(item(region, "logistics")).toHaveTextContent(/Opens once the Item Location and Transmittal are in\./);
+    expect(item(region, "logistics")).toHaveTextContent(/Opens once the Item Location, Transmittal and Delivered status are in\./);
   });
 
   it("says Filed, with no moves; Reopen sits in the filed banner and only a Super Admin gets it", async () => {

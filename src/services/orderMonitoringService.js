@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_SOURCE } from "../constants/ipas";
+import { IPAS_STATE } from "../constants/ipas";
 import { ORDER_GROUP } from "../constants/orderMonitoring";
 import { TRANSMITTAL_RATING } from "../constants/transmittals";
 import { orderAgeingRulesService } from "./orderAgeingRulesService";
@@ -8,7 +8,7 @@ import { deadlineMark, earliestDueAt } from "../utils/deliveryDeadline";
 import { transmittalService } from "./transmittalService";
 import { readSection3Signoffs } from "./ipasSection3Signoffs";
 import { finiteNumber } from "../utils/landedCost";
-import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
+import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas, statusDayOf } from "../utils/ipas";
 import { ipasFigures } from "../utils/ipasFigures";
 import { isLandedCostFinal } from "../utils/ipasSignoffs";
 import { checkResultOf, daysBetweenManila, orderStanding } from "../utils/orderStanding";
@@ -95,7 +95,7 @@ const weightOf = (row) =>
 async function loadOrders(today) {
   const { data, error } = await supabase
     .from("ipas")
-    .select("*")
+    .select("*, status_steps:ipas_status_steps(step, reached_on)")
     .neq("state", IPAS_STATE.CANCELLED)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -139,19 +139,19 @@ async function loadOrders(today) {
         costsCompletedAt: costsAt.get(row.id),
         section3Submitted: section3.submitted.has(row.id),
         section3Approved: section3.approved.has(row.id),
-        buyerTrack: shaped.buyerTrack,
-        proofPaidOn: latestProofDate(payments),
-        arrivedInPhOn: row.arrived_in_ph_on,
-        origins: row,
+        buyerFacts: shaped.buyerFacts,
+        status: row.status,
+        statusSteps: shaped.statusSteps,
         slips: named,
         // The On-Hold rule is the IPAS Status's, read from the figures (utils/ipasFigures.js), not the raw flag.
-        onHold: ipasFigures(shaped).status === IPAS_STATUS.ON_HOLD,
+        onHold: ipasFigures(shaped).onHold,
+        directDelivery: row.direct_delivery === true,
       }),
       rules,
       today,
     );
 
-    const received = shaped.buyerTrack.find((step) => step.key === "received_in_odoo")?.ticked ?? false;
+    const received = shaped.buyerFacts.find((step) => step.key === "received_in_odoo")?.ticked ?? false;
     const deadline = deadlineMark({
       dueAt: earliestDueAt((sorsByIpas.get(row.id) ?? []).map((sor) => sor.opportunity_id), deadlines),
       receivedInOdoo: received,
@@ -174,7 +174,11 @@ async function loadOrders(today) {
       ageDays: daysBetweenManila(row.created_at, today),
       odooFetchedAt: row.odoo_fetched_at ?? null,
       item: itemOf(shaped.lines),
-      buyerTrack: shaped.buyerTrack.map(trackStepOf),
+      // The IPAS Status the list shows, with the day it was reached (#1157).
+      status: ipasFigures(shaped).status,
+      statusSteps: shaped.statusSteps.map(({ step, on }) => ({ step, on })),
+      statusReachedOn: statusDayOf(shaped, ipasFigures(shaped).status),
+      onHold: ipasFigures(shaped).onHold,
       transmittals: transmittalSummary(row.id, slips),
       group: standing.group,
       next: standing.next,
@@ -234,27 +238,6 @@ async function readCostsCompleteAt(ids) {
     if (!previous || event.created_at > previous) latest.set(event.ipas_id, event.created_at);
   }
   return latest;
-}
-
-/** The latest payment date that carries proof of payment, or null. */
-function latestProofDate(payments) {
-  let latest = null;
-  for (const payment of payments) {
-    if (payment.proof_url && payment.paid_on && (!latest || payment.paid_on > latest)) latest = payment.paid_on;
-  }
-  return latest;
-}
-
-/**
- * One track step as the register draws it. `mark` is pending until the step is
- * ticked; then typed when a person typed its date (Import Clearance, a typed
- * Delivered), otherwise stamped (Odoo, payments, a Transmittal, a hand stamp),
- * the same split the IPAS page's status section shows.
- */
-function trackStepOf({ key, label, ticked, partial, source, on }) {
-  let mark = "pending";
-  if (ticked) mark = source === IPAS_STATUS_SOURCE.TYPED ? "typed" : "stamped";
-  return { key, label, ticked, partial: Boolean(partial), mark, on: on ?? null };
 }
 
 /** The item column: the first line's name and how many more lines follow. */

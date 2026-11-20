@@ -16,11 +16,10 @@ const summary = (over = {}) => ({
   supplier: "Scorpe Technologies",
   purpose: "project",
   state: "open",
-  buyer_track: [
-    { key: "purchase_order", ticked: true, partial: false },
-    { key: "with_pop", ticked: false, partial: false },
-    { key: "received_in_odoo", ticked: false, partial: true },
-  ],
+  status: "in_transit",
+  status_reached_on: "2026-11-18",
+  on_hold: false,
+  direct_delivery: false,
   computation_status: "encoded",
   signoffs: {
     1: { prepared: true, approved: true },
@@ -34,7 +33,7 @@ const summary = (over = {}) => ({
 describe("IpasSorSection (#249)", () => {
   beforeEach(() => stubRpc("ipas_standing_for_sor", []))
 
-  it("lists the summary: number, PO, supplier, state, buyer track, costing and sign-offs", async () => {
+  it("lists the summary: number, PO, supplier, state, IPAS Status, costing and sign-offs", async () => {
     authUser = { id: "emp-1" }
     stubRpc("ipas_summaries_for_sor", [summary()])
     renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
@@ -42,9 +41,9 @@ describe("IpasSorSection (#249)", () => {
     expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument()
     expect(screen.getByText("P05123 · Scorpe Technologies · Project")).toBeInTheDocument()
     expect(screen.getByText("Open")).toBeInTheDocument()
-    expect(screen.getByText(/Buyer track · 1 of 3/)).toBeInTheDocument()
-    expect(screen.getByTitle("Purchase Order: done")).toBeInTheDocument()
-    expect(screen.getByTitle("Received in Odoo: partly done")).toBeInTheDocument()
+    expect(screen.getByText("In Transit")).toBeInTheDocument()
+    expect(screen.getByTestId("ipas-summary-status-day")).toHaveTextContent("Nov 18")
+    expect(screen.queryByText(/Buyer track/)).not.toBeInTheDocument()
     expect(screen.getByText("Encoded")).toBeInTheDocument()
     expect(screen.getByText("Submitted, Approved")).toBeInTheDocument()
     expect(screen.getAllByText("Not started")).toHaveLength(2)
@@ -119,26 +118,33 @@ describe("IpasSorSection (#249)", () => {
         actual_checking_stamped: false,
         actual_checking_at: null,
         slips: [],
+        status: "in_transit",
+        status_steps: [{ step: "in_transit", reached_on: "2026-10-01" }],
+        received_state: "none",
+        has_bill: false,
+        direct_delivery: false,
       },
     ])
     renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
 
     const line = await screen.findByTestId("ipas-next-thing")
-    expect(line).toHaveTextContent("With P.O.P — no payment carries proof")
-    expect(line).toHaveTextContent("Finance")
+    expect(line).toHaveTextContent("In Transit")
+    expect(line).toHaveTextContent("Supplier, forwarder or port")
     expect(line).toHaveTextContent("days waiting")
   })
 
   it("marks a row late once it waits past its rule (#265)", async () => {
     authUser = { id: "emp-1" }
     stubRpc("ipas_summaries_for_sor", [summary()])
-    db.seed("order_ageing_rules", { step: "with_pop", days: 10 })
+    db.seed("order_ageing_rules", { step: "in_transit", days: 10 })
     stubRpc("ipas_standing_for_sor", [
       {
         ipas_id: "ipas-1", source: "local", created_at: "2026-10-01T04:00:00Z", updated_at: "2026-10-01T04:00:00Z",
         costs_completed_at: null, proof_paid_on: null, shipped_out_on: null, onboard_on: null, arrived_in_ph_on: null,
         arrived_in_whs_on: null, import_clearance_on: null, delivered_on: null, actual_checking_stamped: false,
         actual_checking_at: null, slips: [],
+        status: "in_transit", status_steps: [{ step: "in_transit", reached_on: "2026-10-01" }],
+        received_state: "none", has_bill: false, direct_delivery: false,
       },
     ])
     renderWithProviders(<IpasSorSection opportunityId="sor-1" />)

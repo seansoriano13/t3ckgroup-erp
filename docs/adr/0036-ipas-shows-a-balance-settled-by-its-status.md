@@ -1,6 +1,11 @@
 # An IPAS shows a Remaining balance, settled by its IPAS Status
 
-**Status:** accepted (2026-10-21)
+**Status:** accepted (2026-10-21), amended by ADR 0054 (2026-11-20)
+
+> **Amended by ADR 0054.** The IPAS Status no longer has a Paid step, and it is now
+> set by hand. The Remaining balance shows 0 once **a full payment is recorded or the
+> IPAS is filed**, read from those facts directly, never from the status. The rest of
+> this record (why the zero is deliberate) still holds.
 
 When payments were built (#244) we decided the ERP would never show a balance
 for an IPAS: tax withheld from a payment means the supplier is paid less than

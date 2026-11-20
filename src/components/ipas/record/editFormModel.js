@@ -11,8 +11,6 @@ import {
   IPAS_OVERRIDE,
   IPAS_PAYMENT_KIND,
   IPAS_STATUS_SOURCE,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
-  IPAS_TYPED_STATUS,
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
@@ -86,25 +84,18 @@ export const OWNS = {
   costing: ["split", "computationStatus"],
   filing: [],
   sales: ["sourceDoc", "analytic", "googleSheet", "ganttChart"],
-  logistics: ["location"],
+  logistics: ["location", "directDelivery"],
   status: [
-    "shippedOut",
-    "onboard",
-    "arrivedInPh",
-    "arrivedInWhs",
-    "importClearance",
-    "delivered",
     "actualChecking",
   ],
 };
 
-const day = (value) => (value ? String(value).slice(0, 10) : "");
 const text = (value) =>
   value === null || value === undefined ? "" : String(value);
 
 function actualCheckingItem(ipas) {
   return (
-    (ipas.buyerTrack ?? []).find((item) => item.key === "actual_checking") ??
+    (ipas.buyerFacts ?? []).find((item) => item.key === "actual_checking") ??
     null
   );
 }
@@ -176,7 +167,8 @@ export const documentDraft = (document) => ({
   id: document.id,
   purchasingHas: Boolean(document.purchasingHas),
   financeHas: Boolean(document.financeHas),
-  attachmentUrl: document.attachmentUrl ?? "",
+  // The document's files (#1153): saved ones carry their id, a file picked in this edit has none yet.
+  files: (document.files ?? []).map((file) => ({ id: file.id, url: file.url, fileName: file.fileName })),
 });
 
 /** A new document row: `choice` is a document kind's id or BY_HAND, `label` the typed name. */
@@ -193,7 +185,6 @@ export function formFromIpas(ipas) {
     const state = ipas.overrides?.[key];
     return state?.overridden ? (state.value ?? "") : "";
   };
-  const origin = ipas.supplierOrigin ?? {};
   const bank = ipas.bankDetails ?? null;
   const form = {
     entity: override(IPAS_OVERRIDE.ENTITY),
@@ -219,8 +210,7 @@ export function formFromIpas(ipas) {
     googleSheet: Boolean(ipas.googleSheet),
     ganttChart: Boolean(ipas.ganttChart),
     location: ipas.item_location_id ?? "",
-    importClearance: day(ipas.import_clearance_on),
-    delivered: day(ipas.delivered_on),
+    directDelivery: ipas.direct_delivery === true,
     actualChecking: Boolean(actualCheckingItem(ipas)?.ticked),
     // Not typed: whether the PO is in pesos decides which payment boxes are required.
     isPhp: isPhpCurrency(ipas.currency),
@@ -228,8 +218,6 @@ export function formFromIpas(ipas) {
     charges: (ipas.charges ?? []).map(chargeDraft),
     documents: (ipas.documents ?? []).map(documentDraft),
   };
-  for (const { field, column } of IPAS_SUPPLIER_ORIGIN_FIELDS)
-    form[field] = day(origin[field] ?? ipas[column]);
   return form;
 }
 
@@ -305,7 +293,8 @@ export function requiredFields(form) {
       if (d.choice === BY_HAND)
         need("documents", `doc-${d.key}-label`, `${n} name`, d.label);
     });
-  need("delivery", "f-location", "Item Location", form.location);
+  // A Direct delivery never comes to our warehouse: no Item Location is asked for (#1158).
+  if (!form.directDelivery) need("delivery", "f-location", "Item Location", form.location);
   return out.sort(
     (a, b) =>
       SCREEN_ORDER.indexOf(a.section) - SCREEN_ORDER.indexOf(b.section),
@@ -441,8 +430,7 @@ export function planSave(form, base) {
     overrides: [],
     header: {},
     location: undefined,
-    origin: {},
-    typed: [],
+    directDelivery: undefined,
     stamp: undefined,
     payments: { add: [], update: [], isPhpPo: form.isPhp },
     charges: { add: [], update: [] },
@@ -510,27 +498,8 @@ export function planSave(form, base) {
     const issue = textLengthIssue(form[key], what, max);
     if (issue) fail(issue);
   }
-  if (changed.has("location")) plan.location = form.location || null;
-  for (const { field } of IPAS_SUPPLIER_ORIGIN_FIELDS)
-    if (changed.has(field)) plan.origin[field] = form[field];
-  if (changed.has("importClearance")) {
-    const issue = ipasDateIssue(form.importClearance, "The Import Clearance date");
-    if (issue) fail(issue);
-  }
-  if (changed.has("delivered")) {
-    const issue = ipasDateIssue(form.delivered, "The Delivered date");
-    if (issue) fail(issue);
-  }
-  if (changed.has("importClearance"))
-    plan.typed.push({
-      kind: IPAS_TYPED_STATUS.IMPORT_CLEARANCE,
-      date: form.importClearance,
-    });
-  if (changed.has("delivered"))
-    plan.typed.push({
-      kind: IPAS_TYPED_STATUS.DELIVERED,
-      date: form.delivered,
-    });
+  if (changed.has("location") && !form.directDelivery) plan.location = form.location || null;
+  if (changed.has("directDelivery")) plan.directDelivery = form.directDelivery === true;
   if (changed.has("actualChecking")) plan.stamp = form.actualChecking;
 
   const pay = rowChanges(form, base, "payments");
@@ -586,8 +555,11 @@ export function planSave(form, base) {
     if (row.purchasingHas !== before.purchasingHas)
       item.purchasing = row.purchasingHas;
     if (row.financeHas !== before.financeHas) item.finance = row.financeHas;
-    if (row.attachmentUrl !== before.attachmentUrl)
-      item.attachmentUrl = row.attachmentUrl;
+    const kept = new Set(row.files.filter((file) => file.id).map((file) => file.id));
+    const removed = before.files.filter((file) => file.id && !kept.has(file.id)).map((file) => file.id);
+    const added = row.files.filter((file) => !file.id).map((file) => ({ url: file.url, fileName: file.fileName }));
+    if (removed.length > 0) item.removeFileIds = removed;
+    if (added.length > 0) item.addFiles = added;
     plan.documents.update.push(item);
   }
 
@@ -610,9 +582,8 @@ export function planIsEmpty(plan) {
     plan.overrides.length === 0 &&
     Object.keys(plan.header).length === 0 &&
     plan.location === undefined &&
+    plan.directDelivery === undefined &&
     plan.freight === undefined &&
-    Object.keys(plan.origin).length === 0 &&
-    plan.typed.length === 0 &&
     plan.stamp === undefined &&
     plan.payments.add.length + plan.payments.update.length === 0 &&
     plan.charges.add.length + plan.charges.update.length === 0 &&
