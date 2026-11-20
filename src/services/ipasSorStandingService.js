@@ -5,6 +5,7 @@ import { buildBuyerTrack } from "../utils/ipasDocuments";
 import { deriveTransmittalTrack } from "../utils/ipasTransmittals";
 import { orderStanding } from "../utils/orderStanding";
 import { orderStandingInput, submittedSlips } from "../utils/orderAgeing";
+import { shapeStatusSteps } from "../utils/ipas";
 import { ipasService } from "./ipasService";
 import { orderAgeingRulesService } from "./orderAgeingRulesService";
 
@@ -80,9 +81,8 @@ function standingOf(summary, facts, rules, today) {
       section3Submitted: section3.submitted,
       section3Approved: section3.approved,
       buyerTrack,
-      proofPaidOn: facts.proof_paid_on,
-      arrivedInPhOn: facts.arrived_in_ph_on,
-      origins: facts,
+      status: facts.status,
+      statusSteps: shapeStatusSteps(facts.status_steps),
       slips: named,
       onHold: facts.on_hold === true,
     }),

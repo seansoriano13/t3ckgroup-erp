@@ -14,15 +14,17 @@
  *      (owner: the section 3 approval list)
  *   5. costs complete, section 3 approved and not filed ("ready to file")
  *   6. Delivered with no Transmittal naming the IPAS (a draft counts as naming it)
- *   7. the first unstamped buyer-track step
- *   8. every step stamped but costs not complete
+ *   7. the current IPAS Status step, while it is before Delivered (#1156)
+ *   8. Delivered, then the first of Received in Odoo, Create Bill, Actual Checking not yet true,
+ *      then costs not complete. These three have no ageing rule, so they never go late.
  *
  * `order` is the IPAS as the service shapes it (see orderMonitoringService):
  *   id, state, source, createdAt, updatedAt, computationStatus,
  *   costsCompletedAt (when costs went complete, or null),
- *   section3Submitted and section3Approved (section 3, stored 6, has a live Submitted / Approved), buyerTrack (the
- *   shaped items with key, ticked, on, at), proofPaidOn and arrivedInPhOn
- *   ('YYYY-MM-DD' or null), latestSupplierOrigin ({ label, on } or null), and
+ *   section3Submitted and section3Approved (section 3, stored 6, has a live Submitted / Approved),
+ *   status (the stored IPAS Status key) and statusSteps ([{ step, on }], each reached step's
+ *   day, 'YYYY-MM-DD'), buyerTrack (the shaped items with key, ticked: only Received in
+ *   Odoo, Create Bill and Actual Checking are read), and
  *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
  *   lines) and hasDraftTransmittal (a draft names it: raised, not yet submitted).
  *   onHold (#597): the IPAS is On-Hold; it is checked before any step, so the order waits on
@@ -36,7 +38,7 @@ import {
   ORDER_GROUP,
   ORDER_OWNER,
 } from "../constants/orderMonitoring";
-import { IPAS_COSTING_SECTION, IPAS_STATE, ipasSectionNo } from "../constants/ipas";
+import { IPAS_COSTING_SECTION, IPAS_STATE, IPAS_STATUS, IPAS_STATUSES, IPAS_STATUS_LABELS, ipasSectionNo } from "../constants/ipas";
 import {
   TRANSMITTAL_RATING,
   TRANSMITTAL_STAFF_LIST,
@@ -181,20 +183,18 @@ export function standingLabel(next, viewerLists = null) {
   return `${next.label}, waiting on ${TRANSMITTAL_STAFF_LIST_LABELS[next.list] ?? next.list}`;
 }
 
-/** Track steps: the label, owner and waiting text the next thing shows for each unstamped step. */
-function trackStep(item, order) {
+/** Who owes each IPAS Status step before Delivered. Anything past Payment Approval is someone else's. */
+const STATUS_OWNER = {
+  [IPAS_STATUS.ORDER_DRAFT]: ORDER_OWNER.PURCHASING,
+  [IPAS_STATUS.PAYMENT_APPROVAL]: ORDER_OWNER.ORDER_APPROVERS,
+};
+
+/** The steps of the status before Delivered. */
+const BEFORE_DELIVERED = IPAS_STATUSES.slice(0, IPAS_STATUSES.indexOf(IPAS_STATUS.DELIVERED));
+
+/** The label and owner of a fact that follows Delivered (these have no ageing rule). */
+function trackStep(item) {
   switch (item.key) {
-    case "purchase_order":
-      return { label: "Purchase Order — no PO confirmed yet", owner: ORDER_OWNER.PURCHASING };
-    case "with_pop":
-      return { label: "With P.O.P — no payment carries proof", owner: ORDER_OWNER.FINANCE };
-    case "import_clearance":
-      return { label: "Import Clearance — waiting on forwarder or port", owner: ORDER_OWNER.OTHERS };
-    case "delivered":
-      return {
-        label: `Delivered — waiting on ${order.source === "import" ? "supplier or forwarder" : "supplier"}`,
-        owner: ORDER_OWNER.OTHERS,
-      };
     case "received_in_odoo":
       return { label: "Received in Odoo — waiting on the Warehouse", owner: ORDER_OWNER.WAREHOUSE };
     case "create_bill":
@@ -206,27 +206,17 @@ function trackStep(item, order) {
   }
 }
 
-/** A track item's own date (typed or stamped), as ms, or null. */
-function stampMs(item, order) {
-  if (item.key === "with_pop") return instantOf(order.proofPaidOn);
-  if (["import_clearance", "delivered", "actual_checking"].includes(item.key)) {
-    return instantOf(item.on) ?? instantOf(item.at);
-  }
-  return null;
-}
+/** The facts after Delivered, in order. */
+const AFTER_DELIVERED_FACTS = ["received_in_odoo", "create_bill", "actual_checking"];
 
-/** When an unstamped track step's wait began: the latest stamp before it, or the IPAS's creation. */
-function trackWaitingSince(track, index, order) {
-  const target = track[index];
-  let since = instantOf(order.createdAt);
-  const consider = (ms) => {
-    if (ms !== null && ms > since) since = ms;
-  };
-  for (let i = 0; i < index; i += 1) consider(stampMs(track[i], order));
-  // An Import's Arrived in PH date stands before Import Clearance, Delivered and later.
-  if (target.key !== "purchase_order" && target.key !== "with_pop") consider(instantOf(order.arrivedInPhOn));
-  return since;
-}
+/** The status step the order is at; an order with none stored is at Order-Draft. */
+const statusOf = (order) => (IPAS_STATUSES.includes(order.status) ? order.status : IPAS_STATUS.ORDER_DRAFT);
+
+/** The day an order reached a status step, as ms, or null. */
+const reachedMs = (order, step) => instantOf((order.statusSteps ?? []).find((item) => item.step === step)?.on ?? null);
+
+/** True once the status is Delivered or later. */
+const isDelivered = (order) => IPAS_STATUSES.indexOf(statusOf(order)) >= IPAS_STATUSES.indexOf(IPAS_STATUS.DELIVERED);
 
 /** The next thing, its owner and the moment its wait began (ms). */
 function nextThing(order, slips, track) {
@@ -298,38 +288,43 @@ function nextThing(order, slips, track) {
     };
   }
 
-  const delivered = track.find((item) => item.key === "delivered");
   // A draft Transmittal counts as raised: someone has started the hand-off, so Purchasing is not
   // owed a nudge. The spec is silent on drafts; this keeps Purchasing from chasing itself.
-  if (delivered?.ticked && slips.length === 0 && !order.hasDraftTransmittal) {
+  if (isDelivered(order) && slips.length === 0 && !order.hasDraftTransmittal) {
     return {
       label: "Delivered — no Transmittal raised",
       owner: ORDER_OWNER.PURCHASING,
       step: "no_transmittal",
-      since: stampMs(delivered, order) ?? instantOf(order.createdAt),
+      since: reachedMs(order, IPAS_STATUS.DELIVERED) ?? instantOf(order.createdAt),
     };
   }
 
-  const index = track.findIndex((item) => !item.ticked);
-  if (index >= 0) {
-    const item = track[index];
-    const shown = trackStep(item, order);
-    const detail = item.key === "delivered" && order.source === "import" ? order.latestSupplierOrigin : null;
+  // The status step, while it is before Delivered. The wait starts at the step's own day.
+  const status = statusOf(order);
+  if (BEFORE_DELIVERED.includes(status)) {
     return {
-      label: shown.label,
-      owner: shown.owner,
-      step: item.key,
-      since: trackWaitingSince(track, index, order),
-      detail,
+      label: IPAS_STATUS_LABELS[status],
+      owner: STATUS_OWNER[status] ?? ORDER_OWNER.OTHERS,
+      step: status,
+      since: reachedMs(order, status) ?? instantOf(order.createdAt),
     };
   }
 
-  const stamps = track.map((item) => stampMs(item, order)).filter((ms) => ms !== null);
+  // Delivered: then the first fact not yet true. They have no ageing rule.
+  const deliveredSince = reachedMs(order, IPAS_STATUS.DELIVERED) ?? instantOf(order.createdAt);
+  const open = AFTER_DELIVERED_FACTS.map((key) => track.find((item) => item.key === key)).find(
+    (item) => item && !item.ticked,
+  );
+  if (open) {
+    const shown = trackStep(open);
+    return { label: shown.label, owner: shown.owner, step: open.key, since: deliveredSince };
+  }
+
   return {
     label: "Costs not complete",
     owner: ORDER_OWNER.PURCHASING,
     step: "ready_to_file",
-    since: Math.max(instantOf(order.createdAt), ...stamps),
+    since: deliveredSince,
   };
 }
 

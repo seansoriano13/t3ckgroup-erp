@@ -145,12 +145,13 @@ describe("Filing waits for section 3 (#590)", () => {
 });
 
 describe("On-Hold (#597)", () => {
-  const rules = [{ step: "purchase_order", days: 1 }];
+  const rules = [{ step: "in_transit", days: 1 }];
   const held = (extra = {}) => ({
     ...order([]),
     onHold: true,
     updatedAt: "2026-10-10T00:00:00Z",
-    buyerTrack: [{ key: "purchase_order", ticked: false, on: false }],
+    status: "in_transit",
+    statusSteps: [{ step: "in_transit", on: "2026-10-10" }],
     ...extra,
   });
 
@@ -177,5 +178,82 @@ describe("On-Hold (#597)", () => {
 
   it("a filed order is Filed even if the flag were stale", () => {
     expect(orderStanding(held({ state: "filed" }), rules, TODAY).group).toBe("filed");
+  });
+});
+
+describe("The IPAS Status steps (#1156)", () => {
+  const at = (status, on, extra = {}) => ({
+    ...order([]),
+    status,
+    statusSteps: [{ step: status, on }],
+    ...extra,
+  });
+
+  it("Order-Draft is waiting on us, owed by Purchasing", () => {
+    const standing = orderStanding(at("order_draft", "2026-10-18"), [], TODAY);
+    expect(standing.group).toBe("waiting_on_us");
+    expect(standing.next).toMatchObject({ label: "Order-Draft", owner: "purchasing", step: "order_draft" });
+    expect(standing.daysWaiting).toBe(2);
+  });
+
+  it("Payment Approval is waiting on us, owed by the order approvers", () => {
+    const standing = orderStanding(at("payment_approval", "2026-10-18"), [], TODAY);
+    expect(standing.group).toBe("waiting_on_us");
+    expect(standing.next.owner).toBe("order_approvers");
+    expect(ORDER_OWNER_LABELS[standing.next.owner]).toBe("Order approvers");
+  });
+
+  it.each(["ordered", "processing", "shipped", "in_transit", "customs", "local_hub", "out_for_delivery"])(
+    "%s is waiting on someone else",
+    (step) => {
+      const standing = orderStanding(at(step, "2026-10-18"), [], TODAY);
+      expect(standing.group).toBe("waiting_on_others");
+      expect(standing.next).toMatchObject({ owner: "others", step });
+    },
+  );
+
+  it("counts the wait from the step's own day, and goes late past its rule", () => {
+    const standing = orderStanding(at("in_transit", "2026-10-10"), [{ step: "in_transit", days: 3 }], TODAY);
+    expect(standing.daysWaiting).toBe(10);
+    expect(standing.ruleDays).toBe(3);
+    expect(standing.late).toBe(true);
+    expect(standing.group).toBe("needs_chasing");
+    expect(standing.daysPastRule).toBe(7);
+  });
+
+  it("an order with no stored status reads as Order-Draft", () => {
+    expect(orderStanding(order([]), [], TODAY).next.step).toBe("order_draft");
+  });
+
+  it("Delivered with no Transmittal says so, counted from the Delivered day", () => {
+    const standing = orderStanding(at("delivered", "2026-10-15"), [], TODAY);
+    expect(standing.next).toMatchObject({ label: "Delivered — no Transmittal raised", owner: "purchasing", step: "no_transmittal" });
+    expect(standing.daysWaiting).toBe(5);
+  });
+
+  it("after Delivered and a Transmittal, asks for Received in Odoo, then Create Bill, then Actual Checking", () => {
+    const track = (ticked) => ["received_in_odoo", "create_bill", "actual_checking"].map((key) => ({ key, ticked: ticked.includes(key) }));
+    const done = { stage: "warehouse_checking", completed_at: "2026-10-16T08:00:00Z" };
+    const withSlip = [slip("s1", "TG03-0001", { state: "closed", stages: [done] })];
+    const base = (ticked) => ({ ...at("delivered", "2026-10-15"), slips: withSlip, buyerTrack: track(ticked) });
+
+    expect(orderStanding(base([]), [], TODAY).next).toMatchObject({ step: "received_in_odoo", owner: "warehouse" });
+    expect(orderStanding(base(["received_in_odoo"]), [], TODAY).next).toMatchObject({ step: "create_bill", owner: "finance" });
+    expect(orderStanding(base(["received_in_odoo", "create_bill"]), [], TODAY).next).toMatchObject({ step: "actual_checking" });
+    expect(orderStanding(base(["received_in_odoo", "create_bill", "actual_checking"]), [], TODAY).next).toMatchObject({
+      label: "Costs not complete",
+    });
+  });
+
+  it("the facts after Delivered have no rule, so they never go late", () => {
+    const done = { stage: "warehouse_checking", completed_at: "2026-10-16T08:00:00Z" };
+    const input = {
+      ...at("delivered", "2026-09-01"),
+      slips: [slip("s1", "TG03-0001", { state: "closed", stages: [done] })],
+      buyerTrack: [{ key: "received_in_odoo", ticked: false }],
+    };
+    const standing = orderStanding(input, [{ step: "received_in_odoo", days: 1 }], TODAY);
+    expect(standing.ruleDays).toBeNull();
+    expect(standing.late).toBe(false);
   });
 });
