@@ -253,7 +253,7 @@ const RECORDS = [
     title: /^S01001\s*·\s*Harbour lights$/,
     badge: "Open",
     pills: ["Buyer", "SOR", "Stage", "Items"],
-    hasMore: false,
+    hasMore: true, // Delete request
     yourMove: null,
   },
   {

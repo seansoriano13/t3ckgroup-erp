@@ -107,6 +107,35 @@ async function edgeErrorMessage(error, fallback) {
 }
 
 export const purchaseRequestService = {
+  // ── Delete and restore ───────────────────────────────────────────────────
+
+  /** Whether the signed-in employee opened this request (the requester may delete their own). */
+  async openedByMe(requestId, userId) {
+    if (!requestId || !userId) return false;
+    const { data, error } = await supabase.from("purchase_requests").select("created_by").eq("id", requestId).maybeSingle();
+    if (error) throw error;
+    return data?.created_by === userId;
+  },
+
+  /** Soft delete: hides the request, keeps its history. The database refuses once a line is purchased, received or on an IPAS. */
+  async remove(requestId, reason) {
+    const { error } = await supabase.rpc("purchase_request_delete", { p_request_id: requestId, p_reason: reason });
+    if (error) throw error;
+  },
+
+  /** Bring a deleted request back (Purchasing and Super Admin). */
+  async restore(requestId) {
+    const { error } = await supabase.rpc("purchase_request_restore", { p_request_id: requestId });
+    if (error) throw error;
+  },
+
+  /** The Deleted view: deleted requests with who, when and why (Purchasing and Super Admin). */
+  async listDeleted() {
+    const { data, error } = await supabase.rpc("purchase_request_deleted_list");
+    if (error) throw error;
+    return data || [];
+  },
+
   // ── The queue and one request (#308) ─────────────────────────────────────
 
   /**
