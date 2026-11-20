@@ -40,8 +40,8 @@ const line = (n, over = {}) => ({
     ...over,
 })
 
-const copyFor = (po, supplierId = 553, lines = [line(1)]) => ({
-    po: { id: 650000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "Php", origin: null, partner_ref: null },
+const copyFor = (po, supplierId = 553, lines = [line(1)], currency = "Php") => ({
+    po: { id: 650000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency, origin: null, partner_ref: null },
     supplier: { id: supplierId, name: "Scorpe Technologies", contact: null },
     lines,
     receipts: { status: "pending", done: 0, total: 1 },
@@ -59,7 +59,7 @@ let methodId
 let chargeKindId
 
 /** Raises an IPAS as the purchaser. `project` names the file's SOR. */
-async function raise({ project = false } = {}) {
+async function raise({ project = false, currency = "Php" } = {}) {
     const po = nextPo()
     const { data, error } = await raiseAsPurchaser({
         p_po_number: po,
@@ -68,7 +68,7 @@ async function raise({ project = false } = {}) {
         p_purpose: project ? "project" : "inventory",
         p_sor_ids: project ? [sorId] : [],
         p_remarks: null,
-        p_odoo_copy: copyFor(po, nextSupplier()),
+        p_odoo_copy: copyFor(po, nextSupplier(), [line(1)], currency),
     })
     if (error) throw new Error(`ipas_create ${po}: ${error.message}`)
     return data
@@ -645,6 +645,55 @@ describe("reopening", () => {
         await receivedNotedChecked(ipas)
         expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).toBeNull()
         expect((await rowOf(ipas.id)).state).toBe("filed")
+    })
+})
+
+describe("Filing waits for the pesos (#1124)", () => {
+    const addUsd = (ipasId, over = {}) =>
+        rpc("outsider", "ipas_add_payment", {
+            p_ipas_id: ipasId, p_kind: "down_payment", p_paid_on: "2026-10-01", p_amount: 500,
+            p_php_debited: null, p_charge_fee_php: 0, p_method_id: methodId, p_check_no: null, p_proof_url: null, ...over,
+        })
+
+    /** A USD IPAS at LC Odoo Done, signed through Checked: only Approve and file is left. */
+    async function readyToFile(over = {}) {
+        const ipas = await raise({ currency: "USD" })
+        const payment = await addUsd(ipas.id, over)
+        expect(payment.error).toBeNull()
+        expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
+        await approvedThrough(ipas)
+        await receivedNotedChecked(ipas)
+        return { ipas, payment: payment.data }
+    }
+
+    it("refuses Approve and file while a payment has no pesos, and names the payment", async () => {
+        const { ipas } = await readyToFile()
+        const refused = await sign("ipasSigner", ipas.id, 7, "approved")
+        expect(refused.error?.code).toBe("22023")
+        expect(refused.error?.message).toMatch(/Filing waits for the pesos of .*Down payment of USD 500\.00 on Oct 1, 2026/)
+        expect((await rowOf(ipas.id)).state).toBe("open")
+    })
+
+    it("files once the pesos are filled in", async () => {
+        const { ipas, payment } = await readyToFile()
+        expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).not.toBeNull()
+        const filled = await rpc("outsider", "ipas_update_payment", {
+            p_payment_id: payment.id, p_kind: "down_payment", p_paid_on: "2026-10-01", p_amount: 500,
+            p_php_debited: 28000, p_charge_fee_php: 0, p_method_id: methodId, p_check_no: null, p_proof_url: null,
+        })
+        expect(filled.error).toBeNull()
+        expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).toBeNull()
+        expect((await rowOf(ipas.id)).state).toBe("filed")
+    })
+
+    it("still reaches LC Odoo Done with a blank payment, and a peso IPAS files as before", async () => {
+        const ipas = await raise({ currency: "USD" })
+        await addUsd(ipas.id)
+        expect((await setStatus(ipas.id, "lc_odoo_done")).error).toBeNull()
+        expect((await rowOf(ipas.id)).computation_status).toBe("lc_odoo_done")
+
+        const { done } = await filed()
+        expect(done.filed).toBe(true)
     })
 })
 
