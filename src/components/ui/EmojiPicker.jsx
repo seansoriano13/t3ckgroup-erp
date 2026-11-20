@@ -57,12 +57,13 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
   const containerRef = useRef(null);
   const popRef = useRef(null);
   const [pos, setPos] = useState(null); // { host, left, top }
+  const [host, setHost] = useState(null);
 
   // Place the popup next to the button, inside the nearest dialog (or body),
   // flipping below when there is no room above and clamping to the edges so a
   // modal parent never clips it.
   useLayoutEffect(() => {
-    if (!open) { setPos(null); return; }
+    if (!open) return;
     const place = () => {
       const btn = containerRef.current;
       const pop = popRef.current;
@@ -136,7 +137,10 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
     <div className={cn("relative", className)} ref={containerRef}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          setHost(e.currentTarget.closest('[role="dialog"]') || document.body);
+          setOpen((v) => !v);
+        }}
         disabled={disabled}
         title="Add emoji"
         className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
@@ -144,7 +148,7 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
         <Smile size={16} />
       </button>
 
-      {open && createPortal(
+      {open && host && createPortal(
           <div
             ref={popRef}
             style={{
@@ -207,7 +211,7 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
             </div>
           </div>
         </div>,
-        pos?.host || containerRef.current?.closest('[role="dialog"]') || document.body,
+        host,
       )}
     </div>
   );
