@@ -73,8 +73,6 @@ describe("Settings on PageShell", () => {
       expect(shoutingHeadings(container), `tab ${name}`).toEqual([]);
     }
 
-    await user.click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
-    expect(await screen.findByRole("heading", { level: 2, hidden: true, name: "Approval rules" })).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Employee Groups", hidden: true }));
     expect(await screen.findByRole("heading", { level: 2, hidden: true, name: "Employee groups" })).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "System Announcements", hidden: true }));

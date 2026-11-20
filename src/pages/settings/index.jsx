@@ -1,10 +1,9 @@
-import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
+import { Bell, Moon, Sun, LogOut, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useCanManageMarkup } from "../../components/costing/useCostingMatrix";
 import FAQModal from "./_components/FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
-import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useRecordParam } from "@/hooks/useRecordParam";
@@ -14,7 +13,6 @@ import { useTheme } from "../../hooks/useTheme";
 import { getPermissionContext } from "../../utils/permissions";
 import { canEditFAQ } from "../../utils/faqAccess";
 
-import { useAppSettings } from "@/hooks/useAppSettings";
 import toast from "react-hot-toast";
 import PageShell from "../../components/ui/PageShell";
 import DesktopNotice from "@/components/ui/DesktopNotice";
@@ -36,7 +34,7 @@ import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNot
 const appSemver = __APP_SEMVER__;
 const buildFingerprint = formatBuildFingerprint(__APP_VERSION__, __BUILD_TIME__);
 
-function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPending, isLoading }) {
+function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPending }) {
   return (
     <div className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors group">
       <div className="flex items-center gap-4">
@@ -48,11 +46,7 @@ function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPe
           <p className="text-xs text-muted-foreground mt-0.5 max-w-sm leading-relaxed">{description}</p>
         </div>
       </div>
-      {isLoading ? (
-        <Spinner size="sm" />
-      ) : (
-        <Switch checked={!!checked} onCheckedChange={() => onToggle?.()} disabled={isPending} aria-label={label} />
-      )}
+      <Switch checked={!!checked} onCheckedChange={() => onToggle?.()} disabled={isPending} aria-label={label} />
     </div>
   );
 }
@@ -217,78 +211,6 @@ function GeneralPanel() {
   );
 }
 
-function ApprovalRulesPanel() {
-  const { settings: appSettings, updateSetting, isPending, isLoading: loadingSettings } = useAppSettings();
-
-  const toggle = (key, label) => () =>
-    !isPending &&
-    updateSetting(
-      { [key]: !appSettings[key] },
-      { onSuccess: () => toast.success(`${label} turned ${appSettings[key] ? "off" : "on"}.`) },
-    );
-
-  return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative">
-      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl pointer-events-none -mr-20 -mt-20" />
-      <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5 relative z-10">
-        <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Shield size={14} className="text-primary" />
-        </div>
-        <h2 className="text-sm font-semibold text-foreground">
-          Approval rules
-        </h2>
-      </div>
-      <div className="divide-y divide-border relative z-10">
-        <SettingToggle
-          label="Ops Manager Marketing Approvals"
-          description="When ON, the Operations Manager can also approve/reject 'Awaiting Approval' tasks created by Marketing employees. When OFF, only Super Admins can process these."
-          icon={Shield}
-          checked={!!appSettings?.marketing_approval_by_ops_manager}
-          onToggle={toggle("marketing_approval_by_ops_manager", "Ops Manager Marketing Approvals")}
-          isPending={isPending}
-          isLoading={loadingSettings}
-        />
-        <SettingToggle
-          label="Universal Task Submission"
-          description="All employees can explicitly submit tasks for manager review before approval. Heads will see submitted tasks in their approval queue."
-          icon={Shield}
-          checked={!!appSettings?.universal_task_submission}
-          onToggle={toggle("universal_task_submission", "Universal Task Submission")}
-          isPending={isPending}
-          isLoading={loadingSettings}
-        />
-        <SettingToggle
-          label="Enable Task Self-Verification"
-          description="Allow employees to self-verify their own tasks if a manager has not responded after 48 hours. These will be flagged for HR audit."
-          icon={Shield}
-          checked={!!appSettings?.enable_self_verification}
-          onToggle={toggle("enable_self_verification", "Task Self-Verification")}
-          isPending={isPending}
-          isLoading={loadingSettings}
-        />
-        <SettingToggle
-          label="Enable Manager Bulk Approval"
-          description="Allow Super Admins to bulk-approve delayed pending tasks to clear bottlenecks."
-          icon={Shield}
-          checked={!!appSettings?.enable_bulk_approval}
-          onToggle={toggle("enable_bulk_approval", "Manager Bulk Approval")}
-          isPending={isPending}
-          isLoading={loadingSettings}
-        />
-        <SettingToggle
-          label="Visual Urgency Indicators (Bottleneck Tracking)"
-          description='Highlight tasks waiting more than 48 hours for a manager with a "DELAYED" badge in the action queue.'
-          icon={Shield}
-          checked={!!appSettings?.enable_visual_shaming}
-          onToggle={toggle("enable_visual_shaming", "Visual Urgency Indicators")}
-          isPending={isPending}
-          isLoading={loadingSettings}
-        />
-      </div>
-    </div>
-  );
-}
-
 function HrPanel() {
   const { user } = useAuth();
   const { isSuperAdmin } = getPermissionContext(user);
@@ -384,7 +306,6 @@ function AnnouncementsPanel() {
 /** Each tab and the one panel it mounts. General comes first and is the fallback. */
 const TAB_DEFS = [
   { value: "general", label: "General", isPermitted: () => true, Panel: GeneralPanel },
-  { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin, Panel: ApprovalRulesPanel },
   { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
   { value: "venues", label: "Venues", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: VenueManager },
   { value: "activities", label: "Activities", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: ActivitySettings },

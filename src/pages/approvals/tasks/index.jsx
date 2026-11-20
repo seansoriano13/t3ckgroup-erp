@@ -304,7 +304,6 @@ function TaskApprovalsQueue() {
     );
   }
 
-  const bulkEnabled = !!q.appSettings?.enable_bulk_approval;
   const isGroupView = view === "GROUP";
 
   // The 48-hour clock starts at logging for a head and at the grade for HR;
@@ -412,7 +411,7 @@ function TaskApprovalsQueue() {
               items={items}
               queueIcon={QUEUE.icon}
               onOpen={(item) => openRecord(item.id)}
-              selectable={bulkEnabled}
+              selectable
               selectedIds={selectedIds}
               onToggle={(id) => setSelectedIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))}
               onToggleAll={(on, pageItems) => setSelectedIds(on ? pageItems.map((i) => i.id) : [])}
