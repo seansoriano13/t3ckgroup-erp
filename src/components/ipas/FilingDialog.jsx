@@ -11,6 +11,8 @@ import {
   ipasSectionLabel,
 } from "../../constants/ipas";
 import { ipasFilingWarningsKey } from "./ipasKeys";
+import { WaitingPesosNotice } from "./FilingWaitingPesos";
+import { useWaitingPesos } from "./useWaitingPesos";
 
 /**
  * Approving section 7 files the IPAS (#248): one deliberate act that freezes
@@ -48,6 +50,9 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
     retry: false,
   });
 
+  // #1124: Filing waits for the pesos. Each foreign payment with them blank is named; the button is off.
+  const waiting = useWaitingPesos(ipasId);
+
   const submit = async () => {
     setSaving(true);
     try {
@@ -69,7 +74,7 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
       crumbs={["IPAS", number, "File"]}
       title={`File ${number}?`}
       actions={
-        <Button disabled={saving || warnings.isLoading} onClick={submit}>
+        <Button disabled={saving || warnings.isLoading || waiting.isLoading || waiting.blocked} onClick={submit}>
           {saving ? "Filing…" : unticked.length > 0 ? "File anyway" : "Approve and file"}
         </Button>
       }
@@ -77,13 +82,15 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
       <div className="space-y-2">
         <p className="text-base font-medium text-foreground">File {number}?</p>
         <p className="text-sm text-muted-foreground">
-          Approving section {ipasSectionLabel(7)} files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
+          Approving Section {ipasSectionLabel(7)} files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
           documents, bank details, SORs and Purpose. Only a Super Admin can reopen it.
         </p>
         {/* From the record page: what filing adds, and who signs (the Approval Center passes neither). */}
         {summary && <p className="text-sm text-foreground">{summary}</p>}
         {signer && <p className="text-sm font-medium text-foreground">{signer}</p>}
       </div>
+
+      <WaitingPesosNotice payments={waiting.payments} />
 
       {warnings.isLoading ? (
         <p className="text-sm text-muted-foreground" role="status">

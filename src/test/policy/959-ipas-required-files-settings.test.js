@@ -13,7 +13,7 @@ import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 
 const svc = () => serviceClient()
 const CAST_IDS = () => CAST_KEYS.map((k) => ids[k])
-const FILE = "https://example.com/file.pdf"
+const FILE = "https://res.cloudinary.com/demo/raw/upload/file.pdf"
 
 let poSeq = 0
 const copyFor = (po) => ({

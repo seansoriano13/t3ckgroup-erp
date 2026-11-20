@@ -281,6 +281,21 @@ describe("submit, the freezes and cancel", () => {
         expect(after.error).toBeTruthy()
     })
 
+    it("cancels a draft slip with a reason, and still refuses a blank one (#1127)", async () => {
+        const ipas = await raiseIpas()
+        const slip = await raiseSlip(ipas)
+
+        const blank = await rpc("warehouse", "transmittal_cancel", { p_transmittal_id: slip.id, p_reason: " " })
+        expect(blank.error).toBeTruthy()
+
+        const cancelled = await rpc("warehouse", "transmittal_cancel", { p_transmittal_id: slip.id, p_reason: "Made by mistake" })
+        expect(cancelled.error).toBeNull()
+        const row = await rowOf("transmittals", slip.id)
+        expect(row.state).toBe("cancelled")
+        expect(row.submitted_at).toBeNull()
+        expect(row.cancel_reason).toBe("Made by mistake")
+    })
+
     it("needs a reason to cancel", async () => {
         const ipas = await raiseIpas()
         const slip = await raiseSlip(ipas)

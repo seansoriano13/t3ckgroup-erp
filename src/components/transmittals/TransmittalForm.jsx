@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -53,6 +53,8 @@ function lineFrom(line) {
     sorOptions: line.sor ? [{ id: line.sor.id, label: line.sor.salesReference }] : [],
     serialNumbers: line.serialNumbers ?? "",
     boxQuantity: line.boxQuantity ?? "",
+    overClaimRemark: line.overClaimRemark ?? "",
+    left: null,
   };
 }
 
@@ -72,6 +74,8 @@ function poLineFromPick(pick) {
     sorOptions: pick.sors.map((s) => ({ id: s.id, label: s.sales_reference })),
     serialNumbers: "",
     boxQuantity: "",
+    overClaimRemark: "",
+    left: pick.left ?? null,
   };
 }
 
@@ -90,6 +94,7 @@ function typedLine(description = "") {
     sorOptions: [],
     serialNumbers: "",
     boxQuantity: "",
+    overClaimRemark: "",
   };
 }
 
@@ -108,7 +113,7 @@ const sameLine = (line, pick) => line.ipasId === pick.ipasId && line.odooPoLineI
  * and Submit in (null while the footer is not mounted yet); left out, they sit
  * under the form.
  */
-export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel, actionsSlot }) {
+export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel, actionsSlot, onDirtyChange }) {
   const queryClient = useQueryClient();
   // ?ipas=TGIPAS_… from an IPAS's "Raise a Transmittal": its number waits in "Fill from an IPAS".
   const [searchParams] = useSearchParams();
@@ -119,6 +124,16 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
   const [referenceIds, setReferenceIds] = useState(() => existing?.references.map((r) => r.id) ?? []);
   const [lines, setLines] = useState(() => (existing ? existing.lines.map(lineFrom) : []));
   const [busy, setBusy] = useState(false);
+
+  // Whether anything was set on the slip (Raise a Transmittal asks before Esc throws it away).
+  const dirty =
+    lines.length > 0 ||
+    productIds.length > 0 ||
+    referenceIds.length > 0 ||
+    JSON.stringify(header) !== JSON.stringify(headerFrom(existing, defaultOrigin));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const { data: options = [] } = useQuery({
     queryKey: transmittalKeys.options,
@@ -162,6 +177,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
     opportunityId: line.sorId,
     serialNumbers: line.serialNumbers,
     boxQuantity: line.boxQuantity,
+    overClaimRemark: line.overClaimRemark,
   }));
 
   const save = async ({ submit }) => {
@@ -171,11 +187,33 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
       const saved = existing
         ? await transmittalService.updateDraft(existing.id, payload)
         : await transmittalService.create(payload);
+      // The database says what each line has left. A line over it needs a remark before Submit.
+      const overClaims = (saved.warnings ?? []).filter((w) => w.kind === "over_claim");
+      if (overClaims.length > 0) {
+        setLines((prev) =>
+          prev.map((line, index) => {
+            const found = overClaims.find((w) => w.position === index + 1);
+            return found ? { ...line, left: Number(found.left) } : line;
+          }),
+        );
+      }
+      const unexplained = overClaims.filter((w) => !w.has_remark);
+      if (submit && unexplained.length > 0) {
+        toast.error(`${saved.number} is saved as a draft. Add a remark on each line that is more than what is left, then Submit.`);
+        queryClient.invalidateQueries({ queryKey: transmittalKeys.all });
+        // Saved, so leave the form on the draft: a second save here would raise another slip.
+        onSaved?.(saved.id, { backToIpas: null });
+        return;
+      }
       if (submit) await transmittalService.submit(saved.id);
 
-      (saved.warnings ?? []).forEach((w) =>
-        toast(`${w.po_number} is on a different Company (${w.entity}). The slip is still raised.`, { icon: "⚠️" }),
-      );
+      (saved.warnings ?? []).forEach((w) => {
+        if (w.kind === "over_claim") {
+          toast(`${w.po_number}: ${w.more} more than this P0 line has left. The slip is still raised.`, { icon: "⚠️" });
+        } else {
+          toast(`${w.po_number} is on a different Company (${w.entity}). The slip is still raised.`, { icon: "⚠️" });
+        }
+      });
       // Opened from an IPAS: the line that carries it gives the id to go back to.
       const wanted = fromIpas.trim().toLowerCase();
       let backToIpas = null;
@@ -234,7 +272,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
 
   // Why Submit is off, in plain words (null when it is on).
   const gaps = slipGaps({ header, lines });
-  const submitBlocker = gaps.length > 0 ? `${gaps[0].text} to submit.` : null;
+  const submitBlocker = gaps.length > 0 ? (gaps[0].sentence ?? `${gaps[0].text} to submit.`) : null;
   const canSubmit = submitBlocker === null;
 
   const saveButtons = (
@@ -301,6 +339,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
                 <LineLiner
                   key={line.key}
                   line={line}
+                  lines={lines}
                   index={index}
                   onChange={(patch) => updateLine(line.key, patch)}
                   onRemove={() => removeLine(line.key)}
@@ -330,7 +369,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
         createPortal(
           <>
             {submitBlocker && (
-              <span className="max-w-72 text-right text-label font-medium text-muted-foreground" data-testid="transmittal-submit-reason">
+              <span className="max-w-72 text-right text-label font-medium text-muted-foreground max-md:order-first max-md:max-w-none max-md:basis-full" data-testid="transmittal-submit-reason">
                 {submitBlocker}
               </span>
             )}

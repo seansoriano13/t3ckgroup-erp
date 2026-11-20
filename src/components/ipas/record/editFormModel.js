@@ -17,6 +17,8 @@ import {
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
 import { isIsoDate, parseAmountInput } from "@/utils/ipasPayments";
+import { ipasDateIssue } from "@/utils/ipasDateLimits";
+import { IPAS_LIMITS, amountSizeIssue, textLengthIssue } from "@/utils/ipasLimits";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
 import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { isPhpCurrency } from "@/utils/landedCost";
@@ -371,6 +373,8 @@ function positive(raw) {
 
 function paymentProblem(p, isPhp) {
   if (!isIsoDate(p.paidOn)) return "Give the date of the payment.";
+  const dateIssue = ipasDateIssue(p.paidOn, "The payment date");
+  if (dateIssue) return dateIssue;
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
   if (percentApplies(p.kind) && !parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
   // Blank is fine (#604); a figure that is given has to be a number above zero.
@@ -391,10 +395,16 @@ function chargeProblem(c) {
   if (c.id) {
     // A saved charge may stay blank (#709): unknown amount, no date yet.
     if (!blank(c.chargedOn) && !isIsoDate(c.chargedOn)) return "Give the date of the charge.";
+    if (!blank(c.chargedOn)) {
+      const issue = ipasDateIssue(c.chargedOn, "The charge date");
+      if (issue) return issue;
+    }
     if (!blank(c.amountPhp) && !positive(c.amountPhp)) return "Amount must be a number more than zero, or left blank.";
     return null;
   }
   if (!isIsoDate(c.chargedOn)) return "Give the date of the charge.";
+  const chargeDateIssue = ipasDateIssue(c.chargedOn, "The charge date");
+  if (chargeDateIssue) return chargeDateIssue;
   if (!positive(c.amountPhp)) return "Amount must be a number more than zero.";
   return null;
 }
@@ -486,9 +496,31 @@ export function planSave(form, base) {
   ) {
     fail("P.I/QT Amount must be a number.");
   }
+  if (changed.has("piQtAmount") && !blank(form.piQtAmount)) {
+    const parsed = parseAmountInput(form.piQtAmount);
+    const issue = parsed.ok ? amountSizeIssue(parsed.value) : null;
+    if (issue) fail(issue);
+  }
+  for (const [key, what, max] of [
+    ["piNumber", "P.I #", IPAS_LIMITS.piNumber],
+    ["contact", "Supplier's name", IPAS_LIMITS.contact],
+    ["remarks", "Remarks", IPAS_LIMITS.remarks],
+  ]) {
+    if (!changed.has(key)) continue;
+    const issue = textLengthIssue(form[key], what, max);
+    if (issue) fail(issue);
+  }
   if (changed.has("location")) plan.location = form.location || null;
   for (const { field } of IPAS_SUPPLIER_ORIGIN_FIELDS)
     if (changed.has(field)) plan.origin[field] = form[field];
+  if (changed.has("importClearance")) {
+    const issue = ipasDateIssue(form.importClearance, "The Import Clearance date");
+    if (issue) fail(issue);
+  }
+  if (changed.has("delivered")) {
+    const issue = ipasDateIssue(form.delivered, "The Delivered date");
+    if (issue) fail(issue);
+  }
   if (changed.has("importClearance"))
     plan.typed.push({
       kind: IPAS_TYPED_STATUS.IMPORT_CLEARANCE,

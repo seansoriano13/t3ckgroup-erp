@@ -1,6 +1,24 @@
 [
     {
         "date": "2026-11-20",
+        "title": "IPAS and Transmittal fixes",
+        "version": "1.11.9",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Approve and file now waits until every foreign payment has its pesos, and names the payments still waiting.",
+            "Landed Cost reads Estimate, not Final, while it still uses an estimate.",
+            "A Transmittal line shows what is left of its P0 line, and a slip that carries more asks for a remark.",
+            "A draft Transmittal and a draft Packing List can now be cancelled with a reason.",
+            "IPAS dates and amounts are checked as you type, and errors are said in plain words.",
+            "Raise an IPAS marks Priority, Source and Purpose as required, and the sign-off steps are called Return and Section 6 · Sign-offs everywhere.",
+            "Esc asks Discard this ...? on Raise an IPAS, Raise a Transmittal and New Packing List when you have typed something.",
+            "The Transmittal Check by page tells you which list you need, and the IPAS list tells you when you have no access."
+        ]
+    },
+    {
+        "date": "2026-11-20",
         "title": "Sign-in, profile and record check fixes",
         "version": "1.11.8",
         "changes": [

@@ -105,7 +105,7 @@ function IpasSignoffsQueue() {
     onSuccess: (result, { item }) => {
       if (result.filed) toast.success(`${item.ref} is filed.`);
       else if (item.source.section === 7) {
-        toast.success(`${item.ref} section ${ipasSectionNo(7)} ${IPAS_SIGNOFF_ROLE_LABELS[item.source.role].toLowerCase()}.`);
+        toast.success(`${item.ref} Section ${ipasSectionLabel(7)} ${IPAS_SIGNOFF_ROLE_LABELS[item.source.role].toLowerCase()}.`);
       } else toast.success(`${item.ref} section ${ipasSectionNo(item.source.section)} approved.`);
       advance(item);
       settled(item);
@@ -127,7 +127,7 @@ function IpasSignoffsQueue() {
     onSuccess: (_, { item }) => {
       toast.success(
         item.source.section === 7
-          ? `${item.ref} section ${ipasSectionNo(7)} returned. The people who had signed it were told.`
+          ? `${item.ref} Section ${ipasSectionLabel(7)} returned. The people who had signed it were told.`
           : `${item.ref} section ${ipasSectionNo(item.source.section)} returned to its submitter.`,
       );
       advance(item);
@@ -222,7 +222,7 @@ function IpasSignoffsQueue() {
           empty={{
             title: "Nothing waiting on you right now",
             description:
-              `IPAS sign-offs that are ready for you show up here: submitted sections for approval, and section ${ipasSectionNo(7)}'s steps as each one before it is given.`,
+              `IPAS sign-offs that are ready for you show up here: submitted sections for approval, and Section ${ipasSectionLabel(7)}'s steps as each one before it is given.`,
           }}
         />
       </ApprovalCenterLayout>

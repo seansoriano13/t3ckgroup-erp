@@ -168,7 +168,7 @@ export function movesFor(ctx, digest) {
       ...move("return", bySection[0].section, {
         kind: "return",
         icon: allUndo ? Undo2 : CornerUpLeft,
-        label: allUndo ? "Undo approval…" : "Send back…",
+        label: allUndo ? "Undo approval…" : "Return…",
         verb: allUndo ? "Undo approval" : "Return",
         confirm: false,
         run: (from) => on.openReturn(null, from),

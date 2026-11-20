@@ -21,7 +21,7 @@ import IpasRow from "../../../components/ipas/IpasRow";
 import NewIpasDialog from "../../../components/ipas/NewIpasDialog";
 import { ipasListKey } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
-import { getPermissionContext } from "../../../utils/permissions";
+import { canReadIpas, getPermissionContext } from "../../../utils/permissions";
 import { filterIpas, formatAmount } from "../../../utils/ipas";
 import { ipasFigures, ipasTotalsByCurrency } from "../../../utils/ipasFigures";
 import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
@@ -137,7 +137,10 @@ const KNOWN_COLUMN_KEYS = COLUMNS.map((column) => column.key);
 function IpasList() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { hasPurchasingFlow, isSuperAdmin } = getPermissionContext(user);
+  const permissionContext = getPermissionContext(user);
+  const { hasPurchasingFlow, isSuperAdmin } = permissionContext;
+  // The database returns nothing to someone it refuses (ipas_can_read): say so instead of "No IPAS yet" (E5).
+  const mayRead = canReadIpas(permissionContext);
   // The option lists: Purchasing access and Super Admins.
   const canEditSettings = hasPurchasingFlow || isSuperAdmin;
 
@@ -317,10 +320,12 @@ function IpasList() {
         {!isLoading && !isError && visible.length === 0 && (
           <EmptyState
             icon={ReceiptText}
-            title={rows.length === 0 ? "No IPAS yet" : "No matching IPAS"}
+            title={rows.length === 0 ? (mayRead ? "No IPAS yet" : "You don't have access to IPAS") : "No matching IPAS"}
             description={
               rows.length === 0
-                ? "An IPAS is raised from an Odoo purchase order. Purchasing raises one when a purchase needs it."
+                ? !mayRead
+                  ? "IPAS is for Purchasing, Finance and the people on its signer lists. Ask a Super Admin if you need it."
+                  : "An IPAS is raised from an Odoo purchase order. Purchasing raises one when a purchase needs it."
                 : "Nothing in this slice. Try another tab or clear the filters."
             }
           />

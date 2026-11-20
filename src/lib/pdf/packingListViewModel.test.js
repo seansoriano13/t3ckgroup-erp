@@ -43,14 +43,20 @@ describe("packingListTotals", () => {
     const t = packingListTotals([box(1, 12.5), box(2, null), box(3, null)]);
     expect(t.partial).toBe(true);
     expect(t.weighedCount).toBe(1);
-    expect(t.totalKg).toBe("12.5");
-    expect(t.weightLine).toBe("12.5 kg known · 1 of 3 boxes weighed");
+    expect(t.totalKg).toBe("12.50");
+    expect(t.weightLine).toBe("12.50 kg known · 1 of 3 boxes weighed");
+  });
+
+  it("shows weights with thousands separators", () => {
+    const t = packingListTotals([box(1, 1250), box(2, 0.5)]);
+    expect(t.weightLine).toBe("1,250.50 kg total gross weight");
+    expect(buildPackingListViewModel(list({ boxes: [box(1, 1250)] })).boxes[0].weight).toBe("1,250.00 kg");
   });
 
   it("handles no boxes and a single box", () => {
     expect(packingListTotals([]).weightLine).toBe("No boxes");
     expect(packingListTotals([box(1)]).boxesLine).toBe("1 box");
-    expect(packingListTotals([box(1)]).weightLine).toBe("0 kg known · 0 of 1 boxes weighed");
+    expect(packingListTotals([box(1)]).weightLine).toBe("0.00 kg known · 0 of 1 boxes weighed");
   });
 });
 
@@ -65,7 +71,7 @@ describe("buildPackingListViewModel", () => {
       boxNo: 1,
       marks: "MARK 1",
       sealNo: "SEAL-1",
-      weight: "4 kg",
+      weight: "4.00 kg",
       contents: [{ description: "Valve", quantity: "3 pcs" }],
     });
     expect(vm.boxes[1].weight).toBe("—");

@@ -311,11 +311,23 @@ export const REFUSAL_MESSAGES = {
   [REFUSAL.DUPLICATE]: "That already exists.",
 };
 
+const RAW_DATABASE_TEXT = /(duplicate key value|violates (?:unique|check|foreign key|not-null) constraint|numeric field overflow|Failing row contains|value too long for type|out of range for type|null value in column)/i;
+const RAW_DATABASE_MESSAGES = {
+  "23505": "That already exists.",
+  "23514": "One of the values is not allowed. Check the numbers and dates and try again.",
+  "22003": "One of the numbers is too big.",
+  "22001": "One of the texts is too long.",
+};
+const RAW_DATABASE_FALLBACK = "One of the values is not allowed. Check what you typed and try again.";
+
 /** A database error's message without the RPC's own name in front of it; a dropped connection in plain words. */
 export function ipasErrorMessage(error, fallback = "Something went wrong.") {
   const raw = error?.message;
   if (!raw || typeof raw !== "string") return REFUSAL_MESSAGES[error?.code] ?? fallback;
   if (NETWORK_FAILURE.test(raw.trim())) return IPAS_OFFLINE_MESSAGE;
+  // The functions check first and answer in words (spec #1123, D2). Raw Postgres text that still gets through
+  // (unique, check or size violations) never reaches a person.
+  if (RAW_DATABASE_TEXT.test(raw)) return RAW_DATABASE_MESSAGES[error?.code] ?? RAW_DATABASE_FALLBACK;
   // Database refusals lead with the function name (ipas_create:, transmittal_check:),
   // or with "packing list:" for the Packing List RPCs.
   // "transmittal:" too: the Transmittal checks lead with it (#: "Transmittal: line 1 isn't on …" read as a code).

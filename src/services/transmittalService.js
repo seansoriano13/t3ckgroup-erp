@@ -86,6 +86,7 @@ const shapePickable = (row) => ({
   unit: row.unit,
   entity: row.entity,
   sors: row.sors ?? [],
+  left: row.left == null ? null : Number(row.left),
 });
 
 /**
@@ -702,6 +703,7 @@ function checkedPayload(header = {}, lines = []) {
         opportunity_id: line.opportunityId ?? null,
         serial_numbers: line.serialNumbers ?? null,
         box_quantity: line.boxQuantity ?? null,
+        over_claim_remark: line.overClaimRemark ?? null,
       };
     }),
   };

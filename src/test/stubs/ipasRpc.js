@@ -1542,6 +1542,23 @@ export function stubIpasRpcs({
     if (![1, 3, 6, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 2, 3 and 4 can be sent back`)
   }
 
+  // #1124: the payments Filing waits on, as the database words them.
+  stubRpc("ipas_payments_waiting_for_pesos", (args) => {
+    const ipas = rowsOf("ipas").find((row) => row.id === args.p_ipas_id)
+    const currency = String(ipas?.odoo_copy?.po?.currency ?? "").trim().toUpperCase()
+    if (!ipas || currency === "PHP" || currency === "") return []
+    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return rowsOf("ipas_payments")
+      .filter((row) => row.ipas_id === ipas.id && (row.php_debited === null || row.php_debited === undefined))
+      .sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+      .map((row) => {
+        const [y, m, d] = String(row.paid_on).split("-").map(Number)
+        const kind = String(row.kind).replace(/_/g, " ")
+        const amount = Number(row.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        return `${kind.charAt(0).toUpperCase()}${kind.slice(1)} of ${currency} ${amount} on ${month[m - 1]} ${d}, ${y}`
+      })
+  })
+
   stubRpc("ipas_sign", (args) => {
     const { p_section: section, p_role: role } = args
     const sheetHasIt =

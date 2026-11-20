@@ -1195,7 +1195,10 @@ create table if not exists public."packing_lists" (
   "packed_at" timestamp with time zone,
   "signature_declined" boolean not null default false,
   "created_by" uuid not null,
-  "created_at" timestamp with time zone not null default now()
+  "created_at" timestamp with time zone not null default now(),
+  "cancelled_by" uuid,
+  "cancelled_at" timestamp with time zone,
+  "cancel_reason" text
 );
 
 create table if not exists public."pms_evidence" (
@@ -1880,7 +1883,8 @@ create table if not exists public."transmittal_lines" (
   "tech_rating" text,
   "tech_remark" text,
   "quantity_received" numeric,
-  "created_at" timestamp with time zone not null default now()
+  "created_at" timestamp with time zone not null default now(),
+  "over_claim_remark" text
 );
 
 create table if not exists public."transmittal_pending_notices" (
@@ -2411,9 +2415,10 @@ alter table packing_list_boxes add constraint "packing_list_boxes_weight_chk" CH
 alter table packing_list_contents add constraint "packing_list_contents_description_chk" CHECK ((length(btrim(description)) > 0));
 alter table packing_list_contents add constraint "packing_list_contents_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table packing_list_contents add constraint "packing_list_contents_snapshot_chk" CHECK (((sor_line_snapshot IS NULL) OR (jsonb_typeof(sor_line_snapshot) = 'object'::text)));
+alter table packing_lists add constraint "packing_lists_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_by IS NOT NULL) AND (cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
 alter table packing_lists add constraint "packing_lists_delivery_ref_chk" CHECK (((odoo_delivery_ref IS NULL) OR (length(btrim(odoo_delivery_ref)) > 0)));
 alter table packing_lists add constraint "packing_lists_packed_chk" CHECK (((state <> 'packed'::text) OR ((packed_by IS NOT NULL) AND (packed_at IS NOT NULL))));
-alter table packing_lists add constraint "packing_lists_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'packed'::text])));
+alter table packing_lists add constraint "packing_lists_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'packed'::text, 'cancelled'::text])));
 alter table pms_evidence add constraint "pms_evidence_kind_chk" CHECK ((kind = ANY (ARRAY['picture'::text, 'video'::text])));
 alter table pms_evidence add constraint "pms_evidence_name_chk" CHECK ((length(btrim(file_name)) > 0));
 alter table pms_evidence add constraint "pms_evidence_record_type_chk" CHECK ((record_type = 'transmittal_stage'::text));
@@ -2493,7 +2498,7 @@ alter table transmittals add constraint "transmittals_origin_chk" CHECK ((origin
 alter table transmittals add constraint "transmittals_origin_other_chk" CHECK (((origin <> 'other'::text) OR ((origin_other IS NOT NULL) AND (length(btrim(origin_other)) > 0))));
 alter table transmittals add constraint "transmittals_priority_chk" CHECK ((priority = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text])));
 alter table transmittals add constraint "transmittals_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'warehouse_checking'::text, 'warehouse_releasing'::text, 'technical_inspection'::text, 'awaiting_check'::text, 'closed'::text, 'cancelled'::text])));
-alter table transmittals add constraint "transmittals_submitted_chk" CHECK (((state = 'draft'::text) OR (submitted_at IS NOT NULL)));
+alter table transmittals add constraint "transmittals_submitted_chk" CHECK (((state = 'draft'::text) OR (state = 'cancelled'::text) OR (submitted_at IS NOT NULL)));
 alter table undertime_requests add constraint "undertime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table undertime_requests add constraint "undertime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table bug_report_notes add constraint "bug_report_notes_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
@@ -2652,6 +2657,7 @@ alter table overtime_requests add constraint "overtime_requests_hr_processed_by_
 alter table overtime_requests add constraint "overtime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table packing_list_boxes add constraint "packing_list_boxes_packing_list_id_fkey" FOREIGN KEY (packing_list_id) REFERENCES packing_lists(id) ON DELETE CASCADE;
 alter table packing_list_contents add constraint "packing_list_contents_box_id_fkey" FOREIGN KEY (box_id) REFERENCES packing_list_boxes(id) ON DELETE CASCADE;
+alter table packing_lists add constraint "packing_lists_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
 alter table packing_lists add constraint "packing_lists_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table packing_lists add constraint "packing_lists_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
 alter table packing_lists add constraint "packing_lists_packed_by_fkey" FOREIGN KEY (packed_by) REFERENCES employees(id);
@@ -2946,6 +2952,7 @@ CREATE INDEX overtime_requests_company_id_idx ON public.overtime_requests USING 
 CREATE INDEX overtime_requests_head_id_idx ON public.overtime_requests USING btree (head_id);
 CREATE INDEX packing_list_boxes_packing_list_id_idx ON public.packing_list_boxes USING btree (packing_list_id);
 CREATE INDEX packing_list_contents_box_id_idx ON public.packing_list_contents USING btree (box_id);
+CREATE INDEX packing_lists_cancelled_by_idx ON public.packing_lists USING btree (cancelled_by);
 CREATE INDEX packing_lists_created_by_idx ON public.packing_lists USING btree (created_by);
 CREATE INDEX packing_lists_opportunity_id_idx ON public.packing_lists USING btree (opportunity_id);
 CREATE INDEX pms_evidence_record_idx ON public.pms_evidence USING btree (record_type, record_id);
@@ -5388,6 +5395,25 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_check_date(p_fn text, p_date date, p_what text)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_date is null then
+    return;
+  end if;
+  if p_date > (now() at time zone 'Asia/Manila')::date then
+    raise exception '%: % cannot be after today', p_fn, p_what using errcode = '22023';
+  end if;
+  if p_date < date '2015-01-01' then
+    raise exception '%: % cannot be before January 1, 2015', p_fn, p_what using errcode = '22023';
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_check_option(p_fn text, p_option_id uuid, p_list text, p_current uuid, p_what text)
  RETURNS text
  LANGUAGE plpgsql
@@ -5818,6 +5844,17 @@ AS $function$
        and s.role = 'approved'
        and s.cleared_at is null
   ) = 4;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_is_own_file_link(p_url text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select p_url ~* '^https://res\.cloudinary\.com/[^[:space:]]+$'
+      or p_url ~* '^https://[a-z0-9-]+\.supabase\.co/storage/v1/object/[^[:space:]]+$'
+      or p_url ~* '^http://(127\.0\.0\.1|localhost)(:[0-9]+)?/storage/v1/object/[^[:space:]]+$';
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
@@ -6780,7 +6817,7 @@ begin
     raise exception 'packing list: only its creator, Purchasing or the Warehouse list changes a Packing List' using errcode = '42501';
   end if;
   if v_row.state <> 'draft' then
-    raise exception 'packing list: % is packed and can''t be changed', v_row.number using errcode = '42501';
+    raise exception 'packing list: % is % and can''t be changed', v_row.number, v_row.state using errcode = '42501';
   end if;
   return v_row;
 end;
@@ -8024,6 +8061,143 @@ AS $function$
      and not coalesce(e.is_deleted, false);
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._transmittal_over_claims(p_transmittal_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with mine as (
+    select tl.position, tl.ipas_id, tl.odoo_po_line_id, tl.quantity,
+           coalesce(length(btrim(tl.over_claim_remark)) > 0, false) as has_remark,
+           sum(tl.quantity) over (partition by tl.ipas_id, tl.odoo_po_line_id) as carrying,
+           public._transmittal_po_line_left(tl.ipas_id, tl.odoo_po_line_id, p_transmittal_id) as po_left
+      from public.transmittal_lines tl
+     where tl.transmittal_id = p_transmittal_id
+       and tl.kind = 'po_line'
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'kind', 'over_claim',
+      'position', m.position,
+      'po_number', i.po_number,
+      'left', greatest(m.po_left, 0),
+      'carrying', m.carrying,
+      'more', m.carrying - greatest(m.po_left, 0),
+      'has_remark', m.has_remark
+    ) order by m.position), '[]'::jsonb)
+    from mine m
+    join public.ipas i on i.id = m.ipas_id
+   where m.po_left is not null
+     and m.carrying > greatest(m.po_left, 0);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_po_line_left(p_ipas_id uuid, p_line_id integer, p_exclude uuid DEFAULT NULL::uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select nullif(l->>'quantity', '')::numeric - coalesce((
+    select sum(tl.quantity)
+      from public.transmittal_lines tl
+      join public.transmittals t on t.id = tl.transmittal_id
+     where tl.ipas_id = i.id
+       and tl.odoo_po_line_id = p_line_id
+       and t.state <> 'cancelled'
+       and (p_exclude is null or t.id <> p_exclude)
+       and tl.wh_rating is distinct from 'na'
+       and tl.tech_rating is distinct from 'na'
+  ), 0)
+  from public.ipas i
+  cross join lateral jsonb_array_elements(coalesce(i.odoo_copy -> 'lines', '[]'::jsonb)) as l
+ where i.id = p_ipas_id
+   and (l->>'line_id')::integer = p_line_id
+ limit 1;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_precheck(p_product_ids uuid[], p_reference_ids uuid[], p_lines jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_line jsonb;
+  v_position integer := 0;
+  v_kind text;
+  v_quantity numeric;
+  v_unit text;
+  v_ipas public.ipas;
+  v_po_line jsonb;
+  v_opportunity uuid;
+  v_products uuid[] := coalesce(p_product_ids, '{}'::uuid[]);
+  v_references uuid[] := coalesce(p_reference_ids, '{}'::uuid[]);
+  c_whole_units constant text := '^(pcs?|pieces?|units?|sets?|pairs?|kits?)$';
+begin
+  if cardinality(v_products) > 0 and (
+       select count(*) from public.ipas_options o
+        where o.id = any (v_products) and o.list = 'transmittal_product' and o.active
+     ) <> (select count(distinct x) from unnest(v_products) x) then
+    raise exception 'transmittal: a Product isn''t on the list' using errcode = '22023';
+  end if;
+  if cardinality(v_references) > 0 and (
+       select count(*) from public.ipas_options o
+        where o.id = any (v_references) and o.list = 'transmittal_reference' and o.active
+     ) <> (select count(distinct x) from unnest(v_references) x) then
+    raise exception 'transmittal: a Reference Checklist item isn''t on the list' using errcode = '22023';
+  end if;
+
+  for v_line in select value from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) as value loop
+    v_position := v_position + 1;
+    v_kind := nullif(btrim(v_line->>'kind'), '');
+    v_quantity := nullif(v_line->>'quantity', '')::numeric;
+
+    if v_quantity is null or v_quantity <= 0 then
+      raise exception 'transmittal: line % needs a quantity above zero', v_position using errcode = '22023';
+    end if;
+
+    if v_kind = 'po_line' then
+      select * into v_ipas from public.ipas i where i.id = nullif(v_line->>'ipas_id', '')::uuid;
+      if not found or v_ipas.state = 'cancelled' then
+        raise exception 'transmittal: line % names an IPAS that isn''t live', v_position using errcode = '22023';
+      end if;
+      select l into v_po_line
+        from jsonb_array_elements(coalesce(v_ipas.odoo_copy -> 'lines', '[]'::jsonb)) as l
+       where (l->>'line_id')::integer = (v_line->>'odoo_po_line_id')::integer
+       limit 1;
+      if v_po_line is null then
+        raise exception 'transmittal: line % isn''t on % Odoo copy', v_position, v_ipas.po_number using errcode = '22023';
+      end if;
+      v_unit := nullif(btrim(v_po_line->>'unit'), '');
+
+    elsif v_kind = 'typed' then
+      if nullif(btrim(v_line->>'description'), '') is null then
+        raise exception 'transmittal: line % needs a description', v_position using errcode = '22023';
+      end if;
+      v_unit := nullif(btrim(v_line->>'unit'), '');
+      if v_unit is null then
+        raise exception 'transmittal: line % needs a unit', v_position using errcode = '22023';
+      end if;
+
+    else
+      raise exception 'transmittal: line % has no kind (po_line or typed)', v_position using errcode = '22023';
+    end if;
+
+    -- Said once for both kinds: a unit counted in whole things refuses a decimal quantity.
+    if v_quantity <> trunc(v_quantity) and lower(coalesce(v_unit, '')) ~ c_whole_units then
+      raise exception 'transmittal: line % counts whole % only', v_position, v_unit using errcode = '22023';
+    end if;
+
+    v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
+    if v_opportunity is not null and not exists (
+         select 1 from public.sales_opportunities o where o.id = v_opportunity and not coalesce(o.is_deleted, false)
+       ) then
+      raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
+    end if;
+  end loop;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._transmittal_sync_links(p_transmittal_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -8054,10 +8228,8 @@ CREATE OR REPLACE FUNCTION public._transmittal_write_children(p_transmittal_id u
 AS $function$
 declare
   v_entity text;
-  v_number text;
   v_line jsonb;
   v_position integer := 0;
-  v_kind text;
   v_ipas public.ipas;
   v_po_line jsonb;
   v_ipas_entity text;
@@ -8065,62 +8237,32 @@ declare
   v_opportunity uuid;
   v_sor_count integer;
   v_warnings jsonb := '[]'::jsonb;
-  v_products uuid[];
-  v_references uuid[];
 begin
-  select t.entity, t.number into v_entity, v_number from public.transmittals t where t.id = p_transmittal_id;
+  perform public._transmittal_precheck(p_product_ids, p_reference_ids, p_lines);
 
-  v_products := coalesce(p_product_ids, '{}'::uuid[]);
-  v_references := coalesce(p_reference_ids, '{}'::uuid[]);
-
-  if cardinality(v_products) > 0 and (
-       select count(*) from public.ipas_options o
-        where o.id = any (v_products) and o.list = 'transmittal_product' and o.active
-     ) <> (select count(distinct x) from unnest(v_products) x) then
-    raise exception 'transmittal: a Product isn''t on the list' using errcode = '22023';
-  end if;
-  if cardinality(v_references) > 0 and (
-       select count(*) from public.ipas_options o
-        where o.id = any (v_references) and o.list = 'transmittal_reference' and o.active
-     ) <> (select count(distinct x) from unnest(v_references) x) then
-    raise exception 'transmittal: a Reference Checklist item isn''t on the list' using errcode = '22023';
-  end if;
+  select t.entity into v_entity from public.transmittals t where t.id = p_transmittal_id;
 
   delete from public.transmittal_lines where transmittal_id = p_transmittal_id;
   delete from public.transmittal_products where transmittal_id = p_transmittal_id;
   delete from public.transmittal_references where transmittal_id = p_transmittal_id;
 
   insert into public.transmittal_products (transmittal_id, option_id)
-  select p_transmittal_id, x from unnest(v_products) as x;
+  select p_transmittal_id, x from unnest(coalesce(p_product_ids, '{}'::uuid[])) as x;
 
   insert into public.transmittal_references (transmittal_id, option_id)
-  select p_transmittal_id, x from unnest(v_references) as x;
+  select p_transmittal_id, x from unnest(coalesce(p_reference_ids, '{}'::uuid[])) as x;
 
   for v_line in select value from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) as value loop
     v_position := v_position + 1;
-    v_kind := nullif(btrim(v_line->>'kind'), '');
-    v_quantity := nullif(v_line->>'quantity', '')::numeric;
+    v_quantity := (v_line->>'quantity')::numeric;
+    v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
 
-    if v_quantity is null or v_quantity <= 0 then
-      raise exception 'transmittal: line % needs a quantity above zero', v_position using errcode = '22023';
-    end if;
-
-    if v_kind = 'po_line' then
-      select * into v_ipas
-        from public.ipas i
-       where i.id = nullif(v_line->>'ipas_id', '')::uuid;
-      if not found or v_ipas.state = 'cancelled' then
-        raise exception 'transmittal: line % names an IPAS that isn''t live', v_position using errcode = '22023';
-      end if;
-
+    if nullif(btrim(v_line->>'kind'), '') = 'po_line' then
+      select * into v_ipas from public.ipas i where i.id = nullif(v_line->>'ipas_id', '')::uuid;
       select l into v_po_line
         from jsonb_array_elements(coalesce(v_ipas.odoo_copy -> 'lines', '[]'::jsonb)) as l
        where (l->>'line_id')::integer = (v_line->>'odoo_po_line_id')::integer
        limit 1;
-      if v_po_line is null then
-        raise exception 'transmittal: line % isn''t on % Odoo copy', v_position, v_ipas.po_number
-          using errcode = '22023';
-      end if;
 
       v_ipas_entity := coalesce(
         nullif(btrim(v_ipas.entity_override), ''),
@@ -8134,23 +8276,16 @@ begin
         ));
       end if;
 
-      v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
       if v_opportunity is null then
         select count(*) into v_sor_count from public.ipas_sors s where s.ipas_id = v_ipas.id;
         if v_sor_count = 1 then
           select s.opportunity_id into v_opportunity from public.ipas_sors s where s.ipas_id = v_ipas.id;
         end if;
       end if;
-      if v_opportunity is not null and not exists (
-           select 1 from public.sales_opportunities o
-            where o.id = v_opportunity and not coalesce(o.is_deleted, false)
-         ) then
-        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
-      end if;
 
       insert into public.transmittal_lines (
         transmittal_id, position, kind, ipas_id, odoo_po_line_id, description, quantity, unit,
-        opportunity_id, serial_numbers, box_quantity
+        opportunity_id, serial_numbers, box_quantity, over_claim_remark
       ) values (
         p_transmittal_id, v_position, 'po_line', v_ipas.id, (v_po_line->>'line_id')::integer,
         coalesce(nullif(btrim(v_po_line->>'name'), ''), 'P0 line ' || (v_po_line->>'line_id')),
@@ -8158,24 +8293,10 @@ begin
         nullif(btrim(v_po_line->>'unit'), ''),
         v_opportunity,
         nullif(btrim(v_line->>'serial_numbers'), ''),
-        nullif(btrim(v_line->>'box_quantity'), '')
+        nullif(btrim(v_line->>'box_quantity'), ''),
+        nullif(btrim(v_line->>'over_claim_remark'), '')
       );
-
-    elsif v_kind = 'typed' then
-      if nullif(btrim(v_line->>'description'), '') is null then
-        raise exception 'transmittal: line % needs a description', v_position using errcode = '22023';
-      end if;
-      if nullif(btrim(v_line->>'unit'), '') is null then
-        raise exception 'transmittal: line % needs a unit', v_position using errcode = '22023';
-      end if;
-      v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
-      if v_opportunity is not null and not exists (
-           select 1 from public.sales_opportunities o
-            where o.id = v_opportunity and not coalesce(o.is_deleted, false)
-         ) then
-        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
-      end if;
-
+    else
       insert into public.transmittal_lines (
         transmittal_id, position, kind, description, quantity, unit,
         opportunity_id, serial_numbers, box_quantity
@@ -8185,13 +8306,10 @@ begin
         nullif(btrim(v_line->>'serial_numbers'), ''),
         nullif(btrim(v_line->>'box_quantity'), '')
       );
-
-    else
-      raise exception 'transmittal: line % has no kind (po_line or typed)', v_position using errcode = '22023';
     end if;
   end loop;
 
-  return v_warnings;
+  return v_warnings || public._transmittal_over_claims(p_transmittal_id);
 end;
 $function$
 ;
@@ -16485,6 +16603,7 @@ declare
   v_label text;
   v_row public.ipas_charges;
 begin
+  perform public._ipas_check_date('ipas_add_charge', p_charged_on, 'the charge date');
   v_ipas := public._ipas_lock_open('ipas_add_charge', p_ipas_id);
   if p_charged_on is null then
     raise exception 'ipas_add_charge: give the date of the charge' using errcode = '22023';
@@ -16857,6 +16976,26 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_file_link_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_col text := tg_argv[0];
+  v_new text := to_jsonb(new) ->> v_col;
+  v_old text := case when tg_op = 'UPDATE' then to_jsonb(old) ->> v_col end;
+begin
+  if v_new is null or v_new is not distinct from v_old then
+    return new;
+  end if;
+  if not public._ipas_is_own_file_link(btrim(v_new)) then
+    raise exception 'ipas_file_link: attach a file you uploaded here, not a link to another site' using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_file_rules_snapshot_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -16919,6 +17058,7 @@ declare
   v_amount numeric := round(p_amount_php, 2);
   v_url text := nullif(btrim(coalesce(p_attachment_url, '')), '');
 begin
+  perform public._ipas_check_date('ipas_fill_charge', p_charged_on, 'the charge date');
   select ipas_id into v_ipas_id from public.ipas_charges where id = p_charge_id;
   if v_ipas_id is null then
     raise exception 'ipas_fill_charge: charge % not found', p_charge_id using errcode = '22023';
@@ -17139,6 +17279,46 @@ begin
     v_what || ' ' || v_verb
   );
   return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_limits_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_existing text;
+begin
+  if tg_op = 'INSERT' or new.supplier_contact is distinct from old.supplier_contact then
+    new.supplier_contact := nullif(btrim(new.supplier_contact), '');
+    if length(new.supplier_contact) > 200 then
+      raise exception 'ipas_limits: Supplier''s name can be at most 200 characters' using errcode = '22023';
+    end if;
+  end if;
+  if (tg_op = 'INSERT' or new.pi_number is distinct from old.pi_number) and length(btrim(new.pi_number)) > 60 then
+    raise exception 'ipas_limits: P.I # can be at most 60 characters' using errcode = '22023';
+  end if;
+  if (tg_op = 'INSERT' or new.remarks is distinct from old.remarks) and length(btrim(new.remarks)) > 2000 then
+    raise exception 'ipas_limits: Remarks can be at most 2,000 characters' using errcode = '22023';
+  end if;
+  if (tg_op = 'INSERT' or new.pi_qt_amount is distinct from old.pi_qt_amount) and new.pi_qt_amount > 9999999999.99 then
+    raise exception 'ipas_limits: P.I/QT Amount is at most 9,999,999,999.99' using errcode = '22023';
+  end if;
+
+  -- Two raises for one PO at once: the second waits here for the first, then sees it.
+  if tg_op = 'INSERT' and new.state <> 'cancelled' then
+    perform pg_advisory_xact_lock(hashtextextended('ipas_live_po:' || new.po_number, 0));
+    select i.number into v_existing
+      from public.ipas i
+     where i.po_number = new.po_number and i.state <> 'cancelled';
+    if v_existing is not null then
+      raise exception 'ipas_create: % already has a live IPAS (%); cancel it to raise a new one', new.po_number, v_existing
+        using errcode = '23505';
+    end if;
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -17441,6 +17621,26 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_payments_waiting_for_pesos(p_ipas_id uuid)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_missing text;
+begin
+  if not public.ipas_can_read() then
+    raise exception 'ipas_payments_waiting_for_pesos: you may not read IPAS' using errcode = '42501';
+  end if;
+  v_missing := public._ipas_payments_missing_pesos(p_ipas_id);
+  if v_missing is null then
+    return '{}'::text[];
+  end if;
+  return string_to_array(v_missing, '; ');
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_raise_from_odoo(p_actor uuid, p_po_number text, p_priority text, p_source text, p_purpose text, p_sor_ids uuid[], p_remarks text, p_verdict text, p_odoo_copy jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -17493,6 +17693,10 @@ begin
   end if;
 
   v_sors := public._ipas_clean_sor_ids('ipas_create', p_purpose, p_sor_ids);
+
+  -- #1129: one raise per PO at a time. The loser waits here, then finds the winner's IPAS and is
+  -- refused before the insert draws an IPAS number.
+  perform pg_advisory_xact_lock(hashtextextended('ipas_live_po:' || v_po, 0));
 
   select i.number into v_existing
     from public.ipas i
@@ -17958,6 +18162,7 @@ declare
   v_pesos numeric;
   v_row public.ipas_payments;
 begin
+  perform public._ipas_check_date('ipas_save_payment', p_paid_on, 'the payment date');
   if p_payment_id is null then
     v_ipas := public._ipas_lock_open('ipas_save_payment', p_ipas_id);
   else
@@ -18394,6 +18599,17 @@ begin
   v_contact := case when jsonb_exists(p_fields, 'supplier_contact') then nullif(btrim(p_fields->>'supplier_contact'), '') else v_row.supplier_contact end;
   v_pi := case when jsonb_exists(p_fields, 'pi_number') then nullif(btrim(p_fields->>'pi_number'), '') else v_row.pi_number end;
 
+  -- Limits (#1128, spec #1123 D1): said in words here, before any write.
+  if v_contact is distinct from v_row.supplier_contact and length(v_contact) > 200 then
+    raise exception 'ipas_set_header: Supplier''s name can be at most 200 characters' using errcode = '22023';
+  end if;
+  if v_pi is distinct from v_row.pi_number and length(v_pi) > 60 then
+    raise exception 'ipas_set_header: P.I # can be at most 60 characters' using errcode = '22023';
+  end if;
+  if v_remarks is distinct from v_row.remarks and length(v_remarks) > 2000 then
+    raise exception 'ipas_set_header: Remarks can be at most 2,000 characters' using errcode = '22023';
+  end if;
+
   -- P.I/QT Amount: a number, or blank to clear. Anything half-typed is refused
   -- with a sentence, never a cast error.
   v_amount := v_row.pi_qt_amount;
@@ -18417,6 +18633,9 @@ begin
     end if;
     if v_amount is not null and v_amount < 0 then
       raise exception 'ipas_set_header: P.I/QT Amount can''t be negative' using errcode = '22023';
+    end if;
+    if v_amount is not null and v_amount > 9999999999.99 then
+      raise exception 'ipas_set_header: P.I/QT Amount is at most 9,999,999,999.99' using errcode = '22023';
     end if;
   end if;
 
@@ -19000,6 +19219,7 @@ declare
   v_row public.ipas;
   v_from date;
 begin
+  perform public._ipas_check_date('ipas_set_typed_status', p_date, 'the ' || replace(p_status, '_', ' ') || ' date');
   if p_status is null or p_status not in ('import_clearance', 'delivered') then
     raise exception 'ipas_set_typed_status: Import Clearance and Delivered are the typed statuses' using errcode = '22023';
   end if;
@@ -19055,6 +19275,7 @@ declare
   v_notify uuid[] := '{}';
   v_stage text;
   v_filed boolean := false;
+  v_waiting text;
 begin
   if v_actor is null then
     raise exception 'ipas_sign: not signed in' using errcode = '42501';
@@ -19138,6 +19359,12 @@ begin
       ) then
         raise exception 'ipas_sign: you checked %, so someone else on the Filing approvers list files it', v_ipas.number
           using errcode = '42501';
+      end if;
+      -- #1124: Filing freezes Landed Cost as final, so no foreign payment may still be waiting for its pesos.
+      v_waiting := public._ipas_payments_missing_pesos(v_ipas.id);
+      if v_waiting is not null then
+        raise exception 'ipas_sign: Filing waits for the pesos of %: %', v_ipas.number, v_waiting
+          using errcode = '22023';
       end if;
       if v_ipas.computation_status not in ('lc_odoo_done', 'checked') then
         raise exception 'ipas_sign: % can''t be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final', v_ipas.number
@@ -19832,6 +20059,7 @@ declare
   v_label text;
   v_changes jsonb := '{}'::jsonb;
 begin
+  perform public._ipas_check_date('ipas_update_charge', p_charged_on, 'the charge date');
   select ipas_id into v_ipas_id from public.ipas_charges where id = p_charge_id;
   if v_ipas_id is null then
     raise exception 'ipas_update_charge: charge % not found', p_charge_id using errcode = '22023';
@@ -20790,10 +21018,25 @@ AS $function$
 declare
   v_list uuid := coalesce(new.packing_list_id, old.packing_list_id);
 begin
-  if exists (select 1 from public.packing_lists p where p.id = v_list and p.state = 'packed') then
-    raise exception 'packing_list_boxes: a packed Packing List''s boxes can''t be changed' using errcode = '42501';
+  if exists (select 1 from public.packing_lists p where p.id = v_list and p.state in ('packed', 'cancelled')) then
+    raise exception 'packing_list_boxes: a packed or cancelled Packing List''s boxes can''t be changed' using errcode = '42501';
   end if;
   if tg_op = 'DELETE' then return old; end if;
+
+  if tg_op = 'INSERT' or new.gross_weight_kg is distinct from old.gross_weight_kg then
+    if new.gross_weight_kg < 0 then
+      raise exception 'packing list: A box can''t weigh less than 0 kg' using errcode = '22023';
+    end if;
+    if new.gross_weight_kg > 5000 then
+      raise exception 'packing list: A box can weigh at most 5,000 kg' using errcode = '22023';
+    end if;
+  end if;
+  if (tg_op = 'INSERT' or new.marks is distinct from old.marks) and length(new.marks) > 200 then
+    raise exception 'packing list: Marks can be at most 200 characters' using errcode = '22023';
+  end if;
+  if (tg_op = 'INSERT' or new.seal_no is distinct from old.seal_no) and length(new.seal_no) > 200 then
+    raise exception 'packing list: Seal number can be at most 200 characters' using errcode = '22023';
+  end if;
   return new;
 end;
 $function$
@@ -20833,6 +21076,42 @@ AS $function$
     );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.packing_list_cancel(p_packing_list_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_row public.packing_lists;
+begin
+  if v_actor is null then
+    raise exception 'packing_list_cancel: not signed in' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'packing_list_cancel: a cancel needs a reason' using errcode = '22023';
+  end if;
+
+  v_row := public._packing_list_editable(p_packing_list_id);
+
+  update public.packing_lists
+     set state = 'cancelled',
+         cancelled_by = v_actor,
+         cancelled_at = now(),
+         cancel_reason = v_reason
+   where id = v_row.id;
+
+  perform public._packing_list_event(v_row.id, v_actor, 'cancelled', jsonb_build_object(
+    'number', v_row.number,
+    'reason', v_reason
+  ));
+
+  return jsonb_build_object('id', v_row.id, 'number', v_row.number);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.packing_list_contents_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -20846,11 +21125,25 @@ begin
     select 1
       from public.packing_list_boxes b
       join public.packing_lists p on p.id = b.packing_list_id
-     where b.id = v_box and p.state = 'packed'
+     where b.id = v_box and p.state in ('packed', 'cancelled')
   ) then
-    raise exception 'packing_list_contents: a packed Packing List''s contents can''t be changed' using errcode = '42501';
+    raise exception 'packing_list_contents: a packed or cancelled Packing List''s contents can''t be changed' using errcode = '42501';
   end if;
   if tg_op = 'DELETE' then return old; end if;
+
+  if tg_op = 'INSERT' or new.description is distinct from old.description then
+    if new.description is null or length(btrim(new.description)) = 0 then
+      raise exception 'packing list: Every content needs a description' using errcode = '22023';
+    end if;
+  end if;
+  if tg_op = 'INSERT' or new.quantity is distinct from old.quantity then
+    if new.quantity is null or new.quantity <= 0 then
+      raise exception 'packing list: Every content needs a quantity above zero' using errcode = '22023';
+    end if;
+    if new.quantity > 100000 then
+      raise exception 'packing list: A content''s quantity is at most 100,000' using errcode = '22023';
+    end if;
+  end if;
   return new;
 end;
 $function$
@@ -21083,8 +21376,8 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'packing_lists: a Packing List is never deleted' using errcode = '42501';
   end if;
-  if old.state = 'packed' then
-    raise exception 'packing_lists: % is packed and can''t be changed', old.number using errcode = '42501';
+  if old.state in ('packed', 'cancelled') then
+    raise exception 'packing_lists: % is % and can''t be changed', old.number, old.state using errcode = '42501';
   end if;
   if new.state = 'packed' and (new.packed_by is null or new.packed_at is null) then
     raise exception 'packing_lists: packing signs Packed by' using errcode = '42501';
@@ -29546,6 +29839,9 @@ begin
 
   v_header := public._transmittal_clean_header(coalesce(p_fields, '{}'::jsonb));
 
+  -- #1129: every refusal comes before the insert, which is what draws the TG03 number.
+  perform public._transmittal_precheck(p_product_ids, p_reference_ids, p_lines);
+
   insert into public.transmittals (
     origin, origin_other, check_warehouse, check_technical, check_other, priority, entity,
     product_other, item_location_id, prepared_by
@@ -29722,7 +30018,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.transmittal_ipas_po_lines(p_ipas_number text)
- RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb)
+ RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb, "left" numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -29759,7 +30055,8 @@ begin
         from public.ipas_sors s
         join public.sales_opportunities o on o.id = s.opportunity_id
        where s.ipas_id = v_ipas.id
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    greatest(public._transmittal_po_line_left(v_ipas.id, (l->>'line_id')::integer), 0)
   from jsonb_array_elements(coalesce(v_ipas.odoo_copy -> 'lines', '[]'::jsonb)) as l
   order by (l->>'line_id')::integer;
 end;
@@ -29894,7 +30191,7 @@ AS $function$
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.transmittal_pickable_po_lines(p_search text DEFAULT NULL::text)
- RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb)
+ RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb, "left" numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -29921,7 +30218,8 @@ begin
         from public.ipas_sors s
         join public.sales_opportunities o on o.id = s.opportunity_id
        where s.ipas_id = i.id
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    greatest(public._transmittal_po_line_left(i.id, (l->>'line_id')::integer), 0)
   from public.ipas i
   cross join lateral jsonb_array_elements(coalesce(i.odoo_copy -> 'lines', '[]'::jsonb)) as l
   where i.state <> 'cancelled'
@@ -30335,6 +30633,7 @@ begin
     'number', v_row.number,
     'state', v_first,
     'notify_list', v_notify,
+    'warnings', public._transmittal_over_claims(p_transmittal_id),
     'notify_ids', coalesce((
       select jsonb_agg(l.employee_id)
         from public.ipas_signer_lists l
@@ -30657,6 +30956,19 @@ begin
     raise exception 'transmittal: % is submitted; its header is fixed', old.number using errcode = '42501';
   end if;
 
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.transmittals_receipt_ref_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.odoo_receipt_ref is distinct from old.odoo_receipt_ref and length(btrim(new.odoo_receipt_ref)) > 60 then
+    raise exception 'transmittal_received_in_odoo: The Odoo receipt reference can be at most 60 characters' using errcode = '22023';
+  end if;
   return new;
 end;
 $function$
@@ -31669,6 +31981,7 @@ CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW E
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
 CREATE TRIGGER ipas_lc_clear AFTER UPDATE OF landed_cost_split, computation_status, odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_lc_header_changed();
 CREATE TRIGGER ipas_lc_final_needs_charges BEFORE UPDATE OF computation_status ON public.ipas FOR EACH ROW WHEN (((new.computation_status = 'lc_odoo_done'::text) AND (old.computation_status IS DISTINCT FROM 'lc_odoo_done'::text))) EXECUTE FUNCTION ipas_lc_final_needs_charges();
+CREATE TRIGGER ipas_limits_guard BEFORE INSERT OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_limits_guard();
 CREATE TRIGGER ipas_receive_items_from_copy AFTER INSERT OR UPDATE OF odoo_copy, odoo_fetched_at ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_receive_items_from_copy();
 CREATE TRIGGER ipas_seed_blank_charges AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_seed_blank_charges();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
@@ -31676,9 +31989,11 @@ CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW E
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_charges_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_documents_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
 CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_events_mark_worked_on AFTER INSERT ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION _ipas_mark_worked_on();
@@ -31690,6 +32005,7 @@ CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_payments_paid_before_approval();
@@ -31788,6 +32104,7 @@ CREATE TRIGGER transmittal_products_guard BEFORE INSERT OR DELETE OR UPDATE ON p
 CREATE TRIGGER transmittal_references_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_references FOR EACH ROW EXECUTE FUNCTION transmittal_children_guard();
 CREATE TRIGGER transmittal_stages_guard BEFORE DELETE OR UPDATE ON public.transmittal_stages FOR EACH ROW EXECUTE FUNCTION transmittal_stages_guard();
 CREATE TRIGGER transmittals_guard BEFORE DELETE OR UPDATE ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_guard();
+CREATE TRIGGER transmittals_receipt_ref_guard BEFORE UPDATE OF odoo_receipt_ref ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_receipt_ref_guard();
 CREATE TRIGGER undertime_requests_guard_head_status BEFORE UPDATE ON public.undertime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 
 -- ============================================================

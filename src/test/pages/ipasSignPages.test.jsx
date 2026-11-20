@@ -381,7 +381,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await yourMove()).getByRole("button", { name: "Send back…" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Return…" }));
       const dialog = await screen.findByRole("dialog", { name: "Return section 1?" });
       await user.type(within(dialog).getByPlaceholderText(/What does the submitter need to fix/), "Wrong supplier");
       await user.click(within(dialog).getByRole("button", { name: "Return" }));
@@ -450,7 +450,7 @@ describe("IPAS signing with the evidence in view", () => {
       renderDetail(row.id);
       const user = setupUser();
 
-      await user.click(within(await yourMove()).getByRole("button", { name: "Send back…" }));
+      await user.click(within(await yourMove()).getByRole("button", { name: "Return…" }));
       const dialog = await screen.findByRole("dialog", { name: "Return section 1?" });
       expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
       expect(within(dialog).queryByText(/hard to get again/)).not.toBeInTheDocument();

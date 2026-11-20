@@ -959,9 +959,11 @@ What a foreign-currency payment actually cost in pesos, read off the bank
 statement (the column is still called `php_debited`). Optional: Finance may
 record the payment the day it is made and fill this in when the statement
 arrives. While it is blank, that payment is taken at its payment date's
-Reference Rate and the Landed Cost is an estimate; the Computation status cannot
-reach LC Odoo Done, and a payment cannot be saved blank once it has. A PHP
-payment has no such figure, since its amount is already pesos.
+Reference Rate and the Landed Cost is an estimate. The Computation status may
+still reach LC Odoo Done with an estimate, and a payment can still be added or
+blanked at LC Odoo Done; it is Filing that waits for the pesos (it names each
+payment still blank), and only then does Landed Cost go final. A PHP payment has
+no such figure, since its amount is already pesos.
 _Avoid_: PHP debited (the old label), Peso equivalent, Converted amount
 
 **Payment scheme**:
@@ -974,7 +976,7 @@ _Avoid_: Payment terms (what the supplier agreed to, not what was done), Payment
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1,
-2 and 3 are approved and the Computation status is LC Odoo Done, since filing
+2 and 3 are approved, the Computation status is LC Odoo Done and every foreign-currency payment has its pesos, since filing
 freezes a Landed Cost that would otherwise still be provisional. Section 4 does
 not open until sections 1, 2 and 3 are all approved; sign-offs already given on
 an IPAS before the gate existed stay, and only the ones still to be given wait. A filed IPAS is frozen: its copy of the Odoo purchase order,
@@ -1016,8 +1018,10 @@ _Avoid_: Payment status, Progress
 
 **Computation status**:
 Where an IPAS's cost work stands, in order: Encoding, Encoded, LC GS Done, LC
-Odoo Done. Only Purchasing moves it (one step either way); Landed Cost goes final
-at LC Odoo Done, which is also when section 3 can be submitted. The old last step,
+Odoo Done. Only Purchasing moves it, to any step, forward or back; LC Odoo Done
+may be reached while Landed Cost is still an estimate (a payment's pesos still
+blank), which is also when section 3 can be submitted. Landed Cost is called
+final only once Filing has the pesos. The old last step,
 Checked by, is gone: section 3's sign-off is the check. Shown on the record, the
 IPAS list (with a filter, plus "Section 3 approved") and the printed IPAS.
 _Avoid_: Costs complete (the old name for LC Odoo Done), Costing status, Checked by (the old step)
@@ -1058,8 +1062,8 @@ Transmittal Form, numbered TG03-525, TG03-526 and on — from where they came
 boxes decide those: Warehouse checking, Warehouse releasing when the goods leave
 for Technical (optional on a Warehouse-only slip, required when Technical
 follows), and Technical inspection. At each check the in-charge rates every
-line GC or NA, and the stage is signed by two people with its remarks and
-pictures. Received in Odoo by and two Check by signatures close it. It stands on its own, each line
+line GC or NA, and the stage has two signature slots with its remarks and
+pictures; one person may fill both (spec #251). Received in Odoo by and two Check by signatures close it. It stands on its own, each line
 naming the purchase order line and the SOR (Project Name) it is for, because one
 delivery is often split across slips and one slip often carries several orders. A
 line rated NA still lets the slip close — the check happened — and a replacement

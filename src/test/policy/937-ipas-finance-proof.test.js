@@ -11,7 +11,7 @@ import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 const svc = () => serviceClient()
 const CAST_IDS = () => CAST_KEYS.map((k) => ids[k])
 const rpc = async (who, name, args) => (await clientFor(who)).rpc(name, args)
-const PROOF = "https://example.com/proof.pdf"
+const PROOF = "https://res.cloudinary.com/demo/raw/upload/proof.pdf"
 
 let ipasId = null
 let methodId = null

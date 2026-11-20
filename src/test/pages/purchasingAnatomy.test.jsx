@@ -131,7 +131,7 @@ const LISTS = [
     name: "Packing Lists",
     Page: PackingListsPage,
     route: "/purchasing/packing-lists",
-    pills: ["Draft", "Packed", "All"],
+    pills: ["Draft", "Packed", "Cancelled", "All"],
     counts: { Draft: 1, All: 1 },
     noun: "Packing Lists",
     seed() {

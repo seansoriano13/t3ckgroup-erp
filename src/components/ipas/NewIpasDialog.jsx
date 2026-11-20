@@ -31,6 +31,7 @@ import {
   normalizePoNumber,
 } from "../../constants/procurement";
 import { ipasErrorMessage } from "../../utils/ipas";
+import { IPAS_LIMITS, textLengthIssue } from "../../utils/ipasLimits";
 import { ipasListKey } from "./ipasKeys";
 
 const options = (values, labels) =>
@@ -124,13 +125,23 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
   });
 
   const isProject = form.purpose === IPAS_PURPOSE.PROJECT;
+  const remarksIssue = textLengthIssue(form.remarks, "Remarks", IPAS_LIMITS.remarks);
   const ready =
+    !remarksIssue &&
     !!checked &&
     !checked.live &&
     form.priority !== "" &&
     form.source !== "" &&
     form.purpose !== "" &&
     (!isProject || sors.length > 0);
+  // One line above the buttons naming what is missing (E1).
+  const missingNames = [
+    form.priority === "" && "Priority",
+    form.source === "" && "Source",
+    form.purpose === "" && "Purpose",
+    isProject && sors.length === 0 && "an SOR",
+  ].filter(Boolean);
+  const missing = checked && !checked.live && missingNames.length > 0 ? `Still needed: ${missingNames.join(", ")}.` : null;
   const busy = checkMutation.isPending || createMutation.isPending;
   const set = (field) => (value) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -140,14 +151,22 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       crumbs={["IPAS", "Raise an IPAS"]}
+      dirty={poNumber.trim() !== "" || !!checked || Object.values(form).some((value) => value !== "") || sors.length > 0}
+      discardWhat="IPAS"
       actions={
-        <Button
-         
-          disabled={!ready || busy}
-          onClick={() => createMutation.mutate()}
-        >
-          {createMutation.isPending ? "Raising…" : "Raise IPAS"}
-        </Button>
+        <>
+          {missing && (
+            <span
+              data-testid="raise-ipas-missing"
+              className="text-right text-label font-medium text-muted-foreground max-md:order-first max-md:basis-full"
+            >
+              {missing}
+            </span>
+          )}
+          <Button disabled={!ready || busy} onClick={() => createMutation.mutate()}>
+            {createMutation.isPending ? "Raising…" : "Raise IPAS"}
+          </Button>
+        </>
       }
     >
       <p className="text-sm text-muted-foreground">
@@ -204,7 +223,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
         {checked && !checked.live && (
           <>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <FieldBox label="Priority" bare>
+              <FieldBox label="Priority" bare required>
                 <SelectField
                   options={PRIORITY_OPTIONS}
                   value={form.priority}
@@ -212,7 +231,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
                   placeholder="Pick"
                 />
               </FieldBox>
-              <FieldBox label="Source" bare>
+              <FieldBox label="Source" bare required>
                 <SelectField
                   options={SOURCE_OPTIONS}
                   value={form.source}
@@ -220,7 +239,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
                   placeholder="Pick"
                 />
               </FieldBox>
-              <FieldBox label="Purpose" bare>
+              <FieldBox label="Purpose" bare required>
                 <SelectField
                   options={PURPOSE_OPTIONS}
                   value={form.purpose}
@@ -244,6 +263,7 @@ export default function NewIpasDialog({ open, onOpenChange, onCreated }) {
 
             <FieldBox label="Remarks" bare>
               <Textarea
+                error={remarksIssue}
                 value={form.remarks}
                 onChange={(e) => set("remarks")(e.target.value)}
                 rows={2}

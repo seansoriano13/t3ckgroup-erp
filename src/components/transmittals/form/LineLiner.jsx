@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/SelectField";
 import { cn } from "@/lib/utils";
 import { TRANSMITTAL_LINE_KIND } from "@/constants/transmittals";
+import { QUANTITY_MESSAGE, countsWholeThings, overClaim } from "@/utils/transmittals";
 
 const NO_SOR = "__none__";
 
@@ -56,10 +57,11 @@ function ProjectChoice({ line, onChange }) {
  * its quantity and unit, its project, and a "More" fold for SN# and the box
  * quantity. A P0 line brings its item, quantity, unit and project from the PO.
  */
-export default function LineLiner({ line, index, onChange, onRemove }) {
+export default function LineLiner({ line, lines = [], index, onChange, onRemove }) {
   const isPo = line.kind === TRANSMITTAL_LINE_KIND.PO_LINE;
   const [more, setMore] = useState(Boolean(line.serialNumbers || line.boxQuantity));
-  const badQuantity = !(Number(line.quantity) > 0);
+  const badQuantity = !(Number(line.quantity) > 0) || (countsWholeThings(line.unit) && !Number.isInteger(Number(line.quantity)));
+  const extra = overClaim(line, lines);
   return (
     <li className="rounded-xl border border-border bg-card px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -124,6 +126,28 @@ export default function LineLiner({ line, index, onChange, onRemove }) {
           </Button>
         </div>
       </div>
+      {badQuantity && (
+        <p role="alert" className="mt-1.5 pl-8 text-[12px] text-destructive max-sm:pl-0">
+          {Number(line.quantity) > 0 ? `${line.unit} takes a whole number.` : QUANTITY_MESSAGE}
+        </p>
+      )}
+      {extra > 0 && (
+        <div className="mt-2 space-y-1.5 pl-8 max-sm:pl-0">
+          <p className="text-[12px] text-amber-11">
+            {extra} more than this P0 line has left. Say why{line.overClaimRemark?.trim() ? "" : ", to submit"}.
+          </p>
+          <span className="relative block">
+            <Input
+              className="h-9 pr-6 text-[13px]"
+              value={line.overClaimRemark ?? ""}
+              onChange={(e) => onChange({ overClaimRemark: e.target.value })}
+              placeholder="Remark (a replacement for an NA line, for one)"
+              aria-label="Remark"
+            />
+            <span className="absolute right-2 top-1.5"><RequiredMark /></span>
+          </span>
+        </div>
+      )}
       {more && (
         <div className="mt-2 grid grid-cols-2 gap-2 pl-8 max-sm:pl-0">
           <Input className="h-9 text-[13px]" value={line.serialNumbers} onChange={(e) => onChange({ serialNumbers: e.target.value })} placeholder="SN#" aria-label="SN#" />

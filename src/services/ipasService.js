@@ -60,7 +60,7 @@ import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { REFUSAL } from "../constants/refusal";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
-import { ipasFigures } from "../utils/ipasFigures";
+import { ipasFigures, odooPoTotal } from "../utils/ipasFigures";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
@@ -1320,6 +1320,18 @@ export const ipasService = {
   },
 
   /**
+   * The payments Filing is waiting on (#1124): on a foreign-currency IPAS, every payment whose
+   * "Pesos taken from the bank" is blank, one phrase each ("Down payment of USD 500.00 on Nov 19,
+   * 2026"). Empty on a peso IPAS. The list comes from the database, the same one that refuses
+   * Approve and file while any are named.
+   */
+  async paymentsWaitingForPesos(id) {
+    const { data, error } = await supabase.rpc("ipas_payments_waiting_for_pesos", { p_ipas_id: id });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  /**
    * Reopens a filed IPAS (Super Admin only: the database refuses everyone else),
    * with a reason that is kept in history. Clears section 7's sign-offs and
    * returns the IPAS to open; sections 1 and 3 stay approved. Returns
@@ -1520,7 +1532,8 @@ export const ipasService = {
           supplier: ipasSupplier(ipas),
           purpose: ipas.purpose,
           priority: ipas.priority,
-          total: (ipas.odoo_copy?.lines ?? []).reduce((sum, line) => sum + (Number(line?.price_subtotal) || 0), 0),
+          // The PO total with tax, as the record shows it (an old copy falls back to its line subtotals).
+          total: odooPoTotal(ipas.odoo_copy)?.total ?? 0,
           currency: ipasCurrency(ipas),
           // The Supplier bill check's figures (#603): the review warns beside section 1's Approve.
           figures: ipasFigures(ipas),

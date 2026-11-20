@@ -107,7 +107,7 @@ describe("transmittalService", () => {
     expect(picks).toHaveLength(1)
     // Only what a slip needs: no price, supplier or bank column reaches the screen.
     expect(Object.keys(picks[0]).sort()).toEqual(
-      ["entity", "ipasId", "ipasNumber", "odooPoLineId", "poNumber", "productName", "quantity", "sors", "unit"].sort(),
+      ["entity", "ipasId", "ipasNumber", "left", "odooPoLineId", "poNumber", "productName", "quantity", "sors", "unit"].sort(),
     )
 
     const made = await transmittalService.create({
@@ -121,6 +121,35 @@ describe("transmittalService", () => {
     await expect(
       transmittalService.create({ header: HEADER, lines: [{ kind: "typed", description: "x", unit: "Unit", quantity: 1 }] }),
     ).rejects.toThrow(/only Purchasing, or the Warehouse or Logistics list/)
+  })
+
+  it("shows what a P0 line has left, and warns, not refuses, when a slip carries more (#1126)", async () => {
+    const warehouse = makeEmployee({ name: "Warehouse Staff" })
+    signerOn("transmittal_warehouse", warehouse.id)
+    const ipas = seedIpas()
+    stubTransmittalRpcs({ actorId: warehouse.id })
+    const line = (quantity, extra = {}) => ({ kind: "po_line", ipasId: ipas.id, odooPoLineId: 11400, quantity, ...extra })
+    const leftNow = async () => (await transmittalService.pickablePoLines("P0255"))[0].left
+
+    expect(await leftNow()).toBe(6)
+    const first = await transmittalService.create({ header: HEADER, lines: [line(6)] })
+    expect(first.warnings).toEqual([])
+    expect(await leftNow()).toBe(0)
+
+    // A second slip of 3: a warning that asks for a remark, still raised, and Submit works with one.
+    const second = await transmittalService.create({ header: HEADER, lines: [line(3)] })
+    expect(second.warnings).toEqual([expect.objectContaining({ kind: "over_claim", left: 0, more: 3, has_remark: false })])
+    const withRemark = await transmittalService.updateDraft(second.id, {
+      header: HEADER,
+      lines: [line(3, { overClaimRemark: "Replaces the NA unit" })],
+    })
+    expect(withRemark.warnings).toEqual([expect.objectContaining({ kind: "over_claim", has_remark: true })])
+    const submitted = await transmittalService.submit(second.id)
+    expect(submitted.state).toBe("warehouse_checking")
+
+    // The first slip's line rated NA counts as not delivered, so the PO line has 6 less 3 left.
+    db.internal.rowsOf("transmittal_lines").find((l) => l.transmittal_id === first.id).wh_rating = "na"
+    expect(await leftNow()).toBe(3)
   })
 
   it("refuses a slip with neither Warehouse nor TCA Technical ticked, before it reaches the database", async () => {

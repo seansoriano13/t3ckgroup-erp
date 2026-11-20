@@ -129,6 +129,7 @@ const methodLabelOf = (payment) => {
  *   remainingBalance    amount - paid; 0 once the status is Paid or Done (ADR 0036:
  *                       withholding never leaves a settled order owing); null when
  *                       there is no Amount
+ *   overpaidBy          paid - amount when the payments pass the order amount (spec #1123, A2); 0 otherwise
  *   paymentMethods      distinct method labels, first used first
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none
  *   paymentPercents     the payments that are a percent of the order, "Down payment · 30%; Payment · 45%"; "" with none
@@ -202,6 +203,8 @@ export function ipasFigures(ipas) {
   if (settled) remainingBalance = 0;
   else if (amount !== null) remainingBalance = fromCents(toCents(amount) - paidCents);
 
+  const overpaidBy = amount !== null && paidCents > toCents(amount) ? fromCents(paidCents - toCents(amount)) : 0;
+
   return {
     currency,
     piAmount,
@@ -219,6 +222,7 @@ export function ipasFigures(ipas) {
     onHold,
     onHoldNote: onHold ? (ipas?.on_hold_note ?? null) : null,
     remainingBalance,
+    overpaidBy,
     paymentMethods: methods,
     paymentScheme: methods.join(PAYMENT_SCHEME_SEPARATOR),
     paymentPercents: percentLabels.join("; "),

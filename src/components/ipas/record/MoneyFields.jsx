@@ -39,6 +39,7 @@ import { formatAmount } from "@/utils/ipas";
 import { odooPoTotal } from "@/utils/ipasFigures";
 import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
+import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
@@ -334,7 +335,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
-        <Field id={id("paidOn")} label="Date" kind="date" required value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
+        <Field id={id("paidOn")} label="Date" kind="date" required min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.paidOn, "The payment date") ?? undefined} value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
         {showPercent && (
           <div className="min-w-0">
             <Field
@@ -509,7 +510,7 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <PickField id={id("kindId")} label="Kind" required placeholder="Pick a kind" options={kinds} value={row.kindId} disabled={disabled} onChange={(v) => onPatch({ kindId: v })} />
-        <Field id={id("chargedOn")} label="Date" kind="date" required={!saved} value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
+        <Field id={id("chargedOn")} label="Date" kind="date" required={!saved} min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.chargedOn, "The charge date") ?? undefined} value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
         <Field
           id={id("amountPhp")}
           label="Amount (PHP)"

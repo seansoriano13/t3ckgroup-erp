@@ -153,6 +153,21 @@ describe("ipasErrorMessage", () => {
     expect(ipasErrorMessage({ code: "XX000" })).toBe("Something went wrong.")
   })
 
+  it("never lets raw database text through (23505, 23514, overflow)", () => {
+    expect(
+      ipasErrorMessage({ code: "23505", message: 'duplicate key value violates unique constraint "ipas_live_po_number_key"' }),
+    ).toBe("That already exists.")
+    expect(
+      ipasErrorMessage({ code: "23514", message: 'new row for relation "packing_list_boxes" violates check constraint "x" Failing row contains (1, 2)' }),
+    ).toBe("One of the values is not allowed. Check the numbers and dates and try again.")
+    expect(ipasErrorMessage({ code: "22003", message: "numeric field overflow" })).toBe("One of the numbers is too big.")
+    expect(ipasErrorMessage({ message: "numeric field overflow" })).toMatch(/not allowed/)
+    // A sentence the functions wrote is left alone.
+    expect(ipasErrorMessage({ code: "23505", message: "ipas_create: P01050 already has a live IPAS (TGIPAS_079)" })).toBe(
+      "P01050 already has a live IPAS (TGIPAS_079)",
+    )
+  })
+
   it("drops any function name, not only an IPAS one, and starts with a capital", () => {
     expect(ipasErrorMessage({ message: "transmittal_check: the preparer can't check their own slip" })).toBe(
       "The preparer can't check their own slip",

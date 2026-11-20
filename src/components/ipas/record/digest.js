@@ -178,7 +178,8 @@ export function digestIpas(ipas, signerLists = null) {
   const missingFiles = Object.values(docs.missingByPart).flat();
   const prepared = [s1, s3, s6].every((state) => state?.prepared || state?.approved);
   const approvedAll = [s1, s3, s6].every((state) => state?.approved);
-  const signedCount = (prepared ? 1 : 0) + (approvedAll ? 1 : 0) + (s7.received && s7.noted && s7.checked ? 1 : 0) + (s7.approved ? 1 : 0);
+  // The five steps its rail shows: Logistics, Send, Approve, Check, File.
+  const signedCount = (s8?.approved ? 1 : 0) + (prepared ? 1 : 0) + (approvedAll ? 1 : 0) + (s7.received && s7.noted && s7.checked ? 1 : 0) + (s7.approved ? 1 : 0);
   Object.assign(lines, {
     order: join([
       plural(money.lineCount, "line", "lines"),
@@ -201,7 +202,7 @@ export function digestIpas(ipas, signerLists = null) {
     documents: missingFiles.length > 0
       ? `${missingFiles.length} still missing · ${docs.attached} attached`
       : `${docs.attached} attached · nothing missing`,
-    signoffs: `${signedCount} of 4 signed`,
+    signoffs: `${signedCount} of 5 signed`,
   });
 
   const digest = {
@@ -271,10 +272,10 @@ function gateSectionState(key, digest) {
   const done = (yes, doneWord, notYet) => ({ state: yes ? STATE.DONE : STATE.WAITING, detail: yes ? doneWord : notYet });
   if (key === "order") return done(digest.order.done, "Filled in", digest.order.detail);
   if (key === "payments") return done(digest.paymentsProgress.done, "Complete", digest.paymentsProgress.detail);
-  if (key === "costs") return done(digest.costsComplete, "Final", digest.landedUnavailable ? "No figure yet" : "Provisional");
+  if (key === "costs") return done(digest.costsComplete, digest.landedEstimate ? "Estimate" : "Final", digest.landedUnavailable ? "No figure yet" : "Provisional");
   if (key === "delivery") return done(Boolean(digest.s8?.approved), "Signed", "Not delivered yet");
   if (key === "documents") return done(digest.missingFiles.length === 0, "All in", `${digest.missingFiles.length} missing`);
-  if (key === "signoffs") return done(digest.filed, "Filed", `${digest.signedCount} of 4 signed`);
+  if (key === "signoffs") return done(digest.filed, "Filed", `${digest.signedCount} of 5 signed`);
   const gate = (gateKey) => digest.gates.find((g) => g.key === gateKey);
   if (key === "purchasing") return { state: gate("purchasing").state, detail: SIGNOFF_DETAIL[digest.s1.status] };
   if (key === "finance") return { state: gate("finance").state, detail: SIGNOFF_DETAIL[digest.s3.status] };

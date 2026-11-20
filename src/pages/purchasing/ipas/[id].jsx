@@ -1107,6 +1107,7 @@ function IpasPage({ onClose }) {
           {/* Your move is a SidePanel: a right rail from 1440px, a button on a small laptop, a sticky bottom bar on a phone. */}
           <RecordWithRail
             status={journey.headline}
+            mine={journey.mine.length > 0}
             rail={<IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} onGoToSignoff={sections.showSignoff} next={nextIpas} />}
           >
             <div data-testid="ipas-money-summary-slot" className="min-w-0">
@@ -1191,6 +1192,7 @@ function IpasPage({ onClose }) {
             : "Who typed it and when is kept with the date and in history."
         }
         fields={dateFields}
+        limited={dates !== "origin"}
         onSubmit={(values) => {
           saveDates.mutate({ kind: dates, values });
           return Promise.resolve();

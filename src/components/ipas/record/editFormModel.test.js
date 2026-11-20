@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ipasDateMax } from "@/utils/ipasDateLimits";
 
 import {
   BY_HAND,
@@ -161,6 +162,22 @@ describe("IPAS edit form model", () => {
       expect(plan.bank).toEqual({ bankName: "BPI", accountName: "", accountNumber: "" });
       expect(plan.status).toBe("encoded");
       expect(planIsEmpty(plan)).toBe(false);
+    });
+
+    it("refuses a payment, a charge and a typed date outside 2015-01-01..today, and takes today", () => {
+      const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+      const base = formFromIpas(ipas());
+      const pay = (paidOn) => ({ ...base, payments: [{ ...newPaymentDraft(), amount: "5", methodId: "m-1", paidOn }] });
+      expect(planSave(pay(tomorrow), base).error).toBe("Payment 1: The payment date cannot be after today.");
+      expect(planSave(pay("2014-12-31"), base).error).toBe("Payment 1: The payment date cannot be before January 1, 2015.");
+      expect(planSave(pay(ipasDateMax()), base).error).toBeNull();
+      const chg = (chargedOn) => ({ ...base, charges: [{ ...newChargeDraft(), kindId: "k-1", amountPhp: "10", chargedOn }] });
+      expect(planSave(chg(tomorrow), base).error).toBe("Charge 1: The charge date cannot be after today.");
+      expect(planSave(chg("2014-12-31"), base).error).toBe("Charge 1: The charge date cannot be before January 1, 2015.");
+      expect(planSave(chg(ipasDateMax()), base).error).toBeNull();
+      expect(planSave({ ...base, delivered: tomorrow }, base).error).toBe("The Delivered date cannot be after today.");
+      expect(planSave({ ...base, importClearance: "2014-12-31" }, base).error).toBe("The Import Clearance date cannot be before January 1, 2015.");
+      expect(planSave({ ...base, delivered: ipasDateMax() }, base).error).toBeNull();
     });
 
     it("sends nothing and says why when a payment can't be saved yet", () => {

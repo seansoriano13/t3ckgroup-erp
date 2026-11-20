@@ -129,7 +129,7 @@ export function recordOdooCopyAs(who, args) {
 }
 
 const FIXTURE_SLIP_ENTITY = "policy-tier logistics fixture"
-const FIXTURE_FILE = "https://example.test/policy-tier.pdf"
+const FIXTURE_FILE = "https://res.cloudinary.com/demo/image/upload/policy-tier.pdf"
 
 async function documentKind(label) {
     const { rows } = await sql().query(
