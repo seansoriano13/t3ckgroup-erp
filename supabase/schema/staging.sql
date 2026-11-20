@@ -2498,7 +2498,7 @@ alter table transmittals add constraint "transmittals_origin_chk" CHECK ((origin
 alter table transmittals add constraint "transmittals_origin_other_chk" CHECK (((origin <> 'other'::text) OR ((origin_other IS NOT NULL) AND (length(btrim(origin_other)) > 0))));
 alter table transmittals add constraint "transmittals_priority_chk" CHECK ((priority = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text])));
 alter table transmittals add constraint "transmittals_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'warehouse_checking'::text, 'warehouse_releasing'::text, 'technical_inspection'::text, 'awaiting_check'::text, 'closed'::text, 'cancelled'::text])));
-alter table transmittals add constraint "transmittals_submitted_chk" CHECK (((state = ANY (ARRAY['draft'::text, 'cancelled'::text])) OR (submitted_at IS NOT NULL)));
+alter table transmittals add constraint "transmittals_submitted_chk" CHECK (((state = 'draft'::text) OR (state = 'cancelled'::text) OR (submitted_at IS NOT NULL)));
 alter table undertime_requests add constraint "undertime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table undertime_requests add constraint "undertime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table bug_report_notes add constraint "bug_report_notes_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
