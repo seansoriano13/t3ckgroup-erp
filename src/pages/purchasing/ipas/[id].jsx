@@ -1190,7 +1190,7 @@ function IpasPage({ onClose }) {
         title={statusAsk ? (statusAsk.mode === "date" ? `Edit the ${IPAS_STATUS_LABELS[statusAsk.step]} date` : `Set the status to ${IPAS_STATUS_LABELS[statusAsk.step]}`) : "Status"}
         description={
           statusAsk?.mode === "date"
-            ? "The day this step was reached. It cannot be later than today or before the step before it."
+            ? "The day this step was reached. It cannot be later than today. A day before an earlier step only shows a warning."
             : "The day this step was reached: today, or an earlier day. Steps you skip stay blank; going back clears the steps after."
         }
         fields={statusDateFields}

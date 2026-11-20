@@ -1,10 +1,11 @@
-import { Check, Pencil } from "lucide-react";
+import { Check, Pencil, TriangleAlert } from "lucide-react";
 
 import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipasStatusesFor } from "../../constants/ipas";
 import { formatDay } from "../../utils/ipasPayments";
 import { suggestStatus } from "../../utils/ipasStatusSuggestion";
+import { statusDatesOutOfOrder } from "../../utils/ipasStatusDates";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,6 +25,8 @@ export default function IpasStatusSteps({ ipas, canSet = false, onPick, onEditDa
   const open = ipas.state === IPAS_STATE.OPEN;
   const settable = canSet && open;
   const reached = new Map((ipas.statusSteps ?? []).map((item) => [item.step, item]));
+  // Dates are never refused; a step dated before an earlier one only gets a warning.
+  const outOfOrder = statusDatesOutOfOrder(ipasStatusesFor(ipas.source), ipas.statusSteps);
 
   // One quiet line, only for people who may set the status; the status never moves without the click.
   const suggestion = settable && onSuggest ? suggestStatus(ipas) : null;
@@ -96,6 +99,12 @@ export default function IpasStatusSteps({ ipas, canSet = false, onPick, onEditDa
             )}
             <span className="ml-auto inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {item?.on && <span className="font-medium text-foreground tabular-nums">{formatDay(item.on)}</span>}
+              {outOfOrder.has(step) && (
+                <span className="inline-flex items-center gap-1 text-amber-11" data-testid={`ipas-step-warning-${step}`}>
+                  <TriangleAlert size={12} aria-hidden="true" />
+                  Before {outOfOrder.get(step).label} ({formatDay(outOfOrder.get(step).on)})
+                </span>
+              )}
               {item?.by?.name && <span>set by {item.by.name}</span>}
               {pickable && item && (
                 <Button

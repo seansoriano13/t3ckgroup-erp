@@ -143,18 +143,15 @@ describe("the date", () => {
         expect((await setStep("outsider", other.id, "shipped", manilaDay(1))).error?.code).toBe("22023")
     })
 
-    it("refuses a day before the previous dated step, but not before Order-Draft", async () => {
+    it("allows a day before the previous dated step (the record only warns)", async () => {
         const ipas = await raise()
         await setStep("outsider", ipas.id, "ordered", manilaDay(-3))
 
-        const early = await setStep("outsider", ipas.id, "shipped", manilaDay(-6))
-
-        expect(early.error?.code).toBe("22023")
-        expect(early.error?.message).toContain("cannot be before the step before it")
+        expect((await setStep("outsider", ipas.id, "shipped", manilaDay(-6))).error).toBeNull()
         expect((await setStep("outsider", ipas.id, "payment_approval", manilaDay(-9))).error).toBeNull()
     })
 
-    it("changes the day of a step already reached, within its neighbours", async () => {
+    it("changes the day of a step already reached, even out of order", async () => {
         const ipas = await raise()
         await setStep("outsider", ipas.id, "ordered", manilaDay(-9))
         await setStep("outsider", ipas.id, "shipped", manilaDay(-3))
@@ -164,7 +161,7 @@ describe("the date", () => {
         expect(moved.error).toBeNull()
         expect((await stepsOf(ipas.id)).find(([step]) => step === "ordered")[1]).toBe(manilaDay(-5))
         expect((await events(ipas.id, "status_date_changed")).at(-1).detail).toMatchObject({ step: "ordered", to: manilaDay(-5) })
-        expect((await rpc("outsider", "ipas_set_status_date", { p_ipas_id: ipas.id, p_step: "ordered", p_on: manilaDay(-1) })).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_set_status_date", { p_ipas_id: ipas.id, p_step: "ordered", p_on: manilaDay(-1) })).error).toBeNull()
         expect((await rpc("outsider", "ipas_set_status_date", { p_ipas_id: ipas.id, p_step: "processing", p_on: manilaDay(-4) })).error?.code).toBe("22023")
     })
 })

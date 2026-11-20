@@ -165,7 +165,6 @@ declare
   v_cur integer;
   v_existing date;
   v_date date;
-  v_prev date;
   v_cleared text[];
   v_from text;
 begin
@@ -190,13 +189,7 @@ begin
   v_date := coalesce(p_reached_on, case when v_new <= v_cur then v_existing end, public._ipas_today());
   perform public._ipas_check_date('ipas_set_status', v_date, 'the ' || public._ipas_status_label(p_step) || ' date');
 
-  select max(s.reached_on) into v_prev
-    from public.ipas_status_steps s
-   where s.ipas_id = v_row.id and public._ipas_status_order(s.step) < v_new and s.step <> 'order_draft';
-  if v_prev is not null and v_date < v_prev then
-    raise exception 'ipas_set_status: the % date cannot be before the step before it (%)', public._ipas_status_label(p_step), v_prev
-      using errcode = '22023';
-  end if;
+  -- Dates out of order are allowed (#1151 follow-up): the record shows a warning instead of refusing.
 
   if v_from is not distinct from p_step and v_existing is not distinct from v_date then
     return v_row;
@@ -248,8 +241,6 @@ declare
   v_row public.ipas;
   v_order integer := public._ipas_status_order(p_step);
   v_existing date;
-  v_prev date;
-  v_next date;
 begin
   if v_order is null then
     raise exception 'ipas_set_status_date: % isn''t a status step', coalesce(p_step, 'null') using errcode = '22023';
@@ -270,18 +261,7 @@ begin
 
   perform public._ipas_check_date('ipas_set_status_date', p_on, 'the ' || public._ipas_status_label(p_step) || ' date');
 
-  select max(s.reached_on) into v_prev
-    from public.ipas_status_steps s where s.ipas_id = v_row.id and public._ipas_status_order(s.step) < v_order and s.step <> 'order_draft';
-  select min(s.reached_on) into v_next
-    from public.ipas_status_steps s where s.ipas_id = v_row.id and public._ipas_status_order(s.step) > v_order and s.step <> 'done';
-  if v_prev is not null and p_on < v_prev then
-    raise exception 'ipas_set_status_date: the % date cannot be before the step before it (%)', public._ipas_status_label(p_step), v_prev
-      using errcode = '22023';
-  end if;
-  if v_next is not null and p_on > v_next and p_step <> 'order_draft' then
-    raise exception 'ipas_set_status_date: the % date cannot be after the step after it (%)', public._ipas_status_label(p_step), v_next
-      using errcode = '22023';
-  end if;
+  -- Dates out of order are allowed; the record shows a warning instead (#1151 follow-up).
 
   if v_existing = p_on then
     return v_row;

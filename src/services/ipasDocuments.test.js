@@ -356,14 +356,15 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       expect(eventsOf("status_changed").at(-1).detail.cleared).toEqual(["in_transit"])
     })
 
-    it("accepts last week and refuses tomorrow, Done, and a day before the step before it", async () => {
+    it("accepts last week and a day before an earlier step, and refuses tomorrow and Done", async () => {
       const ipas = await raise("import", "P03042")
 
       await ipasService.setStatus(ipas.id, "ordered", day(-7))
       await expect(ipasService.setStatus(ipas.id, "shipped", day(1))).rejects.toMatchObject({ code: "22023" })
-      await expect(ipasService.setStatus(ipas.id, "shipped", day(-30))).rejects.toMatchObject({ code: "22023" })
       await expect(ipasService.setStatus(ipas.id, "done")).rejects.toMatchObject({ code: "IPAS_INVALID" })
       expect((await read(ipas.id)).status).toBe("ordered")
+      await ipasService.setStatus(ipas.id, "shipped", day(-30))
+      expect((await read(ipas.id)).status).toBe("shipped")
     })
 
     it("refuses Customs, Local Hub and Out for Delivery on a Local IPAS, and the picker does not offer them", async () => {

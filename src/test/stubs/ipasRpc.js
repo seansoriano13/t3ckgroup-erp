@@ -1499,14 +1499,6 @@ export function stubIpasRpcs({
     const existing = stepsOf(row.id).find((s) => s.step === step)
     const date = args.p_reached_on ?? (wanted <= current ? existing?.reached_on : null) ?? manilaToday()
     checkStatusDate("ipas_set_status", date, `the ${STATUS_LABELS[step]} date`)
-    const before = stepsOf(row.id)
-      .filter((s) => orderOf(s.step) < wanted && s.step !== "order_draft")
-      .map((s) => s.reached_on)
-      .sort()
-      .at(-1)
-    if (before && date < before) {
-      refuse("22023", `ipas_set_status: the ${STATUS_LABELS[step]} date cannot be before the step before it (${before})`)
-    }
     if (row.status === step && existing?.reached_on === date) return row
     const gone = stepsOf(row.id).filter((s) => orderOf(s.step) > wanted)
     deleteRows("ipas_status_steps", gone)
@@ -1533,11 +1525,6 @@ export function stubIpasRpcs({
     const existing = stepsOf(row.id).find((s) => s.step === step)
     if (!existing) refuse("22023", `ipas_set_status_date: ${row.number} has not reached ${STATUS_LABELS[step]}`)
     checkStatusDate("ipas_set_status_date", args.p_on, `the ${STATUS_LABELS[step]} date`)
-    const dates = (test) => stepsOf(row.id).filter(test).map((s) => s.reached_on).sort()
-    const before = dates((s) => orderOf(s.step) < wanted && s.step !== "order_draft").at(-1)
-    const after = dates((s) => orderOf(s.step) > wanted && s.step !== "done")[0]
-    if (before && args.p_on < before) refuse("22023", `ipas_set_status_date: the ${STATUS_LABELS[step]} date cannot be before the step before it (${before})`)
-    if (after && args.p_on > after && step !== "order_draft") refuse("22023", `ipas_set_status_date: the ${STATUS_LABELS[step]} date cannot be after the step after it (${after})`)
     if (existing.reached_on === args.p_on) return row
     updateRow("ipas_status_steps", existing, { reached_on: args.p_on, set_by: actorId, set_at: new Date().toISOString() })
     event(row.id, "status_date_changed", { step, from: existing.reached_on, to: args.p_on })
