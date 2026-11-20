@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Smile } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -54,11 +55,56 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
     }
   });
   const containerRef = useRef(null);
+  const popRef = useRef(null);
+  const [pos, setPos] = useState(null); // { host, left, top }
+
+  // Place the popup next to the button, inside the nearest dialog (or body),
+  // flipping below when there is no room above and clamping to the edges so a
+  // modal parent never clips it.
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const place = () => {
+      const btn = containerRef.current;
+      const pop = popRef.current;
+      if (!btn) return;
+      const host = btn.closest('[role="dialog"]') || document.body;
+      const isBody = host === document.body;
+      const b = btn.getBoundingClientRect();
+      const h = isBody
+        ? { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }
+        : host.getBoundingClientRect();
+      const offX = isBody ? window.scrollX : host.scrollLeft - h.left;
+      const offY = isBody ? window.scrollY : host.scrollTop - h.top;
+      const w = pop?.offsetWidth || 264;
+      const ht = pop?.offsetHeight || 240;
+      const gap = 6, pad = 8;
+      let left = align === "end" ? b.right - w : b.left;
+      left = Math.max(h.left + pad, Math.min(left, h.right - w - pad));
+      let top = b.top - ht - gap;
+      if (top < h.top + pad) {
+        const below = b.bottom + gap;
+        top = below + ht <= h.bottom - pad ? below : Math.max(h.top + pad, h.bottom - ht - pad);
+      }
+      setPos({ host, left: left + offX, top: top + offY });
+    };
+    place();
+    const raf = requestAnimationFrame(place);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, align]);
 
   useEffect(() => {
     if (!open) return;
     const handleClick = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      if (
+        containerRef.current && !containerRef.current.contains(e.target) &&
+        !(popRef.current && popRef.current.contains(e.target))
+      ) {
         setOpen(false);
       }
     };
@@ -98,18 +144,17 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
         <Smile size={16} />
       </button>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-[60] md:hidden" onClick={() => setOpen(false)} />
+      {open && createPortal(
           <div
-            className={cn(
-              "popover-enter z-[70] w-[264px] rounded-xl border border-border bg-popover shadow-2xl overflow-hidden",
-              // Mobile: Fixed center
-              "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-              // Desktop: Absolute above button
-              "md:absolute md:top-auto md:bottom-full md:mb-2 md:transform-none",
-              align === "end" ? "md:right-0 md:left-auto" : "md:left-0 md:right-auto",
-            )}
+            ref={popRef}
+            style={{
+              position: "absolute",
+              left: pos?.left ?? 0,
+              top: pos?.top ?? 0,
+              visibility: pos ? "visible" : "hidden",
+              pointerEvents: "auto",
+            }}
+            className="popover-enter z-[90] w-[264px] max-w-[calc(100vw-16px)] rounded-xl border border-border bg-popover shadow-2xl overflow-hidden"
           >
           <div className="flex items-center gap-0.5 border-b border-border p-1.5 overflow-x-auto custom-scrollbar">
             {EMOJI_CATEGORIES.map((cat, i) => (
@@ -161,8 +206,8 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
               ))}
             </div>
           </div>
-        </div>
-        </>
+        </div>,
+        pos?.host || containerRef.current?.closest('[role="dialog"]') || document.body,
       )}
     </div>
   );
