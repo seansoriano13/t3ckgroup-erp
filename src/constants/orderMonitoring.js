@@ -1,20 +1,23 @@
-import { IPAS_COSTING_SECTION, IPAS_FILING_SECTION, IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS, ipasSectionNo } from "./ipas";
+import {
+  IPAS_COSTING_SECTION,
+  IPAS_FILING_SECTION,
+  IPAS_SIGNER_LIST,
+  IPAS_SIGNER_LIST_LABELS,
+  IPAS_STATUS,
+  IPAS_STATUSES,
+  IPAS_STATUS_LABELS,
+  ipasSectionNo,
+} from "./ipas";
 
 /**
  * Order Monitoring (spec #261): the steps an ageing rule can be set on, in the
- * order an order runs. The first seven are the IPAS buyer track; the rest
- * are the hand-off facts (a delivery with no Transmittal, a Transmittal check
- * still open, section 3 waiting for approval, costs complete and ready to file). The keys are the database's
- * `order_ageing_rules.step` values, so they must match the migration.
+ * order an order runs. The first ten are the IPAS Status steps before Done (the team's own
+ * words, #1156); the rest are the hand-off facts (a delivery with no Transmittal, a Transmittal
+ * check still open, section 3 waiting for approval, costs complete and ready to file). The keys
+ * are the database's `order_ageing_rules.step` values, so they must match the migration.
  */
 export const ORDER_AGEING_STEPS = [
-  { key: "purchase_order", label: "Purchase Order" },
-  { key: "with_pop", label: "With P.O.P" },
-  { key: "import_clearance", label: "Import Clearance" },
-  { key: "delivered", label: "Delivered" },
-  { key: "received_in_odoo", label: "Received in Odoo" },
-  { key: "create_bill", label: "Create Bill" },
-  { key: "actual_checking", label: "Actual Checking" },
+  ...IPAS_STATUSES.filter((step) => step !== IPAS_STATUS.DONE).map((key) => ({ key, label: IPAS_STATUS_LABELS[key] })),
   { key: "no_transmittal", label: "Delivered, no Transmittal raised" },
   { key: "check_open", label: "Transmittal check open" },
   { key: "section_3_approval", label: `Section ${ipasSectionNo(IPAS_COSTING_SECTION)} waiting to be submitted or approved` },
@@ -26,8 +29,7 @@ export const ORDER_AGEING_STEPS = [
  * these; a step stays without a rule until Purchasing types a number.
  */
 export const ORDER_AGEING_HINTS = {
-  import_clearance: 3,
-  create_bill: 7,
+  customs: 3,
 };
 
 /**
@@ -64,6 +66,7 @@ export const ORDER_OWNER = {
   FINANCE: "finance",
   WAREHOUSE: "warehouse",
   TECHNICAL: "technical",
+  ORDER_APPROVERS: "order_approvers",
   CHECK_BY: "check_by",
   SECTION_3_APPROVERS: "section_3_approvers",
   SIGNERS: "signers",
@@ -75,6 +78,7 @@ export const ORDER_OWNER_LABELS = {
   [ORDER_OWNER.FINANCE]: "Finance",
   [ORDER_OWNER.WAREHOUSE]: "Warehouse",
   [ORDER_OWNER.TECHNICAL]: "Technical",
+  [ORDER_OWNER.ORDER_APPROVERS]: "Order approvers",
   [ORDER_OWNER.CHECK_BY]: "Check by signers",
   [ORDER_OWNER.SECTION_3_APPROVERS]: IPAS_SIGNER_LIST_LABELS[IPAS_SIGNER_LIST.S6_APPROVED],
   [ORDER_OWNER.SIGNERS]: `Section ${ipasSectionNo(IPAS_FILING_SECTION)} signers`,

@@ -95,7 +95,7 @@ const weightOf = (row) =>
 async function loadOrders(today) {
   const { data, error } = await supabase
     .from("ipas")
-    .select("*")
+    .select("*, status_steps:ipas_status_steps(step, reached_on)")
     .neq("state", IPAS_STATE.CANCELLED)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -140,9 +140,8 @@ async function loadOrders(today) {
         section3Submitted: section3.submitted.has(row.id),
         section3Approved: section3.approved.has(row.id),
         buyerTrack: shaped.buyerTrack,
-        proofPaidOn: latestProofDate(payments),
-        arrivedInPhOn: row.arrived_in_ph_on,
-        origins: row,
+        status: row.status,
+        statusSteps: shaped.statusSteps,
         slips: named,
         // The On-Hold rule is the IPAS Status's, read from the figures (utils/ipasFigures.js), not the raw flag.
         onHold: ipasFigures(shaped).onHold,
@@ -175,6 +174,8 @@ async function loadOrders(today) {
       odooFetchedAt: row.odoo_fetched_at ?? null,
       item: itemOf(shaped.lines),
       buyerTrack: shaped.buyerTrack.map(trackStepOf),
+      status: row.status ?? null,
+      statusSteps: shaped.statusSteps.map(({ step, on }) => ({ step, on })),
       transmittals: transmittalSummary(row.id, slips),
       group: standing.group,
       next: standing.next,
@@ -232,15 +233,6 @@ async function readCostsCompleteAt(ids) {
     if (!isLandedCostFinal(to)) continue;
     const previous = latest.get(event.ipas_id);
     if (!previous || event.created_at > previous) latest.set(event.ipas_id, event.created_at);
-  }
-  return latest;
-}
-
-/** The latest payment date that carries proof of payment, or null. */
-function latestProofDate(payments) {
-  let latest = null;
-  for (const payment of payments) {
-    if (payment.proof_url && payment.paid_on && (!latest || payment.paid_on > latest)) latest = payment.paid_on;
   }
   return latest;
 }

@@ -23,7 +23,7 @@ function parseDays(text) {
 /**
  * The Ageing rules section of Settings > Purchasing (#262, spec #261): one
  * number of days per step of an order's life, blank for no rule. A step with
- * no rule never goes late. Import Clearance 3 and Create Bill 7 are shown as
+ * no rule never goes late. Customs / Port Hold 3 is shown as
  * examples only; nothing is set from them. Purchasing access and Super Admins
  * edit it (the database decides).
  */
