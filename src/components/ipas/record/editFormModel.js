@@ -90,7 +90,6 @@ export const OWNS = {
   ],
 };
 
-const day = (value) => (value ? String(value).slice(0, 10) : "");
 const text = (value) =>
   value === null || value === undefined ? "" : String(value);
 

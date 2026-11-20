@@ -22,6 +22,12 @@ export function ipasLine(ipas) {
   return [ipas.po_number, raised].filter(Boolean).join(" · ");
 }
 
+/** The Status pill's words: the step, with "On-Hold ·" in front while the order is held (as on the list). */
+const statusFact = (figures) => {
+  const step = IPAS_STATUS_LABELS[figures?.status] ?? figures?.status ?? null;
+  return step && figures?.onHold ? `On-Hold · ${step}` : step;
+};
+
 /** The headline pills, in order. A fact with no value is left out by PropertyPills. */
 export function ipasPills(ipas, figures) {
   return [
@@ -29,7 +35,7 @@ export function ipasPills(ipas, figures) {
     { key: "priority", label: "Priority", value: IPAS_PRIORITY_LABELS[ipas.priority] },
     { key: "source", label: "Source", value: IPAS_SOURCE_LABELS[ipas.source] },
     { key: "purpose", label: "Purpose", value: IPAS_PURPOSE_LABELS[ipas.purpose] },
-    { key: "status", label: "Status", value: IPAS_STATUS_LABELS[figures?.status] ?? figures?.status ?? null },
+    { key: "status", label: "Status", value: statusFact(figures) },
     { key: "sor", label: "SOR", value: (ipas.sors ?? []).map((sor) => sor.salesReference).join(", ") },
   ];
 }

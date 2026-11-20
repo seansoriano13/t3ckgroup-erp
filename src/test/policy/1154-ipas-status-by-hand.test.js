@@ -262,10 +262,20 @@ describe("the switch-over", () => {
         await sql().query(`update public.ipas set status = null, odoo_copy = jsonb_set(odoo_copy, '{po,state}', to_jsonb($2::text)) where id = $1`, [ipas.id, poState])
         if (set) await sql().query(`update public.ipas set ${set} where id = $1`, [ipas.id])
         if (prepared) {
-            await sql().query(
-                `insert into public.ipas_signoffs (ipas_id, section, role, signed_by) values ($1, 1, 'prepared', $2)`,
-                [ipas.id, ids.outsider],
-            )
+            // A sign-off that already existed before this ticket: the documents guard would refuse a fresh one
+            // (section 1 needs its Proforma Invoice), so it goes in with triggers off, as the old data was.
+            const client = await sql().connect()
+            try {
+                await client.query("begin")
+                await client.query("set local session_replication_role = replica")
+                await client.query(
+                    `insert into public.ipas_signoffs (ipas_id, section, role, signed_by) values ($1, 1, 'prepared', $2)`,
+                    [ipas.id, ids.outsider],
+                )
+                await client.query("commit")
+            } finally {
+                client.release()
+            }
         }
         await sql().query(`select public._ipas_status_switch_over($1)`, [ipas.id])
         return { id: ipas.id, status: await statusOf(ipas.id), steps: Object.fromEntries(await stepsOf(ipas.id)) }

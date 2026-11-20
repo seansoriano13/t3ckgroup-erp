@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { buildIpasDocument, buildIpasPagesHtml } from "./ipasDocument"
 import { buildIpasViewModel } from "./ipasViewModel"
-import { BAUTISTA, RAMOS, ipasRow, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
+import { BAUTISTA, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
 /**
  * The printed IPAS's HTML (#250): two A4 portrait pages in the module's own

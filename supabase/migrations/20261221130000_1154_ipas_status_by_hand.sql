@@ -281,7 +281,7 @@ end;
 $$;
 
 comment on function public.ipas_set_status_date(uuid, text, date) is
-  '#1154: changes the day of a status step already reached, under the same date rules as ipas_set_status (never later than today, never before the previous dated step, never after the next one). Writes "status_date_changed".';
+  '#1154: changes the day of a status step already reached, never later than today and never before 2015 (a date out of order with its neighbours is allowed; the record warns). Writes "status_date_changed".';
 
 revoke all on function public.ipas_set_status_date(uuid, text, date) from public, anon;
 grant execute on function public.ipas_set_status_date(uuid, text, date) to authenticated;

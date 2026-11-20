@@ -109,8 +109,9 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
     const methods = seedIpasOptions((table, row) => db.seed(table, row)).payment_method;
     const raiser = makeEmployee({ name: "Raquel Cruz", call_sign: "1002" });
     const sor = makeOpportunity({ registered_by: raiser.id, sales_reference: "S07920", sor_code: "SOR-198", project_title: "Capas LGU" });
-    const row = ipas({ po_number: "P02001", purpose: "project", pi_qt_amount: 10000, created_by: raiser.id });
+    const row = ipas({ po_number: "P02001", purpose: "project", pi_qt_amount: 10000, created_by: raiser.id, status: "order_draft" });
     db.seed("ipas_sors", { ipas_id: row.id, opportunity_id: sor.id });
+    db.seed("ipas_status_steps", { ipas_id: row.id, step: "order_draft", reached_on: "2026-10-05" });
     pay(row, "down_payment", 3000, methods["Bank TT"]);
     pay(row, "payment", 1000, methods.Cash);
     const user = setupUser();
@@ -135,10 +136,11 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
       "Full Payment",
       "Remaining Balance",
       "Status",
+      "Status date",
       "Payments (% of order)",
     ]);
     expect(sheet.rows).toHaveLength(1);
-    const [number, , createdBy, project, supplier, po, amount, scheme, down, full, remaining, status] = sheet.rows[0];
+    const [number, , createdBy, project, supplier, po, amount, scheme, down, full, remaining, status, statusDate] = sheet.rows[0];
     expect(number).toBe(row.number);
     expect(createdBy).toBe("1002 · Raquel Cruz");
     expect(project).toBe("S07920 · Capas LGU");
@@ -150,9 +152,10 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
     expect(down.value).toBe(3000);
     expect(full).toBeNull();
     expect(remaining.value).toBe(6000);
-    expect(status).toBe("Ongoing");
-    // Nothing but the sheet's twelve columns and the % column at the end (#958): no bank details, no extras.
-    expect(sheet.rows[0]).toHaveLength(13);
+    expect(status).toBe("Order-Draft");
+    expect(statusDate).toContain("2026");
+    // Nothing but the sheet's thirteen columns and the % column at the end (#958): no bank details, no extras.
+    expect(sheet.rows[0]).toHaveLength(14);
   });
 
   it("exports only the rows the filters leave, each amount in its own currency's format", async () => {

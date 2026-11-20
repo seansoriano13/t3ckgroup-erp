@@ -162,14 +162,14 @@ declare
 begin
   select * into v_row from public.ipas_document_files where id = p_file_id;
   if v_row.id is null then
-    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = 'P0002';
+    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = '22023';
   end if;
 
   v_doc := public._ipas_lock_document('ipas_remove_document_file', v_row.document_id);
 
   delete from public.ipas_document_files where id = v_row.id returning * into v_row;
   if v_row.id is null then
-    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = 'P0002';
+    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = '22023';
   end if;
 
   perform public._ipas_write_event(v_doc.ipas_id, v_actor, 'document_attachment_removed',

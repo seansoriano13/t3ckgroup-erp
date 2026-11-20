@@ -64,7 +64,7 @@ function renderDetail(id, section, param = "open") {
   );
 }
 
-describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
+describe("IPAS page: documents, the IPAS Status steps and the buyer facts", () => {
   let purchaser, finance, options;
 
   /** The documents the migration's insert trigger would give an IPAS of this Source. */
@@ -345,50 +345,53 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
     });
   });
 
-  describe("Supplier Origin", () => {
-    it("shows the four dates on an Import IPAS, typed from a dialog", async () => {
-      const row = ipas({ source: "import", created_by: purchaser.id });
+  describe("the IPAS Status steps", () => {
+    it("lists the Import steps in order on an Import IPAS, picked from a dialog that asks for the day", async () => {
+      const row = ipas({ source: "import", status: "order_draft", created_by: purchaser.id });
       const user = setupUser();
 
       renderDetail(row.id, "delivery");
-      const block = await screen.findByTestId("ipas-supplier-origin");
-      for (const label of ["Shipped Out", "Onboard", "Arrived in PH", "Arrived in Whs."]) {
-        expect(within(block).getByText(label)).toBeInTheDocument();
+      const steps = await screen.findByTestId("ipas-status-steps");
+      for (const key of ["order_draft", "ordered", "customs", "local_hub", "out_for_delivery", "delivered", "done"]) {
+        expect(within(steps).getByTestId(`ipas-step-${key}`)).toBeInTheDocument();
       }
-      await user.click(within(block).getByRole("button", { name: "Edit dates" }));
+      expect(screen.queryByTestId("ipas-supplier-origin")).not.toBeInTheDocument();
+
+      await user.click(within(steps).getByRole("button", { name: "Set the status to Ordered" }));
       const dialog = await findOtherDialog();
-      await user.type(within(dialog).getByLabelText("Shipped Out"), "2026-10-01");
       await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
-      await waitFor(() => expect(db.rows("ipas")[0].shipped_out_on).toBe("2026-10-01"));
-      await waitFor(() => expect(within(screen.getByTestId("ipas-supplier-origin")).getByText("Oct 1, 2026")).toBeInTheDocument());
+      await waitFor(() => expect(db.rows("ipas")[0].status).toBe("ordered"));
     });
 
-    it("hides Supplier Origin entirely on a Local IPAS", async () => {
-      const row = ipas({ source: "local", created_by: purchaser.id });
+    it("hides the Import-only steps on a Local IPAS", async () => {
+      const row = ipas({ source: "local", status: "order_draft", created_by: purchaser.id });
 
       renderDetail(row.id, "delivery");
 
-      expect((await screen.findAllByText("4 · Delivery")).length).toBeGreaterThan(0);
+      expect(await screen.findByTestId("ipas-step-ordered")).toBeInTheDocument();
       expect(screen.queryByTestId("ipas-supplier-origin")).not.toBeInTheDocument();
-      expect(screen.queryByText("Supplier Origin")).not.toBeInTheDocument();
-      expect(screen.queryByText("Import Clearance")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("ipas-step-customs")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("ipas-step-local_hub")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("ipas-step-out_for_delivery")).not.toBeInTheDocument();
     });
   });
 
-  describe("the buyer track", () => {
-    it("shows each status with where it came from", async () => {
+  describe("the buyer facts", () => {
+    it("shows each fact with where it came from", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
 
       renderDetail(row.id, "delivery");
 
-      const po = await screen.findByTestId("ipas-track-purchase_order");
-      expect(within(po).getByText("stamped from Odoo")).toBeInTheDocument();
+      expect(await screen.findByTestId("ipas-track-with_pop")).toBeInTheDocument();
       expect(within(screen.getByTestId("ipas-track-with_pop")).getByText("derived from payments")).toBeInTheDocument();
-      expect(within(screen.getByTestId("ipas-track-import_clearance")).getByText("typed by Purchasing")).toBeInTheDocument();
-      expect(within(screen.getByTestId("ipas-track-delivered")).getByText("typed by Purchasing")).toBeInTheDocument();
+      expect(within(screen.getByTestId("ipas-track-create_bill")).getByText("stamped from Odoo")).toBeInTheDocument();
       expect(within(screen.getByTestId("ipas-track-actual_checking")).getByText("stamped by Purchasing")).toBeInTheDocument();
       expect(within(screen.getByTestId("ipas-track-received_in_odoo")).getByText("stamped from Odoo")).toBeInTheDocument();
+      // The typed facts are retired: the status steps carry them now.
+      expect(screen.queryByTestId("ipas-track-purchase_order")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("ipas-track-import_clearance")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("ipas-track-delivered")).not.toBeInTheDocument();
     });
 
     it("shows With P.O.P once a payment carries proof", async () => {
@@ -400,22 +403,6 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
 
       const pop = await screen.findByTestId("ipas-track-with_pop");
       await waitFor(() => expect(within(pop).getByText(/1 payment carries proof/)).toBeInTheDocument());
-    });
-
-    it("types Delivered with who and when, and shows it", async () => {
-      const row = ipas({ source: "local", created_by: purchaser.id });
-      const user = setupUser();
-
-      renderDetail(row.id, "delivery");
-      const delivered = await screen.findByTestId("ipas-track-delivered");
-      await user.click(within(delivered).getByRole("button", { name: "Type date" }));
-      const dialog = await findOtherDialog();
-      await user.type(within(dialog).getByLabelText("Delivered"), "2026-10-09");
-      await user.click(within(dialog).getByRole("button", { name: "Save" }));
-
-      await waitFor(() => expect(db.rows("ipas")[0]).toMatchObject({ delivered_on: "2026-10-09", delivered_typed_by: purchaser.id }));
-      await waitFor(() => expect(within(screen.getByTestId("ipas-track-delivered")).getByText(/typed by Buyer/)).toBeInTheDocument());
-      expect(within(screen.getByTestId("ipas-track-delivered")).getByText("Oct 9, 2026")).toBeInTheDocument();
     });
 
     it("stamps Actual Checking by Purchasing, naming who, and can clear the stamp", async () => {
@@ -433,17 +420,16 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       await waitFor(() => expect(db.rows("ipas")[0].actual_checking_by).toBeNull());
     });
 
-    it("offers Finance no way to type or stamp a status", async () => {
+    it("offers Finance no way to pick a step or stamp a fact", async () => {
       mockUser.current = finance;
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });
-      const row = ipas({ source: "import", created_by: purchaser.id });
+      const row = ipas({ source: "import", status: "order_draft", created_by: purchaser.id });
 
       renderDetail(row.id, "delivery");
 
-      const delivered = await screen.findByTestId("ipas-track-delivered");
-      expect(within(delivered).queryByRole("button")).not.toBeInTheDocument();
+      const steps = await screen.findByTestId("ipas-status-steps");
+      expect(within(steps).queryByRole("button")).not.toBeInTheDocument();
       expect(within(screen.getByTestId("ipas-track-actual_checking")).queryByRole("button")).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Edit dates" })).not.toBeInTheDocument();
     });
 
     it("keeps the typist's name and date in the history", async () => {

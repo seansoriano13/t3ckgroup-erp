@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildIpasViewModel, maskAccountNumber, printAmount, printDate, printDateTime } from "./ipasViewModel"
-import { BAUTISTA, CRUZ, RAMOS, ipasRow, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
+import { BAUTISTA, CRUZ, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
 /**
  * The printed IPAS's view model (#250): what the paper says, from

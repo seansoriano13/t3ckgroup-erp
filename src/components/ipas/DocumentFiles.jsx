@@ -12,7 +12,7 @@ import { uploadDocumentFile } from "./uploadDocumentFile";
  * Uploads each picked file and returns `[{ url, fileName }]` for the ones that went up. A refused or
  * failed file says why in a toast (uploadDocumentFile) and is left out; the others still go.
  */
-export async function uploadPicked(files) {
+async function uploadPicked(files) {
   const done = [];
   for (const file of files) {
     const url = await uploadDocumentFile(file);

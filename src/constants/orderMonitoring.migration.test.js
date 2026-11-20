@@ -7,7 +7,6 @@ import { ORDER_AGEING_STEPS } from "./orderMonitoring";
 describe("order ageing steps", () => {
   it("match the steps the migration allows and seeds", () => {
     // The latest migration to touch the CHECK (#590 added section_3_approval) and the seeds of both.
-    const original = readFileSync("supabase/migrations/20261017210000_order_ageing_rules.sql", "utf8");
     const latest = readFileSync("supabase/migrations/20261221150000_1156_order_ageing_status_steps.sql", "utf8");
     const sql = latest;
     const keys = ORDER_AGEING_STEPS.map((step) => step.key);

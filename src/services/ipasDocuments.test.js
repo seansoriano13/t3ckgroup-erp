@@ -377,7 +377,7 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       expect(ipasStatusesFor("import")).toContain("customs")
     })
 
-    it("changes the day of a step already reached, within its neighbours", async () => {
+    it("changes the day of a step already reached, even out of order with its neighbours (the page warns)", async () => {
       const ipas = await raise("import", "P03044")
       await ipasService.setStatus(ipas.id, "ordered", day(-9))
       await ipasService.setStatus(ipas.id, "shipped", day(-3))
@@ -385,7 +385,9 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       await ipasService.setStatusDate(ipas.id, "ordered", day(-5))
 
       expect((await stepsOf(ipas.id)).find(([step]) => step === "ordered")[1]).toBe(day(-5))
-      await expect(ipasService.setStatusDate(ipas.id, "ordered", day(-1))).rejects.toMatchObject({ code: "22023" })
+      await ipasService.setStatusDate(ipas.id, "ordered", day(-1))
+      expect((await stepsOf(ipas.id)).find(([step]) => step === "ordered")[1]).toBe(day(-1))
+      // A step not reached yet has no day to change.
       await expect(ipasService.setStatusDate(ipas.id, "processing", day(-4))).rejects.toMatchObject({ code: "22023" })
     })
 

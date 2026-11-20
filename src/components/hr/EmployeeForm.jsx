@@ -67,7 +67,6 @@ export default function EmployeeForm({
       has_purchasing_flow: false,
       has_finance_flow: false,
       has_logistics_flow: false,
-    has_logistics_flow: false,
       call_sign: "",
       has_retail_access: false,
       has_bug_report_access: false,
