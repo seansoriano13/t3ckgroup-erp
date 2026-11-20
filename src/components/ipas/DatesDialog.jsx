@@ -6,6 +6,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { isIsoDate } from "../../utils/ipasPayments";
 import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "../../utils/ipasDateLimits";
+import { FieldError } from "./record/FormFields";
 
 /**
  * One or more typed dates (#246): the four Supplier Origin dates, or the one date
@@ -24,6 +25,7 @@ function Body({ title, description, fields, limited = false, submitLabel = "Save
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.key, f.value ?? ""])));
   const [saving, setSaving] = useState(false);
 
+  const errorOf = (f) => (values[f.key] !== "" && !isIsoDate(values[f.key]) ? "Not a date" : (issueOf(f) ?? undefined));
   const issueOf = (f) => (limited ? ipasDateIssue(values[f.key], `The ${f.label} date`) : null);
   const valid = fields.every((f) => values[f.key] === "" || (isIsoDate(values[f.key]) && !issueOf(f)));
   const changed = fields.some((f) => (values[f.key] ?? "") !== (f.value ?? ""));
@@ -57,16 +59,19 @@ function Body({ title, description, fields, limited = false, submitLabel = "Save
       {description && <p className="text-sm text-muted-foreground">{description}</p>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {fields.map((f) => (
-          <FieldBox key={f.key} label={f.label} bare>
-            <Input
-              type="date"
-              min={limited ? IPAS_DATE_MIN : undefined}
-              max={limited ? ipasDateMax() : undefined}
-              value={values[f.key]}
-              onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-              error={values[f.key] !== "" && !isIsoDate(values[f.key]) ? "Not a date" : (issueOf(f) ?? undefined)}
-            />
-          </FieldBox>
+          <div key={f.key} className="min-w-0">
+            <FieldBox label={f.label} bare>
+              <Input
+                type="date"
+                min={limited ? IPAS_DATE_MIN : undefined}
+                max={limited ? ipasDateMax() : undefined}
+                value={values[f.key]}
+                onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                error={errorOf(f)}
+              />
+            </FieldBox>
+            <FieldError error={errorOf(f)} />
+          </div>
         ))}
       </div>
       <p className="text-xs text-muted-foreground">Clear a date to take it off.</p>
