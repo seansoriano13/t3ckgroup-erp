@@ -70,14 +70,9 @@ describe("ipasService.summariesForSor", () => {
       computationStatus: "encoding",
       computationLabel: "Encoding",
     })
-    expect(rows[0].buyerTrack.map((item) => [item.key, item.label, item.ticked])).toEqual([
-      ["purchase_order", "Purchase Order", true],
-      ["with_pop", "With P.O.P", false],
-      ["delivered", "Delivered", false],
-      ["received_in_odoo", "Received in Odoo", false],
-      ["create_bill", "Create Bill", false],
-      ["actual_checking", "Actual Checking", false],
-    ])
+    // The IPAS Status replaces the buyer track on the summary (#1157): a new IPAS reads Order-Draft.
+    expect(rows[0]).toMatchObject({ status: "order_draft", onHold: false, directDelivery: false })
+    expect(rows[0]).not.toHaveProperty("buyerTrack")
     expect(rows[0].signoffs.map((s) => [s.section, s.done, s.total])).toEqual([
       [1, 0, 2],
       [3, 0, 2],
@@ -131,11 +126,9 @@ describe("ipasService.summariesForSor", () => {
     expect(money.landedCost.total).toBeGreaterThan(0)
   })
 
-  it("ticks With P.O.P once a payment carries proof, without exposing the payment", async () => {
+  it("shows the status and the day it was reached, and never a payment or its proof", async () => {
     await raise()
     const [ipas] = db.rows("ipas")
-    expect((await ipasService.summariesForSor(sorA.id))[0].buyerTrack.find((i) => i.key === "with_pop").ticked).toBe(false)
-
     db.seed("ipas_payments", {
       ipas_id: ipas.id,
       kind: "payment",
@@ -146,31 +139,11 @@ describe("ipasService.summariesForSor", () => {
       created_by: buyer.id,
     })
 
-    expect((await ipasService.summariesForSor(sorA.id))[0].buyerTrack.find((i) => i.key === "with_pop").ticked).toBe(true)
-  })
+    const [row] = await ipasService.summariesForSor(sorA.id)
 
-  it("reads Odoo's stamped statuses from the stored copy, a partial receipt included", async () => {
-    await raise({
-      copy: odooPo({ name: "P02552", receipts: { status: "partial", done: 1, total: 2 }, bills: { count: 1, draft: 1 } }),
-    })
-
-    const track = (await ipasService.summariesForSor(sorA.id))[0].buyerTrack
-    const by = Object.fromEntries(track.map((item) => [item.key, item]))
-
-    expect(by.received_in_odoo).toMatchObject({ ticked: false, partial: true })
-    expect(by.create_bill.ticked).toBe(true)
-  })
-
-  it("adds Import Clearance to an Import IPAS's track and leaves it off a Local one", async () => {
-    await raise({ poNumber: "P02553", source: "import" })
-    await raise({ poNumber: "P02554", source: "local" })
-
-    const rows = await ipasService.summariesForSor(sorA.id)
-    const importRow = rows.find((r) => r.poNumber === "P02553")
-    const localRow = rows.find((r) => r.poNumber === "P02554")
-
-    expect(importRow.buyerTrack.map((i) => i.key)).toContain("import_clearance")
-    expect(localRow.buyerTrack.map((i) => i.key)).not.toContain("import_clearance")
+    expect(row.status).toBe("order_draft")
+    expect(row.statusReachedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(JSON.stringify(row)).not.toContain("proof.png")
   })
 
   it("shows sign-off progress per section, from live sign-offs only", async () => {

@@ -112,6 +112,26 @@ describe("EmployeeForm Finance access right", () => {
   })
 })
 
+describe("EmployeeForm Logistics access right", () => {
+  it("saves the Logistics switch beside Finance", async () => {
+    const { submitted, user } = await renderForm({ initialData: { has_logistics_flow: false } })
+
+    await user.click(screen.getByText("Logistics", { selector: "p" }))
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_logistics_flow).toBe(true)
+    expect(submitted[0].has_finance_flow).toBe(false)
+  })
+
+  it("starts a new employee without Logistics access", async () => {
+    const { submitted, user } = await renderForm()
+
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(submitted[0].has_logistics_flow).toBe(false)
+  })
+})
+
 describe("EmployeeForm Call Sign", () => {
   const callSignInput = () => screen.getByPlaceholderText("e.g. 101 (unique, optional)")
 

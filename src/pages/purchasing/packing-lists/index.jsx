@@ -35,12 +35,12 @@ import { ipasErrorMessage } from "../../../utils/ipas";
  */
 
 const HEAD = "text-label font-bold uppercase tracking-wider";
-const TAB = { DRAFT: "draft", PACKED: "packed", ALL: "all" };
+const TAB = { DRAFT: "draft", PACKED: "packed", CANCELLED: "cancelled", ALL: "all" };
 const KEY = ["packing-lists"];
 
 /** State -> StatusBadge tone, and the word shown: the one place this list maps them. */
-const STATE_TONES = { draft: "amber", packed: "green" };
-const stateLabel = (row) => (row.state === "packed" ? "Packed" : "Draft");
+const STATE_TONES = { draft: "amber", packed: "green", cancelled: "red" };
+const stateLabel = (row) => (row.state === "cancelled" ? "Cancelled" : row.state === "packed" ? "Packed" : "Draft");
 
 const COLUMNS = [
   // `phone` is the column's place on a phone card (Table `stackOnPhone`).
@@ -103,6 +103,8 @@ function NewPackingListDialog({ open, onOpenChange }) {
         onOpenChange(next);
       }}
       crumbs={["Packing List", "New Packing List"]}
+      dirty={sor.length > 0 || deliveryRef.trim() !== ""}
+      discardWhat="Packing List"
       actions={
         <Button onClick={create} disabled={saving || sor.length !== 1}>
           {saving ? "Making…" : "Make Packing List"}
@@ -168,6 +170,7 @@ function PackingListsList() {
             tabs={[
               { value: TAB.DRAFT, label: "Draft", badge: count(TAB.DRAFT) },
               { value: TAB.PACKED, label: "Packed", badge: count(TAB.PACKED) },
+              { value: TAB.CANCELLED, label: "Cancelled", badge: count(TAB.CANCELLED) },
               { value: TAB.ALL, label: "All", badge: narrowed.length },
             ]}
           />

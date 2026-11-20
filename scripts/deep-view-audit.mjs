@@ -162,7 +162,7 @@ const views = (id) => [
   { id: "approvals-bid-decisions", path: "/approvals/bid-decisions" },
   { id: "approvals-hr-verification", path: "/approvals/hr-verification" },
   { id: "approvals-meetings-record", path: `/approvals/meetings?record=${id.meeting}`, expectLink: true },
-  ...["general", "approvals", "hr", "venues", "sales", "purchasing", "costing", "groups", "announcements"].map((t) => ({ id: `settings-${t}`, path: `/settings?tab=${t}`, expectLink: true })),
+  ...["general", "hr", "venues", "sales", "purchasing", "costing", "groups", "announcements"].map((t) => ({ id: `settings-${t}`, path: `/settings?tab=${t}`, expectLink: true })),
   { id: "settings-faq", path: "/settings", action: clickFirst('main button:has-text("FAQ"), button:has-text("Help")'), expectLink: true },
   { id: "profile", path: "/profile" },
 

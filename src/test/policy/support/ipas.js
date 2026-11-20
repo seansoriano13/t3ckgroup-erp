@@ -23,6 +23,7 @@ const CHILDREN = [
     ["ipas_documents", "ipas_id"],
     ["ipas_sors", "ipas_id"],
     ["ipas_work_marks", "ipas_id"],
+    ["ipas_status_steps", "ipas_id"],
 ]
 
 /**
@@ -129,7 +130,7 @@ export function recordOdooCopyAs(who, args) {
 }
 
 const FIXTURE_SLIP_ENTITY = "policy-tier logistics fixture"
-const FIXTURE_FILE = "https://example.test/policy-tier.pdf"
+const FIXTURE_FILE = "https://res.cloudinary.com/demo/image/upload/policy-tier.pdf"
 
 async function documentKind(label) {
     const { rows } = await sql().query(
@@ -140,12 +141,20 @@ async function documentKind(label) {
 }
 
 async function attachDocument(ipasId, label) {
-    await sql().query(
-        `insert into public.ipas_documents (ipas_id, kind_id, attachment_url)
-         values ($1, $2, $3)
+    const { rows } = await sql().query(
+        `insert into public.ipas_documents (ipas_id, kind_id)
+         values ($1, $2)
          on conflict (ipas_id, kind_id) where kind_id is not null
-         do update set attachment_url = coalesce(public.ipas_documents.attachment_url, excluded.attachment_url)`,
-        [ipasId, await documentKind(label), FIXTURE_FILE],
+         do update set updated_at = now()
+         returning id`,
+        [ipasId, await documentKind(label)],
+    )
+    // A document holds its files in ipas_document_files (#1153); one file is enough to count as present.
+    await sql().query(
+        `insert into public.ipas_document_files (document_id, url, file_name)
+         select $1, $2, 'policy-tier.pdf'
+          where not exists (select 1 from public.ipas_document_files where document_id = $1)`,
+        [rows[0].id, FIXTURE_FILE],
     )
 }
 
@@ -198,16 +207,25 @@ async function giveWhatTheSignoffAsks(ipasId, section, role) {
     }
 }
 
-/** An Item Location, a bare Transmittal carrying the IPAS, and for an import the received date. */
+/** An Item Location, a bare Transmittal carrying the IPAS, and the Delivered status step (#1154). */
 async function placeGoods(ipasId) {
     const { rows: loc } = await sql().query(
         `select id from public.ipas_options where list = 'item_location' order by sort, label limit 1`,
     )
     await sql().query(
-        `update public.ipas set item_location_id = coalesce(item_location_id, $2),
-                arrived_in_whs_on = case when source = 'import' then coalesce(arrived_in_whs_on, current_date) end
+        `update public.ipas set item_location_id = coalesce(item_location_id, $2)
           where id = $1`,
         [ipasId, loc[0].id],
+    )
+    // Logistics waits for the Delivered step on a Local and an Import IPAS alike (#1154).
+    await sql().query(
+        `insert into public.ipas_status_steps (ipas_id, step, reached_on) values ($1, 'delivered', current_date)
+         on conflict (ipas_id, step) do nothing`,
+        [ipasId],
+    )
+    await sql().query(
+        `update public.ipas set status = 'delivered' where id = $1 and public._ipas_status_order(status) < public._ipas_status_order('delivered')`,
+        [ipasId],
     )
     const { rows: has } = await sql().query(`select 1 from public.transmittal_ipas where ipas_id = $1`, [ipasId])
     if (has.length) return

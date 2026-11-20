@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { transmittalService } from "@/services/transmittalService";
 import { TRANSMITTAL_LINE_KIND } from "@/constants/transmittals";
-import { pickedLineLabel } from "@/utils/transmittals";
+import { leftLabel, pickedLineLabel } from "@/utils/transmittals";
 
 const MAX_SHOWN = 80;
 
@@ -36,10 +36,13 @@ function PickRow({ pick, active, onSlip, onToggle, onHover }) {
       aria-pressed={onSlip}
       onClick={onToggle}
       onMouseEnter={onHover}
-      className={cn("h-auto w-full justify-start gap-3 rounded-lg px-3 py-2 text-left whitespace-normal", active && "bg-muted")}
+      className={cn("h-auto w-full justify-start gap-3 rounded-lg px-3 py-2 text-left whitespace-normal", active && "bg-muted", pick.left === 0 && !onSlip && "opacity-60")}
     >
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-semibold text-foreground">{pickedLineLabel(pick)}</span>
+        <span className="block truncate text-[13px] font-semibold text-foreground">
+          {pickedLineLabel(pick)}
+          {leftLabel(pick) && <span className="ml-2 font-normal text-muted-foreground" data-testid="pick-left">{leftLabel(pick)}</span>}
+        </span>
         <span className="block truncate text-[12px] font-normal text-muted-foreground">
           <span className="font-mono">{pick.poNumber}</span> · {pick.ipasNumber}
           {projects && ` · ${projects}`}

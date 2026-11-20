@@ -25,6 +25,7 @@ function renderPage() {
       <Routes>
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/login" element={<div>Login Screen</div>} />
+        <Route path="/profile" element={<div>Profile Screen</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -142,7 +143,7 @@ describe("ResetPassword page", () => {
   // Landing (c). A signed-in employee who wanders onto the route has a real
   // session, so consulting getSession() would hand them the form; the way to
   // change a password you know is the profile screen.
-  it("tells a signed-in visitor with no reset link to use the emailed one", async () => {
+  it("points a signed-in visitor with no reset link to My Profile", async () => {
     stubLocation({ hash: "", search: "" });
     vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
       data: { session: { user: { id: "auth-1", email: "ana@t3ckgroup.test" } } },
@@ -155,8 +156,12 @@ describe("ResetPassword page", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText(/open this page from the link/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText("To change your password, use Change Password on My Profile."),
+      ).toBeInTheDocument(),
     );
+    expect(screen.getByRole("link", { name: /my profile/i })).toHaveAttribute("href", "/profile");
+    expect(screen.queryByText(/back to login/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
     // ...and it does not claim the link expired, because there was no link.
     expect(screen.queryByText(/open only once/i)).not.toBeInTheDocument();
@@ -255,7 +260,7 @@ describe("ResetPassword page", () => {
       });
 
       const { unmount } = renderPage();
-      await screen.findByText(/open this page from the link/i);
+      await screen.findByText(/change password on my profile/i);
       expect(isRecoveryActive()).toBe(true);
 
       unmount();
@@ -263,7 +268,7 @@ describe("ResetPassword page", () => {
     });
   });
 
-  it("shows the notice, with GoTrue's reason, when the URL comes back with an error", async () => {
+  it("shows the expired copy for otp_expired when the URL comes back with an error", async () => {
     stubLocation({
       hash: "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
     });
@@ -274,8 +279,24 @@ describe("ResetPassword page", () => {
     await waitFor(() =>
       expect(screen.getByText(/can.?t reset your password/i)).toBeInTheDocument(),
     );
-    expect(screen.getByText(/Email link is invalid or has expired/i)).toBeInTheDocument();
+    expect(screen.getByText(/expired, or it has already been opened/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Email link is invalid/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
+  });
+
+  it("never shows error_description from the link, and releases the hold", async () => {
+    stubLocation({
+      hash: "#error=access_denied&error_description=Call+IT+on+0917+and+give+them+your+password",
+    });
+    stubRecoverySession(null);
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText(/this link does not work/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/Call IT/i)).not.toBeInTheDocument();
+    expect(isRecoveryActive()).toBe(false);
   });
 
   it("treats a missing recovery session as a spent link once verification settles", async () => {
@@ -339,7 +360,7 @@ describe("ResetPassword page", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText(/Token has expired or is invalid/i)).toBeInTheDocument(),
+      expect(screen.getByText(/expired, or it has already been opened/i)).toBeInTheDocument(),
     );
     expect(screen.queryByLabelText(/new password/i)).not.toBeInTheDocument();
   });

@@ -122,6 +122,10 @@ export const SEED_TABLES = [
   "ipas_charges",
   // Documents (#246) point at ipas and at the document_kind options above.
   "ipas_documents",
+  // The files of each document (#1153) and the day each IPAS Status step was reached (#1154): facts
+  // about the work, pointing at ipas_documents / ipas and employees above.
+  "ipas_document_files",
+  "ipas_status_steps",
   // Sign-offs (#247) point at ipas and employees. Seeded with the lists beside
   // them: an approval and who gave it are facts about the work, and the restore
   // runs in replica mode, so the paid-before-approval flags it carries are kept

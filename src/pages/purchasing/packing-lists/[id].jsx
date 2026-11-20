@@ -1,10 +1,11 @@
 import RecordNotFound from "@/components/ui/RecordNotFound";
 import { isRecordId } from "@/utils/recordLink";
+import { IPAS_LIMITS, boxWeightIssue, contentQuantityIssue, formatKg, textLengthIssue } from "@/utils/ipasLimits";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Check, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Printer, Trash2, XCircle } from "lucide-react";
 import { openPackingListPrintWindow, printPackingList } from "../../../lib/pdf/packingListPrinter";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
@@ -14,6 +15,7 @@ import PageLoading from "../../../components/ui/PageLoading";
 import QueryError from "../../../components/ui/QueryError";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
+import { Textarea } from "../../../components/ui/textarea";
 import { SelectField } from "../../../components/ui/SelectField";
 import { unitOptionsWith } from "../../../constants/procurement";
 import MoveButton from "../../../components/record/MoveButton";
@@ -53,6 +55,14 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    const issue =
+      textLengthIssue(marks, "Marks", IPAS_LIMITS.boxText) ||
+      textLengthIssue(sealNo, "Seal number", IPAS_LIMITS.boxText) ||
+      boxWeightIssue(weight);
+    if (issue) {
+      toast.error(issue);
+      return;
+    }
     setSaving(true);
     try {
       const fields = {
@@ -85,13 +95,13 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
       <p className="text-sm text-muted-foreground">Marks, seal number and gross weight, where known.</p>
         <div className="space-y-4">
           <FieldBox label="Marks" bare>
-            <Input value={marks} onChange={(e) => setMarks(e.target.value)} />
+            <Input maxLength={IPAS_LIMITS.boxText} value={marks} onChange={(e) => setMarks(e.target.value)} />
           </FieldBox>
           <FieldBox label="Seal number" bare>
-            <Input value={sealNo} onChange={(e) => setSealNo(e.target.value)} />
+            <Input maxLength={IPAS_LIMITS.boxText} value={sealNo} onChange={(e) => setSealNo(e.target.value)} />
           </FieldBox>
           <FieldBox label="Gross weight (kg)" bare>
-            <Input type="number" min="0" step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
+            <Input type="number" min="0" max={IPAS_LIMITS.boxWeightKg} step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
           </FieldBox>
         </div>
     </ModalShell>
@@ -190,8 +200,9 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
         unit: r.unit.trim() || null,
         snapshot: r.snapshot ?? null,
       }));
-    if (contents.some((c) => !(c.quantity > 0))) {
-      toast.error("Every content needs a quantity above zero.");
+    const quantityIssue = contents.map((c) => contentQuantityIssue(c.quantity)).find(Boolean);
+    if (quantityIssue) {
+      toast.error(quantityIssue);
       return;
     }
     setSaving(true);
@@ -243,7 +254,7 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
                 <Input value={row.description} onChange={(e) => setRow(index, { description: e.target.value, snapshot: null, lineId: null })} />
               </FieldBox>
               <FieldBox label="Quantity" bare>
-                <Input ref={(el) => { qtyRefs.current[rowKeys[index]] = el; }} type="number" min="0" step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
+                <Input ref={(el) => { qtyRefs.current[rowKeys[index]] = el; }} type="number" min="0" max={IPAS_LIMITS.contentQuantity} step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
               </FieldBox>
               <FieldBox label="Unit" bare>
                 <SelectField
@@ -282,6 +293,9 @@ function PackingListPage({ onClose }) {
   const [contentsBox, setContentsBox] = useState(null);
   const [packing, setPacking] = useState(false);
   const [failure, setFailure] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   const { data: list, isLoading, isError, refetch } = useQuery({
     queryKey: KEY(id),
@@ -294,6 +308,21 @@ function PackingListPage({ onClose }) {
     setFailure(null);
     queryClient.invalidateQueries({ queryKey: KEY(id) });
     queryClient.invalidateQueries({ queryKey: ["packing-lists"] });
+  };
+
+  const cancelList = async () => {
+    setCancelBusy(true);
+    try {
+      await packingListService.cancel(id, cancelReason);
+      toast.success(`${list.number} cancelled.`);
+      setCancelling(false);
+      setCancelReason("");
+      refresh();
+    } catch (error) {
+      toast.error(ipasErrorMessage(error, "The Packing List could not be cancelled."));
+    } finally {
+      setCancelBusy(false);
+    }
   };
 
   const removeBox = async (box) => {
@@ -350,7 +379,8 @@ function PackingListPage({ onClose }) {
   const boxes = list?.boxes ?? [];
   const totalWeight = boxes.reduce((sum, box) => sum + (box.grossWeightKg ?? 0), 0);
   const weighed = boxes.filter((box) => box.grossWeightKg != null).length;
-  const packed = Boolean(list) && !draft;
+  const packed = list?.state === "packed";
+  const cancelled = list?.state === "cancelled";
 
   const moves = [];
   if (list && canEdit) {
@@ -371,13 +401,15 @@ function PackingListPage({ onClose }) {
   }
   const status = !list
     ? ""
-    : packed
+    : cancelled
+      ? "Cancelled. Nothing left to do."
+      : packed
       ? "Packed. Nothing left to do."
       : moves.length > 0
         ? "Waiting for you: Packed by"
         : "Nothing needs you right now. Purchasing, the Warehouse list (or whoever made the list) adds the boxes and signs Packed by.";
 
-  const weightText = weighed > 0 ? `${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
+  const weightText = weighed > 0 ? `${formatKg(totalWeight)}${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
   const pills = list
     ? [
         { key: "sor", label: "SOR", value: list.sorReference },
@@ -394,7 +426,7 @@ function PackingListPage({ onClose }) {
       key: box.id,
       main: `Box ${box.boxNo}${box.marks ? ` · ${box.marks}` : ""}`,
       sub: `Seal ${box.sealNo ?? "—"} · ${count} ${count === 1 ? "content" : "contents"}`,
-      quantity: box.grossWeightKg == null ? "— kg" : `${box.grossWeightKg} kg`,
+      quantity: box.grossWeightKg == null ? "— kg" : formatKg(box.grossWeightKg),
       children: (
         <div className="space-y-3">
           <LinerList
@@ -426,7 +458,9 @@ function PackingListPage({ onClose }) {
     };
   });
 
-  const packedLine = packed
+  const packedLine = cancelled
+    ? `Cancelled${list.cancelReason ? ` · ${list.cancelReason}` : ""}`
+    : packed
     ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
     : "Waiting for the maker of the list, Purchasing or the Warehouse";
 
@@ -440,7 +474,16 @@ function PackingListPage({ onClose }) {
       onOpenChange={(next) => !next && onClose()}
       size="record"
       crumbs={["Packing List", list?.number].filter(Boolean)}
-      headerActions={list && <RecordMoreMenu items={[{ key: "print", label: "Print", icon: Printer, onSelect: printList }]} />}
+      headerActions={
+        list && (
+          <RecordMoreMenu
+            items={[
+              { key: "print", label: "Print", icon: Printer, onSelect: printList },
+              ...(canEdit ? [{ key: "cancel", label: "Cancel", icon: XCircle, destructive: true, onSelect: () => setCancelling(true) }] : []),
+            ]}
+          />
+        )
+      }
     >
       {isLoading && <PageLoading label="Packing List" />}
       {isError && <QueryError title="This Packing List could not be loaded." onRetry={refetch} />}
@@ -454,11 +497,12 @@ function PackingListPage({ onClose }) {
             <RecordHeader
               reference={list.number}
               name={list.projectTitle}
-              badge={{ label: packed ? "Packed" : "Draft", theme: packed ? "green" : "mauve" }}
+              badge={{ label: cancelled ? "Cancelled" : packed ? "Packed" : "Draft", theme: cancelled ? "red" : packed ? "green" : "mauve" }}
               line={[list.sorReference, list.creatorName && `made by ${list.creatorName}`].filter(Boolean).join(" · ")}
             />
             <RecordWithRail
               status={status}
+              mine={moves.length > 0}
               rail={
                 <YourMoveCard
                   status={status}
@@ -467,9 +511,9 @@ function PackingListPage({ onClose }) {
                       key: SECTION.PACKED_BY,
                       title: "Packed by",
                       summary: packedLine,
-                      state: packed ? STATE.DONE : STATE.CURRENT,
+                      state: packed ? STATE.DONE : cancelled ? STATE.WAITING : STATE.CURRENT,
                       needsMe: moves.length > 0,
-                      body: packed ? null : <p className="text-[13px] text-muted-foreground">Signing closes the list. The boxes and their contents can't be changed after.</p>,
+                      body: packed || cancelled ? null : <p className="text-[13px] text-muted-foreground">Signing closes the list. The boxes and their contents can't be changed after.</p>,
                       moves:
                         moves.length > 0 ? (
                           <ul className="space-y-3">
@@ -506,6 +550,26 @@ function PackingListPage({ onClose }) {
             </RecordWithRail>
           </div>
           {dialog}
+
+          {cancelling && (
+            <ModalShell
+              open
+              onOpenChange={(open) => !open && setCancelling(false)}
+              crumbs={["Packing List", list.number, "Cancel"]}
+              title={`Cancel ${list.number}?`}
+              cancelLabel="Keep it"
+              actions={
+                <Button onClick={cancelList} disabled={cancelBusy || cancelReason.trim() === ""}>
+                  Cancel Packing List
+                </Button>
+              }
+            >
+              <p className="text-sm text-muted-foreground">Cancel {list.number}? It is kept, never deleted, and can't be changed after. Give the reason.</p>
+              <FieldBox label="Reason" bare>
+                <Textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+              </FieldBox>
+            </ModalShell>
+          )}
 
           {canEdit && (
             <BoxDialog

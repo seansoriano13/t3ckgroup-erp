@@ -30,12 +30,13 @@ describe("readRecoveryParams", () => {
     expect(readRecoveryParams({ search: "?code=abc" }).hasRecoveryToken).toBe(true);
   });
 
-  it("surfaces GoTrue's refusal, with the +-encoded description decoded", () => {
+  it("surfaces GoTrue's refusal code and never its free text", () => {
     const p = readRecoveryParams({
       hash: "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
     });
     expect(p.hasError).toBe(true);
-    expect(p.errorDescription).toBe("Email link is invalid or has expired");
+    expect(p.errorCode).toBe("otp_expired");
+    expect(p).not.toHaveProperty("errorDescription");
   });
 
   it("reports no token for a bare URL", () => {

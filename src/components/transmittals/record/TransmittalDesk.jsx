@@ -59,6 +59,7 @@ export default function TransmittalDesk({ ctx }) {
       />
       <RecordWithRail
         status={status}
+        mine={slipMovesFor(built).length > 0 || steps.some((step) => step.needsMe)}
         rail={
           <YourMoveCard
             status={status}

@@ -1,19 +1,21 @@
-import { Check, Pencil } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import HighlightText from "@/components/HighlightText";
+import IpasStatusPill from "@/components/ipas/IpasStatusPill";
 import { DEADLINE_MARK } from "../../../../utils/deliveryDeadline";
 import { formatDateWith } from "../../../../utils/formatDate";
 import { pluralize } from "../../../../utils/plural";
+import { shortDay } from "../../../../utils/ipasSummary";
 import { formatAgeDays } from "../../../../utils/listDates";
 import { ageDays, rowLabel } from "../../../../utils/purchasingDashboard";
 import { TRACKER_STAGES, orderMove, stageStates } from "../../../../utils/purchasingTracker";
 
 /**
  * Small pieces the tracker table and the SOR panel draw the same way. The
- * circles are the Register's: a tick for a stamped step, a pencil for a typed
- * one, a number for work still outstanding, empty for a step not reached.
+ * circles are the Register's: a tick for a cleared stage, a number for work
+ * still outstanding, empty for a stage not reached.
  */
 
 const TONE = {
@@ -48,21 +50,16 @@ export function StageCircle({ stage, state }) {
   );
 }
 
-/** The order's buyer track, as the Register draws it. */
-export function OrderTrack({ order }) {
+/** The order's IPAS Status, as the IPAS list shows it, with the day it was reached (#1157). */
+export function OrderStatus({ order }) {
+  if (!order.status) return null;
   return (
-    <ol className="flex items-center gap-1" aria-label={`Buyer track for ${order.number}`}>
-      {order.buyerTrack.map((step) => {
-        const tone = step.mark !== "pending" ? "done" : step.partial ? "open" : "none";
-        return (
-          <li key={step.key}>
-            <Circle tone={tone} title={`${step.label}, ${step.mark}`}>
-              {step.mark === "typed" ? <Pencil size={10} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />}
-            </Circle>
-          </li>
-        );
-      })}
-    </ol>
+    <span className="inline-flex shrink-0 items-center gap-1.5" data-testid="order-status">
+      <IpasStatusPill status={order.status} onHold={order.onHold} />
+      {order.statusReachedOn && (
+        <span className="text-xs tabular-nums text-muted-foreground">{shortDay(order.statusReachedOn)}</span>
+      )}
+    </span>
   );
 }
 
@@ -157,7 +154,7 @@ function OrderLine({ order, labelOf, onOpen, search }) {
         </span>
         <span className="text-muted-foreground"> · {order.item?.name}</span>
       </span>
-      <OrderTrack order={order} />
+      <OrderStatus order={order} />
       {order.group !== "filed" && (
         <span className={cn("min-w-0 basis-full truncate text-xs sm:basis-auto sm:max-w-[18rem]", move.late ? "font-medium text-destructive" : "text-muted-foreground")}>
           {move.label} · {move.ours ? move.ownerLabel : `waiting on ${move.ownerLabel.toLowerCase()}`}

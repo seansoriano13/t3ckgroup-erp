@@ -21,7 +21,7 @@ import StatusBadge from "../../../StatusBadge";
 import { MoveToClosedLost } from "../../BidDecisionPanel";
 import { pesos } from "../../gridFormat";
 import { costingMatrixService } from "../../../../services/costingMatrixService";
-import { ABC_MODE, BID_VERDICT, BID_VERDICT_LABEL, COSTING_TIER, tierDecidesBid, tierReadsBidDecision } from "../../../../constants/costing";
+import { ABC_MODE, BID_VERDICT, BID_VERDICT_LABEL, COSTING_TIER, readsBid, tierDecidesBid } from "../../../../constants/costing";
 import { offerVsAbc, extendedCentavos } from "../../../../utils/costingMath";
 import { formatDate } from "../../../../utils/formatDate";
 
@@ -83,7 +83,7 @@ export default function DecisionCard({ matrix, c, fall, writes, nameOf, opportun
   const [confirmingGo, setConfirmingGo] = useState(false);
   const [confirmingUnlock, setConfirmingUnlock] = useState(false);
   const [showLow, setShowLow] = useState(false);
-  if (!tierReadsBidDecision(tier)) return null;
+  if (!readsBid(matrix)) return null;
 
   // Spec #1031: only the decider list or a Super Admin decides; the read's canDecideLoss is exactly that right.
   const canDecide = tierDecidesBid(tier) && Boolean(matrix.canDecideLoss);

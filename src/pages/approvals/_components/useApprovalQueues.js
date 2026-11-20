@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarClock, CalendarDays, ClipboardCheck, Gavel, PackageCheck, ReceiptText, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../../context/AuthContext";
-import { useAppSettings } from "@/hooks/useAppSettings";
 import { taskService } from "../../../services/taskService.js";
 import { headApprovalService } from "../../../services/headApprovalService";
 import { transmittalService } from "../../../services/transmittalService";
@@ -15,6 +14,9 @@ import {
   selectManagerDecided,
   selectManagerPending,
 } from "../../../utils/approvalQueue.js";
+
+/** The one cached task list the dashboard, the Approval Center and the profile page share. */
+export const dashboardTasksKey = (userId) => ["dashboardTasks", userId, "all"];
 
 /**
  * The Approval Center queues. One page per queue, one design for all of them;
@@ -114,10 +116,8 @@ export function useApprovalRoles() {
 export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
   const roles = useApprovalRoles();
   const { user, isSuperAdmin, isHead, isHr } = roles;
-  const { settings: appSettings } = useAppSettings();
-
   const tasksQuery = useQuery({
-    queryKey: ["dashboardTasks", user?.id, "all"],
+    queryKey: dashboardTasksKey(user?.id),
     queryFn: () => taskService.getAllTasks(),
     enabled: !!user?.id,
   });
@@ -146,7 +146,6 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
       userSubDept: user?.sub_department || user?.subDepartment,
       isHead,
       isSuperAdmin,
-      appSettings,
       reportedToMeOnly,
     };
     return {
@@ -155,7 +154,7 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
       hrPending: selectHrPending(tasks, user?.id),
       hrVerified: selectHrVerified(tasks, user?.id),
     };
-  }, [rawTasks, user, isHead, isSuperAdmin, appSettings, reportedToMeOnly]);
+  }, [rawTasks, user, isHead, isSuperAdmin, reportedToMeOnly]);
 
   const leavesPending = leavesQuery.data;
   const counts = {
@@ -167,7 +166,6 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
 
   return {
     roles,
-    appSettings,
     rawTasks: rawTasks || [],
     ...queues,
     leavesPending: leavesPending || [],

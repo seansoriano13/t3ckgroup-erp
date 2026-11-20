@@ -1,5 +1,5 @@
 /**
- * Documents, Supplier Origin and the buyer track of an IPAS, as the screens read
+ * Documents and the buyer facts of an IPAS, as the screens read
  * them (spec #241, #246). Pure helpers: no network, no React.
  */
 
@@ -9,23 +9,13 @@ import {
   IPAS_DOCUMENT_USED_FOR,
   IPAS_OPTION_LIST,
   IPAS_REQUIRED_BEFORE_PARTS,
-  IPAS_SOURCE,
   IPAS_STATUS_SOURCE,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
-  ODOO_PO_STATE_LABELS,
 } from "../constants/ipas";
 
 const clean = (value) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text === "" ? null : text;
 };
-
-/** Why the Purchase Order line is not ticked, from Odoo's PO state. */
-function purchaseOrderReason({ ticked, state }) {
-  if (ticked) return null;
-  const label = ODOO_PO_STATE_LABELS[state];
-  return label ? `Not confirmed in Odoo yet (${label})` : "Not confirmed in Odoo yet";
-}
 
 /** Why the Received in Odoo line is not ticked: receipts done out of total. */
 function receivedReason({ ticked, partial, receiptsDone, receiptsTotal }) {
@@ -50,6 +40,21 @@ export function kindIsFiling(kind) {
 }
 
 /**
+ * A document's files, oldest first: `{ id, url, fileName }`. A row read without its files (an old copy
+ * with only the retired attachment_url) shows that link as its one file.
+ */
+function filesOf(row) {
+  if (Array.isArray(row.files)) {
+    return [...row.files]
+      .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
+      .map((file) => ({ id: file.id ?? null, url: file.url, fileName: clean(file.file_name) ?? "File" }))
+      .filter((file) => file.url);
+  }
+  const legacy = clean(row.attachment_url);
+  return legacy ? [{ id: null, url: legacy, fileName: "File" }] : [];
+}
+
+/**
  * A document row as the page reads it. `options` is a Map of ipas_options id ->
  * row (inactive ones included: a row keeps the kind it was given).
  *
@@ -66,6 +71,7 @@ export function shapeDocument(row, options = new Map()) {
   const kind = row.kind_id ? (options.get(row.kind_id) ?? null) : null;
   const purchasingHas = Boolean(row.purchasing_has);
   const financeHas = Boolean(row.finance_has);
+  const files = filesOf(row);
   return {
     ...row,
     kind,
@@ -76,8 +82,12 @@ export function shapeDocument(row, options = new Map()) {
     isFiling: kindIsFiling(kind),
     purchasingHas,
     financeHas,
-    ticked: purchasingHas || financeHas || Boolean(clean(row.attachment_url)),
-    attachmentUrl: clean(row.attachment_url),
+    // Any number of files (#1153); a document counts as present with at least one.
+    files,
+    hasFile: files.length > 0,
+    ticked: purchasingHas || financeHas || files.length > 0,
+    // The first file's link, for the readers that only ask "is there one" or want a link to open.
+    attachmentUrl: files[0]?.url ?? null,
   };
 }
 
@@ -245,46 +255,23 @@ export function unfiledRequiredDocuments(documents = [], source) {
     .map((doc) => ({ id: doc.id, label: doc.label, usedFor: doc.usedFor, appliesTo: doc.appliesTo }));
 }
 
-/**
- * Supplier Origin as the page reads it: the four dates, or null on a Local IPAS
- * (hidden there; the database refuses them too).
- */
-export function supplierOriginOf(row) {
-  if (row?.source !== IPAS_SOURCE.IMPORT) return null;
-  return Object.fromEntries(IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, column }) => [field, row?.[column] ?? null]));
-}
-
 const person = (embed) => (embed?.id ? { id: embed.id, name: embed.name ?? null } : null);
 
 /**
- * The buyer track in the sheet's order, each item saying where it came from:
+ * The buyer facts that stay beside the IPAS Status (ADR 0054): plain facts, not steps.
  *
- *   Purchase Order     odoo    the PO's state is purchase or done
- *   With P.O.P         derived a payment on this IPAS carries proof of payment
- *   Import Clearance   typed   Import only (absent on a Local IPAS)
- *   Delivered          typed
- *   Received in Odoo   odoo    "Partly received" while only some receipts are done
- *   Create Bill        odoo    drafts count
- *   Actual Checking    stamped by Purchasing
+ *   With P.O.P         derived  a payment on this IPAS carries proof of payment
+ *   Received in Odoo   odoo     "Partly received" while only some receipts are done
+ *   Create Bill        odoo     drafts count
+ *   Actual Checking    stamped by Purchasing, or read from the Transmittals
  *
- * Every item is `{ key, label, ticked, partial, source, detail, on, by, at }`:
- * `by` is `{ id, name }` and `at` a timestamp for typed and stamped items.
+ * Every item is `{ key, label, ticked, partial, source, detail, by, at }`:
+ * `by` is `{ id, name }` and `at` a timestamp for the hand stamp.
  * `odoo` is `odooStatuses(copy)`, `hasProof` is `paymentSummary.hasProof`, and
- * `row` is the ipas row with its typist embeds.
+ * `row` is the ipas row with its stamper embed.
  */
-export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, transmittal = null } = {}) {
-  const isImport = row?.source === IPAS_SOURCE.IMPORT;
-
-  const items = [
-    {
-      key: "purchase_order",
-      label: "Purchase Order",
-      ticked: odoo.purchaseOrder.ticked,
-      partial: false,
-      source: IPAS_STATUS_SOURCE.ODOO,
-      detail: null,
-      reason: purchaseOrderReason(odoo.purchaseOrder),
-    },
+export function buildBuyerFacts(row, odoo, { hasProof = false, proofCount = 0, transmittal = null } = {}) {
+  return [
     {
       key: "with_pop",
       label: "With P.O.P",
@@ -295,24 +282,6 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, t
         ? `${proofCount} ${proofCount === 1 ? "payment carries" : "payments carry"} proof of payment`
         : "No payment carries proof of payment yet",
     },
-  ];
-
-  if (isImport) {
-    items.push({
-      key: "import_clearance",
-      label: "Import Clearance",
-      ticked: Boolean(row.import_clearance_on),
-      partial: false,
-      source: IPAS_STATUS_SOURCE.TYPED,
-      detail: null,
-      on: row.import_clearance_on ?? null,
-      by: person(row.import_clearance_typer),
-      at: row.import_clearance_typed_at ?? null,
-    });
-  }
-
-  items.push(
-    deliveredItem(row, transmittal),
     {
       key: "received_in_odoo",
       label: "Received in Odoo",
@@ -332,42 +301,7 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, t
       reason: billReason(odoo.createBill),
     },
     actualCheckingItem(row, transmittal),
-  );
-
-  return items;
-}
-
-/**
- * Delivered (#256): the typed date when one is typed, else the earliest
- * first-stage completion over the Transmittals (stamped from them), else typed.
- */
-function deliveredItem(row, transmittal) {
-  const derived = transmittal?.delivered;
-  if (derived && derived.source !== IPAS_STATUS_SOURCE.TYPED) {
-    return {
-      key: "delivered",
-      label: "Delivered",
-      ticked: Boolean(derived.on),
-      partial: false,
-      source: IPAS_STATUS_SOURCE.DERIVED,
-      via: "transmittals",
-      detail: null,
-      on: derived.on,
-      by: null,
-      at: derived.on,
-    };
-  }
-  return {
-    key: "delivered",
-    label: "Delivered",
-    ticked: Boolean(row?.delivered_on),
-    partial: false,
-    source: IPAS_STATUS_SOURCE.TYPED,
-    detail: null,
-    on: row?.delivered_on ?? null,
-    by: person(row?.delivered_typer),
-    at: row?.delivered_typed_at ?? null,
-  };
+  ];
 }
 
 /**

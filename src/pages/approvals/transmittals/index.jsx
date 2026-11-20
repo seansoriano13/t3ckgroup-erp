@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { Navigate, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { PackageCheck } from "lucide-react";
 import PageLoading from "@/components/ui/PageLoading";
 import QueryError from "@/components/ui/QueryError";
-import ProtectedRoute from "../../../components/ProtectedRoute";
+import ProtectedRoute, { NoAccess } from "../../../components/ProtectedRoute";
 import { transmittalService } from "../../../services/transmittalService";
 import { TRANSMITTAL_STATE } from "../../../constants/transmittals";
 import { transmittalToItem } from "../../../utils/approvalItems.js";
@@ -49,7 +49,7 @@ function TransmittalCheckByQueue() {
   );
 
   if (isTransmittalListsLoading) return <PageLoading label="Transmittal Check by" />;
-  if (!isTransmittalCheckBy) return <Navigate to="/approvals" replace />;
+  if (!isTransmittalCheckBy) return <NoAccess needs="a place on the Transmittal Check by list" grantedBy="a Super Admin" />;
 
   if (slipsQuery.isError) {
     return (

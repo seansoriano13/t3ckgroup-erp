@@ -97,10 +97,6 @@ const tick = (who, documentId, side, value) =>
 const addDocument = (who, ipasId, over = {}) =>
     rpc(who, "ipas_add_document", { p_ipas_id: ipasId, p_kind_id: null, p_label: null, p_attachment_url: null, ...over })
 
-const setOrigin = (who, ipasId, fields) => rpc(who, "ipas_set_supplier_origin", { p_ipas_id: ipasId, p_fields: fields })
-const setTyped = (who, ipasId, status, date) =>
-    rpc(who, "ipas_set_typed_status", { p_ipas_id: ipasId, p_status: status, p_date: date })
-
 const setState = (id, state) =>
     sql().query(
         state === "filed"
@@ -444,37 +440,37 @@ describe("who ticks", () => {
 })
 
 describe("attachments and removal", () => {
-    it("lets Purchasing attach and remove a file, with history, and refuses a bad link", async () => {
+    it("lets Purchasing add and remove files, with history, and refuses a bad link", async () => {
         const ipas = await raise("import")
         const doc = await docByLabel(ipas.id, "BIR 2307")
         const url = "https://res.cloudinary.com/demo/raw/upload/2307.pdf"
 
-        const set = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: url })
+        const set = await rpc("outsider", "ipas_add_document_file", { p_document_id: doc.id, p_url: url, p_file_name: "2307.pdf" })
         expect(set.error).toBeNull()
-        expect(set.data.attachment_url).toBe(url)
+        expect(set.data).toMatchObject({ url, file_name: "2307.pdf" })
 
-        const bad = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: "ftp://x" })
+        const bad = await rpc("outsider", "ipas_add_document_file", { p_document_id: doc.id, p_url: "ftp://x", p_file_name: null })
         expect(bad.error?.code).toBe("22023")
 
-        const cleared = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: null })
-        expect(cleared.data.attachment_url).toBeNull()
+        const cleared = await rpc("outsider", "ipas_remove_document_file", { p_file_id: set.data.id })
+        expect(cleared.error).toBeNull()
         expect((await events(ipas.id, "document_attachment_set", "document_attachment_removed")).map((e) => e.kind)).toEqual([
             "document_attachment_set",
             "document_attachment_removed",
         ])
     })
 
-    it("refuses Finance and everyone else an attachment", async () => {
+    it("refuses Finance and everyone else a file", async () => {
         const ipas = await raise("import")
         const doc = await docByLabel(ipas.id, "BIR 2307")
         for (const who of CAST_KEYS.filter((k) => k !== "outsider")) {
-            const { error } = await rpc(who, "ipas_set_document_attachment", {
+            const { error } = await rpc(who, "ipas_add_document_file", {
                 p_document_id: doc.id,
-                p_attachment_url: "https://example.com/x.pdf",
+                p_url: "https://res.cloudinary.com/demo/raw/upload/x.pdf",
+                p_file_name: "x.pdf",
             })
             expect(error?.code, `${who} attached a file`).toBe("42501")
         }
-        expect((await docByLabel(ipas.id, "BIR 2307")).attachment_url).toBeNull()
     })
 
     it("lets Purchasing remove a hand-added row, unless Finance has ticked it", async () => {
@@ -532,8 +528,7 @@ describe("a filed or cancelled IPAS", () => {
         const ipas = await raise("import")
         await setState(ipas.id, "filed")
 
-        expect((await setOrigin("outsider", ipas.id, { shipped_out_on: "2026-10-01" })).error?.code).toBe("22023")
-        expect((await setTyped("outsider", ipas.id, "delivered", "2026-10-02")).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_set_status", { p_ipas_id: ipas.id, p_step: "ordered", p_reached_on: null })).error?.code).toBe("22023")
         expect((await rpc("outsider", "ipas_stamp_actual_checking", { p_ipas_id: ipas.id })).error?.code).toBe("22023")
         const place = await optionByLabel("item_location", "BM Office")
         expect((await rpc("outsider", "ipas_set_item_location", { p_ipas_id: ipas.id, p_option_id: place.id })).error?.code).toBe("22023")
@@ -545,142 +540,34 @@ describe("a filed or cancelled IPAS", () => {
         await setState(ipas.id, "cancelled")
 
         expect((await tick("outsider", waybill.id, "purchasing", true)).error?.code).toBe("22023")
-        expect((await setTyped("outsider", ipas.id, "delivered", "2026-10-02")).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_set_status", { p_ipas_id: ipas.id, p_step: "ordered", p_reached_on: null })).error?.code).toBe("22023")
     })
 })
 
-describe("Supplier Origin", () => {
-    const DATES = { shipped_out_on: "2026-10-01", onboard_on: "2026-10-03", arrived_in_ph_on: "2026-10-09", arrived_in_whs_on: "2026-10-11" }
-
-    it("takes the four dates on an Import IPAS and records what changed", async () => {
-        const ipas = await raise("import")
-
-        const { data, error } = await setOrigin("outsider", ipas.id, DATES)
-
-        expect(error).toBeNull()
-        expect(data).toMatchObject(DATES)
-        expect((await events(ipas.id, "supplier_origin_changed")).at(-1).detail.fields).toMatchObject({
-            shipped_out_on: { from: null, to: "2026-10-01" },
-            arrived_in_whs_on: { from: null, to: "2026-10-11" },
-        })
-    })
-
-    it("changes only the keys given and clears with null or blank", async () => {
-        const ipas = await raise("import")
-        await setOrigin("outsider", ipas.id, DATES)
-
-        const { data } = await setOrigin("outsider", ipas.id, { onboard_on: null, arrived_in_ph_on: "" })
-
-        expect(data).toMatchObject({ shipped_out_on: "2026-10-01", onboard_on: null, arrived_in_ph_on: null, arrived_in_whs_on: "2026-10-11" })
-        const quiet = await setOrigin("outsider", ipas.id, { shipped_out_on: "2026-10-01" })
-        expect(quiet.error).toBeNull()
-        expect(await events(ipas.id, "supplier_origin_changed")).toHaveLength(2)
-    })
-
-    it("refuses any Supplier Origin date on a Local IPAS, and stores nothing", async () => {
-        const ipas = await raise("local")
-
-        for (const key of Object.keys(DATES)) {
-            const { error } = await setOrigin("outsider", ipas.id, { [key]: DATES[key] })
-            expect(error?.code, key).toBe("22023")
-            expect(error?.message).toMatch(/Import only/)
-        }
-        const row = await ipasRow(ipas.id)
-        expect(row).toMatchObject({ shipped_out_on: null, onboard_on: null, arrived_in_ph_on: null, arrived_in_whs_on: null })
-        expect(await events(ipas.id, "supplier_origin_changed")).toEqual([])
-    })
-
-    it("keeps the columns empty on a Local IPAS even against a direct write", async () => {
+// The old Supplier Origin and Import Clearance dates stay in the table, read-only (#1151). The functions that
+// typed them are retired (1154 tests that), but the table's own checks are still in force.
+describe("the old date columns", () => {
+    it("keep Supplier Origin empty on a Local IPAS, even against a direct write", async () => {
         const ipas = await raise("local")
         const refused = await sql()
             .query(`update public.ipas set shipped_out_on = '2026-10-01' where id = $1`, [ipas.id])
             .then(() => null, (error) => error)
         expect(refused?.code).toBe("23514")
         expect(refused?.constraint).toBe("ipas_supplier_origin_import_chk")
+        expect(await ipasRow(ipas.id)).toMatchObject({ shipped_out_on: null, onboard_on: null, arrived_in_ph_on: null, arrived_in_whs_on: null })
     })
 
-    it("refuses an unknown key, a half-typed or impossible date, and a non-object", async () => {
-        const ipas = await raise("import")
-        expect((await setOrigin("outsider", ipas.id, { delivered_on: "2026-10-01" })).error?.code).toBe("22023")
-        expect((await setOrigin("outsider", ipas.id, { shipped_out_on: "2026-10-" })).error?.code).toBe("22023")
-        expect((await setOrigin("outsider", ipas.id, { shipped_out_on: "2026-02-31" })).error?.code).toBe("22023")
-        expect((await setOrigin("outsider", ipas.id, { shipped_out_on: 20261001 })).error?.code).toBe("22023")
-        expect((await rpc("outsider", "ipas_set_supplier_origin", { p_ipas_id: ipas.id, p_fields: [] })).error?.code).toBe("22023")
-        expect((await ipasRow(ipas.id)).shipped_out_on).toBeNull()
-    })
-
-    it("refuses everyone but Purchasing", async () => {
-        const ipas = await raise("import")
-        for (const who of CAST_KEYS.filter((k) => k !== "outsider")) {
-            const { error } = await setOrigin(who, ipas.id, { shipped_out_on: "2026-10-01" })
-            expect(error?.code, `${who} typed Supplier Origin`).toBe("42501")
-        }
-        expect((await ipasRow(ipas.id)).shipped_out_on).toBeNull()
+    it("keep Import Clearance empty on a Local IPAS, even against a direct write", async () => {
+        const ipas = await raise("local")
+        const refused = await sql()
+            .query(`update public.ipas set import_clearance_on = '2026-10-05' where id = $1`, [ipas.id])
+            .then(() => null, (e) => e)
+        expect(refused?.constraint).toBe("ipas_import_clearance_import_chk")
+        expect((await ipasRow(ipas.id)).import_clearance_on).toBeNull()
     })
 })
 
 describe("the buyer track", () => {
-    it("types Import Clearance on an Import IPAS with who and when, and clears it", async () => {
-        const ipas = await raise("import")
-
-        const { data, error } = await setTyped("outsider", ipas.id, "import_clearance", "2026-10-05")
-
-        expect(error).toBeNull()
-        expect(data).toMatchObject({ import_clearance_on: "2026-10-05", import_clearance_typed_by: ids.outsider })
-        expect(data.import_clearance_typed_at).toBeTruthy()
-        expect((await events(ipas.id, "status_typed")).at(-1)).toMatchObject({
-            actor_id: ids.outsider,
-            detail: { status: "import_clearance", from: null, to: "2026-10-05" },
-        })
-
-        const cleared = await setTyped("outsider", ipas.id, "import_clearance", null)
-        expect(cleared.data).toMatchObject({ import_clearance_on: null, import_clearance_typed_by: null, import_clearance_typed_at: null })
-        expect((await events(ipas.id, "status_cleared")).at(-1).detail).toMatchObject({ status: "import_clearance", from: "2026-10-05", to: null })
-    })
-
-    it("refuses Import Clearance on a Local IPAS, in the function and in the table", async () => {
-        const ipas = await raise("local")
-
-        const { error } = await setTyped("outsider", ipas.id, "import_clearance", "2026-10-05")
-        expect(error?.code).toBe("22023")
-        expect((await ipasRow(ipas.id)).import_clearance_on).toBeNull()
-
-        const direct = await sql()
-            .query(`update public.ipas set import_clearance_on = '2026-10-05' where id = $1`, [ipas.id])
-            .then(() => null, (e) => e)
-        expect(direct?.constraint).toBe("ipas_import_clearance_import_chk")
-    })
-
-    it("types Delivered on either Source", async () => {
-        for (const source of ["import", "local"]) {
-            const ipas = await raise(source)
-            const { data, error } = await setTyped("outsider", ipas.id, "delivered", "2026-10-07")
-            expect(error, source).toBeNull()
-            expect(data).toMatchObject({ delivered_on: "2026-10-07", delivered_typed_by: ids.outsider })
-        }
-    })
-
-    it("records nothing when the date doesn't change, and keeps the first typist", async () => {
-        const ipas = await raise("import")
-        await setTyped("outsider", ipas.id, "delivered", "2026-10-07")
-
-        const again = await setTyped("outsider", ipas.id, "delivered", "2026-10-07")
-
-        expect(again.error).toBeNull()
-        expect(await events(ipas.id, "status_typed")).toHaveLength(1)
-    })
-
-    it("refuses a status that isn't typed, and everyone but Purchasing", async () => {
-        const ipas = await raise("import")
-        expect((await setTyped("outsider", ipas.id, "actual_checking", "2026-10-07")).error?.code).toBe("22023")
-        expect((await setTyped("outsider", ipas.id, null, "2026-10-07")).error?.code).toBe("22023")
-        for (const who of CAST_KEYS.filter((k) => k !== "outsider")) {
-            const { error } = await setTyped(who, ipas.id, "delivered", "2026-10-07")
-            expect(error?.code, `${who} typed Delivered`).toBe("42501")
-        }
-        expect((await ipasRow(ipas.id)).delivered_on).toBeNull()
-    })
-
     it("stamps Actual Checking by Purchasing, with who and when, and clears it", async () => {
         const ipas = await raise("local")
 

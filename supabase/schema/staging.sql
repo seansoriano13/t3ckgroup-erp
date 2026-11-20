@@ -584,7 +584,8 @@ create table if not exists public."employees" (
   "has_retail_access" boolean not null default false,
   "has_bug_report_access" boolean not null default false,
   "has_finance_flow" boolean not null default false,
-  "call_sign" text
+  "call_sign" text,
+  "has_logistics_flow" boolean not null default false
 );
 
 create table if not exists public."faq_data" (
@@ -796,7 +797,9 @@ create table if not exists public."ipas" (
   "freight_attachment_url" text,
   "retail_multiplier" numeric(10,4),
   "wholesale_discount_pct" numeric(5,2) not null default 30,
-  "file_rules_snapshot" jsonb
+  "file_rules_snapshot" jsonb,
+  "status" text default 'order_draft'::text,
+  "direct_delivery" boolean not null default false
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -820,6 +823,15 @@ create table if not exists public."ipas_charges" (
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
   "attachment_url" text
+);
+
+create table if not exists public."ipas_document_files" (
+  "id" uuid not null default gen_random_uuid(),
+  "document_id" uuid not null,
+  "url" text not null,
+  "file_name" text not null,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."ipas_documents" (
@@ -930,6 +942,14 @@ create table if not exists public."ipas_sors" (
   "ipas_id" uuid not null,
   "opportunity_id" uuid not null,
   "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas_status_steps" (
+  "ipas_id" uuid not null,
+  "step" text not null,
+  "reached_on" date not null,
+  "set_by" uuid,
+  "set_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."ipas_work_marks" (
@@ -1195,7 +1215,10 @@ create table if not exists public."packing_lists" (
   "packed_at" timestamp with time zone,
   "signature_declined" boolean not null default false,
   "created_by" uuid not null,
-  "created_at" timestamp with time zone not null default now()
+  "created_at" timestamp with time zone not null default now(),
+  "cancelled_by" uuid,
+  "cancelled_at" timestamp with time zone,
+  "cancel_reason" text
 );
 
 create table if not exists public."pms_evidence" (
@@ -1307,7 +1330,10 @@ create table if not exists public."purchase_requests" (
   "title" text,
   "requesters" jsonb,
   "pr_number" text,
-  "for_opportunity_id" uuid
+  "for_opportunity_id" uuid,
+  "deleted_at" timestamp with time zone,
+  "deleted_by" uuid,
+  "delete_reason" text
 );
 
 create table if not exists public."push_subscriptions" (
@@ -1880,7 +1906,8 @@ create table if not exists public."transmittal_lines" (
   "tech_rating" text,
   "tech_remark" text,
   "quantity_received" numeric,
-  "created_at" timestamp with time zone not null default now()
+  "created_at" timestamp with time zone not null default now(),
+  "over_claim_remark" text
 );
 
 create table if not exists public."transmittal_pending_notices" (
@@ -2083,6 +2110,7 @@ alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMAR
 alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
 alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KEY (ipas_id);
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
+alter table ipas_document_files add constraint "ipas_document_files_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
@@ -2093,6 +2121,7 @@ alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIM
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
 alter table ipas_signoffs add constraint "ipas_signoffs_pkey" PRIMARY KEY (id);
 alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
+alter table ipas_status_steps add constraint "ipas_status_steps_pkey" PRIMARY KEY (ipas_id, step);
 alter table ipas_work_marks add constraint "ipas_work_marks_pkey" PRIMARY KEY (ipas_id);
 alter table lwop_leaves add constraint "lwop_leaves_pkey" PRIMARY KEY (id);
 alter table meal_break_settings add constraint "meal_break_settings_pkey" PRIMARY KEY (key);
@@ -2234,7 +2263,10 @@ alter table app_settings add constraint "app_settings_id_check" CHECK ((id = tru
 alter table bug_report_notes add constraint "bug_report_notes_kind_check" CHECK ((kind = ANY (ARRAY['note'::text, 'resolved'::text, 'reopened'::text])));
 alter table bug_reports add constraint "bug_reports_description_check" CHECK ((length(btrim(description)) > 0));
 alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_check" CHECK ((entity_type = ANY (ARRAY['TASK'::text, 'SALES'::text, 'COMMITTEE_TASK'::text, 'GROUP_TASK'::text])));
+alter table commission_departments add constraint "commission_departments_allocation_percent_range" CHECK (((allocation_percent >= (0)::numeric) AND (allocation_percent <= (100)::numeric)));
+alter table commission_positions add constraint "commission_positions_allocation_percent_range" CHECK (((allocation_percent >= (0)::numeric) AND (allocation_percent <= (100)::numeric)));
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
+alter table commission_splits add constraint "commission_splits_percent_range" CHECK (((percent >= (0)::numeric) AND (percent <= (100)::numeric)));
 alter table commission_splits add constraint "commission_splits_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
 alter table costing_bid_decisions add constraint "costing_bid_decisions_cleared_chk" CHECK (((cleared_at IS NULL) = (cleared_reason IS NULL)));
@@ -2299,6 +2331,7 @@ alter table currency_rate_currencies add constraint "currency_rate_currencies_cu
 alter table currency_rate_currencies add constraint "currency_rate_currencies_divergence_pct_check" CHECK ((divergence_pct > (0)::numeric));
 alter table currency_rates add constraint "currency_rates_php_per_unit_check" CHECK ((php_per_unit > (0)::numeric));
 alter table employees add constraint "employees_call_sign_chk" CHECK (((call_sign IS NULL) OR ((length(btrim(call_sign)) > 0) AND (call_sign = btrim(call_sign)))));
+alter table employees add constraint "employees_dashboard_quote_length" CHECK (((dashboard_quote IS NULL) OR (char_length(dashboard_quote) <= 100)));
 alter table faq_data add constraint "faq_data_id_check" CHECK ((id = 1));
 alter table flow_edges add constraint "flow_edges_no_self_loop" CHECK ((from_stage_id <> to_stage_id));
 alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" CHECK (((source <> 'custom'::text) OR ((label IS NOT NULL) AND (btrim(label) <> ''::text) AND (field_type IS NOT NULL))));
@@ -2335,12 +2368,15 @@ alter table ipas add constraint "ipas_retail_multiplier_chk" CHECK (((retail_mul
 alter table ipas add constraint "ipas_sor_warning_checked_chk" CHECK (((sor_warning_checked IS NULL) OR (jsonb_typeof(sor_warning_checked) = 'object'::text)));
 alter table ipas add constraint "ipas_source_chk" CHECK ((source = ANY (ARRAY['import'::text, 'local'::text])));
 alter table ipas add constraint "ipas_state_chk" CHECK ((state = ANY (ARRAY['open'::text, 'filed'::text, 'cancelled'::text])));
+alter table ipas add constraint "ipas_status_chk" CHECK (((status IS NULL) OR (_ipas_status_order(status) IS NOT NULL)));
 alter table ipas add constraint "ipas_supplier_origin_import_chk" CHECK (((source = 'import'::text) OR ((shipped_out_on IS NULL) AND (onboard_on IS NULL) AND (arrived_in_ph_on IS NULL) AND (arrived_in_whs_on IS NULL))));
 alter table ipas add constraint "ipas_wholesale_discount_chk" CHECK (((wholesale_discount_pct >= (0)::numeric) AND (wholesale_discount_pct < (100)::numeric)));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_name_chk" CHECK (((account_name IS NULL) OR (length(account_name) <= 200)));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_number_chk" CHECK (((account_number IS NULL) OR (length(account_number) <= 100)));
 alter table ipas_bank_details add constraint "ipas_bank_details_bank_name_chk" CHECK (((bank_name IS NULL) OR (length(bank_name) <= 200)));
 alter table ipas_charges add constraint "ipas_charges_amount_chk" CHECK (((amount_php IS NULL) OR (amount_php > (0)::numeric)));
+alter table ipas_document_files add constraint "ipas_document_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
+alter table ipas_document_files add constraint "ipas_document_files_url_chk" CHECK ((url ~* '^https?://'::text));
 alter table ipas_documents add constraint "ipas_documents_attachment_url_chk" CHECK (((attachment_url IS NULL) OR (attachment_url ~* '^https?://'::text)));
 alter table ipas_documents add constraint "ipas_documents_kind_or_label_chk" CHECK ((((kind_id IS NOT NULL) AND (label IS NULL)) OR ((kind_id IS NULL) AND (label IS NOT NULL) AND (length(btrim(label)) > 0) AND (length(label) <= 200))));
 alter table ipas_events add constraint "ipas_events_detail_chk" CHECK ((jsonb_typeof(detail) = 'object'::text));
@@ -2369,6 +2405,7 @@ alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((c
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7, 8])));
+alter table ipas_status_steps add constraint "ipas_status_steps_step_chk" CHECK ((_ipas_status_order(step) IS NOT NULL));
 alter table lwop_leaves add constraint "lwop_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table lwop_leaves add constraint "lwop_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -2397,7 +2434,7 @@ alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CH
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
-alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'payment_approval'::text, 'ordered'::text, 'processing'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
 alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -2407,9 +2444,10 @@ alter table packing_list_boxes add constraint "packing_list_boxes_weight_chk" CH
 alter table packing_list_contents add constraint "packing_list_contents_description_chk" CHECK ((length(btrim(description)) > 0));
 alter table packing_list_contents add constraint "packing_list_contents_quantity_chk" CHECK ((quantity > (0)::numeric));
 alter table packing_list_contents add constraint "packing_list_contents_snapshot_chk" CHECK (((sor_line_snapshot IS NULL) OR (jsonb_typeof(sor_line_snapshot) = 'object'::text)));
+alter table packing_lists add constraint "packing_lists_cancelled_chk" CHECK (((state <> 'cancelled'::text) OR ((cancelled_by IS NOT NULL) AND (cancelled_at IS NOT NULL) AND (cancel_reason IS NOT NULL) AND (length(btrim(cancel_reason)) > 0))));
 alter table packing_lists add constraint "packing_lists_delivery_ref_chk" CHECK (((odoo_delivery_ref IS NULL) OR (length(btrim(odoo_delivery_ref)) > 0)));
 alter table packing_lists add constraint "packing_lists_packed_chk" CHECK (((state <> 'packed'::text) OR ((packed_by IS NOT NULL) AND (packed_at IS NOT NULL))));
-alter table packing_lists add constraint "packing_lists_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'packed'::text])));
+alter table packing_lists add constraint "packing_lists_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'packed'::text, 'cancelled'::text])));
 alter table pms_evidence add constraint "pms_evidence_kind_chk" CHECK ((kind = ANY (ARRAY['picture'::text, 'video'::text])));
 alter table pms_evidence add constraint "pms_evidence_name_chk" CHECK ((length(btrim(file_name)) > 0));
 alter table pms_evidence add constraint "pms_evidence_record_type_chk" CHECK ((record_type = 'transmittal_stage'::text));
@@ -2489,7 +2527,7 @@ alter table transmittals add constraint "transmittals_origin_chk" CHECK ((origin
 alter table transmittals add constraint "transmittals_origin_other_chk" CHECK (((origin <> 'other'::text) OR ((origin_other IS NOT NULL) AND (length(btrim(origin_other)) > 0))));
 alter table transmittals add constraint "transmittals_priority_chk" CHECK ((priority = ANY (ARRAY['high'::text, 'medium'::text, 'low'::text])));
 alter table transmittals add constraint "transmittals_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'warehouse_checking'::text, 'warehouse_releasing'::text, 'technical_inspection'::text, 'awaiting_check'::text, 'closed'::text, 'cancelled'::text])));
-alter table transmittals add constraint "transmittals_submitted_chk" CHECK (((state = 'draft'::text) OR (submitted_at IS NOT NULL)));
+alter table transmittals add constraint "transmittals_submitted_chk" CHECK (((state = 'draft'::text) OR (state = 'cancelled'::text) OR (submitted_at IS NOT NULL)));
 alter table undertime_requests add constraint "undertime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table undertime_requests add constraint "undertime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table bug_report_notes add constraint "bug_report_notes_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
@@ -2589,6 +2627,8 @@ alter table ipas_bank_details add constraint "ipas_bank_details_updated_by_fkey"
 alter table ipas_charges add constraint "ipas_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_charges add constraint "ipas_charges_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
+alter table ipas_document_files add constraint "ipas_document_files_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas_document_files add constraint "ipas_document_files_document_id_fkey" FOREIGN KEY (document_id) REFERENCES ipas_documents(id) ON DELETE CASCADE;
 alter table ipas_documents add constraint "ipas_documents_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_documents add constraint "ipas_documents_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_documents add constraint "ipas_documents_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
@@ -2607,6 +2647,8 @@ alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KE
 alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
 alter table ipas_sors add constraint "ipas_sors_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_sors add constraint "ipas_sors_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
+alter table ipas_status_steps add constraint "ipas_status_steps_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_status_steps add constraint "ipas_status_steps_set_by_fkey" FOREIGN KEY (set_by) REFERENCES employees(id);
 alter table ipas_work_marks add constraint "ipas_work_marks_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table lwop_leaves add constraint "lwop_leaves_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
 alter table lwop_leaves add constraint "lwop_leaves_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
@@ -2648,6 +2690,7 @@ alter table overtime_requests add constraint "overtime_requests_hr_processed_by_
 alter table overtime_requests add constraint "overtime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table packing_list_boxes add constraint "packing_list_boxes_packing_list_id_fkey" FOREIGN KEY (packing_list_id) REFERENCES packing_lists(id) ON DELETE CASCADE;
 alter table packing_list_contents add constraint "packing_list_contents_box_id_fkey" FOREIGN KEY (box_id) REFERENCES packing_list_boxes(id) ON DELETE CASCADE;
+alter table packing_lists add constraint "packing_lists_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
 alter table packing_lists add constraint "packing_lists_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table packing_lists add constraint "packing_lists_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
 alter table packing_lists add constraint "packing_lists_packed_by_fkey" FOREIGN KEY (packed_by) REFERENCES employees(id);
@@ -2670,6 +2713,7 @@ alter table purchase_request_messages add constraint "purchase_request_messages_
 alter table purchase_requests add constraint "purchase_requests_access_until_stage_id_fkey" FOREIGN KEY (access_until_stage_id) REFERENCES flow_stages(id);
 alter table purchase_requests add constraint "purchase_requests_buyer_id_fkey" FOREIGN KEY (buyer_id) REFERENCES employees(id);
 alter table purchase_requests add constraint "purchase_requests_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table purchase_requests add constraint "purchase_requests_deleted_by_fkey" FOREIGN KEY (deleted_by) REFERENCES employees(id);
 alter table purchase_requests add constraint "purchase_requests_for_opportunity_id_fkey" FOREIGN KEY (for_opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opened_by_action_id_fkey" FOREIGN KEY (opened_by_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opened_visit_id_fkey" FOREIGN KEY (opened_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
@@ -2901,6 +2945,8 @@ CREATE INDEX ipas_bank_details_updated_by_idx ON public.ipas_bank_details USING 
 CREATE INDEX ipas_charges_created_by_idx ON public.ipas_charges USING btree (created_by);
 CREATE INDEX ipas_charges_ipas_id_idx ON public.ipas_charges USING btree (ipas_id, charged_on);
 CREATE INDEX ipas_charges_kind_id_idx ON public.ipas_charges USING btree (kind_id);
+CREATE INDEX ipas_document_files_created_by_idx ON public.ipas_document_files USING btree (created_by);
+CREATE INDEX ipas_document_files_document_id_idx ON public.ipas_document_files USING btree (document_id);
 CREATE INDEX ipas_documents_created_by_idx ON public.ipas_documents USING btree (created_by);
 CREATE INDEX ipas_documents_kind_id_idx ON public.ipas_documents USING btree (kind_id);
 CREATE UNIQUE INDEX ipas_documents_kind_key ON public.ipas_documents USING btree (ipas_id, kind_id) WHERE (kind_id IS NOT NULL);
@@ -2922,6 +2968,7 @@ CREATE INDEX ipas_signoffs_ipas_id_idx ON public.ipas_signoffs USING btree (ipas
 CREATE UNIQUE INDEX ipas_signoffs_live_key ON public.ipas_signoffs USING btree (ipas_id, section, role) WHERE (cleared_at IS NULL);
 CREATE INDEX ipas_signoffs_signed_by_idx ON public.ipas_signoffs USING btree (signed_by);
 CREATE INDEX ipas_sors_opportunity_id_idx ON public.ipas_sors USING btree (opportunity_id);
+CREATE INDEX ipas_status_steps_set_by_idx ON public.ipas_status_steps USING btree (set_by);
 CREATE INDEX lwop_leaves_company_id_idx ON public.lwop_leaves USING btree (company_id);
 CREATE INDEX lwop_leaves_employee_id_date_idx ON public.lwop_leaves USING btree (employee_id, date);
 CREATE INDEX lwop_leaves_head_id_idx ON public.lwop_leaves USING btree (head_id);
@@ -2942,6 +2989,7 @@ CREATE INDEX overtime_requests_company_id_idx ON public.overtime_requests USING 
 CREATE INDEX overtime_requests_head_id_idx ON public.overtime_requests USING btree (head_id);
 CREATE INDEX packing_list_boxes_packing_list_id_idx ON public.packing_list_boxes USING btree (packing_list_id);
 CREATE INDEX packing_list_contents_box_id_idx ON public.packing_list_contents USING btree (box_id);
+CREATE INDEX packing_lists_cancelled_by_idx ON public.packing_lists USING btree (cancelled_by);
 CREATE INDEX packing_lists_created_by_idx ON public.packing_lists USING btree (created_by);
 CREATE INDEX packing_lists_opportunity_id_idx ON public.packing_lists USING btree (opportunity_id);
 CREATE INDEX pms_evidence_record_idx ON public.pms_evidence USING btree (record_type, record_id);
@@ -3103,6 +3151,7 @@ alter table public."hr_leave_categories" enable row level security;
 alter table public."ipas" enable row level security;
 alter table public."ipas_bank_details" enable row level security;
 alter table public."ipas_charges" enable row level security;
+alter table public."ipas_document_files" enable row level security;
 alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
 alter table public."ipas_file_rules" enable row level security;
@@ -3113,6 +3162,7 @@ alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
+alter table public."ipas_status_steps" enable row level security;
 alter table public."ipas_work_marks" enable row level security;
 alter table public."lwop_leaves" enable row level security;
 alter table public."meal_break_settings" enable row level security;
@@ -3420,7 +3470,7 @@ create policy "committee_task_members_read" on public."committee_task_members"
   as permissive
   for select
   to authenticated
-  using (committee_task_visible(committee_task_id));
+  using ((committee_task_id IN ( SELECT visible_committee_task_ids() AS visible_committee_task_ids)));
 create policy "committee_task_members_update" on public."committee_task_members"
   as permissive
   for update
@@ -3469,9 +3519,7 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((( SELECT is_super_admin() AS is_super_admin) OR (evaluator_id = ( SELECT get_employee_id() AS get_employee_id)) OR (EXISTS ( SELECT 1
-   FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = ( SELECT get_employee_id() AS get_employee_id))))) OR ((created_by = ( SELECT get_employee_id() AS get_employee_id)) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+  using ((( SELECT is_super_admin() AS is_super_admin) OR (evaluator_id = ( SELECT get_employee_id() AS get_employee_id)) OR (id IN ( SELECT my_committee_task_ids() AS my_committee_task_ids)) OR ((created_by = ( SELECT get_employee_id() AS get_employee_id)) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "committee_tasks_read_on_hold" on public."committee_tasks"
   as permissive
   for select
@@ -3499,7 +3547,7 @@ create policy "costing_bid_decisions_read" on public."costing_bid_decisions"
   as permissive
   for select
   to authenticated
-  using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
+  using (((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text) AND costing_sees_bid(costing_matrix_opp(matrix_id))));
 create policy "costing_column_bands_read" on public."costing_column_bands"
   as permissive
   for select
@@ -4028,6 +4076,11 @@ create policy "ipas_charges_read" on public."ipas_charges"
   for select
   to authenticated
   using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_document_files_read" on public."ipas_document_files"
+  as permissive
+  for select
+  to authenticated
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_documents_read" on public."ipas_documents"
   as permissive
   for select
@@ -4105,6 +4158,11 @@ create policy "ipas_sors_read" on public."ipas_sors"
   for select
   to authenticated
   using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_status_steps_read" on public."ipas_status_steps"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
 create policy "ipas_work_marks_read" on public."ipas_work_marks"
   as permissive
   for select
@@ -5384,6 +5442,25 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_check_date(p_fn text, p_date date, p_what text)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+begin
+  if p_date is null then
+    return;
+  end if;
+  if p_date > (now() at time zone 'Asia/Manila')::date then
+    raise exception '%: % cannot be after today', p_fn, p_what using errcode = '22023';
+  end if;
+  if p_date < date '2015-01-01' then
+    raise exception '%: % cannot be before January 1, 2015', p_fn, p_what using errcode = '22023';
+  end if;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_check_option(p_fn text, p_option_id uuid, p_list text, p_current uuid, p_what text)
  RETURNS text
  LANGUAGE plpgsql
@@ -5748,6 +5825,21 @@ AS $function$
   ) l;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_document_first_file()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.attachment_url is not null and btrim(new.attachment_url) <> '' then
+    insert into public.ipas_document_files (document_id, url, file_name, created_by)
+    values (new.id, btrim(new.attachment_url), public._ipas_file_name_from_url(btrim(new.attachment_url)), new.created_by);
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_document_label(p_document ipas_documents)
  RETURNS text
  LANGUAGE sql
@@ -5773,6 +5865,7 @@ AS $function$
       and (
         coalesce(e.has_purchasing_flow, false)
         or coalesce(e.has_finance_flow, false)
+        or coalesce(e.has_logistics_flow, false)
         or coalesce(e.is_super_admin, false)
         or exists (
           select 1 from ipas_signer_lists l
@@ -5780,6 +5873,18 @@ AS $function$
              and l.list_key not like 'transmittal\_%' escape '\'
         )
       )
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_file_name_from_url(p_url text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    nullif(left(btrim(regexp_replace(split_part(split_part(p_url, '?', 1), '#', 1), '^.*/', '')), 200), ''),
+    'File'
   );
 $function$
 ;
@@ -5814,6 +5919,17 @@ AS $function$
        and s.role = 'approved'
        and s.cleared_at is null
   ) = 4;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_is_own_file_link(p_url text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select p_url ~* '^https://res\.cloudinary\.com/[^[:space:]]+$'
+      or p_url ~* '^https://[a-z0-9-]+\.supabase\.co/storage/v1/object/[^[:space:]]+$'
+      or p_url ~* '^http://(127\.0\.0\.1|localhost)(:[0-9]+)?/storage/v1/object/[^[:space:]]+$';
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
@@ -6157,14 +6273,16 @@ CREATE OR REPLACE FUNCTION public._ipas_logistics_missing(p_ipas_id uuid)
  SET search_path TO 'public'
 AS $function$
   select array_remove(array[
-    case when i.item_location_id is null and not exists (
+    case when not i.direct_delivery and i.item_location_id is null and not exists (
       select 1 from public.transmittal_ipas ti
         join public.transmittals t on t.id = ti.transmittal_id
        where ti.ipas_id = i.id and t.item_location_id is not null
     ) then 'the Item Location' end,
-    case when not exists (select 1 from public.transmittal_ipas ti where ti.ipas_id = i.id)
+    case when not i.direct_delivery and not exists (select 1 from public.transmittal_ipas ti where ti.ipas_id = i.id)
       then 'a Transmittal' end,
-    case when i.source = 'import' and i.arrived_in_whs_on is null then 'the received date' end
+    case when not exists (
+      select 1 from public.ipas_status_steps s where s.ipas_id = i.id and s.step = 'delivered'
+    ) then 'the Delivered status' end
   ], null)
   from public.ipas i
   where i.id = p_ipas_id;
@@ -6289,10 +6407,11 @@ begin
      and o.required_before = v_screen
      and o.applies_to in (v_source, 'both')
      and not exists (
-       select 1 from public.ipas_documents d
+       select 1
+         from public.ipas_documents d
+         join public.ipas_document_files f on f.document_id = d.id
         where d.ipas_id = p_ipas_id
           and d.kind_id = o.id
-          and d.attachment_url is not null
      );
 
   return to_jsonb(v_missing);
@@ -6688,6 +6807,120 @@ AS $function$
       or (p_section = 8 and p_role = 'approved');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_status_label(p_step text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select case p_step
+    when 'order_draft' then 'Order-Draft'
+    when 'payment_approval' then 'Payment Approval'
+    when 'ordered' then 'Ordered'
+    when 'processing' then 'Processing / Preparing Shipment'
+    when 'shipped' then 'Shipped / Picked Up'
+    when 'in_transit' then 'In Transit'
+    when 'customs' then 'Customs / Port Hold'
+    when 'local_hub' then 'Arrived at Local Hub'
+    when 'out_for_delivery' then 'Out for Delivery'
+    when 'delivered' then 'Delivered'
+    when 'done' then 'Done'
+    else p_step
+  end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_order(p_step text)
+ RETURNS integer
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select array_position(array[
+    'order_draft', 'payment_approval', 'ordered', 'processing', 'shipped', 'in_transit',
+    'customs', 'local_hub', 'out_for_delivery', 'delivered', 'done'
+  ]::text[], p_step);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_switch_over(p_ipas_id uuid DEFAULT NULL::uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  select i.id, s.step, s.on_day, null, now()
+    from public.ipas i
+   cross join lateral (values
+     ('order_draft', (i.created_at at time zone 'Asia/Manila')::date),
+     ('payment_approval', (
+        select (min(g.signed_at) at time zone 'Asia/Manila')::date
+          from public.ipas_signoffs g
+         where g.ipas_id = i.id and g.section = 1 and g.role = 'prepared' and g.cleared_at is null)),
+     ('ordered', case when i.odoo_copy -> 'po' ->> 'state' in ('purchase', 'done')
+                      then (i.odoo_fetched_at at time zone 'Asia/Manila')::date end),
+     ('shipped', i.shipped_out_on),
+     ('in_transit', i.onboard_on),
+     ('customs', case when i.source = 'import' then i.arrived_in_ph_on end),
+     ('delivered', coalesce(i.arrived_in_whs_on, i.delivered_on))
+   ) s(step, on_day)
+   where i.state <> 'cancelled'
+     and s.on_day is not null
+     and (p_ipas_id is null or i.id = p_ipas_id)
+  on conflict (ipas_id, step) do nothing;
+
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  select i.id, 'done', (coalesce(i.filed_at, i.updated_at) at time zone 'Asia/Manila')::date, null, now()
+    from public.ipas i
+   where i.state = 'filed'
+     and (p_ipas_id is null or i.id = p_ipas_id)
+  on conflict (ipas_id, step) do nothing;
+
+  -- A filed IPAS is frozen; this one update goes through the reopening switch, and the
+  -- updated_at stamp is left alone so the list order does not move.
+  perform set_config('ipas.reopening', 'on', true);
+  alter table public.ipas disable trigger ipas_updated_at;
+
+  update public.ipas i
+     set status = case
+       when i.state = 'cancelled' then null
+       when i.state = 'filed' then 'done'
+       else coalesce((
+         select s.step from public.ipas_status_steps s
+          where s.ipas_id = i.id
+          order by public._ipas_status_order(s.step) desc limit 1
+       ), 'order_draft')
+     end
+   where p_ipas_id is null or i.id = p_ipas_id;
+
+  alter table public.ipas enable trigger ipas_updated_at;
+  perform set_config('ipas.reopening', 'off', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_writer(p_fn text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if v_actor is null then
+    raise exception '%: not signed in', p_fn using errcode = '42501';
+  end if;
+  if not (
+    coalesce(public.has_purchasing_access(), false)
+    or coalesce(public.has_logistics_access(), false)
+    or coalesce(public.is_super_admin(), false)
+  ) then
+    raise exception '%: only Purchasing, Logistics or a Super Admin sets the status', p_fn using errcode = '42501';
+  end if;
+  return v_actor;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_suggest_documents(p_ipas_id uuid, p_actor uuid)
  RETURNS text[]
  LANGUAGE plpgsql
@@ -6722,6 +6955,15 @@ begin
 
   return v_labels;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_today()
+ RETURNS date
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select (now() at time zone 'Asia/Manila')::date;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_write_event(p_ipas_id uuid, p_actor uuid, p_kind text, p_detail jsonb DEFAULT '{}'::jsonb)
@@ -6776,7 +7018,7 @@ begin
     raise exception 'packing list: only its creator, Purchasing or the Warehouse list changes a Packing List' using errcode = '42501';
   end if;
   if v_row.state <> 'draft' then
-    raise exception 'packing list: % is packed and can''t be changed', v_row.number using errcode = '42501';
+    raise exception 'packing list: % is % and can''t be changed', v_row.number, v_row.state using errcode = '42501';
   end if;
   return v_row;
 end;
@@ -6971,7 +7213,8 @@ CREATE OR REPLACE FUNCTION public._purchase_request_is_live(p_req purchase_reque
  STABLE
  SET search_path TO 'public'
 AS $function$
-  select not exists (
+  select p_req.deleted_at is null
+    and not exists (
       select 1 from sales_opportunities o
       where o.id = p_req.opportunity_id and public._sor_closed_for_purchasing(o)
     )
@@ -8020,6 +8263,143 @@ AS $function$
      and not coalesce(e.is_deleted, false);
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._transmittal_over_claims(p_transmittal_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with mine as (
+    select tl.position, tl.ipas_id, tl.odoo_po_line_id, tl.quantity,
+           coalesce(length(btrim(tl.over_claim_remark)) > 0, false) as has_remark,
+           sum(tl.quantity) over (partition by tl.ipas_id, tl.odoo_po_line_id) as carrying,
+           public._transmittal_po_line_left(tl.ipas_id, tl.odoo_po_line_id, p_transmittal_id) as po_left
+      from public.transmittal_lines tl
+     where tl.transmittal_id = p_transmittal_id
+       and tl.kind = 'po_line'
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'kind', 'over_claim',
+      'position', m.position,
+      'po_number', i.po_number,
+      'left', greatest(m.po_left, 0),
+      'carrying', m.carrying,
+      'more', m.carrying - greatest(m.po_left, 0),
+      'has_remark', m.has_remark
+    ) order by m.position), '[]'::jsonb)
+    from mine m
+    join public.ipas i on i.id = m.ipas_id
+   where m.po_left is not null
+     and m.carrying > greatest(m.po_left, 0);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_po_line_left(p_ipas_id uuid, p_line_id integer, p_exclude uuid DEFAULT NULL::uuid)
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select nullif(l->>'quantity', '')::numeric - coalesce((
+    select sum(tl.quantity)
+      from public.transmittal_lines tl
+      join public.transmittals t on t.id = tl.transmittal_id
+     where tl.ipas_id = i.id
+       and tl.odoo_po_line_id = p_line_id
+       and t.state <> 'cancelled'
+       and (p_exclude is null or t.id <> p_exclude)
+       and tl.wh_rating is distinct from 'na'
+       and tl.tech_rating is distinct from 'na'
+  ), 0)
+  from public.ipas i
+  cross join lateral jsonb_array_elements(coalesce(i.odoo_copy -> 'lines', '[]'::jsonb)) as l
+ where i.id = p_ipas_id
+   and (l->>'line_id')::integer = p_line_id
+ limit 1;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._transmittal_precheck(p_product_ids uuid[], p_reference_ids uuid[], p_lines jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_line jsonb;
+  v_position integer := 0;
+  v_kind text;
+  v_quantity numeric;
+  v_unit text;
+  v_ipas public.ipas;
+  v_po_line jsonb;
+  v_opportunity uuid;
+  v_products uuid[] := coalesce(p_product_ids, '{}'::uuid[]);
+  v_references uuid[] := coalesce(p_reference_ids, '{}'::uuid[]);
+  c_whole_units constant text := '^(pcs?|pieces?|units?|sets?|pairs?|kits?)$';
+begin
+  if cardinality(v_products) > 0 and (
+       select count(*) from public.ipas_options o
+        where o.id = any (v_products) and o.list = 'transmittal_product' and o.active
+     ) <> (select count(distinct x) from unnest(v_products) x) then
+    raise exception 'transmittal: a Product isn''t on the list' using errcode = '22023';
+  end if;
+  if cardinality(v_references) > 0 and (
+       select count(*) from public.ipas_options o
+        where o.id = any (v_references) and o.list = 'transmittal_reference' and o.active
+     ) <> (select count(distinct x) from unnest(v_references) x) then
+    raise exception 'transmittal: a Reference Checklist item isn''t on the list' using errcode = '22023';
+  end if;
+
+  for v_line in select value from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) as value loop
+    v_position := v_position + 1;
+    v_kind := nullif(btrim(v_line->>'kind'), '');
+    v_quantity := nullif(v_line->>'quantity', '')::numeric;
+
+    if v_quantity is null or v_quantity <= 0 then
+      raise exception 'transmittal: line % needs a quantity above zero', v_position using errcode = '22023';
+    end if;
+
+    if v_kind = 'po_line' then
+      select * into v_ipas from public.ipas i where i.id = nullif(v_line->>'ipas_id', '')::uuid;
+      if not found or v_ipas.state = 'cancelled' then
+        raise exception 'transmittal: line % names an IPAS that isn''t live', v_position using errcode = '22023';
+      end if;
+      select l into v_po_line
+        from jsonb_array_elements(coalesce(v_ipas.odoo_copy -> 'lines', '[]'::jsonb)) as l
+       where (l->>'line_id')::integer = (v_line->>'odoo_po_line_id')::integer
+       limit 1;
+      if v_po_line is null then
+        raise exception 'transmittal: line % isn''t on % Odoo copy', v_position, v_ipas.po_number using errcode = '22023';
+      end if;
+      v_unit := nullif(btrim(v_po_line->>'unit'), '');
+
+    elsif v_kind = 'typed' then
+      if nullif(btrim(v_line->>'description'), '') is null then
+        raise exception 'transmittal: line % needs a description', v_position using errcode = '22023';
+      end if;
+      v_unit := nullif(btrim(v_line->>'unit'), '');
+      if v_unit is null then
+        raise exception 'transmittal: line % needs a unit', v_position using errcode = '22023';
+      end if;
+
+    else
+      raise exception 'transmittal: line % has no kind (po_line or typed)', v_position using errcode = '22023';
+    end if;
+
+    -- Said once for both kinds: a unit counted in whole things refuses a decimal quantity.
+    if v_quantity <> trunc(v_quantity) and lower(coalesce(v_unit, '')) ~ c_whole_units then
+      raise exception 'transmittal: line % counts whole % only', v_position, v_unit using errcode = '22023';
+    end if;
+
+    v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
+    if v_opportunity is not null and not exists (
+         select 1 from public.sales_opportunities o where o.id = v_opportunity and not coalesce(o.is_deleted, false)
+       ) then
+      raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
+    end if;
+  end loop;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._transmittal_sync_links(p_transmittal_id uuid)
  RETURNS void
  LANGUAGE plpgsql
@@ -8050,10 +8430,8 @@ CREATE OR REPLACE FUNCTION public._transmittal_write_children(p_transmittal_id u
 AS $function$
 declare
   v_entity text;
-  v_number text;
   v_line jsonb;
   v_position integer := 0;
-  v_kind text;
   v_ipas public.ipas;
   v_po_line jsonb;
   v_ipas_entity text;
@@ -8061,62 +8439,32 @@ declare
   v_opportunity uuid;
   v_sor_count integer;
   v_warnings jsonb := '[]'::jsonb;
-  v_products uuid[];
-  v_references uuid[];
 begin
-  select t.entity, t.number into v_entity, v_number from public.transmittals t where t.id = p_transmittal_id;
+  perform public._transmittal_precheck(p_product_ids, p_reference_ids, p_lines);
 
-  v_products := coalesce(p_product_ids, '{}'::uuid[]);
-  v_references := coalesce(p_reference_ids, '{}'::uuid[]);
-
-  if cardinality(v_products) > 0 and (
-       select count(*) from public.ipas_options o
-        where o.id = any (v_products) and o.list = 'transmittal_product' and o.active
-     ) <> (select count(distinct x) from unnest(v_products) x) then
-    raise exception 'transmittal: a Product isn''t on the list' using errcode = '22023';
-  end if;
-  if cardinality(v_references) > 0 and (
-       select count(*) from public.ipas_options o
-        where o.id = any (v_references) and o.list = 'transmittal_reference' and o.active
-     ) <> (select count(distinct x) from unnest(v_references) x) then
-    raise exception 'transmittal: a Reference Checklist item isn''t on the list' using errcode = '22023';
-  end if;
+  select t.entity into v_entity from public.transmittals t where t.id = p_transmittal_id;
 
   delete from public.transmittal_lines where transmittal_id = p_transmittal_id;
   delete from public.transmittal_products where transmittal_id = p_transmittal_id;
   delete from public.transmittal_references where transmittal_id = p_transmittal_id;
 
   insert into public.transmittal_products (transmittal_id, option_id)
-  select p_transmittal_id, x from unnest(v_products) as x;
+  select p_transmittal_id, x from unnest(coalesce(p_product_ids, '{}'::uuid[])) as x;
 
   insert into public.transmittal_references (transmittal_id, option_id)
-  select p_transmittal_id, x from unnest(v_references) as x;
+  select p_transmittal_id, x from unnest(coalesce(p_reference_ids, '{}'::uuid[])) as x;
 
   for v_line in select value from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) as value loop
     v_position := v_position + 1;
-    v_kind := nullif(btrim(v_line->>'kind'), '');
-    v_quantity := nullif(v_line->>'quantity', '')::numeric;
+    v_quantity := (v_line->>'quantity')::numeric;
+    v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
 
-    if v_quantity is null or v_quantity <= 0 then
-      raise exception 'transmittal: line % needs a quantity above zero', v_position using errcode = '22023';
-    end if;
-
-    if v_kind = 'po_line' then
-      select * into v_ipas
-        from public.ipas i
-       where i.id = nullif(v_line->>'ipas_id', '')::uuid;
-      if not found or v_ipas.state = 'cancelled' then
-        raise exception 'transmittal: line % names an IPAS that isn''t live', v_position using errcode = '22023';
-      end if;
-
+    if nullif(btrim(v_line->>'kind'), '') = 'po_line' then
+      select * into v_ipas from public.ipas i where i.id = nullif(v_line->>'ipas_id', '')::uuid;
       select l into v_po_line
         from jsonb_array_elements(coalesce(v_ipas.odoo_copy -> 'lines', '[]'::jsonb)) as l
        where (l->>'line_id')::integer = (v_line->>'odoo_po_line_id')::integer
        limit 1;
-      if v_po_line is null then
-        raise exception 'transmittal: line % isn''t on % Odoo copy', v_position, v_ipas.po_number
-          using errcode = '22023';
-      end if;
 
       v_ipas_entity := coalesce(
         nullif(btrim(v_ipas.entity_override), ''),
@@ -8130,23 +8478,16 @@ begin
         ));
       end if;
 
-      v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
       if v_opportunity is null then
         select count(*) into v_sor_count from public.ipas_sors s where s.ipas_id = v_ipas.id;
         if v_sor_count = 1 then
           select s.opportunity_id into v_opportunity from public.ipas_sors s where s.ipas_id = v_ipas.id;
         end if;
       end if;
-      if v_opportunity is not null and not exists (
-           select 1 from public.sales_opportunities o
-            where o.id = v_opportunity and not coalesce(o.is_deleted, false)
-         ) then
-        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
-      end if;
 
       insert into public.transmittal_lines (
         transmittal_id, position, kind, ipas_id, odoo_po_line_id, description, quantity, unit,
-        opportunity_id, serial_numbers, box_quantity
+        opportunity_id, serial_numbers, box_quantity, over_claim_remark
       ) values (
         p_transmittal_id, v_position, 'po_line', v_ipas.id, (v_po_line->>'line_id')::integer,
         coalesce(nullif(btrim(v_po_line->>'name'), ''), 'P0 line ' || (v_po_line->>'line_id')),
@@ -8154,24 +8495,10 @@ begin
         nullif(btrim(v_po_line->>'unit'), ''),
         v_opportunity,
         nullif(btrim(v_line->>'serial_numbers'), ''),
-        nullif(btrim(v_line->>'box_quantity'), '')
+        nullif(btrim(v_line->>'box_quantity'), ''),
+        nullif(btrim(v_line->>'over_claim_remark'), '')
       );
-
-    elsif v_kind = 'typed' then
-      if nullif(btrim(v_line->>'description'), '') is null then
-        raise exception 'transmittal: line % needs a description', v_position using errcode = '22023';
-      end if;
-      if nullif(btrim(v_line->>'unit'), '') is null then
-        raise exception 'transmittal: line % needs a unit', v_position using errcode = '22023';
-      end if;
-      v_opportunity := nullif(v_line->>'opportunity_id', '')::uuid;
-      if v_opportunity is not null and not exists (
-           select 1 from public.sales_opportunities o
-            where o.id = v_opportunity and not coalesce(o.is_deleted, false)
-         ) then
-        raise exception 'transmittal: line % names an SOR that no longer exists', v_position using errcode = '22023';
-      end if;
-
+    else
       insert into public.transmittal_lines (
         transmittal_id, position, kind, description, quantity, unit,
         opportunity_id, serial_numbers, box_quantity
@@ -8181,13 +8508,10 @@ begin
         nullif(btrim(v_line->>'serial_numbers'), ''),
         nullif(btrim(v_line->>'box_quantity'), '')
       );
-
-    else
-      raise exception 'transmittal: line % has no kind (po_line or typed)', v_position using errcode = '22023';
     end if;
   end loop;
 
-  return v_warnings;
+  return v_warnings || public._transmittal_over_claims(p_transmittal_id);
 end;
 $function$
 ;
@@ -8762,7 +9086,12 @@ CREATE OR REPLACE FUNCTION public.can_read_purchase_request(p_request_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(is_super_admin(), false)
+  select not exists (
+      select 1 from purchase_requests r
+      where r.id = p_request_id and r.deleted_at is not null
+    )
+    and (
+      coalesce(is_super_admin(), false)
       or is_purchase_request_member(p_request_id)
       or (
         has_purchasing_access()
@@ -8770,7 +9099,8 @@ AS $function$
           select 1 from purchase_requests r
           where r.id = p_request_id and r.buyer_id is null
         )
-      );
+      )
+    );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.cancel_lwop_leave(p_leave_id uuid, p_employee_id uuid)
@@ -8923,6 +9253,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM sil_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -11414,6 +11745,7 @@ begin
     where e.matrix_id = v_matrix
       and (p_table is null or e.detail ->> 'table' = p_table)
       and (p_row is null or e.detail ->> 'row' = p_row::text)
+      and (e.detail ->> 'table' is distinct from 'costing_bid_decisions' or public.costing_sees_bid(p_opportunity_id))
       and (
         case
           when e.detail ? 'column' then exists (
@@ -12190,6 +12522,7 @@ declare
   v_rows   jsonb;
   v_tables jsonb := '{}'::jsonb;
   v_bands  text[];
+  v_sees_bid boolean := public.costing_sees_bid(p_opportunity_id);
 begin
   if v_tier is null then
     return null;
@@ -12204,6 +12537,10 @@ begin
     from public.costing_column_tiers c
     where c.table_name = v_def.table_name and c.column_name <> '*' and v_tier = any (c.tiers);
     if cardinality(v_cols) = 0 then
+      continue;
+    end if;
+    -- #1107: the Bid Decision is not sent to a purchaser who is not the Deal Team, a decider or a Super Admin.
+    if v_def.table_name = 'costing_bid_decisions' and not v_sees_bid then
       continue;
     end if;
 
@@ -12228,7 +12565,7 @@ begin
     from unnest(array['sales', 'purchasing', 'management', 'technical', 'finance', 'super_admin_only', 'markup']) b
    where public.costing_in_band(p_opportunity_id, b);
 
-  return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'tables', v_tables);
+  return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'bid_visible', v_sees_bid, 'tables', v_tables);
 end;
 $function$
 ;
@@ -12859,6 +13196,22 @@ begin
   where s.score >= 0.6
   order by s.score desc, s.item_name, s.line_name;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_sees_bid(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false)
+    or public.costing_on_list('final_acquire')
+    or exists (
+      select 1 from public.sales_opportunities o
+      where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
+    )
+    -- Only Purchasing is narrowed: everyone else keeps what their tier already gives.
+    or not coalesce(public.has_purchasing_access(), false)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_set_acquire_source()
@@ -13906,6 +14259,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported offset leave decision: %.', p_status;
   END IF;
@@ -14034,6 +14388,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -14123,6 +14478,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported SIL leave decision: %.', p_status;
   END IF;
@@ -14274,7 +14630,6 @@ declare
   v_sor public.sales_opportunities;
 begin
   select * into v_sor from public.sales_opportunities o where o.id = p_opportunity_id;
-  -- coalesce: an empty deal-team column makes sor_is_deal_team NULL, and `not NULL` would leak.
   if not found or not coalesce(
     public.is_super_admin()
     or public.sor_is_deal_team(v_sor, v_actor)
@@ -14315,6 +14670,7 @@ begin
       ) i on true
      where r.for_opportunity_id = p_opportunity_id
        and r.opportunity_id is null
+       and r.deleted_at is null
   ), '[]'::jsonb);
 end;
 $function$
@@ -14610,6 +14966,51 @@ AS $function$
           and upper(trim(t.team)) = upper(trim(e.sub_department))
       )
     );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.employees_self_update_allowlist()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_caller_id    UUID;
+  v_privileged   BOOLEAN;
+  v_simulator    BOOLEAN;
+  v_self_allowed text[] := ARRAY[
+    'avatar_path', 'dashboard_banner_path', 'dashboard_quote', 'signature_path',
+    'updated_at', 'last_seen_changelog_version'
+  ];
+BEGIN
+  IF current_user <> 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
+  v_caller_id := public.get_employee_id();
+  IF v_caller_id IS NULL OR OLD.id <> v_caller_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- OLD is the caller's own row, so its flags are the caller's.
+  v_privileged := (OLD.is_super_admin IS TRUE OR OLD.is_hr IS TRUE);
+  v_simulator  := (OLD.is_role_simulator IS TRUE);
+
+  -- A leave function moving this person's balance (see below).
+  IF current_setting('app.leave_balance_write', true) = 'on' THEN
+    v_self_allowed := v_self_allowed || ARRAY['offset_hours_balance', 'sil_hours_balance'];
+  END IF;
+
+  IF NOT v_privileged
+     AND NOT v_simulator
+     AND (to_jsonb(NEW) - v_self_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_self_allowed)
+  THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: you can change only your avatar, banner, quote and signature.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb)
@@ -16275,6 +16676,20 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.has_logistics_access()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from employees e
+    where e.id = get_employee_id()
+      and e.has_logistics_flow
+      and not coalesce(e.is_deleted, false)
+  );
+$function$
+;
 CREATE OR REPLACE FUNCTION public.has_purchasing_access()
  RETURNS boolean
  LANGUAGE sql
@@ -16410,6 +16825,7 @@ declare
   v_label text;
   v_row public.ipas_charges;
 begin
+  perform public._ipas_check_date('ipas_add_charge', p_charged_on, 'the charge date');
   v_ipas := public._ipas_lock_open('ipas_add_charge', p_ipas_id);
   if p_charged_on is null then
     raise exception 'ipas_add_charge: give the date of the charge' using errcode = '22023';
@@ -16483,6 +16899,44 @@ begin
     'by_hand', v_row.kind_id is null,
     'has_attachment', v_row.attachment_url is not null
   ));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_add_document_file(p_document_id uuid, p_url text, p_file_name text DEFAULT NULL::text)
+ RETURNS ipas_document_files
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_add_document_file');
+  v_doc public.ipas_documents;
+  v_url text := nullif(btrim(p_url), '');
+  v_name text;
+  v_row public.ipas_document_files;
+begin
+  v_doc := public._ipas_lock_document('ipas_add_document_file', p_document_id);
+
+  if v_url is null or v_url !~* '^https?://' then
+    raise exception 'ipas_add_document_file: the file must be a link to the uploaded file'
+      using errcode = '22023';
+  end if;
+  if not public._ipas_is_own_file_link(v_url) then
+    raise exception 'ipas_file_link: attach a file you uploaded here, not a link to another site'
+      using errcode = '22023';
+  end if;
+
+  v_name := left(coalesce(nullif(btrim(p_file_name), ''), public._ipas_file_name_from_url(v_url)), 200);
+
+  insert into public.ipas_document_files (document_id, url, file_name, created_by)
+  values (v_doc.id, v_url, v_name, v_actor)
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_doc.ipas_id, v_actor, 'document_attachment_set',
+    jsonb_build_object('document_id', v_doc.id, 'label', public._ipas_document_label(v_doc),
+                       'file_id', v_row.id, 'file_name', v_row.file_name));
 
   return v_row;
 end;
@@ -16580,6 +17034,7 @@ AS $function$
       and (
         coalesce(e.has_purchasing_flow, false)
         or coalesce(e.has_finance_flow, false)
+        or coalesce(e.has_logistics_flow, false)
         or coalesce(e.is_super_admin, false)
         or exists (
           select 1 from ipas_signer_lists l
@@ -16782,6 +17237,26 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_file_link_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_col text := tg_argv[0];
+  v_new text := to_jsonb(new) ->> v_col;
+  v_old text := case when tg_op = 'UPDATE' then to_jsonb(old) ->> v_col end;
+begin
+  if v_new is null or v_new is not distinct from v_old then
+    return new;
+  end if;
+  if not public._ipas_is_own_file_link(btrim(v_new)) then
+    raise exception 'ipas_file_link: attach a file you uploaded here, not a link to another site' using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_file_rules_snapshot_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -16844,6 +17319,7 @@ declare
   v_amount numeric := round(p_amount_php, 2);
   v_url text := nullif(btrim(coalesce(p_attachment_url, '')), '');
 begin
+  perform public._ipas_check_date('ipas_fill_charge', p_charged_on, 'the charge date');
   select ipas_id into v_ipas_id from public.ipas_charges where id = p_charge_id;
   if v_ipas_id is null then
     raise exception 'ipas_fill_charge: charge % not found', p_charge_id using errcode = '22023';
@@ -17064,6 +17540,46 @@ begin
     v_what || ' ' || v_verb
   );
   return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_limits_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_existing text;
+begin
+  if tg_op = 'INSERT' or new.supplier_contact is distinct from old.supplier_contact then
+    new.supplier_contact := nullif(btrim(new.supplier_contact), '');
+    if length(new.supplier_contact) > 200 then
+      raise exception 'ipas_limits: Supplier''s name can be at most 200 characters' using errcode = '22023';
+    end if;
+  end if;
+  if (tg_op = 'INSERT' or new.pi_number is distinct from old.pi_number) and length(btrim(new.pi_number)) > 60 then
+    raise exception 'ipas_limits: P.I # can be at most 60 characters' using errcode = '22023';
+  end if;
+  if (tg_op = 'INSERT' or new.remarks is distinct from old.remarks) and length(btrim(new.remarks)) > 2000 then
+    raise exception 'ipas_limits: Remarks can be at most 2,000 characters' using errcode = '22023';
+  end if;
+  if (tg_op = 'INSERT' or new.pi_qt_amount is distinct from old.pi_qt_amount) and new.pi_qt_amount > 9999999999.99 then
+    raise exception 'ipas_limits: P.I/QT Amount is at most 9,999,999,999.99' using errcode = '22023';
+  end if;
+
+  -- Two raises for one PO at once: the second waits here for the first, then sees it.
+  if tg_op = 'INSERT' and new.state <> 'cancelled' then
+    perform pg_advisory_xact_lock(hashtextextended('ipas_live_po:' || new.po_number, 0));
+    select i.number into v_existing
+      from public.ipas i
+     where i.po_number = new.po_number and i.state <> 'cancelled';
+    if v_existing is not null then
+      raise exception 'ipas_create: % already has a live IPAS (%); cancel it to raise a new one', new.po_number, v_existing
+        using errcode = '23505';
+    end if;
+  end if;
+  return new;
 end;
 $function$
 ;
@@ -17366,6 +17882,26 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_payments_waiting_for_pesos(p_ipas_id uuid)
+ RETURNS text[]
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_missing text;
+begin
+  if not public.ipas_can_read() then
+    raise exception 'ipas_payments_waiting_for_pesos: you may not read IPAS' using errcode = '42501';
+  end if;
+  v_missing := public._ipas_payments_missing_pesos(p_ipas_id);
+  if v_missing is null then
+    return '{}'::text[];
+  end if;
+  return string_to_array(v_missing, '; ');
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_raise_from_odoo(p_actor uuid, p_po_number text, p_priority text, p_source text, p_purpose text, p_sor_ids uuid[], p_remarks text, p_verdict text, p_odoo_copy jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -17418,6 +17954,10 @@ begin
   end if;
 
   v_sors := public._ipas_clean_sor_ids('ipas_create', p_purpose, p_sor_ids);
+
+  -- #1129: one raise per PO at a time. The loser waits here, then finds the winner's IPAS and is
+  -- refused before the insert draws an IPAS number.
+  perform pg_advisory_xact_lock(hashtextextended('ipas_live_po:' || v_po, 0));
 
   select i.number into v_existing
     from public.ipas i
@@ -17707,6 +18247,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_remove_document_file(p_file_id uuid)
+ RETURNS ipas_document_files
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_remove_document_file');
+  v_row public.ipas_document_files;
+  v_doc public.ipas_documents;
+begin
+  select * into v_row from public.ipas_document_files where id = p_file_id;
+  if v_row.id is null then
+    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = '22023';
+  end if;
+
+  v_doc := public._ipas_lock_document('ipas_remove_document_file', v_row.document_id);
+
+  delete from public.ipas_document_files where id = v_row.id returning * into v_row;
+  if v_row.id is null then
+    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = '22023';
+  end if;
+
+  perform public._ipas_write_event(v_doc.ipas_id, v_actor, 'document_attachment_removed',
+    jsonb_build_object('document_id', v_doc.id, 'label', public._ipas_document_label(v_doc),
+                       'file_id', v_row.id, 'file_name', v_row.file_name));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_remove_payment(p_payment_id uuid)
  RETURNS ipas_payments
  LANGUAGE plpgsql
@@ -17883,6 +18454,7 @@ declare
   v_pesos numeric;
   v_row public.ipas_payments;
 begin
+  perform public._ipas_check_date('ipas_save_payment', p_paid_on, 'the payment date');
   if p_payment_id is null then
     v_ipas := public._ipas_lock_open('ipas_save_payment', p_ipas_id);
   else
@@ -18171,32 +18743,39 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_set_document_attachment(p_document_id uuid, p_attachment_url text)
- RETURNS ipas_documents
+CREATE OR REPLACE FUNCTION public.ipas_set_direct_delivery(p_ipas_id uuid, p_on boolean)
+ RETURNS ipas
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public._ipas_purchasing_writer('ipas_set_document_attachment');
-  v_row public.ipas_documents;
-  v_url text := nullif(btrim(p_attachment_url), '');
+  v_actor uuid := public.get_employee_id();
+  v_row public.ipas;
 begin
-  v_row := public._ipas_lock_document('ipas_set_document_attachment', p_document_id);
-
-  if v_url is not null and v_url !~* '^https?://' then
-    raise exception 'ipas_set_document_attachment: the attachment must be a link to the uploaded file'
-      using errcode = '22023';
+  if v_actor is null then
+    raise exception 'ipas_set_direct_delivery: not signed in' using errcode = '42501';
   end if;
-  if v_url is not distinct from v_row.attachment_url then
+  if not (
+    coalesce(public.has_purchasing_access(), false)
+    or coalesce(public.has_logistics_access(), false)
+    or coalesce(public.is_super_admin(), false)
+  ) then
+    raise exception 'ipas_set_direct_delivery: only Purchasing, Logistics or a Super Admin sets Direct delivery'
+      using errcode = '42501';
+  end if;
+  if p_on is null then
+    raise exception 'ipas_set_direct_delivery: say on or off' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_set_direct_delivery', p_ipas_id);
+  if p_on = v_row.direct_delivery then
     return v_row;
   end if;
 
-  update public.ipas_documents set attachment_url = v_url where id = v_row.id returning * into v_row;
+  update public.ipas set direct_delivery = p_on where id = v_row.id returning * into v_row;
 
-  perform public._ipas_write_event(v_row.ipas_id, v_actor,
-    case when v_url is null then 'document_attachment_removed' else 'document_attachment_set' end,
-    jsonb_build_object('document_id', v_row.id, 'label', public._ipas_document_label(v_row)));
+  perform public._ipas_write_event(v_row.id, v_actor, 'direct_delivery_changed', jsonb_build_object('to', p_on));
 
   return v_row;
 end;
@@ -18319,6 +18898,17 @@ begin
   v_contact := case when jsonb_exists(p_fields, 'supplier_contact') then nullif(btrim(p_fields->>'supplier_contact'), '') else v_row.supplier_contact end;
   v_pi := case when jsonb_exists(p_fields, 'pi_number') then nullif(btrim(p_fields->>'pi_number'), '') else v_row.pi_number end;
 
+  -- Limits (#1128, spec #1123 D1): said in words here, before any write.
+  if v_contact is distinct from v_row.supplier_contact and length(v_contact) > 200 then
+    raise exception 'ipas_set_header: Supplier''s name can be at most 200 characters' using errcode = '22023';
+  end if;
+  if v_pi is distinct from v_row.pi_number and length(v_pi) > 60 then
+    raise exception 'ipas_set_header: P.I # can be at most 60 characters' using errcode = '22023';
+  end if;
+  if v_remarks is distinct from v_row.remarks and length(v_remarks) > 2000 then
+    raise exception 'ipas_set_header: Remarks can be at most 2,000 characters' using errcode = '22023';
+  end if;
+
   -- P.I/QT Amount: a number, or blank to clear. Anything half-typed is refused
   -- with a sentence, never a cast error.
   v_amount := v_row.pi_qt_amount;
@@ -18342,6 +18932,9 @@ begin
     end if;
     if v_amount is not null and v_amount < 0 then
       raise exception 'ipas_set_header: P.I/QT Amount can''t be negative' using errcode = '22023';
+    end if;
+    if v_amount is not null and v_amount > 9999999999.99 then
+      raise exception 'ipas_set_header: P.I/QT Amount is at most 9,999,999,999.99' using errcode = '22023';
     end if;
   end if;
 
@@ -18848,6 +19441,124 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_status(p_ipas_id uuid, p_step text, p_reached_on date DEFAULT NULL::date)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_status_writer('ipas_set_status');
+  v_row public.ipas;
+  v_new integer := public._ipas_status_order(p_step);
+  v_cur integer;
+  v_existing date;
+  v_date date;
+  v_cleared text[];
+  v_from text;
+begin
+  if v_new is null then
+    raise exception 'ipas_set_status: % isn''t a status step', coalesce(p_step, 'null') using errcode = '22023';
+  end if;
+  if p_step = 'done' then
+    raise exception 'ipas_set_status: Done comes from filing; it can''t be picked by hand' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_set_status', p_ipas_id);
+  if v_row.source = 'local' and p_step in ('customs', 'local_hub', 'out_for_delivery') then
+    raise exception 'ipas_set_status: % is a Local IPAS; % is for Import only', v_row.number, public._ipas_status_label(p_step)
+      using errcode = '22023';
+  end if;
+
+  v_from := v_row.status;
+  v_cur := coalesce(public._ipas_status_order(v_row.status), 0);
+  select s.reached_on into v_existing from public.ipas_status_steps s where s.ipas_id = v_row.id and s.step = p_step;
+
+  -- Moving back to a step that already has a day keeps that day unless a new one is given.
+  v_date := coalesce(p_reached_on, case when v_new <= v_cur then v_existing end, public._ipas_today());
+  perform public._ipas_check_date('ipas_set_status', v_date, 'the ' || public._ipas_status_label(p_step) || ' date');
+
+  -- Dates out of order are allowed (#1151 follow-up): the record shows a warning instead of refusing.
+
+  if v_from is not distinct from p_step and v_existing is not distinct from v_date then
+    return v_row;
+  end if;
+
+  with gone as (
+    delete from public.ipas_status_steps s
+     where s.ipas_id = v_row.id and public._ipas_status_order(s.step) > v_new
+    returning s.step
+  )
+  select array_agg(step order by public._ipas_status_order(step)) into v_cleared from gone;
+
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  values (v_row.id, p_step, v_date, v_actor, now())
+  on conflict (ipas_id, step) do update
+    set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = excluded.set_at;
+
+  update public.ipas set status = p_step where id = v_row.id returning * into v_row;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'status_changed', jsonb_build_object(
+    'from', v_from,
+    'to', p_step,
+    'date', v_date,
+    'cleared', coalesce(to_jsonb(v_cleared), '[]'::jsonb)
+  ));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_set_status_date(p_ipas_id uuid, p_step text, p_on date)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_status_writer('ipas_set_status_date');
+  v_row public.ipas;
+  v_order integer := public._ipas_status_order(p_step);
+  v_existing date;
+begin
+  if v_order is null then
+    raise exception 'ipas_set_status_date: % isn''t a status step', coalesce(p_step, 'null') using errcode = '22023';
+  end if;
+  if p_step = 'done' then
+    raise exception 'ipas_set_status_date: Done comes from filing' using errcode = '22023';
+  end if;
+  if p_on is null then
+    raise exception 'ipas_set_status_date: give the date' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_set_status_date', p_ipas_id);
+  select s.reached_on into v_existing from public.ipas_status_steps s where s.ipas_id = v_row.id and s.step = p_step;
+  if v_existing is null then
+    raise exception 'ipas_set_status_date: % has not reached %', v_row.number, public._ipas_status_label(p_step)
+      using errcode = '22023';
+  end if;
+
+  perform public._ipas_check_date('ipas_set_status_date', p_on, 'the ' || public._ipas_status_label(p_step) || ' date');
+
+  -- Dates out of order are allowed; the record shows a warning instead (#1151 follow-up).
+
+  if v_existing = p_on then
+    return v_row;
+  end if;
+
+  update public.ipas_status_steps
+     set reached_on = p_on, set_by = v_actor, set_at = now()
+   where ipas_id = v_row.id and step = p_step;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'status_date_changed', jsonb_build_object(
+    'step', p_step, 'from', v_existing, 'to', p_on
+  ));
+
+  select * into v_row from public.ipas where id = v_row.id;
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_supplier_origin(p_ipas_id uuid, p_fields jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -18925,6 +19636,7 @@ declare
   v_row public.ipas;
   v_from date;
 begin
+  perform public._ipas_check_date('ipas_set_typed_status', p_date, 'the ' || replace(p_status, '_', ' ') || ' date');
   if p_status is null or p_status not in ('import_clearance', 'delivered') then
     raise exception 'ipas_set_typed_status: Import Clearance and Delivered are the typed statuses' using errcode = '22023';
   end if;
@@ -18980,6 +19692,7 @@ declare
   v_notify uuid[] := '{}';
   v_stage text;
   v_filed boolean := false;
+  v_waiting text;
 begin
   if v_actor is null then
     raise exception 'ipas_sign: not signed in' using errcode = '42501';
@@ -19063,6 +19776,12 @@ begin
       ) then
         raise exception 'ipas_sign: you checked %, so someone else on the Filing approvers list files it', v_ipas.number
           using errcode = '42501';
+      end if;
+      -- #1124: Filing freezes Landed Cost as final, so no foreign payment may still be waiting for its pesos.
+      v_waiting := public._ipas_payments_missing_pesos(v_ipas.id);
+      if v_waiting is not null then
+        raise exception 'ipas_sign: Filing waits for the pesos of %: %', v_ipas.number, v_waiting
+          using errcode = '22023';
       end if;
       if v_ipas.computation_status not in ('lc_odoo_done', 'checked') then
         raise exception 'ipas_sign: % can''t be filed until LC Odoo Done: Landed Cost is still provisional, and Filing freezes it as final', v_ipas.number
@@ -19363,7 +20082,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_standing_for_sor(p_opportunity_id uuid)
- RETURNS TABLE(ipas_id uuid, source text, created_at timestamp with time zone, updated_at timestamp with time zone, costs_completed_at timestamp with time zone, proof_paid_on date, shipped_out_on date, onboard_on date, arrived_in_ph_on date, arrived_in_whs_on date, import_clearance_on date, delivered_on date, actual_checking_stamped boolean, actual_checking_at timestamp with time zone, slips jsonb, on_hold boolean)
+ RETURNS TABLE(ipas_id uuid, source text, created_at timestamp with time zone, updated_at timestamp with time zone, costs_completed_at timestamp with time zone, proof_paid_on date, shipped_out_on date, onboard_on date, arrived_in_ph_on date, arrived_in_whs_on date, import_clearance_on date, delivered_on date, actual_checking_stamped boolean, actual_checking_at timestamp with time zone, slips jsonb, on_hold boolean, status text, status_steps jsonb, received_state text, has_bill boolean, direct_delivery boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -19429,8 +20148,35 @@ AS $function$
             where l.transmittal_id = t.id and l.ipas_id = i.id
          )
     ), '[]'::jsonb),
-    i.on_hold
+    i.on_hold,
+    i.status,
+    coalesce((
+      select jsonb_agg(jsonb_build_object('step', s.step, 'reached_on', s.reached_on) order by s.reached_on)
+        from public.ipas_status_steps s
+       where s.ipas_id = i.id
+    ), '[]'::jsonb),
+    rs.received_state,
+    o.bill_count > 0,
+    coalesce(i.direct_delivery, false)
   from public.ipas i
+  cross join lateral (
+    select
+      i.odoo_copy #>> '{receipts,status}' as receipts_status,
+      case when (i.odoo_copy #>> '{receipts,total}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{receipts,total}')::numeric else 0 end as receipts_total,
+      case when (i.odoo_copy #>> '{receipts,done}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{receipts,done}')::numeric else 0 end as receipts_done,
+      case when (i.odoo_copy #>> '{bills,count}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{bills,count}')::numeric else 0 end as bill_count
+  ) o
+  cross join lateral (
+    select case
+      when o.receipts_status = 'partial' then 'partial'
+      when o.receipts_status = 'full' or (o.receipts_total > 0 and o.receipts_done >= o.receipts_total) then 'received'
+      when o.receipts_done > 0 then 'partial'
+      else 'none'
+    end as received_state
+  ) rs
   where (select public.sor_access_level(p_opportunity_id)) = 'full'
     and i.purpose = 'project'
     and exists (
@@ -19438,6 +20184,59 @@ AS $function$
       where s.ipas_id = i.id and s.opportunity_id = p_opportunity_id
     )
   order by i.number;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_status_lifecycle()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_last text;
+begin
+  if new.state is distinct from old.state then
+    if new.state = 'filed' then
+      insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by)
+      values (new.id, 'done', public._ipas_today(), public.get_employee_id())
+      on conflict (ipas_id, step) do update set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = now();
+      new.status := 'done';
+    elsif old.state = 'filed' and new.state = 'open' then
+      delete from public.ipas_status_steps where ipas_id = new.id and step = 'done';
+      select s.step into v_last from public.ipas_status_steps s
+       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+      new.status := coalesce(v_last, 'order_draft');
+    elsif new.state = 'cancelled' then
+      new.status := null;
+    end if;
+  end if;
+
+  if new.source is distinct from old.source and new.source = 'local' then
+    delete from public.ipas_status_steps
+     where ipas_id = new.id and step in ('customs', 'local_hub', 'out_for_delivery');
+    if new.status in ('customs', 'local_hub', 'out_for_delivery') then
+      select s.step into v_last from public.ipas_status_steps s
+       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+      new.status := coalesce(v_last, 'order_draft');
+    end if;
+  end if;
+
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_status_on_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by)
+  values (new.id, 'order_draft', (new.created_at at time zone 'Asia/Manila')::date, public.get_employee_id())
+  on conflict (ipas_id, step) do nothing;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_suggest_documents(p_ipas_id uuid)
@@ -19478,7 +20277,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_summaries_for_sor(p_opportunity_id uuid)
- RETURNS TABLE(ipas_id uuid, number text, po_number text, supplier text, purpose text, state text, buyer_track jsonb, computation_status text, signoffs jsonb, landed_cost_total_php numeric, landed_cost_mark text)
+ RETURNS TABLE(ipas_id uuid, number text, po_number text, supplier text, purpose text, state text, computation_status text, signoffs jsonb, landed_cost_total_php numeric, landed_cost_mark text, status text, status_reached_on date, on_hold boolean, direct_delivery boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -19490,25 +20289,6 @@ AS $function$
     nullif(btrim(i.odoo_copy #>> '{supplier,name}'), ''),
     i.purpose,
     i.state,
-    case when i.source = 'import'
-      then jsonb_build_array(
-        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
-        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'import_clearance', 'ticked', i.import_clearance_on is not null, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
-        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
-        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
-      )
-      else jsonb_build_array(
-        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
-        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
-        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
-        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
-      )
-    end,
     i.computation_status,
     jsonb_build_object(
       '1', jsonb_build_object(
@@ -19531,59 +20311,17 @@ AS $function$
       )
     ),
     lcost.total,
-    lcost.mark
+    lcost.mark,
+    i.status,
+    (select st.reached_on from public.ipas_status_steps st where st.ipas_id = i.id and st.step = i.status),
+    coalesce(i.on_hold, false),
+    coalesce(i.direct_delivery, false)
   from public.ipas i
-  cross join lateral (
-    select
-      i.odoo_copy #>> '{po,state}' as po_state,
-      i.odoo_copy #>> '{receipts,status}' as receipts_status,
-      case when (i.odoo_copy #>> '{receipts,total}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{receipts,total}')::numeric else 0 end as receipts_total,
-      case when (i.odoo_copy #>> '{receipts,done}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{receipts,done}')::numeric else 0 end as receipts_done,
-      case when (i.odoo_copy #>> '{bills,count}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{bills,count}')::numeric else 0 end as bill_count
-  ) o
-  cross join lateral (
-    select case
-      when o.receipts_status = 'partial' then 'partial'
-      when o.receipts_status = 'full' or (o.receipts_total > 0 and o.receipts_done >= o.receipts_total) then 'received'
-      when o.receipts_done > 0 then 'partial'
-      else 'none'
-    end as received_state
-  ) rs
-  cross join lateral (
-    select exists (
-      select 1 from public.ipas_payments p
-      where p.ipas_id = i.id and coalesce(p.proof_url, '') <> ''
-    ) as has_proof
-  ) pop
   cross join lateral (
     select coalesce(array_agg(so.section::text || ':' || so.role), '{}'::text[]) as live
     from public.ipas_signoffs so
     where so.ipas_id = i.id and so.cleared_at is null
   ) lv
-  cross join lateral (
-    select
-      coalesce(bool_or(first_done), false) as delivered,
-      coalesce(count(*) > 0 and bool_and(check_done), false) as checked
-    from (
-      select
-        exists (
-          select 1 from public.transmittal_stages st
-           where st.transmittal_id = t.id and st.completed_at is not null
-             and st.stage = case when t.check_warehouse then 'warehouse_checking' else 'technical_inspection' end
-        ) as first_done,
-        exists (
-          select 1 from public.transmittal_stages st
-           where st.transmittal_id = t.id and st.completed_at is not null
-             and st.stage = case when t.check_technical then 'technical_inspection' else 'warehouse_checking' end
-        ) as check_done
-      from public.transmittals t
-      where t.state not in ('draft', 'cancelled')
-        and exists (select 1 from public.transmittal_lines l where l.transmittal_id = t.id and l.ipas_id = i.id)
-    ) slips
-  ) tg
   -- #283: the IPAS's Landed Cost total and mark, for cost-tier readers only.
   cross join lateral (
     select
@@ -19757,6 +20495,7 @@ declare
   v_label text;
   v_changes jsonb := '{}'::jsonb;
 begin
+  perform public._ipas_check_date('ipas_update_charge', p_charged_on, 'the charge date');
   select ipas_id into v_ipas_id from public.ipas_charges where id = p_charge_id;
   if v_ipas_id is null then
     raise exception 'ipas_update_charge: charge % not found', p_charge_id using errcode = '22023';
@@ -20565,6 +21304,17 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.my_committee_task_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select ctm.committee_task_id
+    from public.committee_task_members ctm
+   where ctm.employee_id = public.get_employee_id()
+$function$
+;
 CREATE OR REPLACE FUNCTION public.oid_dist(oid, oid)
  RETURNS oid
  LANGUAGE c
@@ -20715,10 +21465,25 @@ AS $function$
 declare
   v_list uuid := coalesce(new.packing_list_id, old.packing_list_id);
 begin
-  if exists (select 1 from public.packing_lists p where p.id = v_list and p.state = 'packed') then
-    raise exception 'packing_list_boxes: a packed Packing List''s boxes can''t be changed' using errcode = '42501';
+  if exists (select 1 from public.packing_lists p where p.id = v_list and p.state in ('packed', 'cancelled')) then
+    raise exception 'packing_list_boxes: a packed or cancelled Packing List''s boxes can''t be changed' using errcode = '42501';
   end if;
   if tg_op = 'DELETE' then return old; end if;
+
+  if tg_op = 'INSERT' or new.gross_weight_kg is distinct from old.gross_weight_kg then
+    if new.gross_weight_kg < 0 then
+      raise exception 'packing list: A box can''t weigh less than 0 kg' using errcode = '22023';
+    end if;
+    if new.gross_weight_kg > 5000 then
+      raise exception 'packing list: A box can weigh at most 5,000 kg' using errcode = '22023';
+    end if;
+  end if;
+  if (tg_op = 'INSERT' or new.marks is distinct from old.marks) and length(new.marks) > 200 then
+    raise exception 'packing list: Marks can be at most 200 characters' using errcode = '22023';
+  end if;
+  if (tg_op = 'INSERT' or new.seal_no is distinct from old.seal_no) and length(new.seal_no) > 200 then
+    raise exception 'packing list: Seal number can be at most 200 characters' using errcode = '22023';
+  end if;
   return new;
 end;
 $function$
@@ -20758,6 +21523,42 @@ AS $function$
     );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.packing_list_cancel(p_packing_list_id uuid, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_row public.packing_lists;
+begin
+  if v_actor is null then
+    raise exception 'packing_list_cancel: not signed in' using errcode = '42501';
+  end if;
+  if v_reason is null then
+    raise exception 'packing_list_cancel: a cancel needs a reason' using errcode = '22023';
+  end if;
+
+  v_row := public._packing_list_editable(p_packing_list_id);
+
+  update public.packing_lists
+     set state = 'cancelled',
+         cancelled_by = v_actor,
+         cancelled_at = now(),
+         cancel_reason = v_reason
+   where id = v_row.id;
+
+  perform public._packing_list_event(v_row.id, v_actor, 'cancelled', jsonb_build_object(
+    'number', v_row.number,
+    'reason', v_reason
+  ));
+
+  return jsonb_build_object('id', v_row.id, 'number', v_row.number);
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.packing_list_contents_guard()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -20771,11 +21572,25 @@ begin
     select 1
       from public.packing_list_boxes b
       join public.packing_lists p on p.id = b.packing_list_id
-     where b.id = v_box and p.state = 'packed'
+     where b.id = v_box and p.state in ('packed', 'cancelled')
   ) then
-    raise exception 'packing_list_contents: a packed Packing List''s contents can''t be changed' using errcode = '42501';
+    raise exception 'packing_list_contents: a packed or cancelled Packing List''s contents can''t be changed' using errcode = '42501';
   end if;
   if tg_op = 'DELETE' then return old; end if;
+
+  if tg_op = 'INSERT' or new.description is distinct from old.description then
+    if new.description is null or length(btrim(new.description)) = 0 then
+      raise exception 'packing list: Every content needs a description' using errcode = '22023';
+    end if;
+  end if;
+  if tg_op = 'INSERT' or new.quantity is distinct from old.quantity then
+    if new.quantity is null or new.quantity <= 0 then
+      raise exception 'packing list: Every content needs a quantity above zero' using errcode = '22023';
+    end if;
+    if new.quantity > 100000 then
+      raise exception 'packing list: A content''s quantity is at most 100,000' using errcode = '22023';
+    end if;
+  end if;
   return new;
 end;
 $function$
@@ -21008,8 +21823,8 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'packing_lists: a Packing List is never deleted' using errcode = '42501';
   end if;
-  if old.state = 'packed' then
-    raise exception 'packing_lists: % is packed and can''t be changed', old.number using errcode = '42501';
+  if old.state in ('packed', 'cancelled') then
+    raise exception 'packing_lists: % is % and can''t be changed', old.number, old.state using errcode = '42501';
   end if;
   if new.state = 'packed' and (new.packed_by is null or new.packed_at is null) then
     raise exception 'packing_lists: packing signs Packed by' using errcode = '42501';
@@ -21209,6 +22024,7 @@ DECLARE
   v_caller_is_hr             BOOLEAN;
   v_caller_can_manage_leaves BOOLEAN;
   v_caller_is_role_simulator BOOLEAN;
+  v_is_privileged            BOOLEAN;
 BEGIN
   v_caller_id := public.get_employee_id();
 
@@ -21217,11 +22033,36 @@ BEGIN
   FROM   public.employees
   WHERE  id = v_caller_id;
 
+  v_is_privileged := (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE);
+
+  -- Quote length (#1115). Only checked when the quote changes, so an older,
+  -- longer quote does not block an unrelated edit of that person.
+  IF NEW.dashboard_quote IS DISTINCT FROM OLD.dashboard_quote
+     AND char_length(NEW.dashboard_quote) > 100
+  THEN
+    RAISE EXCEPTION 'The quote can be at most 100 characters.'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Banner address (#1116). Allowed: empty, an https:// address, or a storage
+  -- path (no scheme before the first slash).
+  IF NEW.dashboard_banner_path IS DISTINCT FROM OLD.dashboard_banner_path
+     AND NEW.dashboard_banner_path IS NOT NULL
+     AND NEW.dashboard_banner_path <> ''
+     AND NEW.dashboard_banner_path !~* '^https://'
+     AND NEW.dashboard_banner_path !~ '^[^:/]*/'
+  THEN
+    RAISE EXCEPTION 'The banner must be a web address that starts with https://.'
+      USING ERRCODE = '23514';
+  END IF;
+
   IF v_caller_is_role_simulator IS TRUE THEN
     RETURN NEW;
   END IF;
 
-  IF NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+  -- The self-update allowlist lives in employees_self_update_allowlist() below.
+
+  IF NOT v_is_privileged THEN
     IF NEW.is_super_admin IS DISTINCT FROM OLD.is_super_admin THEN
       NEW.is_super_admin := OLD.is_super_admin;
     END IF;
@@ -21263,7 +22104,7 @@ BEGIN
   -- employee row is the service role or a migration, and is trusted.
   IF v_caller_id IS NOT NULL
      AND (
-       NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+       NOT v_is_privileged
        OR (OLD.id = v_caller_id AND NOT (v_caller_is_super_admin IS TRUE))
      )
   THEN
@@ -21273,11 +22114,14 @@ BEGIN
     IF NEW.has_finance_flow IS DISTINCT FROM OLD.has_finance_flow THEN
       NEW.has_finance_flow := OLD.has_finance_flow;
     END IF;
+    IF NEW.has_logistics_flow IS DISTINCT FROM OLD.has_logistics_flow THEN
+      NEW.has_logistics_flow := OLD.has_logistics_flow;
+    END IF;
   END IF;
 
   -- Call sign (#247). Only HR and Super Admins set one, their own included.
   IF v_caller_id IS NOT NULL
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND NEW.call_sign IS DISTINCT FROM OLD.call_sign
   THEN
     NEW.call_sign := OLD.call_sign;
@@ -21286,13 +22130,13 @@ BEGIN
   -- Nobody edits their own hidden-navigation override — server-side, not by
   -- hiding the control — and only HR/Super Admin may edit anyone else's.
   IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
-    IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+    IF OLD.id = v_caller_id OR NOT v_is_privileged THEN
       NEW.hidden_nav_keys := OLD.hidden_nav_keys;
     END IF;
   END IF;
 
   IF v_caller_can_manage_leaves IS TRUE
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND OLD.id IS DISTINCT FROM v_caller_id
   THEN
     NEW := jsonb_populate_record(OLD, jsonb_build_object(
@@ -21670,6 +22514,90 @@ begin
     where i.request_id = p_request_id
   );
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_delete(p_request_id uuid, p_reason text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.purchase_requests;
+  v_reason text := btrim(coalesce(p_reason, ''));
+  v_label text;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_delete: not signed in' using errcode = '42501';
+  end if;
+  if v_reason = '' then
+    raise exception 'Say why you are deleting this request.' using errcode = '22023';
+  end if;
+
+  select * into v_req from public.purchase_requests where id = p_request_id for update;
+  if not found or v_req.deleted_at is not null then
+    raise exception 'That request no longer exists.' using errcode = '22023';
+  end if;
+
+  if not (
+    coalesce(public.is_super_admin(), false)
+    or coalesce(public.has_purchasing_access(), false)
+    or v_req.created_by = v_actor
+  ) then
+    raise exception 'purchase_request_delete: not allowed' using errcode = '42501';
+  end if;
+
+  if exists (
+    select 1 from public.purchase_request_items i
+    where i.request_id = p_request_id
+      and (i.status in ('purchased', 'received') or i.ipas_number is not null or i.ipas_pending)
+  ) then
+    raise exception 'A line is already purchased, received or on an IPAS. Cancel those lines one by one instead.'
+      using errcode = '22023';
+  end if;
+
+  update public.purchase_requests
+     set deleted_at = now(), deleted_by = v_actor, delete_reason = v_reason, updated_at = now()
+   where id = p_request_id;
+
+  v_label := coalesce(v_req.pr_number, 'Purchase Request');
+  perform public._purchase_request_post_event(
+    p_request_id, v_actor,
+    'Deleted this request: ' || v_reason,
+    jsonb_build_object('event', 'deleted', 'reason', v_reason)
+  );
+  perform public._purchase_request_notify(
+    p_request_id,
+    array(select m.employee_id from public.purchase_request_members m where m.request_id = p_request_id),
+    v_actor, 'PURCHASE_REQUEST_DELETED',
+    v_label || ' was deleted', v_reason, true
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_deleted_list()
+ RETURNS TABLE(id uuid, pr_number text, title text, sales_reference text, opportunity_id uuid, item_count integer, deleted_at timestamp with time zone, deleted_by_name text, delete_reason text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    r.id,
+    r.pr_number,
+    r.title,
+    coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
+    r.opportunity_id,
+    (select count(*)::integer from public.purchase_request_items it where it.request_id = r.id),
+    r.deleted_at,
+    e.name,
+    r.delete_reason
+  from public.purchase_requests r
+  left join public.sales_opportunities o on o.id = r.opportunity_id
+  left join public.employees e on e.id = r.deleted_by
+  where r.deleted_at is not null
+    and (coalesce(public.is_super_admin(), false) or coalesce(public.has_purchasing_access(), false))
+  order by r.deleted_at desc;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_item_apply_po_check(p_actor_email text, p_item_id uuid, p_action text, p_po_number text, p_odoo text)
@@ -22452,6 +23380,43 @@ begin
   end if;
 
   return v_new.id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_restore(p_request_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.purchase_requests;
+begin
+  if v_actor is null or not (
+    coalesce(public.is_super_admin(), false) or coalesce(public.has_purchasing_access(), false)
+  ) then
+    raise exception 'purchase_request_restore: not allowed' using errcode = '42501';
+  end if;
+
+  select * into v_req from public.purchase_requests where id = p_request_id for update;
+  if not found or v_req.deleted_at is null then
+    raise exception 'That request is not deleted.' using errcode = '22023';
+  end if;
+
+  update public.purchase_requests
+     set deleted_at = null, deleted_by = null, delete_reason = null, updated_at = now()
+   where id = p_request_id;
+
+  perform public._purchase_request_post_event(
+    p_request_id, v_actor, 'Restored this request.', jsonb_build_object('event', 'restored')
+  );
+  perform public._purchase_request_notify(
+    p_request_id,
+    array(select m.employee_id from public.purchase_request_members m where m.request_id = p_request_id),
+    v_actor, 'PURCHASE_REQUEST_RESTORED',
+    coalesce(v_req.pr_number, 'Purchase Request') || ' was restored', 'It is back in the queue.', true
+  );
 end;
 $function$
 ;
@@ -29445,6 +30410,9 @@ begin
 
   v_header := public._transmittal_clean_header(coalesce(p_fields, '{}'::jsonb));
 
+  -- #1129: every refusal comes before the insert, which is what draws the TG03 number.
+  perform public._transmittal_precheck(p_product_ids, p_reference_ids, p_lines);
+
   insert into public.transmittals (
     origin, origin_other, check_warehouse, check_technical, check_other, priority, entity,
     product_other, item_location_id, prepared_by
@@ -29621,7 +30589,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.transmittal_ipas_po_lines(p_ipas_number text)
- RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb)
+ RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb, "left" numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -29658,7 +30626,8 @@ begin
         from public.ipas_sors s
         join public.sales_opportunities o on o.id = s.opportunity_id
        where s.ipas_id = v_ipas.id
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    greatest(public._transmittal_po_line_left(v_ipas.id, (l->>'line_id')::integer), 0)
   from jsonb_array_elements(coalesce(v_ipas.odoo_copy -> 'lines', '[]'::jsonb)) as l
   order by (l->>'line_id')::integer;
 end;
@@ -29793,7 +30762,7 @@ AS $function$
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.transmittal_pickable_po_lines(p_search text DEFAULT NULL::text)
- RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb)
+ RETURNS TABLE(ipas_id uuid, ipas_number text, po_number text, odoo_po_line_id integer, product_name text, quantity numeric, unit text, entity text, sors jsonb, "left" numeric)
  LANGUAGE plpgsql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -29820,7 +30789,8 @@ begin
         from public.ipas_sors s
         join public.sales_opportunities o on o.id = s.opportunity_id
        where s.ipas_id = i.id
-    ), '[]'::jsonb)
+    ), '[]'::jsonb),
+    greatest(public._transmittal_po_line_left(i.id, (l->>'line_id')::integer), 0)
   from public.ipas i
   cross join lateral jsonb_array_elements(coalesce(i.odoo_copy -> 'lines', '[]'::jsonb)) as l
   where i.state <> 'cancelled'
@@ -30234,6 +31204,7 @@ begin
     'number', v_row.number,
     'state', v_first,
     'notify_list', v_notify,
+    'warnings', public._transmittal_over_claims(p_transmittal_id),
     'notify_ids', coalesce((
       select jsonb_agg(l.employee_id)
         from public.ipas_signer_lists l
@@ -30560,6 +31531,19 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.transmittals_receipt_ref_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.odoo_receipt_ref is distinct from old.odoo_receipt_ref and length(btrim(new.odoo_receipt_ref)) > 60 then
+    raise exception 'transmittal_received_in_odoo: The Odoo receipt reference can be at most 60 characters' using errcode = '22023';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.trg_purchase_request_item_ask_yours()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -30744,6 +31728,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(COALESCE(approved_hours, hours)), 0), array_agg(date ORDER BY date)
@@ -30805,6 +31790,7 @@ DECLARE
   v_new_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -30867,6 +31853,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM sil_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(hours), 0), array_agg(date ORDER BY date)
@@ -31167,35 +32154,39 @@ DECLARE
   app_valid BOOLEAN;
   appr_valid BOOLEAN;
 BEGIN
-  -- Extract client IP
-  client_ip := current_setting('request.headers', true)::json->>'x-forwarded-for';
-  IF client_ip IS NULL THEN
-    client_ip := 'unknown';
+  -- Signed-in HR / Super Admin are not limited.
+  IF COALESCE(public.is_hr(), false) OR COALESCE(public.is_super_admin(), false) THEN
+    client_ip := NULL;
   ELSE
-    client_ip := split_part(client_ip, ',', 1);
-  END IF;
+    -- Extract an address the caller cannot set.
+    client_ip := NULLIF(btrim(split_part(
+      current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
+      GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
+    )), '');
+    IF client_ip IS NULL THEN
+      client_ip := 'unknown';
+    END IF;
 
-  -- Simple rate limiting logic
-  SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
-  IF FOUND THEN
-    IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
-      IF rate_limit_row.request_count >= 20 THEN
-        RAISE EXCEPTION 'Rate limit exceeded. Please try again later.';
+    SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
+    IF FOUND THEN
+      IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
+        IF rate_limit_row.request_count >= 20 THEN
+          RAISE EXCEPTION 'verify_rate_limited' USING ERRCODE = 'VF429';
+        ELSE
+          UPDATE public.verification_rate_limits
+          SET request_count = request_count + 1, last_request = NOW()
+          WHERE ip_address = client_ip;
+        END IF;
       ELSE
         UPDATE public.verification_rate_limits
-        SET request_count = request_count + 1, last_request = NOW()
+        SET request_count = 1, last_request = NOW()
         WHERE ip_address = client_ip;
       END IF;
     ELSE
-      UPDATE public.verification_rate_limits
-      SET request_count = 1, last_request = NOW()
-      WHERE ip_address = client_ip;
+      INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
+      VALUES (client_ip, 1, NOW());
     END IF;
-  ELSE
-    INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
-    VALUES (client_ip, 1, NOW());
   END IF;
-
 
   -- Try SIL Leaves
   SELECT s.*, e.name AS employee_name, c.label AS category_label,
@@ -31385,6 +32376,40 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.visible_committee_task_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with me as (
+    select public.get_employee_id() as id, coalesce(public.is_super_admin(), false) as super_admin
+  )
+  select ct.id
+    from public.committee_tasks ct, me
+   where me.super_admin
+      or ct.created_by = me.id
+      or ct.evaluator_id = me.id
+      or exists (
+        select 1 from public.committee_task_members ctm
+         where ctm.committee_task_id = ct.id
+           and ctm.employee_id = me.id
+      )
+      or (
+        ct.status = 'ON_HOLD'
+        and exists (
+          select 1
+            from public.employees h
+            join public.employees c on c.id = ct.created_by
+           where h.id = me.id
+             and h.is_head
+             and not coalesce(h.is_deleted, false)
+             and h.department is not null
+             and h.department = c.department
+        )
+      )
+$function$
+;
 CREATE OR REPLACE FUNCTION public.withdraw_offset_leave(p_leave_id uuid, p_employee_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -31400,6 +32425,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM offset_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -31547,6 +32573,7 @@ CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
+CREATE TRIGGER trg_employees_self_update_allowlist BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION employees_self_update_allowlist();
 CREATE TRIGGER trg_prevent_privileged_flags_on_insert BEFORE INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_privileged_flags_on_insert();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER group_task_templates_block_delete_in_use BEFORE DELETE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_block_delete_in_use();
@@ -31559,16 +32586,23 @@ CREATE TRIGGER ipas_freeze BEFORE DELETE OR UPDATE ON public.ipas FOR EACH ROW E
 CREATE TRIGGER ipas_guard BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_guard();
 CREATE TRIGGER ipas_lc_clear AFTER UPDATE OF landed_cost_split, computation_status, odoo_copy ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_lc_header_changed();
 CREATE TRIGGER ipas_lc_final_needs_charges BEFORE UPDATE OF computation_status ON public.ipas FOR EACH ROW WHEN (((new.computation_status = 'lc_odoo_done'::text) AND (old.computation_status IS DISTINCT FROM 'lc_odoo_done'::text))) EXECUTE FUNCTION ipas_lc_final_needs_charges();
+CREATE TRIGGER ipas_limits_guard BEFORE INSERT OR UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_limits_guard();
 CREATE TRIGGER ipas_receive_items_from_copy AFTER INSERT OR UPDATE OF odoo_copy, odoo_fetched_at ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_receive_items_from_copy();
 CREATE TRIGGER ipas_seed_blank_charges AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_seed_blank_charges();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
+CREATE TRIGGER ipas_status_lifecycle BEFORE UPDATE OF state, source ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_status_lifecycle();
+CREATE TRIGGER ipas_status_on_insert AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_status_on_insert();
 CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_charges_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_document_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_document_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
+CREATE TRIGGER ipas_documents_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
+CREATE TRIGGER ipas_documents_first_file AFTER INSERT ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION _ipas_document_first_file();
 CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_events_mark_worked_on AFTER INSERT ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION _ipas_mark_worked_on();
@@ -31580,6 +32614,7 @@ CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_payments_paid_before_approval BEFORE INSERT OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_payments_paid_before_approval();
@@ -31678,6 +32713,7 @@ CREATE TRIGGER transmittal_products_guard BEFORE INSERT OR DELETE OR UPDATE ON p
 CREATE TRIGGER transmittal_references_guard BEFORE INSERT OR DELETE OR UPDATE ON public.transmittal_references FOR EACH ROW EXECUTE FUNCTION transmittal_children_guard();
 CREATE TRIGGER transmittal_stages_guard BEFORE DELETE OR UPDATE ON public.transmittal_stages FOR EACH ROW EXECUTE FUNCTION transmittal_stages_guard();
 CREATE TRIGGER transmittals_guard BEFORE DELETE OR UPDATE ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_guard();
+CREATE TRIGGER transmittals_receipt_ref_guard BEFORE UPDATE OF odoo_receipt_ref ON public.transmittals FOR EACH ROW EXECUTE FUNCTION transmittals_receipt_ref_guard();
 CREATE TRIGGER undertime_requests_guard_head_status BEFORE UPDATE ON public.undertime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 
 -- ============================================================

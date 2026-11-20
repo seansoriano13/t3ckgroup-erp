@@ -12,6 +12,8 @@ import { ipasErrorMessage } from "@/utils/ipas";
 import { fileRulesOf, missingDocumentsByPart } from "@/utils/ipasDocuments";
 import { ipasService } from "@/services/ipasService";
 import { ipasFilingWarningsKey } from "../ipasKeys";
+import { WaitingPesosNotice } from "../FilingWaitingPesos";
+import { useWaitingPesos } from "../useWaitingPesos";
 import { PreviewFrame } from "./PrintPreview";
 
 /** What signing an item does, by the kind of its action. */
@@ -63,6 +65,8 @@ export default function SignReview({ ctx, item, onClose, onSign }) {
   const [problem, setProblem] = useState(null);
   const { ipas, viewer } = ctx;
   const action = item?.action;
+  // #1124: Filing waits for the pesos; the button is off while a foreign payment has them blank.
+  const waiting = useWaitingPesos(ipas.id, action?.kind === "file");
   return (
     <ModalShell
       open={Boolean(item)}
@@ -82,7 +86,7 @@ export default function SignReview({ ctx, item, onClose, onSign }) {
           <Button
            
             className={APPROVE_CLASS}
-            disabled={working}
+            disabled={working || (action?.kind === "file" && (waiting.isLoading || waiting.blocked))}
             onClick={async () => {
               setWorking(true);
               setProblem(null);
@@ -105,6 +109,7 @@ export default function SignReview({ ctx, item, onClose, onSign }) {
         Read the final IPAS below. When you press <span className="font-semibold text-foreground">{action?.confirm}</span>, {action?.what}.
         {viewer ? ` You sign as ${viewer}.` : ""}
       </p>
+      {action?.kind === "file" && <WaitingPesosNotice payments={waiting.payments} className="m-3" />}
       {action?.kind === "file" && <FilingWarning ipas={ipas} />}
       {problem && (
         <p role="alert" className="border-b border-red-7 bg-red-3/40 px-5 py-2 text-sm font-medium text-red-11">

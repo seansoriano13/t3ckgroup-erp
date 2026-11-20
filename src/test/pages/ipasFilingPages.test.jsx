@@ -50,6 +50,13 @@ const poCopy = (po, extraLine = false) => ({
   bills: { count: 0, draft: 0 },
 });
 
+// A dollar PO: the page re-reads Odoo when it opens, so the fake Odoo has to say USD too.
+const usdCopy = (po) => {
+  const copy = poCopy(po);
+  return { ...copy, po: { ...copy.po, currency: "USD" } };
+};
+
+let options;
 let counter = 48;
 function ipas(overrides = {}) {
   counter += 1;
@@ -140,7 +147,7 @@ describe("IPAS section 7 and Filing", () => {
     noter = makeEmployee({ name: "Nina Noter" });
     checker = makeEmployee({ name: "Carl Checker" });
     superAdmin = makeEmployee({ name: "Super Admin", is_super_admin: true });
-    seedIpasOptions((table, row) => db.seed(table, row));
+    options = seedIpasOptions((table, row) => db.seed(table, row));
     onList("s1_approved", boss);
     onList("s3_approved", boss);
     onList("s7_received", receiver);
@@ -167,7 +174,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(check).toHaveTextContent("waiting");
       expect(within(check).queryByRole("button")).not.toBeInTheDocument();
       const section = await screen.findByRole("region", { name: "6 · Sign-offs" });
-      expect(within(section).queryByRole("button", { name: /^(Review and|Send back|Receive|Note|Check)/ })).not.toBeInTheDocument();
+      expect(within(section).queryByRole("button", { name: /^(Review and|Return|Receive|Note|Check)/ })).not.toBeInTheDocument();
     });
 
     it("offers Check to anyone on the Received, Noted or Checked list, and one press gives all three", async () => {
@@ -202,7 +209,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id);
-      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: "Send back…" }));
+      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: "Return…" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Return section 6?" });
       const submit = within(dialog).getByRole("button", { name: "Return" });
@@ -221,7 +228,7 @@ describe("IPAS section 7 and Filing", () => {
     });
 
     it("offers no Send back before Check, to someone on no list, or on a filed IPAS", async () => {
-      const sendBack = /^Send back…/;
+      const sendBack = /^Return…/;
       const early = ipas();
       approvedFirstSections(early);
       signIn(noter);
@@ -258,7 +265,7 @@ describe("IPAS section 7 and Filing", () => {
 
       const region = await screen.findByRole("region", { name: "Your move" });
       expect(await step("check")).toHaveTextContent("waiting");
-      expect(within(region).queryByRole("button", { name: /^(Review and|Send back|Undo approval)/ })).not.toBeInTheDocument();
+      expect(within(region).queryByRole("button", { name: /^(Review and|Return|Undo approval)/ })).not.toBeInTheDocument();
     });
 
     it("holds Approve and file until Landed Cost is final, and says what it waits on", async () => {
@@ -293,6 +300,43 @@ describe("IPAS section 7 and Filing", () => {
       await waitFor(() => expect(screen.getByTestId("ipas-filed-notice")).toBeInTheDocument());
       expect(db.rows("ipas").find((r) => r.id === row.id)).toMatchObject({ state: "filed" });
       expect(toastError).not.toHaveBeenCalled();
+    });
+
+    it("names the payments still waiting for their pesos and turns Approve and file off (#1124)", async () => {
+      stubEdgeFunction("odoo-po-ipas", (body) => ({ success: true, found: true, ...usdCopy(body.poNumber) }));
+      const row = ipas({ po_number: "P03100", odoo_copy: usdCopy("P03100") });
+      approvedFirstSections(row);
+      givenThroughChecked(row);
+      db.seed("ipas_payments", { ipas_id: row.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: null, charge_fee_php: 0, method_id: options.payment_method["Bank TT"].id, forex_rate: 56, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
+      db.seed("ipas_payments", { ipas_id: row.id, kind: "payment", paid_on: "2026-11-20", amount: 300, php_debited: 17000, charge_fee_php: 0, method_id: options.payment_method["Bank TT"].id, forex_rate: 56, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
+      signIn(boss);
+      const user = setupUser();
+
+      renderDetail(row.id);
+      await openSignReview(user, "file");
+
+      const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
+      const waiting = await within(dialog).findByTestId("ipas-filing-waiting-pesos");
+      expect(waiting).toHaveTextContent("Down payment of USD 500.00 on Nov 19, 2026");
+      expect(waiting).not.toHaveTextContent("Nov 20, 2026");
+      expect(within(dialog).getByRole("button", { name: "Approve and file" })).toBeDisabled();
+    });
+
+    it("offers Approve and file once every payment has its pesos (#1124)", async () => {
+      stubEdgeFunction("odoo-po-ipas", (body) => ({ success: true, found: true, ...usdCopy(body.poNumber) }));
+      const foreign = ipas({ po_number: "P03101", odoo_copy: usdCopy("P03101") });
+      approvedFirstSections(foreign);
+      givenThroughChecked(foreign);
+      db.seed("ipas_payments", { ipas_id: foreign.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: 28000, charge_fee_php: 0, method_id: options.payment_method["Bank TT"].id, forex_rate: 56, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
+      signIn(boss);
+      const user = setupUser();
+
+      renderDetail(foreign.id);
+      await openSignReview(user, "file");
+
+      const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
+      await waitFor(() => expect(within(dialog).getByRole("button", { name: "Approve and file" })).toBeEnabled());
+      expect(within(dialog).queryByTestId("ipas-filing-waiting-pesos")).not.toBeInTheDocument();
     });
 
     it("words the database's refusal in a sentence when Filing is refused", async () => {
@@ -341,7 +385,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(screen.queryByRole("button", { name: /Add payment|Add charge/ })).not.toBeInTheDocument();
       const region = await screen.findByRole("region", { name: "Your move" });
       expect(within(region).queryAllByRole("button")).toHaveLength(0);
-      expect(within(screen.getByRole("region", { name: "6 · Sign-offs" })).queryByRole("button", { name: /^(Edit section|Review and|Send back|Undo)/ })).not.toBeInTheDocument();
+      expect(within(screen.getByRole("region", { name: "6 · Sign-offs" })).queryByRole("button", { name: /^(Edit section|Review and|Return|Undo)/ })).not.toBeInTheDocument();
       // The header badge and the Sign-offs row both say so.
       expect(screen.getAllByText("Filed").length).toBeGreaterThanOrEqual(2);
     });
@@ -484,6 +528,7 @@ describe("IPAS section 7 and Filing", () => {
       await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 6` }));
 
       const dialog = await findOtherDialog();
+      expect(within(dialog).getByText(/Approving Section 6 · Sign-offs files this IPAS/)).toBeInTheDocument();
       expect(await within(dialog).findByTestId("ipas-filing-warnings")).toBeInTheDocument();
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
       await user.click(within(dialog).getByRole("button", { name: "File anyway" }));
@@ -499,9 +544,12 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
+      // The queue row names the part as the record does (#1130).
+      expect(await screen.findByText(/Section 6 · Sign-offs · Received/)).toBeInTheDocument();
       await user.click(await screen.findByText("Scorpe Technologies"));
 
       const sheet = await findOtherDialog();
+      expect(within(sheet).getByText("You are on the Section 6 · Sign-offs received list, and it is your turn.")).toBeInTheDocument();
       expect(within(sheet).getByText("Your step")).toBeInTheDocument();
       expect(within(sheet).getByText("Gave the sign-off before yours")).toBeInTheDocument();
       expect(within(sheet).getByRole("button", { name: "Receive" })).toBeInTheDocument();

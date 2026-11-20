@@ -168,7 +168,7 @@ export function movesFor(ctx, digest) {
       ...move("return", bySection[0].section, {
         kind: "return",
         icon: allUndo ? Undo2 : CornerUpLeft,
-        label: allUndo ? "Undo approval…" : "Send back…",
+        label: allUndo ? "Undo approval…" : "Return…",
         verb: allUndo ? "Undo approval" : "Return",
         confirm: false,
         run: (from) => on.openReturn(null, from),
@@ -211,7 +211,8 @@ export function canEditSection(key, { can }) {
     case "costs":
       return can.change || can.record;
     case "delivery":
-      return can.change || can.pickLocation;
+      // Logistics access reaches the Direct delivery switch here without Purchasing access (#1158).
+      return can.change || can.pickLocation || can.setDirectDelivery === true;
     case "documents":
       return can.change || can.tickFinance;
     default:

@@ -26,3 +26,6 @@ export const canvassKeys = {
 
 /** The Purchase Requests list (#308, #179): every request the signed-in employee may read. */
 export const procurementQueueKey = ["procurement-queue"];
+
+/** The Deleted view: soft-deleted requests, for Purchasing and Super Admin. */
+export const deletedRequestsKey = ["purchase-request", "deleted"];

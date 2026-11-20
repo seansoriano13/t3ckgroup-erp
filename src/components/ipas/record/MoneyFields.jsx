@@ -21,6 +21,7 @@ import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "@/components/StatusBadge";
 import { IpasCostingSection } from "@/components/ipas/IpasMoneySections";
 import { uploadDocumentFile } from "@/components/ipas/uploadDocumentFile";
+import { DocumentFiles } from "@/components/ipas/DocumentFiles";
 import { useReferenceRate } from "@/hooks/useReferenceRate";
 import { storageService } from "@/services/storageService";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ import { formatAmount } from "@/utils/ipas";
 import { odooPoTotal } from "@/utils/ipasFigures";
 import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
+import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
@@ -334,7 +336,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
-        <Field id={id("paidOn")} label="Date" kind="date" required value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
+        <Field id={id("paidOn")} label="Date" kind="date" required min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.paidOn, "The payment date") ?? undefined} value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
         {showPercent && (
           <div className="min-w-0">
             <Field
@@ -509,7 +511,7 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <PickField id={id("kindId")} label="Kind" required placeholder="Pick a kind" options={kinds} value={row.kindId} disabled={disabled} onChange={(v) => onPatch({ kindId: v })} />
-        <Field id={id("chargedOn")} label="Date" kind="date" required={!saved} value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
+        <Field id={id("chargedOn")} label="Date" kind="date" required={!saved} min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.chargedOn, "The charge date") ?? undefined} value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
         <Field
           id={id("amountPhp")}
           label="Amount (PHP)"
@@ -566,37 +568,16 @@ export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSave
 }
 
 function AttachmentField({ document, row, disabled, onPatch }) {
-  const [uploading, setUploading] = useState(false);
-  const attach = async ([file]) => {
-    setUploading(true);
-    try {
-      const url = await uploadDocumentFile(file);
-      if (url) onPatch({ attachmentUrl: url });
-    } finally {
-      setUploading(false);
-    }
-  };
-  if (row.attachmentUrl) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <ExternalLink href={row.attachmentUrl} className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2">
-          <Paperclip size={12} aria-hidden="true" />
-          View
-        </ExternalLink>
-        {!disabled && (
-          <Button type="button" variant="ghost" size="icon-xs" className="text-muted-foreground" aria-label={`Remove the attachment of ${document.label}`} onClick={() => onPatch({ attachmentUrl: "" })}>
-            <X />
-          </Button>
-        )}
-      </span>
-    );
-  }
-  if (disabled) return <span className="text-xs text-muted-foreground">—</span>;
+  const files = row.files ?? [];
   return (
-    <FileInput data-missing-file="documents" accept={ALLOWED_EXTENSIONS_STRING} disabled={uploading} onFiles={attach} size="xs" className="gap-1" aria-label={`Attach a file to ${document.label}`}>
-      {uploading ? <Spinner size="sm" /> : <Paperclip size={12} aria-hidden="true" />}
-      {uploading ? "Uploading…" : "Attach"}
-    </FileInput>
+    <DocumentFiles
+      label={document.label}
+      files={files}
+      canChange={!disabled}
+      missing={files.length === 0}
+      onAdd={async (picked) => onPatch({ files: [...files, ...picked.map((p) => ({ id: null, url: p.url, fileName: p.fileName }))] })}
+      onRemove={(file) => onPatch({ files: files.filter((f) => f !== file) })}
+    />
   );
 }
 
@@ -728,7 +709,7 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
               list.length > 0 && (
                 <div className="space-y-2">
                   <p className="pl-1 text-xs font-semibold text-muted-foreground">
-                    {title} · {list.filter((row) => row.attachmentUrl || savedById.get(row.id)?.attachmentUrl).length} of {list.length} attached
+                    {title} · {list.filter((row) => (row.files ?? []).length > 0).length} of {list.length} attached
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">{list.map(tile)}</div>
                 </div>

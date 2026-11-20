@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RECORD_MODAL_CLASS } from "@/components/ui/record-modal";
 import CopyLinkButton from "@/components/ui/CopyLinkButton";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 // Panel widths. `compact` is a short form or confirm step; `wide` is a record
 // (IPAS, Transmittal, Packing List, Canvass). Expanded is the same for both:
@@ -62,6 +63,9 @@ function writeExpanded(value) {
  * closes. `footerStart` sits on the left of the footer, after the Esc hint.
  * `actionsRef` (a callback ref) hands back the footer's actions node, so a form
  * that owns its own buttons can portal them into the footer.
+ *
+ * `dirty` (with `discardWhat`, e.g. "IPAS") makes every way of closing (Esc, the X, Cancel, a
+ * click outside) ask "Discard this IPAS?" first while anything was set on a raise form.
  */
 export default function ModalShell({
   open,
@@ -75,12 +79,15 @@ export default function ModalShell({
   footerStart,
   actionsRef,
   cancelLabel = "Cancel",
+  dirty = false,
+  discardWhat = "",
   onSubmit,
   className,
   bodyClassName,
   children,
 }) {
   const [expanded, setExpanded] = useState(readExpanded);
+  const [discarding, setDiscarding] = useState(false);
 
   const toggleExpanded = () => {
     setExpanded((prev) => {
@@ -90,13 +97,19 @@ export default function ModalShell({
   };
 
   const isRecord = size === "record";
-  const close = () => onOpenChange?.(false);
+  // A closing request asks first while the form has something in it.
+  const requestOpenChange = (next) => {
+    if (!next && dirty) setDiscarding(true);
+    else onOpenChange?.(next);
+  };
+  const close = () => requestOpenChange(false);
   const heading = title || crumbs[crumbs.length - 1] || "Purchasing";
   const Frame = onSubmit ? "form" : "div";
   const frameProps = onSubmit ? { onSubmit } : {};
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open} onOpenChange={requestOpenChange}>
       <DialogContent
         showCloseButton={false}
         data-modal-shell={size}
@@ -178,7 +191,7 @@ export default function ModalShell({
           </div>
 
           {!isRecord && (
-            <div className="flex shrink-0 items-center justify-between border-t border-border bg-muted/30 px-5 py-4 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="flex shrink-0 items-center justify-between max-md:flex-wrap max-md:gap-y-2 border-t border-border bg-muted/30 px-5 py-4 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]">
               <div className="flex items-center gap-4 text-[10px] font-medium text-muted-foreground">
                 <span className="hidden items-center gap-1.5 sm:flex">
                   <kbd className="rounded border border-border bg-muted/80 px-1.5 py-0.5 font-sans text-[9px] text-muted-foreground">
@@ -188,7 +201,7 @@ export default function ModalShell({
                 </span>
                 {footerStart}
               </div>
-              <div ref={actionsRef} className="flex items-center gap-2.5">
+              <div ref={actionsRef} className="flex items-center gap-2.5 max-md:ml-auto max-md:flex-wrap max-md:justify-end">
                 {cancelLabel !== null && (
                   <Button
                     type="button"
@@ -207,5 +220,19 @@ export default function ModalShell({
         </Frame>
       </DialogContent>
     </Dialog>
+    <ConfirmDialog
+      open={discarding}
+      onOpenChange={setDiscarding}
+      title={`Discard this ${discardWhat || "form"}?`}
+      description="What you entered will be lost."
+      confirmLabel="Discard"
+      cancelLabel="Keep editing"
+      tone="destructive"
+      onConfirm={() => {
+        setDiscarding(false);
+        onOpenChange?.(false);
+      }}
+    />
+    </>
   );
 }

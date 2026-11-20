@@ -16,17 +16,16 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { supabase } from "../../lib/supabase";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { storageService } from "../../services/storageService";
 import { employeeService } from "../../services/employeeService";
 import { signatureService } from "../../services/signatureService";
 import { passwordService } from "../../services/passwordService";
+import { useProfileStats } from "./useProfileStats";
 import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
 import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
-import { HIDDEN_TASK_STATUS_FILTER, TASK_STATUS } from "../../constants/status";
 import PageShell from "../../components/ui/PageShell";
 import { Input } from "@/components/ui/input";
 
@@ -47,6 +46,7 @@ export default function ProfilePage() {
   const bannerInputRef = useRef(null);
 
   const isHttpUrl = (value) => /^https?:\/\//i.test(value || "");
+  const isHttpsUrl = (value) => /^https:\/\//i.test(value || "");
 
   const [customQuote, setCustomQuote] = useState(() => user?.dashboardQuote || "");
   const [prevDashboardQuote, setPrevDashboardQuote] = useState(
@@ -142,75 +142,7 @@ export default function ProfilePage() {
         ? bannerUrlInput.trim()
         : user?.dashboardBannerUrl || "/leaf-background.jpg";
 
-  const { data: stats, isLoading: isStatsLoading, isError: isStatsError } = useQuery({
-    queryKey: ["profileStats", user?.id],
-    queryFn: async () => {
-      if (user?.isSuperAdmin) return null;
-
-      const userDept = user?.department || "";
-
-      if (user?.isHr || user?.is_hr) {
-        // HR Access
-        const { count: pendingVerifications } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("hr_verified", false)
-          .eq("status", TASK_STATUS.COMPLETE);
-        const { count: totalVerified } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("hr_verified", true);
-
-        return {
-          primary: pendingVerifications || 0,
-          primaryLabel: "Pending HR Verifications",
-          secondary: totalVerified || 0,
-          secondaryLabel: "Total Verified",
-        };
-      } else if (user?.isHead || user?.is_head) {
-        // Department Head logic
-        const { count: pendingApprovals } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("department", userDept)
-          .eq("status", TASK_STATUS.AWAITING_APPROVAL);
-
-        const { count: totalApproved } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("department", userDept)
-          .in("status", [TASK_STATUS.COMPLETE, TASK_STATUS.NOT_APPROVED]);
-
-        return {
-          primary: pendingApprovals || 0,
-          primaryLabel: "Awaiting Your Approval",
-          secondary: totalApproved || 0,
-          secondaryLabel: "Your Evaluated Tasks",
-        };
-      } else {
-        // Regular Employee logic
-        const { count: totalLogged } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("logged_by", user.id)
-          .not("status", "in", HIDDEN_TASK_STATUS_FILTER);
-
-        const { count: totalDone } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("logged_by", user.id)
-          .eq("status", TASK_STATUS.COMPLETE);
-
-        return {
-          primary: totalLogged || 0,
-          primaryLabel: "Total Tasks Logged",
-          secondary: totalDone || 0,
-          secondaryLabel: "Activities Completed",
-        };
-      }
-    },
-    enabled: !!user?.id,
-  });
+  const { stats, isStatsLoading, isStatsError } = useProfileStats(user);
 
   const generateQuoteMutation = useMutation({
     mutationFn: async () => {
@@ -319,6 +251,10 @@ export default function ProfilePage() {
     isHttpUrl(user?.dashboardBannerPath) ? user.dashboardBannerPath : ""
   ).trim();
 
+  // A typed banner address must be https:// (the server refuses anything else).
+  const bannerUrlInvalid =
+    hasBannerUrl && !isHttpsUrl(bannerUrlInput.trim());
+
   const hasChanges =
     !!avatarFile ||
     !!bannerFile ||
@@ -337,7 +273,7 @@ export default function ProfilePage() {
     <Button
       type="button"
       onClick={() => savePreferencesMutation.mutate()}
-      disabled={isSaving || !hasChanges}
+      disabled={isSaving || !hasChanges || bannerUrlInvalid}
       className={phone ? "w-full" : undefined}
     >
       {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
@@ -393,7 +329,7 @@ export default function ProfilePage() {
                 variant="link"
                 onClick={handleChangePassword}
                 disabled={isSendingPasswordReset}
-                className="mt-3 h-auto p-0 text-xs font-bold text-foreground disabled:opacity-60"
+                className="mt-3 h-auto min-h-6 p-0 text-xs font-bold text-foreground disabled:opacity-60"
               >
                 {isSendingPasswordReset ? "Sending…" : "Change Password"}
               </Button>
@@ -704,7 +640,13 @@ export default function ProfilePage() {
                 }}
                 containerClassName="w-full"
                 placeholder="Paste Unsplash image URL"
+                aria-invalid={bannerUrlInvalid || undefined}
               />
+              {bannerUrlInvalid && (
+                <p role="alert" className="text-xs text-destructive">
+                  Enter a web address that starts with https://
+                </p>
+              )}
             </div>
           </div>
 
@@ -759,7 +701,7 @@ export default function ProfilePage() {
                 setRemoveQuote(false);
               }}
               className="min-h-[70px] resize-none p-4 text-sm md:text-sm"
-              placeholder="Write your 7-word motivational quote (all users)…"
+              placeholder="A short line for your Dashboard (up to 100 characters)"
             />
           </div>
         </div>

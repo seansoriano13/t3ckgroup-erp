@@ -9,6 +9,7 @@ const mockUser = vi.hoisted(() => ({ current: null }));
 const service = vi.hoisted(() => ({
   get: vi.fn(),
   pack: vi.fn(),
+  cancel: vi.fn(),
   sorProducts: vi.fn(),
 }));
 
@@ -84,6 +85,7 @@ describe("Packing List record page", () => {
     mockUser.current = ME;
     service.get.mockResolvedValue(list());
     service.pack.mockResolvedValue({});
+    service.cancel.mockResolvedValue({});
     service.sorProducts.mockResolvedValue([]);
   });
 
@@ -172,6 +174,32 @@ describe("Packing List record page", () => {
     await user.click(screen.getAllByRole("button", { name: "Contents" })[0]);
     expect(await screen.findByTestId("nothing-received")).toBeInTheDocument();
     expect(screen.queryByLabelText("Add a product")).not.toBeInTheDocument();
+  });
+
+  it("offers Cancel in the More menu on a draft, asks for a reason, and cancels", async () => {
+    const user = setupUser();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /More/ }));
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    const submit = await screen.findByRole("button", { name: "Cancel Packing List" });
+    expect(submit).toBeDisabled();
+    await user.type(screen.getByRole("textbox", { name: /Reason/ }), "Wrong SOR");
+    await user.click(submit);
+
+    await waitFor(() =>
+      expect(service.cancel).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111", "Wrong SOR"),
+    );
+  });
+
+  it("has no Cancel on a packed list", async () => {
+    const user = setupUser();
+    service.get.mockResolvedValue(list({ state: "packed", packerName: "Pat Packer", packedAt: "2026-11-01T00:00:00Z" }));
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /More/ }));
+    expect(await screen.findByRole("button", { name: "Print" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 
   it("signs Packed by from the card, asking first", async () => {

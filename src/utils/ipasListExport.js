@@ -8,7 +8,8 @@
 
 import { IPAS_STATUS_LABELS } from "../constants/ipas";
 import { formatDate } from "./formatDate.js";
-import { raisedByParts, sorLineParts } from "./ipas";
+import { formatDay } from "./ipasPayments";
+import { raisedByParts, sorLineParts, statusDayOf } from "./ipas";
 
 /** The export's columns, in the Google Sheet's order. */
 export const IPAS_EXPORT_HEADER = [
@@ -24,6 +25,7 @@ export const IPAS_EXPORT_HEADER = [
   "Full Payment",
   "Remaining Balance",
   "Status",
+  "Status date",
   "Payments (% of order)",
 ];
 
@@ -75,7 +77,8 @@ export function ipasExportRows(rows) {
       paymentMoney(f.downPayment, f.currency),
       paymentMoney(f.fullPayment, f.currency),
       money(f.remainingBalance, f.currency),
-      f.status ? IPAS_STATUS_LABELS[f.status] : null,
+      f.status ? (f.onHold ? `On-Hold · ${IPAS_STATUS_LABELS[f.status]}` : IPAS_STATUS_LABELS[f.status]) : null,
+      statusDayOf(row, f.status) ? formatDay(statusDayOf(row, f.status)) : null,
       f.paymentPercents || null,
     ];
   });

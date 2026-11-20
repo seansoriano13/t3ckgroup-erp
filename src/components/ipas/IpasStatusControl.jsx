@@ -42,7 +42,7 @@ export default function IpasStatusControl({ ipas, figures, canSet = false, askin
   const settable = canSet === true && ipas.state === IPAS_STATE.OPEN;
   return (
     <span className="inline-flex">
-      {showPill && <IpasStatusPill status={status} note={figures.onHoldNote} className={className} />}
+      {showPill && <IpasStatusPill status={status} onHold={figures.onHold} note={figures.onHoldNote} className={className} />}
       {settable && (
         <OnHoldDialog
           open={asking}

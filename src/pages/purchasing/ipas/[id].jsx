@@ -48,6 +48,7 @@ import {
 import IpasListPage from "./index";
 import { ipasService } from "../../../services/ipasService";
 import * as optimistic from "../../../utils/ipasOptimistic";
+import { ipasDateMax } from "../../../utils/ipasDateLimits";
 import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
 import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
@@ -73,9 +74,7 @@ import {
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_STATE,
   IPAS_TICK_SIDE,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
-  IPAS_TYPED_STATUS,
-  IPAS_TYPED_STATUS_LABELS,
+  IPAS_STATUS_LABELS,
   IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionLabel,
   ipasSectionNo,
@@ -155,7 +154,7 @@ function IpasPage({ onClose }) {
   const chatFocus = searchParams.get("view") === "chat";
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { hasPurchasingFlow, hasFinanceFlow, isSuperAdmin } = getPermissionContext(user);
+  const { hasPurchasingFlow, hasFinanceFlow, hasLogisticsFlow, isSuperAdmin } = getPermissionContext(user);
   const by = user ? { id: user.id, name: user.name, avatarPath: user.avatarPath ?? user.avatar_path ?? null } : null;
 
   // UI first: apply `edit` to the cached IPAS at once and return what undoes it. The
@@ -194,8 +193,8 @@ function IpasPage({ onClose }) {
   const [overriding, setOverriding] = useState(null);
   const [typing, setTyping] = useState(null);
   const [removingDocument, setRemovingDocument] = useState(null);
-  // The typed dates being edited: "origin" (Supplier Origin) or a typed status key.
-  const [dates, setDates] = useState(null);
+  // The status step whose day is being asked for: { step, mode: "move" | "date" }.
+  const [statusAsk, setStatusAsk] = useState(null);
   // Which section blocks are open (several can be; ?open= names one on arrival), and each block's
   // header, so focus can go back to it.
   const sections = useSectionsOpen();
@@ -619,16 +618,30 @@ function IpasPage({ onClose }) {
     },
   });
 
+  // One file at a time, so each shows at once and a failure leaves the others in place (#1153).
   const attach = useMutation({
-    mutationFn: ({ document, url }) => ipasService.setDocument(document.id, { attachmentUrl: url }),
-    onMutate: ({ document, url }) => ({ rollback: patchCache(optimistic.attachDocument(document.id, url)) }),
-    onSuccess: (_, { url }) => {
-      toast.success(url ? "File attached." : "Attachment removed.");
+    mutationFn: ({ document, file }) => ipasService.addDocumentFile(document.id, { url: file.url, fileName: file.fileName }),
+    onMutate: ({ document, file }) => ({ rollback: patchCache(optimistic.addDocumentFile(document.id, file)) }),
+    onSuccess: () => {
+      toast.success("File attached.");
       changed();
     },
     onError: (error, vars, context) => {
       context?.rollback?.();
       failChange(error, () => attach.mutate(vars));
+    },
+  });
+
+  const detach = useMutation({
+    mutationFn: ({ file }) => ipasService.removeDocumentFile(file.id),
+    onMutate: ({ document, file }) => ({ rollback: patchCache(optimistic.removeDocumentFile(document.id, file.id)) }),
+    onSuccess: () => {
+      toast.success("File removed.");
+      changed();
+    },
+    onError: (error, vars, context) => {
+      context?.rollback?.();
+      failChange(error, () => detach.mutate(vars));
     },
   });
 
@@ -657,31 +670,19 @@ function IpasPage({ onClose }) {
     },
   });
 
-  // Supplier Origin, the typed statuses, Actual Checking and Item Location.
-  // `kind` is "origin" or a typed status key; it travels with the values, so Retry
-  // still knows what it was saving after the dialog has closed.
-  const saveDates = useMutation({
-    mutationFn: ({ kind, values }) =>
-      kind === "origin"
-        ? ipasService.setSupplierOrigin(id, values)
-        : ipasService.setTypedStatus(id, kind, Object.values(values)[0] ?? ""),
-    onMutate: ({ kind, values }) => {
-      if (kind !== "origin") {
-        return { rollback: patchCache(optimistic.setTypedStatus({ status: kind, date: Object.values(values)[0] ?? "", by })) };
-      }
-      const columns = {};
-      for (const { field, column } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
-        if (values[field] !== undefined) columns[column] = (values[field] ?? "").trim() || null;
-      }
-      return { rollback: patchCache(optimistic.setOriginDates(columns)) };
-    },
-    onSuccess: (_, { kind }) => {
-      toast.success(kind === "origin" ? "Supplier Origin saved." : `${IPAS_TYPED_STATUS_LABELS[kind]} saved.`);
+  // The IPAS Status (#1154): a step picked with its day, or the day of a step already reached.
+  // The step, the mode and the day travel with the variables, so Retry still knows what it was
+  // saving after the dialog has closed. The database says what it refuses (a later day, Done,
+  // a Local IPAS's Import steps); the page re-reads on success.
+  const saveStatus = useMutation({
+    mutationFn: ({ step, mode, on }) =>
+      mode === "date" ? ipasService.setStatusDate(id, step, on) : ipasService.setStatus(id, step, on),
+    onSuccess: (_, { step, mode }) => {
+      toast.success(mode === "date" ? `${IPAS_STATUS_LABELS[step]} date saved.` : `Status set to ${IPAS_STATUS_LABELS[step]}.`);
       changed();
     },
-    onError: (error, vars, context) => {
-      context?.rollback?.();
-      failChange(error, () => saveDates.mutate(vars));
+    onError: (error, vars) => {
+      failChange(error, () => saveStatus.mutate(vars));
     },
   });
 
@@ -709,9 +710,8 @@ function IpasPage({ onClose }) {
         }
         if (Object.keys(plan.header).length > 0) await ipasService.setHeader(id, plan.header);
         if (plan.freight !== undefined) await once("freight", () => ipasService.setFreight(id, plan.freight));
+        if (plan.directDelivery !== undefined) await ipasService.setDirectDelivery(id, plan.directDelivery);
         if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
-        if (Object.keys(plan.origin).length > 0) await ipasService.setSupplierOrigin(id, plan.origin);
-        for (const item of plan.typed) await ipasService.setTypedStatus(id, item.kind, item.date);
         if (plan.stamp !== undefined) await ipasService.stampActualChecking(id, { stamped: plan.stamp });
         const { isPhpPo } = plan.payments;
         for (const item of plan.payments.add) await once(item.key, () => ipasService.addPayment(id, item.values, { isPhpPo }));
@@ -721,7 +721,8 @@ function IpasPage({ onClose }) {
         for (const item of plan.documents.add) await once(item.key, () => ipasService.addDocument(id, item.choice));
         for (const item of plan.documents.update) {
           await once(item.key, async () => {
-            if (item.attachmentUrl !== undefined) await ipasService.setDocument(item.id, { attachmentUrl: item.attachmentUrl });
+            for (const fileId of item.removeFileIds ?? []) await ipasService.removeDocumentFile(fileId);
+            for (const file of item.addFiles ?? []) await ipasService.addDocumentFile(item.id, file);
             if (item.purchasing !== undefined) await ipasService.tickDocument(item.id, IPAS_TICK_SIDE.PURCHASING, item.purchasing);
             if (item.finance !== undefined) await ipasService.tickDocument(item.id, IPAS_TICK_SIDE.FINANCE, item.finance);
           });
@@ -838,6 +839,8 @@ function IpasPage({ onClose }) {
   // Payments and charges: Purchasing or Finance, until Filing.
   const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
   const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
+  // The IPAS Status (#1154): Purchasing access, Logistics access or a Super Admin, until Filing.
+  const canSetStatusStep = (hasPurchasingFlow || hasLogisticsFlow || isSuperAdmin) && open;
   // Finance has it: Finance access alone ticks it, until Filing.
   const canTickFinance = hasFinanceFlow && open;
   const digest = digestIpas(ipas, signerLists);
@@ -883,23 +886,17 @@ function IpasPage({ onClose }) {
     else give.mutate({ role, confirm: false, from });
   };
 
-  // What the dates dialog edits: the four Supplier Origin dates, or one typed status.
-  const dateFields =
-    dates === "origin"
-      ? IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, column, label }) => ({
-          key: field,
-          label,
-          value: ipas.supplierOrigin?.[field] ?? ipas[column] ?? "",
-        }))
-      : dates
-        ? [
-            {
-              key: dates,
-              label: IPAS_TYPED_STATUS_LABELS[dates],
-              value: (dates === IPAS_TYPED_STATUS.IMPORT_CLEARANCE ? ipas.import_clearance_on : ipas.delivered_on) ?? "",
-            },
-          ]
-        : [];
+  // What the date dialog edits: the day of the status step being picked. A new step starts at today
+  // (Asia/Manila); a step already reached starts at the day it has.
+  const statusDateFields = statusAsk
+    ? [
+        {
+          key: statusAsk.step,
+          label: IPAS_STATUS_LABELS[statusAsk.step],
+          value: ipas.statusSteps?.find((item) => item.step === statusAsk.step)?.on ?? ipasDateMax(),
+        },
+      ]
+    : [];
 
   // The Return dialog's choices: each section the viewer may return or undo, with what it
   // would clear in section 4 (named, so the signer is mindful).
@@ -959,13 +956,16 @@ function IpasPage({ onClose }) {
     removeBlankCharges: (rows) => setRemoving({ type: "blank-charges", rows }),
     tickDocument: (document, side, value) => tick.mutate({ document, side, value }),
     // attach's onError has already toasted the reason; the catch keeps the rejection from escaping.
-    attach: (document, url) => attach.mutateAsync({ document, url }).catch(() => {}),
-    removeAttachment: (document) => attach.mutate({ document, url: "" }),
+    attach: (document, file) => attach.mutateAsync({ document, file }).catch(() => {}),
+    removeAttachment: (document, file) => detach.mutate({ document, file }),
     suggestDocuments: () => suggest.mutate(),
     removeDocument: setRemovingDocument,
     pickLocation: (optionId) => locate.mutate(optionId),
-    editOrigin: () => setDates("origin"),
-    editStatus: setDates,
+    pickStatus: (step) => setStatusAsk({ step, mode: "move" }),
+    editStatusDate: (step) => setStatusAsk({ step, mode: "date" }),
+    // The suggestion's one click (#1155): moves to the step dated today (the database's default). Nothing else moves it.
+    suggestStatus: (step) => saveStatus.mutate({ step, mode: "move", on: null }),
+    statusSaving: saveStatus.isPending,
     stamp: () => stamp.mutate(true),
     clearStamp: () => stamp.mutate(false),
     setComputationStatus: (computationStatus, from) =>
@@ -990,9 +990,11 @@ function IpasPage({ onClose }) {
     can: {
       change: canChange,
       pickLocation: canPickLocation,
+      statusStep: canSetStatusStep,
       record: canRecord,
       tickFinance: canTickFinance,
       // Only Purchasing moves the Computation status; section 3's sign-off is the check.
+      setDirectDelivery: canSetStatusStep,
       setStatus: (from, to) => open && canSetComputationStatus({ from, to, hasPurchasingFlow }),
       reopen: isSuperAdmin && filed,
       printFiling: filed && ipas.canReadBankDetails,
@@ -1107,6 +1109,7 @@ function IpasPage({ onClose }) {
           {/* Your move is a SidePanel: a right rail from 1440px, a button on a small laptop, a sticky bottom bar on a phone. */}
           <RecordWithRail
             status={journey.headline}
+            mine={journey.mine.length > 0}
             rail={<IpasJourney ctx={ctx} digest={digest} journey={journey} onEdit={openEdit} onGoToSignoff={sections.showSignoff} next={nextIpas} />}
           >
             <div data-testid="ipas-money-summary-slot" className="min-w-0">
@@ -1124,7 +1127,7 @@ function IpasPage({ onClose }) {
                 editKey={editKey}
                 onEdit={openEdit}
                 onDone={backToPreview}
-                canSave={canChange || canRecord || canTickFinance}
+                canSave={canChange || canRecord || canTickFinance || canSetStatusStep}
                 savedCount={savedCount}
                 saving={saveAll.isPending}
                 onSave={(plan) => saveAll.mutateAsync(plan)}
@@ -1182,17 +1185,19 @@ function IpasPage({ onClose }) {
       />
 
       <DatesDialog
-        open={dates !== null}
-        onOpenChange={(next) => !next && setDates(null)}
-        title={dates === "origin" ? "Supplier Origin" : `Type ${IPAS_TYPED_STATUS_LABELS[dates] ?? "the date"}`}
+        open={statusAsk !== null}
+        onOpenChange={(next) => !next && setStatusAsk(null)}
+        title={statusAsk ? (statusAsk.mode === "date" ? `Edit the ${IPAS_STATUS_LABELS[statusAsk.step]} date` : `Set the status to ${IPAS_STATUS_LABELS[statusAsk.step]}`) : "Status"}
         description={
-          dates === "origin"
-            ? "When the goods shipped, went onboard and arrived. Import only."
-            : "Who typed it and when is kept with the date and in history."
+          statusAsk?.mode === "date"
+            ? "The day this step was reached. It cannot be later than today. A day before an earlier step only shows a warning."
+            : "The day this step was reached: today, or an earlier day. Steps you skip stay blank; going back clears the steps after."
         }
-        fields={dateFields}
+        fields={statusDateFields}
+        limited
+        requireDate
         onSubmit={(values) => {
-          saveDates.mutate({ kind: dates, values });
+          saveStatus.mutate({ step: statusAsk.step, mode: statusAsk.mode, on: Object.values(values)[0] ?? "" });
           return Promise.resolve();
         }}
       />

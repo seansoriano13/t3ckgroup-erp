@@ -64,12 +64,19 @@ describe("selectManagerPending", () => {
         expect(selectManagerPending([task({ reportedTo: HEAD })], { ...head, isHead: false })).toEqual([])
     })
 
-    it("routes a legacy AWAITING_APPROVAL task by department only when the settings allow it", () => {
+    it("routes a legacy AWAITING_APPROVAL task to its own department's head", () => {
         const legacy = task({ subDepartment: "IT" })
-        const ctx = { ...head, userSubDept: "IT" }
+
+        expect(selectManagerPending([legacy], { ...head, userSubDept: "IT" })).toEqual([legacy])
+        expect(selectManagerPending([legacy], { ...head, userSubDept: "SALES" })).toEqual([])
+    })
+
+    it("keeps a legacy AWAITING_APPROVAL Marketing task off the department head's queue, but on System-wide", () => {
+        const legacy = task({ subDepartment: "MARKETING" })
+        const ctx = { ...head, userSubDept: "MARKETING" }
 
         expect(selectManagerPending([legacy], ctx)).toEqual([])
-        expect(selectManagerPending([legacy], { ...ctx, appSettings: { universal_task_submission: true } })).toEqual([legacy])
+        expect(selectManagerPending([legacy], { ...ctx, reportedToMeOnly: false })).toEqual([legacy])
     })
 
     it("puts high priority first, then the oldest", () => {

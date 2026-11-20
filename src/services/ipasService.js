@@ -39,9 +39,9 @@ import {
   IPAS_SOURCES,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TICK_SIDES,
-  IPAS_TYPED_STATUSES,
+  IPAS_STATUS,
+  IPAS_STATUSES,
 } from "../constants/ipas";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
 import {
@@ -60,14 +60,16 @@ import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { REFUSAL } from "../constants/refusal";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
-import { ipasFigures } from "../utils/ipasFigures";
+import { ipasFigures, odooPoTotal } from "../utils/ipasFigures";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path, call_sign), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
   " import_clearance_typer:employees!ipas_import_clearance_typed_by_fkey(id, name)," +
   " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
-  " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)";
+  " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)," +
+  // The IPAS Status steps reached, each with the day and who set it (ADR 0054).
+  " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))";
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
@@ -76,9 +78,9 @@ const LIST_COLUMNS = [
   "state", "cancel_reason", "cancelled_by", "cancelled_at", "filed_at", "created_by", "created_at", "updated_at",
   "supplier_contact", "pi_number", "entity_override", "source_doc_override", "analytic_override",
   "odoo_change_note", "odoo_changed_since_filing", "pi_qt_amount", "freight_service_id", "landed_cost_split",
-  "computation_status", "shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on",
+  "computation_status", "status", "shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on",
   "import_clearance_on", "import_clearance_typed_by", "import_clearance_typed_at", "delivered_on",
-  "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id",
+  "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id", "direct_delivery",
   "google_sheet", "gantt_chart", "on_hold", "on_hold_note", "sor_warning_checked", "freight_amount",
   "freight_currency", "freight_billed_by_supplier", "freight_attachment_url", "retail_multiplier",
   "wholesale_discount_pct",
@@ -349,7 +351,7 @@ export const ipasService = {
         .order("created_at", { ascending: true }),
       supabase.from("ipas_options").select("*"),
       supabase.from("ipas_file_rules").select("*").maybeSingle(),
-      supabase.from("ipas_documents").select("*").eq("ipas_id", id).order("created_at", { ascending: true }),
+      readDocumentsWithFiles(id),
       readBankDetails(id),
       transmittalService.forIpas(id),
       supabase.from("ipas_signoffs").select(SIGNOFF_SELECT).eq("ipas_id", id).order("signed_at", { ascending: true }),
@@ -819,15 +821,22 @@ export const ipasService = {
   },
 
   /**
-   * Attaches a file to a document (Purchasing), or removes it with a blank
-   * `attachmentUrl`. The link comes from the Cloudinary upload, as a payment's
-   * proof does. Returns the row.
+   * Adds one file to a document (Purchasing): `{ url, fileName }`. The link comes from the upload and must
+   * be to the app's own file store. A document holds any number of files (#1153). Returns the file row.
    */
-  async setDocument(documentId, { attachmentUrl = "" } = {}) {
-    const { data, error } = await supabase.rpc("ipas_set_document_attachment", {
+  async addDocumentFile(documentId, { url = "", fileName = "" } = {}) {
+    const { data, error } = await supabase.rpc("ipas_add_document_file", {
       p_document_id: documentId,
-      p_attachment_url: (attachmentUrl || "").trim() || null,
+      p_url: (url || "").trim(),
+      p_file_name: (fileName || "").trim() || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes one file of a document (Purchasing); the document's other files stay. Returns the removed row. */
+  async removeDocumentFile(fileId) {
+    const { data, error } = await supabase.rpc("ipas_remove_document_file", { p_file_id: fileId });
     if (error) throw error;
     return data;
   },
@@ -862,44 +871,32 @@ export const ipasService = {
     return data;
   },
 
-  // ── Supplier Origin, the buyer track and Item Location (#246) ───────────
+  // ── The IPAS Status, set by hand (#1154, ADR 0054) ─────────────────────
 
   /**
-   * Types the Supplier Origin dates of an Import IPAS (Purchasing): any of
-   * `{ shippedOut, onboard, arrivedInPh, arrivedInWhs }`, each `YYYY-MM-DD` or
-   * blank to clear; keys left out are untouched. A Local IPAS refuses them (the
-   * database does, twice over). Half-typed dates are refused with a sentence.
-   * Returns the row.
+   * Sets the IPAS Status to `step` (Purchasing access, Logistics access or a Super Admin): any step
+   * forward or back, skipped steps stay blank, going back clears the steps after it. `on` is the day
+   * it was reached (`YYYY-MM-DD`), today when left out. Done comes from filing and is refused. Returns the row.
    */
-  async setSupplierOrigin(id, dates = {}) {
-    const fields = {};
-    for (const { field, column, label } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
-      const value = dates[field];
-      if (value === undefined) continue;
-      const text = (value ?? "").trim();
-      if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, `${label} must be a date.`);
-      fields[column] = text === "" ? null : text;
-    }
-    if (Object.keys(fields).length === 0) throw new IpasError(IPAS_ERROR.INVALID, "Nothing to change.");
-    const { data, error } = await supabase.rpc("ipas_set_supplier_origin", { p_ipas_id: id, p_fields: fields });
+  async setStatus(id, step, on = null) {
+    requireOneOf(step, IPAS_STATUSES.filter((s) => s !== IPAS_STATUS.DONE), "Pick a status step.");
+    const text = (on ?? "").trim();
+    if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
+    const { data, error } = await supabase.rpc("ipas_set_status", {
+      p_ipas_id: id,
+      p_step: step,
+      p_reached_on: text === "" ? null : text,
+    });
     if (error) throw error;
     return data;
   },
 
-  /**
-   * Types a buyer-track status (Purchasing): `status` is "import_clearance"
-   * (Import IPAS only) or "delivered"; `date` is `YYYY-MM-DD`, or blank to
-   * clear. Who typed it and when is kept with it and in history. Returns the row.
-   */
-  async setTypedStatus(id, status, date) {
-    requireOneOf(status, IPAS_TYPED_STATUSES, "Import Clearance and Delivered are the statuses you type.");
-    const text = (date ?? "").trim();
-    if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
-    const { data, error } = await supabase.rpc("ipas_set_typed_status", {
-      p_ipas_id: id,
-      p_status: status,
-      p_date: text === "" ? null : text,
-    });
+  /** Changes the day of a status step already reached, under the same date rules. Returns the row. */
+  async setStatusDate(id, step, on) {
+    requireOneOf(step, IPAS_STATUSES.filter((s) => s !== IPAS_STATUS.DONE), "Pick a status step.");
+    const text = (on ?? "").trim();
+    if (!isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
+    const { data, error } = await supabase.rpc("ipas_set_status_date", { p_ipas_id: id, p_step: step, p_on: text });
     if (error) throw error;
     return data;
   },
@@ -952,6 +949,13 @@ export const ipasService = {
       p_ipas_id: id,
       p_option_id: optionId || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Switches Direct delivery to the client on an open IPAS (#1158). Returns the row. */
+  async setDirectDelivery(id, on) {
+    const { data, error } = await supabase.rpc("ipas_set_direct_delivery", { p_ipas_id: id, p_on: on === true });
     if (error) throw error;
     return data;
   },
@@ -1320,6 +1324,18 @@ export const ipasService = {
   },
 
   /**
+   * The payments Filing is waiting on (#1124): on a foreign-currency IPAS, every payment whose
+   * "Pesos taken from the bank" is blank, one phrase each ("Down payment of USD 500.00 on Nov 19,
+   * 2026"). Empty on a peso IPAS. The list comes from the database, the same one that refuses
+   * Approve and file while any are named.
+   */
+  async paymentsWaitingForPesos(id) {
+    const { data, error } = await supabase.rpc("ipas_payments_waiting_for_pesos", { p_ipas_id: id });
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  /**
    * Reopens a filed IPAS (Super Admin only: the database refuses everyone else),
    * with a reason that is kept in history. Clears section 7's sign-offs and
    * returns the IPAS to open; sections 1 and 3 stay approved. Returns
@@ -1506,6 +1522,7 @@ export const ipasService = {
       .eq("state", IPAS_STATE.OPEN);
     if (ipasError) throw ipasError;
     const ipasById = new Map((ipasRows || []).map((ipas) => [ipas.id, ipas]));
+    const documentsByIpas = await readFilesForReview([...ipasById.keys()]);
 
     return waiting
       .filter((entry) => ipasById.has(entry.ipasId))
@@ -1520,7 +1537,8 @@ export const ipasService = {
           supplier: ipasSupplier(ipas),
           purpose: ipas.purpose,
           priority: ipas.priority,
-          total: (ipas.odoo_copy?.lines ?? []).reduce((sum, line) => sum + (Number(line?.price_subtotal) || 0), 0),
+          // The PO total with tax, as the record shows it (an old copy falls back to its line subtotals).
+          total: odooPoTotal(ipas.odoo_copy)?.total ?? 0,
           currency: ipasCurrency(ipas),
           // The Supplier bill check's figures (#603): the review warns beside section 1's Approve.
           figures: ipasFigures(ipas),
@@ -1530,6 +1548,8 @@ export const ipasService = {
           preparedAt: madeReady.signedAt,
           readyAt: madeReady.signedAt,
           steps: entry.steps ?? null,
+          // The documents that hold files, each with its files, for the reviewer (#1153).
+          documents: documentsByIpas.get(ipas.id) ?? [],
         };
       })
       .sort((a, b) => String(a.readyAt).localeCompare(String(b.readyAt)));
@@ -1615,7 +1635,7 @@ export const ipasService = {
   /**
    * The Project IPAS naming an SOR, as a summary, for anyone who can read the
    * SOR (#249). Each row: `{ id, number, poNumber, supplier, purpose, state,
-   * buyerTrack[{ key, label, ticked, partial }], computationStatus,
+   * status, statusReachedOn, onHold, directDelivery, computationStatus,
    * signoffs[{ section, name, steps[{ role, label, done }] }] }`. It carries no
    * payments, charges, bank details or Landed Cost: the database's function
    * returns none, so a Deal Team member with no Purchasing or Finance access
@@ -1743,6 +1763,46 @@ function stageNotification(stage, { label, section, role }) {
 }
 
 /**
+ * An IPAS's document rows, each with its files (#1153) as `files`. The files come in a second query for
+ * the documents' ids, so a document with none gets an empty list.
+ */
+async function readDocumentsWithFiles(ipasId) {
+  const documents = await supabase.from("ipas_documents").select("*").eq("ipas_id", ipasId).order("created_at", { ascending: true });
+  if (documents.error || !documents.data?.length) return documents;
+  return { ...documents, data: await attachFiles(documents.data) };
+}
+
+async function attachFiles(documents) {
+  const { data, error } = await supabase
+    .from("ipas_document_files")
+    .select("*")
+    .in("document_id", documents.map((d) => d.id))
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const byDocument = new Map();
+  for (const file of data || []) byDocument.set(file.document_id, [...(byDocument.get(file.document_id) ?? []), file]);
+  return documents.map((d) => ({ ...d, files: byDocument.get(d.id) ?? [] }));
+}
+
+/** Per IPAS id, its documents that hold at least one file: `[{ id, label, files: [{ id, url, fileName }] }]`. */
+async function readFilesForReview(ipasIds) {
+  const out = new Map();
+  if (ipasIds.length === 0) return out;
+  const [documents, options] = await Promise.all([
+    supabase.from("ipas_documents").select("*").in("ipas_id", ipasIds).order("created_at", { ascending: true }),
+    supabase.from("ipas_options").select("*"),
+  ]);
+  for (const result of [documents, options]) if (result.error) throw result.error;
+  if (!documents.data?.length) return out;
+  const shaped = shapeDocuments(await attachFiles(documents.data), options.data || []);
+  for (const doc of shaped) {
+    if (!doc.hasFile) continue;
+    out.set(doc.ipas_id, [...(out.get(doc.ipas_id) ?? []), { id: doc.id, label: doc.label, files: doc.files }]);
+  }
+  return out;
+}
+
+/**
  * What Filing looks at on one IPAS: whether its Approved could file (costs
  * complete, Received, Noted and Checked given) and the required documents nobody
  * has ticked. One read each; nothing is written.
@@ -1750,7 +1810,7 @@ function stageNotification(stage, { label, section, role }) {
 async function readFilingState(id) {
   const [ipas, documents, options, signoffs] = await Promise.all([
     supabase.from("ipas").select("id, source, state, computation_status").eq("id", id).maybeSingle(),
-    supabase.from("ipas_documents").select("*").eq("ipas_id", id),
+    readDocumentsWithFiles(id),
     supabase.from("ipas_options").select("*"),
     supabase
       .from("ipas_signoffs")

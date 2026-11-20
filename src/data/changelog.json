@@ -1,10 +1,82 @@
 [
     {
         "date": "2026-11-20",
+        "title": "IPAS Status, Direct delivery and several files per document",
+        "version": "1.11.10",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "An IPAS now has one Status in your team's own words, from Order-Draft to Delivered, and Done when it is filed. You pick the step yourself, with the day it happened.",
+            "The IPAS suggests the next step when it already knows the PO is confirmed or the goods arrived, but it never moves on its own.",
+            "Logistics access can now be given to an employee. It lets them read every IPAS and set its Status and Direct delivery.",
+            "Direct delivery to client: when the supplier delivers straight to the client, the IPAS stops asking for an Item Location and a Transmittal.",
+            "A document can now hold several files, and you can remove one at a time.",
+            "The IPAS list, the Excel export, the SOR, the Purchasing Dashboard, Order Monitoring and the printed IPAS all show the new Status. Ageing rules now follow the Status steps."
+        ]
+    },
+    {
+        "date": "2026-11-20",
+        "title": "IPAS and Transmittal fixes",
+        "version": "1.11.9",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Approve and file now waits until every foreign payment has its pesos, and names the payments still waiting.",
+            "Landed Cost reads Estimate, not Final, while it still uses an estimate.",
+            "A Transmittal line shows what is left of its P0 line, and a slip that carries more asks for a remark.",
+            "A draft Transmittal and a draft Packing List can now be cancelled with a reason.",
+            "IPAS dates and amounts are checked as you type, and errors are said in plain words.",
+            "Raise an IPAS marks Priority, Source and Purpose as required, and the sign-off steps are called Return and Section 6 · Sign-offs everywhere.",
+            "Esc asks Discard this ...? on Raise an IPAS, Raise a Transmittal and New Packing List when you have typed something.",
+            "The Transmittal Check by page tells you which list you need, and the IPAS list tells you when you have no access."
+        ]
+    },
+    {
+        "date": "2026-11-20",
+        "title": "Sign-in, profile and record check fixes",
+        "version": "1.11.8",
+        "changes": [
+            "The record check page now says when you have checked too many records in a short time, instead of saying Record Not Found.",
+            "The record check page headline now follows the signature checks, and says 1 hr for a single hour.",
+            "Signed-in HR and Super Admin are no longer slowed down when checking records.",
+            "The sign-in and reset-password pages use plain words, and the intro video no longer loads on phones.",
+            "An inactive account is signed out quietly, with one clear message on the login page.",
+            "HR's profile numbers match the Approval Center.",
+            "Choosing a file that is not a picture for your photo now closes the window and tells you."
+        ]
+    },
+    {
+        "date": "2026-11-20",
         "title": "Emoji reaction pop-up fix",
         "version": "1.11.7",
         "changes": [
             "The emoji reaction pop-up in chats now opens right next to its button and is never cut off by the window around it."
+        ]
+    },
+    {
+        "date": "2026-11-20",
+        "title": "Profile safety checks",
+        "version": "1.11.7",
+        "changes": [
+            "On your own record you can now change only your photo, banner, quote and signature. Other fields are locked.",
+            "Your dashboard quote can be at most 100 characters.",
+            "A banner web address must start with https://. The Profile page now says so.",
+            "Opening a Reset password link while signed in now tells you so and points you to My Profile."
+        ]
+    },
+    {
+        "date": "2026-11-20",
+        "title": "Commission and Bid Decision fixes",
+        "version": "1.11.6",
+        "changes": [
+            "Purchasers no longer see the Bid Decision on a Costing sheet. They keep the Closed Book.",
+            "If you open the Bid Decisions page without access, you are sent back to the home page.",
+            "The Sales fund on the Commission Pool page is hidden from anyone who cannot see Sales amounts. If you can see it and it is zero, it shows ₱0.00.",
+            "Commission percentages below 0 or above 100 are now refused when you save a rate, a department, a position or a split.",
+            "The Projected Commission Pool no longer counts deals that are already Awarded or later but have no Contract Date.",
+            "Opening a deal on the Commission Pool page shows its receipt, with the stage it is at."
         ]
     },
     {

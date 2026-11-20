@@ -74,12 +74,15 @@ const cancel = async (who, id, reason) =>
 let pastSlot = 0
 const startNow = async (id) => {
     pastSlot += 1
-    const past = new Date(Date.now() - 3600_000 - pastSlot * 900_000)
-    past.setUTCMinutes(Math.floor(past.getUTCMinutes() / 15) * 15, 0, 0)
+    // Yesterday, 9:00 Manila (01:00 UTC) plus a quarter-hour per call: always in the past and never across
+    // Manila midnight, which meeting_request_days_same_manila_day refuses (the CI ran at 1 am Manila and failed).
+    const y = new Date(Date.now() - 86_400_000)
+    const past = new Date(Date.UTC(y.getUTCFullYear(), y.getUTCMonth(), y.getUTCDate(), 1, 0, 0) + pastSlot * 900_000)
     const end = new Date(past.getTime() + 900_000)
     const { error } = await svc().from("meeting_requests").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("id", id)
-    await svc().from("meeting_request_days").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("request_id", id)
     if (error) throw new Error(error.message)
+    const days = await svc().from("meeting_request_days").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("request_id", id)
+    if (days.error) throw new Error(days.error.message)
 }
 
 beforeAll(async () => {

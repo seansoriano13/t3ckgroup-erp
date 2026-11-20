@@ -117,6 +117,7 @@ export function shapeLine(row) {
     sor: row.sor ? { id: row.sor.id, salesReference: row.sor.sales_reference, projectTitle: row.sor.project_title } : null,
     serialNumbers: row.serial_numbers ?? "",
     boxQuantity: row.box_quantity ?? "",
+    overClaimRemark: row.over_claim_remark ?? "",
     whInChargeId: row.wh_in_charge_id ?? null,
     whInChargeName: row.wh_in_charge?.name ?? null,
     techInChargeName: row.tech_in_charge?.name ?? null,
@@ -242,6 +243,35 @@ export function companyOptions(companyNames, current) {
   return names.map((name) => ({ value: name, label: name }));
 }
 
+/** What a quantity box says for zero, a negative or no number. */
+export const QUANTITY_MESSAGE = "A quantity is more than 0.";
+
+/** Units counted in whole things; any other unit (m, kg, L, ...) takes decimals. */
+const WHOLE_UNIT = /^(pcs?|pieces?|units?|sets?|pairs?|kits?)$/i;
+export const countsWholeThings = (unit) => WHOLE_UNIT.test(String(unit ?? "").trim());
+
+const sameSource = (a, b) => a.kind === TRANSMITTAL_LINE_KIND.PO_LINE && a.ipasId === b.ipasId && a.odooPoLineId === b.odooPoLineId;
+
+/**
+ * How many of a P0 line this slip carries beyond what it has left, or 0. `left`
+ * is what the picker showed (null when not known, so nothing is claimed). The
+ * lines of one P0 line are added up, as the database does.
+ */
+export function overClaim(line, lines) {
+  if (line.kind !== TRANSMITTAL_LINE_KIND.PO_LINE || line.left == null) return 0;
+  const carrying = lines.filter((other) => sameSource(other, line)).reduce((sum, other) => sum + (Number(other.quantity) || 0), 0);
+  return Math.max(carrying - Math.max(Number(line.left), 0), 0);
+}
+
+/** A line over what is left, with no remark yet: the form asks for one before Submit. */
+export const needsOverClaimRemark = (line, lines) => overClaim(line, lines) > 0 && !String(line.overClaimRemark ?? "").trim();
+
+/** The picker's "2 of 5 left" for a P0 line. */
+export function leftLabel({ left, quantity }) {
+  if (left == null || quantity == null) return null;
+  return `${Number(left)} of ${Number(quantity)} left`;
+}
+
 /**
  * Everything that still stops a draft slip from being submitted, in the order
  * the form asks for it: `[{ key, text }]`, each `text` a short sentence ("Pick a
@@ -255,7 +285,17 @@ export function slipGaps({ header, lines }) {
   if (!header.priority) gaps.push({ key: "priority", text: "Pick a priority" });
   if (!(header.checkWarehouse || header.checkTechnical)) gaps.push({ key: "checking", text: "Tick Warehouse or TCA Technical" });
   if (!header.entity.trim()) gaps.push({ key: "entity", text: "Pick the Company" });
-  if (lines.some((line) => !(Number(line.quantity) > 0))) gaps.push({ key: "quantity", text: "Every line needs a quantity" });
+  if (lines.some((line) => !(Number(line.quantity) > 0))) {
+    gaps.push({ key: "quantity", text: QUANTITY_MESSAGE, sentence: QUANTITY_MESSAGE });
+  }
+  const decimal = lines.find((line) => countsWholeThings(line.unit) && Number(line.quantity) > 0 && !Number.isInteger(Number(line.quantity)));
+  if (decimal) {
+    const text = `${decimal.unit} takes a whole number.`;
+    gaps.push({ key: "whole", text, sentence: text });
+  }
+  if (lines.some((line) => needsOverClaimRemark(line, lines))) {
+    gaps.push({ key: "remark", text: "Add a remark on each line that is more than what is left" });
+  }
   const typed = lines.filter((line) => line.kind !== TRANSMITTAL_LINE_KIND.PO_LINE);
   if (typed.some((line) => !line.description.trim())) gaps.push({ key: "description", text: "Every typed line needs a description" });
   if (typed.some((line) => !line.unit.trim())) gaps.push({ key: "unit", text: "Every typed line needs a unit" });

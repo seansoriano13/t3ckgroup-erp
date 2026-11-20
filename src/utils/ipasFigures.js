@@ -4,9 +4,9 @@
  * record's money summary and the section 1 approval warning all read this and
  * never compute these figures themselves.
  *
- * Pure: no network, no React. The IPAS Status (#597) is worked out here from the
- * same facts and is never stored; only the On-Hold flag is. The Remaining
- * balance reads it ("Paid or Done settles the balance", ADR 0036).
+ * Pure: no network, no React. The IPAS Status is stored and set by hand (ADR 0054,
+ * spec #1151) and passes through here as `status`. The Remaining balance settles on
+ * a full payment or on filing, read from those facts (ADR 0036, amended).
  *
  * Input is a shaped IPAS (utils/ipas.js `shapeIpas`, with `payments` from the
  * list read or the record read):
@@ -16,13 +16,11 @@
  *   payments       [{ kind, amount, methodLabel | method.label, paid_on? }]
  *   state          open / filed / cancelled
  *   on_hold        the On-Hold flag (`ipas.on_hold`), and on_hold_note its note
- *   section1Started  section 1 is prepared or approved (a live sign-off). Read
- *                  from `signoffSections[1]` when the service did not set it
- *   workedOn       the IPAS has history beyond its raising (`ipas_worked_on`)
+ *   status         the stored IPAS Status key (`ipas.status`)
  * Everything is in the PO's currency; currencies are never converted.
  */
 
-import { IPAS_PAYMENT_KIND, IPAS_STATE, IPAS_STATUS } from "../constants/ipas";
+import { IPAS_PAYMENT_KIND, IPAS_STATE } from "../constants/ipas";
 import { finiteNumber, fromCents, toCents } from "./landedCost";
 import { paymentKindWithPercent } from "./ipasPaymentPercent";
 
@@ -71,33 +69,6 @@ function inPaymentOrder(payments) {
     .map(({ payment }) => payment);
 }
 
-/** Section 1 has a live Prepared or Approved: the facts the service sets, or the record's shaped sign-offs. */
-function section1StartedOf(ipas) {
-  if (typeof ipas?.section1Started === "boolean") return ipas.section1Started;
-  const section = ipas?.signoffSections?.[1];
-  return Boolean(section?.prepared || section?.approved);
-}
-
-/**
- * The IPAS Status, highest precedence first:
- *   cancelled -> none (null); filed -> Done; On-Hold flag -> On-Hold;
- *   a full payment recorded -> Paid; any payment recorded -> Ongoing;
- *   section 1 prepared or approved -> Requested; changed since raising -> Ongoing;
- *   else Pending.
- * Filing clears On-Hold in the database, but a filed IPAS still reads Done first
- * here, so a stale flag can never hide it.
- */
-export function ipasStatusOf({ state, onHold, hasFullPayment, hasPayments, section1Started, workedOn }) {
-  if (state === IPAS_STATE.CANCELLED) return null;
-  if (state === IPAS_STATE.FILED) return IPAS_STATUS.DONE;
-  if (onHold) return IPAS_STATUS.ON_HOLD;
-  if (hasFullPayment) return IPAS_STATUS.PAID;
-  if (hasPayments) return IPAS_STATUS.ONGOING;
-  if (section1Started) return IPAS_STATUS.REQUESTED;
-  if (workedOn) return IPAS_STATUS.ONGOING;
-  return IPAS_STATUS.PENDING;
-}
-
 const methodLabelOf = (payment) => {
   const label = payment?.methodLabel ?? payment?.method?.label ?? null;
   const trimmed = typeof label === "string" ? label.trim() : "";
@@ -123,12 +94,13 @@ const methodLabelOf = (payment) => {
  *   fullPayment         sum of the Full payment rows
  *   hasFullPayment      a Full payment row is recorded
  *   paid                every payment row, whatever its kind
- *   status              the IPAS Status (constants/ipas IPAS_STATUS), or null for a
+ *   status              the stored IPAS Status key (constants/ipas IPAS_STATUS), or null for a
  *                       cancelled IPAS
  *   onHold, onHoldNote  the On-Hold flag and its note (the note only while on hold)
- *   remainingBalance    amount - paid; 0 once the status is Paid or Done (ADR 0036:
+ *   remainingBalance    amount - paid; 0 once a full payment is recorded or the IPAS is filed (ADR 0036:
  *                       withholding never leaves a settled order owing); null when
  *                       there is no Amount
+ *   overpaidBy          paid - amount when the payments pass the order amount (spec #1123, A2); 0 otherwise
  *   paymentMethods      distinct method labels, first used first
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none
  *   paymentPercents     the payments that are a percent of the order, "Down payment · 30%; Payment · 45%"; "" with none
@@ -183,24 +155,18 @@ export function ipasFigures(ipas) {
   }
 
   const onHold = ipas?.on_hold === true;
-  const status = ipas
-    ? ipasStatusOf({
-        state: ipas.state,
-        onHold,
-        hasFullPayment,
-        hasPayments: payments.length > 0,
-        section1Started: section1StartedOf(ipas),
-        workedOn: ipas.workedOn === true,
-      })
-    : null;
+  // The IPAS Status is stored and set by hand (ADR 0054); a cancelled IPAS has none.
+  const status = ipas && ipas.state !== IPAS_STATE.CANCELLED ? (ipas.status ?? null) : null;
 
-  // ADR 0036: the balance reads 0 once the status is Paid or Done (a full payment
-  // recorded, or filed), because tax withheld from a payment would otherwise leave
-  // a settled order owing forever. An On-Hold order shows what is really left.
-  const settled = status === IPAS_STATUS.PAID || status === IPAS_STATUS.DONE;
+  // ADR 0036 (amended): the balance reads 0 once a full payment is recorded or the IPAS is
+  // filed, because tax withheld from a payment would otherwise leave a settled order owing
+  // forever. Read from those facts, never from the status.
+  const settled = ipas?.state !== IPAS_STATE.CANCELLED && (hasFullPayment || ipas?.state === IPAS_STATE.FILED);
   let remainingBalance = null;
   if (settled) remainingBalance = 0;
   else if (amount !== null) remainingBalance = fromCents(toCents(amount) - paidCents);
+
+  const overpaidBy = amount !== null && paidCents > toCents(amount) ? fromCents(paidCents - toCents(amount)) : 0;
 
   return {
     currency,
@@ -219,6 +185,7 @@ export function ipasFigures(ipas) {
     onHold,
     onHoldNote: onHold ? (ipas?.on_hold_note ?? null) : null,
     remainingBalance,
+    overpaidBy,
     paymentMethods: methods,
     paymentScheme: methods.join(PAYMENT_SCHEME_SEPARATOR),
     paymentPercents: percentLabels.join("; "),

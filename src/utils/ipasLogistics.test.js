@@ -1,21 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { logisticsMissing } from "./ipasLogistics";
 
-describe("logisticsMissing (#713)", () => {
+const delivered = [{ step: "delivered", on: "2026-10-20" }];
+
+describe("logisticsMissing (#713, #1154)", () => {
   it("names everything an empty IPAS lacks", () => {
-    expect(logisticsMissing({})).toEqual(["the Item Location", "a Transmittal", "the received date"]);
+    expect(logisticsMissing({})).toEqual(["the Item Location", "a Transmittal", "the Delivered status"]);
   });
 
   it("takes the Item Location from the Transmittals", () => {
-    const ipas = { itemLocation: { label: "WH1" }, slips: [{ id: "t1" }], arrived_in_whs_on: "2026-10-20" };
+    const ipas = { itemLocation: { label: "WH1" }, slips: [{ id: "t1" }], statusSteps: delivered };
     expect(logisticsMissing(ipas)).toEqual([]);
   });
 
-  it("still asks for the received date once placed", () => {
-    expect(logisticsMissing({ item_location_id: "l1", slips: [{ id: "t1" }] })).toEqual(["the received date"]);
+  it("still asks for Delivered once placed", () => {
+    expect(logisticsMissing({ item_location_id: "l1", slips: [{ id: "t1" }] })).toEqual(["the Delivered status"]);
   });
 
-  it("doesn't ask a local IPAS for a received date, which it cannot hold", () => {
-    expect(logisticsMissing({ source: "local", item_location_id: "l1", slips: [{ id: "t1" }] })).toEqual([]);
+  it("asks a Local IPAS for Delivered too", () => {
+    expect(logisticsMissing({ source: "local", item_location_id: "l1", slips: [{ id: "t1" }] })).toEqual(["the Delivered status"]);
+    expect(logisticsMissing({ source: "local", item_location_id: "l1", slips: [{ id: "t1" }], statusSteps: delivered })).toEqual([]);
   });
 });

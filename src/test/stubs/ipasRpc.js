@@ -1,6 +1,6 @@
 import { stubRpc } from "@/test/msw/server"
 import { stubs } from "@/test/msw/postgrest"
-import { db, insertRow, updateRow } from "@/test/db/store"
+import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { computeLandedCost } from "@/test/stubs/landedCostFake"
 
@@ -47,7 +47,7 @@ const refuse = (code, message) => {
  * details there to exercise the flag.
  *
  * #246 adds documents (`ipas_suggest_documents`, `ipas_add_document`,
- * `ipas_set_document_attachment`, `ipas_tick_document`, `ipas_remove_document`),
+ * `ipas_add_document_file`, `ipas_tick_document`, `ipas_remove_document`),
  * Supplier Origin, the typed statuses, Actual Checking and Item Location. A new
  * IPAS gets a row for every active document kind matching its Source, as the
  * database's insert trigger does. `finance: true` is a caller with Finance
@@ -92,6 +92,8 @@ export function stubIpasRpcs({
   bankReader = true,
   finance = undefined,
   superAdmin = false,
+  // #1154: a caller with Logistics access (sets the IPAS Status without Purchasing).
+  logistics = false,
   sorReader = true,
   // #283: whether the caller is in the SOR's Costing Matrix money tier (costing_can_read_money).
   costingMoney = false,
@@ -269,9 +271,11 @@ export function stubIpasRpcs({
       odoo_copy: copy,
       odoo_fetched_at: new Date().toISOString(),
       created_by: actorId,
+      status: "order_draft",
       ...filledFromCopy({}, copy),
     })
     for (const opportunityId of sors) insertRow("ipas_sors", { ipas_id: row.id, opportunity_id: opportunityId })
+    insertRow("ipas_status_steps", { ipas_id: row.id, step: "order_draft", reached_on: manilaToday(), set_by: actorId })
     suggestDocuments(row.id, row.source)
     event(row.id, "created", {
       number: row.number,
@@ -353,6 +357,7 @@ export function stubIpasRpcs({
     if (row.state === "cancelled") refuse("55000", `ipas_cancel: ${row.number} is already cancelled`)
     const updated = updateRow("ipas", row, {
       state: "cancelled",
+      status: null,
       cancel_reason: reason,
       cancelled_by: actorId,
       cancelled_at: new Date().toISOString(),
@@ -466,11 +471,12 @@ export function stubIpasRpcs({
     })
   })
 
+  const num = (value) => (/^[0-9]+(\.[0-9]+)?$/.test(String(value ?? "")) ? Number(value) : 0)
+
   stubRpc("ipas_summaries_for_sor", (args) => {
     if (!sorReader) return []
     const sorId = args.p_opportunity_id
     const wanted = new Set(rowsOf("ipas_sors").filter((s) => s.opportunity_id === sorId).map((s) => s.ipas_id))
-    const num = (value) => (/^[0-9]+(\.[0-9]+)?$/.test(String(value ?? "")) ? Number(value) : 0)
     const rank = { open: 0, filed: 1, cancelled: 2 }
 
     return rowsOf("ipas")
@@ -479,25 +485,6 @@ export function stubIpasRpcs({
       .map((row) => {
         const copy = row.odoo_copy ?? {}
         const live = new Set(liveSignoffs(row.id).map((s) => `${s.section}:${s.role}`))
-        const hasProof = rowsOf("ipas_payments").some((p) => p.ipas_id === row.id && (p.proof_url ?? "") !== "")
-        const total = num(copy.receipts?.total)
-        const done = num(copy.receipts?.done)
-        const status = copy.receipts?.status
-        let received = "none"
-        if (status === "partial") received = "partial"
-        else if (status === "full" || (total > 0 && done >= total)) received = "received"
-        else if (done > 0) received = "partial"
-
-        const item = (key, ticked, partial = false) => ({ key, ticked: Boolean(ticked), partial })
-        const track = [
-          item("purchase_order", ["purchase", "done"].includes(copy.po?.state)),
-          item("with_pop", hasProof),
-          ...(row.source === "import" ? [item("import_clearance", row.import_clearance_on)] : []),
-          item("delivered", row.delivered_on),
-          item("received_in_odoo", received === "received", received === "partial"),
-          item("create_bill", num(copy.bills?.count) > 0),
-          item("actual_checking", row.actual_checking_by),
-        ]
         const roles = (section, names) => Object.fromEntries(names.map((r) => [r, live.has(`${section}:${r}`)]))
 
         return {
@@ -507,7 +494,6 @@ export function stubIpasRpcs({
           supplier: (copy.supplier?.name ?? "").trim() || null,
           purpose: row.purpose,
           state: row.state,
-          buyer_track: track,
           computation_status: row.computation_status ?? "encoding",
           signoffs: {
             1: roles(1, ["prepared", "approved"]),
@@ -517,6 +503,11 @@ export function stubIpasRpcs({
             8: roles(8, ["approved"]),
           },
           ...summaryLandedCost(row),
+          status: row.status ?? null,
+          status_reached_on:
+            rowsOf("ipas_status_steps").find((st) => st.ipas_id === row.id && st.step === row.status)?.reached_on ?? null,
+          on_hold: row.on_hold === true,
+          direct_delivery: row.direct_delivery === true,
         }
       })
   })
@@ -540,6 +531,15 @@ export function stubIpasRpcs({
 
   // #265: the dates and Transmittal facts the SOR section needs for each
   // order's standing. The same gate as the summary; dates and slip facts only.
+  const receivedState = (copy = {}) => {
+    const total = num(copy?.receipts?.total)
+    const done = num(copy?.receipts?.done)
+    const status = copy?.receipts?.status
+    if (status === "partial") return "partial"
+    if (status === "full" || (total > 0 && done >= total)) return "received"
+    return done > 0 ? "partial" : "none"
+  }
+
   stubRpc("ipas_standing_for_sor", (args) => {
     if (!sorReader) return []
     const sorId = args.p_opportunity_id
@@ -599,6 +599,13 @@ export function stubIpasRpcs({
           actual_checking_at: row.actual_checking_at ?? null,
           slips,
           on_hold: row.on_hold === true,
+          status: row.status ?? null,
+          status_steps: rowsOf("ipas_status_steps")
+            .filter((st) => st.ipas_id === row.id)
+            .map((st) => ({ step: st.step, reached_on: st.reached_on })),
+          received_state: receivedState(row.odoo_copy),
+          has_bill: num(row.odoo_copy?.bills?.count) > 0,
+          direct_delivery: row.direct_delivery === true,
         }
       })
   })
@@ -1357,6 +1364,7 @@ export function stubIpasRpcs({
       finance_has: false,
       created_by: actorId,
     })
+    if (url) insertRow("ipas_document_files", { document_id: row.id, url, file_name: url.split("?")[0].split("/").pop(), created_by: actorId })
     event(ipas.id, "document_added", {
       document_id: row.id,
       kind_id: row.kind_id,
@@ -1367,20 +1375,32 @@ export function stubIpasRpcs({
     return row
   })
 
-  stubRpc("ipas_set_document_attachment", (args) => {
-    requirePurchasing("ipas_set_document_attachment")
-    const doc = lockDocument("ipas_set_document_attachment", args.p_document_id)
-    const url = clean(args.p_attachment_url)
-    if (url && !/^https?:\/\//i.test(url)) {
-      refuse("22023", "ipas_set_document_attachment: the attachment must be a link to the uploaded file")
+  stubRpc("ipas_add_document_file", (args) => {
+    requirePurchasing("ipas_add_document_file")
+    const doc = lockDocument("ipas_add_document_file", args.p_document_id)
+    const url = clean(args.p_url)
+    if (!url || !/^https?:\/\//i.test(url)) {
+      refuse("22023", "ipas_add_document_file: the file must be a link to the uploaded file")
     }
-    if ((url ?? null) === (doc.attachment_url ?? null)) return doc
-    const updated = updateRow("ipas_documents", doc, { attachment_url: url })
-    event(doc.ipas_id, url ? "document_attachment_set" : "document_attachment_removed", {
+    const row = insertRow("ipas_document_files", {
       document_id: doc.id,
-      label: documentLabel(updated),
+      url,
+      file_name: clean(args.p_file_name) ?? url.split("?")[0].split("/").pop(),
+      created_by: actorId,
     })
-    return updated
+    event(doc.ipas_id, "document_attachment_set", { document_id: doc.id, label: documentLabel(doc), file_id: row.id, file_name: row.file_name })
+    return row
+  })
+
+  stubRpc("ipas_remove_document_file", (args) => {
+    requirePurchasing("ipas_remove_document_file")
+    const file = findRow("ipas_document_files", args.p_file_id)
+    if (!file) refuse("P0002", `ipas_remove_document_file: file ${args.p_file_id} not found`)
+    const doc = lockDocument("ipas_remove_document_file", file.document_id)
+    const rows = rowsOf("ipas_document_files")
+    rows.splice(rows.indexOf(file), 1)
+    event(doc.ipas_id, "document_attachment_removed", { document_id: doc.id, label: documentLabel(doc), file_id: file.id, file_name: file.file_name })
+    return file
   })
 
   stubRpc("ipas_tick_document", (args) => {
@@ -1422,6 +1442,8 @@ export function stubIpasRpcs({
     }
     const rows = rowsOf("ipas_documents")
     rows.splice(rows.indexOf(doc), 1)
+    const files = rowsOf("ipas_document_files")
+    for (const file of files.filter((f) => f.document_id === doc.id)) files.splice(files.indexOf(file), 1)
     event(doc.ipas_id, "document_removed", {
       document_id: doc.id,
       label: documentLabel(doc),
@@ -1431,66 +1453,82 @@ export function stubIpasRpcs({
     return doc
   })
 
-  const ORIGIN_KEYS = ["shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on"]
+  // #1154 (ADR 0054): the IPAS Status, set by hand. The retired writers are refused as the database does
+  // once their grants are gone. The real functions are proven in the policy tier (1154-ipas-status).
+  stubRpc("ipas_set_supplier_origin", () => refuse("42501", "permission denied for function ipas_set_supplier_origin"))
+  stubRpc("ipas_set_typed_status", () => refuse("42501", "permission denied for function ipas_set_typed_status"))
 
-  const readDate = (fn, fields, key, label, current) => {
-    if (!(key in fields)) return current ?? null
-    const raw = fields[key]
-    if (raw === null) return null
-    if (typeof raw !== "string") refuse("22023", `${fn}: ${label} must be a date`)
-    const text = raw.trim()
-    if (text === "") return null
-    const real = /^\d{4}-\d{2}-\d{2}$/.test(text) && new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) === text
-    if (!real) refuse("22023", `${fn}: ${label} must be a date`)
-    return text
+  const STATUS_ORDER = [
+    "order_draft", "payment_approval", "ordered", "processing", "shipped", "in_transit",
+    "customs", "local_hub", "out_for_delivery", "delivered", "done",
+  ]
+  const STATUS_LABELS = {
+    order_draft: "Order-Draft", payment_approval: "Payment Approval", ordered: "Ordered",
+    processing: "Processing / Preparing Shipment", shipped: "Shipped / Picked Up", in_transit: "In Transit",
+    customs: "Customs / Port Hold", local_hub: "Arrived at Local Hub", out_for_delivery: "Out for Delivery",
+    delivered: "Delivered", done: "Done",
+  }
+  const IMPORT_ONLY = ["customs", "local_hub", "out_for_delivery"]
+  const orderOf = (step) => {
+    const at = STATUS_ORDER.indexOf(step)
+    return at === -1 ? null : at + 1
+  }
+  const manilaToday = () =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
+  const stepsOf = (ipasId) => rowsOf("ipas_status_steps").filter((s) => s.ipas_id === ipasId)
+  const requireStatusWriter = (fn) => {
+    if (!(purchasing || logistics || superAdmin)) refuse("42501", `${fn}: only Purchasing, Logistics or a Super Admin sets the status`)
+  }
+  const checkStatusDate = (fn, date, what) => {
+    if (date > manilaToday()) refuse("22023", `${fn}: ${what} cannot be after today`)
+    if (date < "2015-01-01") refuse("22023", `${fn}: ${what} cannot be before January 1, 2015`)
   }
 
-  stubRpc("ipas_set_supplier_origin", (args) => {
-    requirePurchasing("ipas_set_supplier_origin")
-    const fields = args.p_fields
-    if (!fields || typeof fields !== "object" || Array.isArray(fields)) {
-      refuse("22023", "ipas_set_supplier_origin: the fields must be an object")
+  stubRpc("ipas_set_status", (args) => {
+    requireStatusWriter("ipas_set_status")
+    const step = args.p_step
+    const wanted = orderOf(step)
+    if (!wanted) refuse("22023", `ipas_set_status: ${step ?? "null"} isn't a status step`)
+    if (step === "done") refuse("22023", "ipas_set_status: Done comes from filing; it can't be picked by hand")
+    const row = requireOpenIpas("ipas_set_status", args.p_ipas_id)
+    if (row.source === "local" && IMPORT_ONLY.includes(step)) {
+      refuse("22023", `ipas_set_status: ${row.number} is a Local IPAS; ${STATUS_LABELS[step]} is for Import only`)
     }
-    for (const key of Object.keys(fields)) {
-      if (!ORIGIN_KEYS.includes(key)) refuse("22023", `ipas_set_supplier_origin: ${key} isn't a Supplier Origin date`)
-    }
-    const row = requireOpenIpas("ipas_set_supplier_origin", args.p_ipas_id)
-    if (row.source !== "import") {
-      refuse("22023", `ipas_set_supplier_origin: ${row.number} is a Local IPAS; Supplier Origin is for Import only`)
-    }
-    const names = { shipped_out_on: "Shipped Out", onboard_on: "Onboard", arrived_in_ph_on: "Arrived in PH", arrived_in_whs_on: "Arrived in Whs." }
-    const next = {}
-    const changes = {}
-    for (const key of ORIGIN_KEYS) {
-      next[key] = readDate("ipas_set_supplier_origin", fields, key, names[key], row[key])
-      if (next[key] !== (row[key] ?? null)) changes[key] = { from: row[key] ?? null, to: next[key] }
-    }
-    if (!Object.keys(changes).length) return row
-    const updated = updateRow("ipas", row, next)
-    event(row.id, "supplier_origin_changed", { fields: changes })
+    const previous = row.status ?? null
+    const current = orderOf(row.status) ?? 0
+    const existing = stepsOf(row.id).find((s) => s.step === step)
+    const date = args.p_reached_on ?? (wanted <= current ? existing?.reached_on : null) ?? manilaToday()
+    checkStatusDate("ipas_set_status", date, `the ${STATUS_LABELS[step]} date`)
+    if (row.status === step && existing?.reached_on === date) return row
+    const gone = stepsOf(row.id).filter((s) => orderOf(s.step) > wanted)
+    deleteRows("ipas_status_steps", gone)
+    if (existing) updateRow("ipas_status_steps", existing, { reached_on: date, set_by: actorId, set_at: new Date().toISOString() })
+    else insertRow("ipas_status_steps", { ipas_id: row.id, step, reached_on: date, set_by: actorId })
+    const updated = updateRow("ipas", row, { status: step })
+    event(row.id, "status_changed", {
+      from: previous,
+      to: step,
+      date,
+      cleared: gone.sort((a, b) => orderOf(a.step) - orderOf(b.step)).map((s) => s.step),
+    })
     return updated
   })
 
-  stubRpc("ipas_set_typed_status", (args) => {
-    requirePurchasing("ipas_set_typed_status")
-    if (!["import_clearance", "delivered"].includes(args.p_status)) {
-      refuse("22023", "ipas_set_typed_status: Import Clearance and Delivered are the typed statuses")
-    }
-    const row = requireOpenIpas("ipas_set_typed_status", args.p_ipas_id)
-    if (args.p_status === "import_clearance" && row.source !== "import") {
-      refuse("22023", `ipas_set_typed_status: ${row.number} is a Local IPAS; Import Clearance is for Import only`)
-    }
-    const column = args.p_status === "import_clearance" ? "import_clearance" : "delivered"
-    const from = row[`${column}_on`] ?? null
-    const to = args.p_date ?? null
-    if (from === to) return row
-    const updated = updateRow("ipas", row, {
-      [`${column}_on`]: to,
-      [`${column}_typed_by`]: to === null ? null : actorId,
-      [`${column}_typed_at`]: to === null ? null : new Date().toISOString(),
-    })
-    event(row.id, to === null ? "status_cleared" : "status_typed", { status: args.p_status, from, to })
-    return updated
+  stubRpc("ipas_set_status_date", (args) => {
+    requireStatusWriter("ipas_set_status_date")
+    const step = args.p_step
+    const wanted = orderOf(step)
+    if (!wanted) refuse("22023", `ipas_set_status_date: ${step ?? "null"} isn't a status step`)
+    if (step === "done") refuse("22023", "ipas_set_status_date: Done comes from filing")
+    if (!args.p_on) refuse("22023", "ipas_set_status_date: give the date")
+    const row = requireOpenIpas("ipas_set_status_date", args.p_ipas_id)
+    const existing = stepsOf(row.id).find((s) => s.step === step)
+    if (!existing) refuse("22023", `ipas_set_status_date: ${row.number} has not reached ${STATUS_LABELS[step]}`)
+    checkStatusDate("ipas_set_status_date", args.p_on, `the ${STATUS_LABELS[step]} date`)
+    if (existing.reached_on === args.p_on) return row
+    updateRow("ipas_status_steps", existing, { reached_on: args.p_on, set_by: actorId, set_at: new Date().toISOString() })
+    event(row.id, "status_date_changed", { step, from: existing.reached_on, to: args.p_on })
+    return findRow("ipas", row.id)
   })
 
   stubRpc("ipas_stamp_actual_checking", (args) => {
@@ -1541,6 +1579,23 @@ export function stubIpasRpcs({
   const requireSection = (fn, section) => {
     if (![1, 3, 6, 7].includes(section)) refuse("22023", `${fn}: only sections 1, 2, 3 and 4 can be sent back`)
   }
+
+  // #1124: the payments Filing waits on, as the database words them.
+  stubRpc("ipas_payments_waiting_for_pesos", (args) => {
+    const ipas = rowsOf("ipas").find((row) => row.id === args.p_ipas_id)
+    const currency = String(ipas?.odoo_copy?.po?.currency ?? "").trim().toUpperCase()
+    if (!ipas || currency === "PHP" || currency === "") return []
+    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return rowsOf("ipas_payments")
+      .filter((row) => row.ipas_id === ipas.id && (row.php_debited === null || row.php_debited === undefined))
+      .sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)))
+      .map((row) => {
+        const [y, m, d] = String(row.paid_on).split("-").map(Number)
+        const kind = String(row.kind).replace(/_/g, " ")
+        const amount = Number(row.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        return `${kind.charAt(0).toUpperCase()}${kind.slice(1)} of ${currency} ${amount} on ${month[m - 1]} ${d}, ${y}`
+      })
+  })
 
   stubRpc("ipas_sign", (args) => {
     const { p_section: section, p_role: role } = args
@@ -1608,7 +1663,8 @@ export function stubIpasRpcs({
     let notify = []
     let filedIpas = ipas
     if (section === 7 && role === "approved") {
-      filedIpas = updateRow("ipas", ipas, { state: "filed", filed_at: new Date().toISOString() })
+      filedIpas = updateRow("ipas", ipas, { state: "filed", filed_at: new Date().toISOString(), status: "done" })
+      insertRow("ipas_status_steps", { ipas_id: ipas.id, step: "done", reached_on: manilaToday(), set_by: actorId })
       // Filing clears On-Hold (#597), as the database trigger does.
       if (ipas.on_hold) {
         filedIpas = updateRow("ipas", filedIpas, { on_hold: false, on_hold_note: null })
@@ -1695,7 +1751,9 @@ export function stubIpasRpcs({
     const row = findRow("ipas", args.p_ipas_id)
     if (!row) refuse("P0002", `ipas_reopen: IPAS ${args.p_ipas_id} not found`)
     if (row.state !== "filed") refuse("55000", `ipas_reopen: ${row.number} isn't filed`)
-    const updated = updateRow("ipas", row, { state: "open", filed_at: null, odoo_changed_since_filing: false })
+    deleteRows("ipas_status_steps", stepsOf(row.id).filter((s) => s.step === "done"))
+    const furthest = stepsOf(row.id).sort((a, b) => orderOf(b.step) - orderOf(a.step))[0]
+    const updated = updateRow("ipas", row, { state: "open", filed_at: null, odoo_changed_since_filing: false, status: furthest?.step ?? "order_draft" })
     const live = liveSignoffs(row.id).filter((s) => s.section === 7)
     for (const s of live) {
       updateRow("ipas_signoffs", s, {
@@ -1869,6 +1927,16 @@ export function stubIpasRpcs({
     const fromLabel = row.item_location_id ? (optionOf(row.item_location_id)?.label ?? null) : null
     const updated = updateRow("ipas", row, { item_location_id: to })
     event(row.id, "item_location_changed", { from: fromLabel, to: toLabel })
+    return updated
+  })
+
+  stubRpc("ipas_set_direct_delivery", (args) => {
+    if (!purchasing && !logistics && !superAdmin) refuse("42501", "ipas_set_direct_delivery: only Purchasing, Logistics or a Super Admin sets Direct delivery")
+    const row = requireOpenIpas("ipas_set_direct_delivery", args.p_ipas_id)
+    const on = args.p_on === true
+    if (on === (row.direct_delivery === true)) return row
+    const updated = updateRow("ipas", row, { direct_delivery: on })
+    event(row.id, "direct_delivery_changed", { to: on })
     return updated
   })
 }

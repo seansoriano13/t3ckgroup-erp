@@ -33,8 +33,8 @@ const odooPo = (name) => ({
 
 const NEW_FIELDS = ["daysWaiting", "late", "nextList", "nextSlip", "nextThing", "owner"]
 const SHAPED_KEYS = [
-  "buyerTrack", "computationLabel", "computationStatus", "id", "isCancelled", "isFiled", "landedCost", "number",
-  "poNumber", "purpose", "signoffs", "state", "supplier", "trackDone", "trackTotal",
+  "computationLabel", "computationStatus", "directDelivery", "id", "isCancelled", "isFiled", "landedCost", "number",
+  "onHold", "poNumber", "purpose", "signoffs", "state", "status", "statusReachedOn", "supplier",
   ...NEW_FIELDS,
 ].sort()
 
@@ -52,7 +52,15 @@ describe("ipasSorStandingService.summariesForSor", () => {
     const ipas = await ipasService.create({ poNumber, priority: "high", source, purpose: "project", sorIds: [sor.id] })
     // Raised long enough ago for waits to be countable.
     updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === ipas.id), { created_at: "2026-10-01T04:00:00Z" })
+    // A new IPAS reads Order-Draft, dated its raise day; the wait starts at that day.
+    updateRow("ipas_status_steps", db.internal.rowsOf("ipas_status_steps").find((r) => r.ipas_id === ipas.id), { reached_on: "2026-10-01" })
     return ipas
+  }
+
+  /** Move an IPAS to a status step on a day, the way the record's picker leaves it. */
+  const moveTo = (ipas, step, reachedOn) => {
+    updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === ipas.id), { status: step })
+    db.seed("ipas_status_steps", { ipas_id: ipas.id, step, reached_on: reachedOn })
   }
 
   const asDealTeam = (extra = {}) => stubIpasRpcs({ actorId: buyer.id, purchasing: false, reader: false, ...extra })
@@ -65,8 +73,8 @@ describe("ipasSorStandingService.summariesForSor", () => {
     const [row] = await ipasSorStandingService.summariesForSor(sor.id, { today: TODAY })
 
     expect(row.id).toBe(ipas.id)
-    expect(row.nextThing).toBe("With P.O.P — no payment carries proof")
-    expect(row.owner).toBe("finance")
+    expect(row.nextThing).toBe("Order-Draft")
+    expect(row.owner).toBe("purchasing")
     expect(row.daysWaiting).toBe(15)
     expect(row.late).toBe(false)
   })
@@ -74,7 +82,7 @@ describe("ipasSorStandingService.summariesForSor", () => {
   it("marks an order late once it has waited past its step's rule", async () => {
     stubIpasRpcs({ actorId: buyer.id })
     await raise()
-    await orderAgeingRulesService.setRule("with_pop", 10)
+    await orderAgeingRulesService.setRule("order_draft", 10)
     asDealTeam()
 
     const [row] = await ipasSorStandingService.summariesForSor(sor.id, { today: TODAY })
@@ -86,7 +94,7 @@ describe("ipasSorStandingService.summariesForSor", () => {
   it("does not say no Transmittal was raised when a draft already names the order", async () => {
     stubIpasRpcs({ actorId: buyer.id })
     const ipas = await raise()
-    updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === ipas.id), { delivered_on: "2026-10-14" })
+    moveTo(ipas, "delivered", "2026-10-14")
     const slip = db.seed("transmittals", {
       number: "TG03-D1", prepared_on: "2026-10-14", origin: "purchasing", priority: "high", entity: "T3ck Trading",
       check_warehouse: true, check_technical: false, state: "draft", prepared_by: buyer.id,
@@ -105,12 +113,12 @@ describe("ipasSorStandingService.summariesForSor", () => {
   it("gives the same standing as the Order Monitoring list for the same IPAS", async () => {
     stubIpasRpcs({ actorId: buyer.id })
     const ipas = await raise({ source: "import" })
-    updateRow("ipas", db.internal.rowsOf("ipas").find((r) => r.id === ipas.id), { arrived_in_ph_on: "2026-10-10" })
+    moveTo(ipas, "customs", "2026-10-10")
     db.seed("ipas_payments", {
       ipas_id: ipas.id, kind: "payment", paid_on: "2026-10-01", amount: 1000,
       method_id: options.payment_method["Dated Check"].id, proof_url: "https://x.test/proof.png",
     })
-    await orderAgeingRulesService.setRule("import_clearance", 3)
+    await orderAgeingRulesService.setRule("customs", 3)
 
     const listed = (await orderMonitoringService.list({ today: TODAY })).find((r) => r.id === ipas.id)
     asDealTeam()

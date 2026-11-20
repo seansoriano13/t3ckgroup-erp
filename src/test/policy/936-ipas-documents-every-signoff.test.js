@@ -69,7 +69,7 @@ describe("required documents at a later sign-off", () => {
         const prepared = await sign("outsider", ipas.id, 1, "prepared")
         expect(prepared.error).toBeNull()
 
-        await sql().query(`update public.ipas_documents set attachment_url = null where ipas_id = $1`, [ipas.id])
+        await sql().query(`delete from public.ipas_document_files where document_id in (select id from public.ipas_documents where ipas_id = $1)`, [ipas.id])
 
         const refused = await sign("ipasSigner", ipas.id, 1, "approved", { ready: false })
         expect(refused.error?.code).toBe("22023")
@@ -80,7 +80,7 @@ describe("required documents at a later sign-off", () => {
         const ipas = await raise()
         expect((await sign("outsider", ipas.id, 1, "prepared")).error).toBeNull()
 
-        await sql().query(`update public.ipas_documents set attachment_url = null where ipas_id = $1`, [ipas.id])
+        await sql().query(`delete from public.ipas_document_files where document_id in (select id from public.ipas_documents where ipas_id = $1)`, [ipas.id])
         expect((await sign("ipasSigner", ipas.id, 1, "approved", { ready: false })).error?.code).toBe("22023")
 
         const approved = await sign("ipasSigner", ipas.id, 1, "approved")

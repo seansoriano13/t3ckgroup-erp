@@ -74,12 +74,42 @@ describe("passwordService", () => {
       spy.mockRestore()
     })
 
-    it("throws when the provider refuses", async () => {
+    it("accepts a normal address that contains the letter s", async () => {
+      const spy = vi.spyOn(supabase.auth, "resetPasswordForEmail").mockResolvedValue({ error: null })
+      await expect(passwordService.requestPasswordReset("sean@t3ckgroup.com")).resolves.not.toThrow()
+      expect(spy).toHaveBeenCalledWith("sean@t3ckgroup.com", expect.anything())
+      spy.mockRestore()
+    })
+
+    it("turns a rate limit into a plain sentence", async () => {
       const spy = vi
         .spyOn(supabase.auth, "resetPasswordForEmail")
-        .mockResolvedValue({ error: new Error("rate limited") })
+        .mockResolvedValue({ error: Object.assign(new Error("rate limited"), { status: 429 }) })
 
-      await expect(passwordService.requestPasswordReset("a@t3ckgroup.test")).rejects.toThrow(/rate limited/)
+      await expect(passwordService.requestPasswordReset("a@t3ckgroup.test")).rejects.toThrow(
+        /too many reset emails/i,
+      )
+      spy.mockRestore()
+    })
+
+    it("turns a send failure into a plain sentence", async () => {
+      const spy = vi
+        .spyOn(supabase.auth, "resetPasswordForEmail")
+        .mockResolvedValue({ error: new Error("Error sending recovery email") })
+
+      await expect(passwordService.requestPasswordReset("a@t3ckgroup.test")).rejects.toThrow(
+        "We could not send the email just now. Try again in a few minutes, or ask IT.",
+      )
+      spy.mockRestore()
+    })
+
+    it("checks the address shape before calling the provider", async () => {
+      const spy = vi.spyOn(supabase.auth, "resetPasswordForEmail")
+
+      await expect(passwordService.requestPasswordReset("not-an-email")).rejects.toThrow(
+        "Enter a full email address, like name@t3ckgroup.com.",
+      )
+      expect(spy).not.toHaveBeenCalled()
       spy.mockRestore()
     })
   })

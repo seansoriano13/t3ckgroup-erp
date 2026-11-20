@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { IPAS_SUMMARY_KEYS, shapeIpasSummaries, shapeIpasSummary, signoffProgress } from "./ipasSummary"
+import { IPAS_SUMMARY_KEYS, shapeIpasSummaries, shapeIpasSummary, shortDay, signoffProgress } from "./ipasSummary"
 
 const row = (over = {}) => ({
   ipas_id: "ipas-1",
@@ -8,11 +8,10 @@ const row = (over = {}) => ({
   supplier: "Scorpe Technologies",
   purpose: "project",
   state: "open",
-  buyer_track: [
-    { key: "purchase_order", ticked: true, partial: false },
-    { key: "received_in_odoo", ticked: false, partial: true },
-    { key: "actual_checking", ticked: false, partial: false },
-  ],
+  status: "ordered",
+  status_reached_on: "2026-11-10",
+  on_hold: false,
+  direct_delivery: false,
   computation_status: "encoded",
   signoffs: {
     1: { prepared: true, approved: false },
@@ -50,14 +49,14 @@ describe("shapeIpasSummary", () => {
       supplier: "Scorpe Technologies",
       purpose: "project",
       state: "open",
-      trackDone: 1,
-      trackTotal: 3,
+      status: "ordered",
+      statusReachedOn: "2026-11-10",
       computationStatus: "encoded",
       computationLabel: "Encoded",
       isFiled: false,
       isCancelled: false,
     })
-    expect(summary.buyerTrack[1]).toEqual({ key: "received_in_odoo", label: "Received in Odoo", ticked: false, partial: true })
+    expect(summary).not.toHaveProperty("buyerTrack")
   })
 
   it("counts section sign-offs and calls section 7's Approved 'Filed'", () => {
@@ -78,8 +77,7 @@ describe("shapeIpasSummary", () => {
   it("never throws on a half-formed row", () => {
     expect(shapeIpasSummary(null)).toBeNull()
     expect(shapeIpasSummary({})).toBeNull()
-    const odd = shapeIpasSummary(row({ buyer_track: "nope", signoffs: [1, 2], supplier: "", computation_status: "weird" }))
-    expect(odd.buyerTrack).toEqual([])
+    const odd = shapeIpasSummary(row({ signoffs: [1, 2], supplier: "", computation_status: "weird" }))
     expect(odd.supplier).toBeNull()
     expect(odd.computationLabel).toBe("Encoding")
     expect(odd.signoffs.every((s) => s.done === 0)).toBe(true)
@@ -95,5 +93,25 @@ describe("shapeIpasSummaries / signoffProgress", () => {
 
   it("lists stored sections 1, 3, 6 and 7", () => {
     expect(signoffProgress(undefined).map((s) => s.section)).toEqual([1, 3, 6, 7])
+  })
+})
+
+describe("shapeIpasSummary: the IPAS Status (#1157)", () => {
+  it("reads the status, the day it was reached, On-Hold and Direct delivery", () => {
+    const summary = shapeIpasSummary(row({ status: "in_transit", status_reached_on: "2026-11-18", on_hold: true, direct_delivery: false }))
+
+    expect(summary).toMatchObject({ status: "in_transit", statusReachedOn: "2026-11-18", onHold: true, directDelivery: false })
+  })
+
+  it("reads an unknown or missing status as none", () => {
+    expect(shapeIpasSummary(row({ status: "nonsense" })).status).toBeNull()
+    expect(shapeIpasSummary(row({ status: undefined })).status).toBeNull()
+  })
+
+  it("writes a day short, with the year only when it is not this year's", () => {
+    const today = new Date(2026, 10, 20)
+    expect(shortDay("2026-11-18", today)).toBe("Nov 18")
+    expect(shortDay("2025-12-02", today)).toBe("Dec 2, 2025")
+    expect(shortDay(null, today)).toBe("")
   })
 })

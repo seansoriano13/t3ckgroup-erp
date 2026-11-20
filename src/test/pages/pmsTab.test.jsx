@@ -28,7 +28,10 @@ const ipasSummary = {
   supplier: "Scorpe Technologies",
   purpose: "project",
   state: "open",
-  buyer_track: [{ key: "purchase_order", ticked: true, partial: false }],
+  status: "ordered",
+  status_reached_on: "2026-11-10",
+  on_hold: false,
+  direct_delivery: false,
   computation_status: "encoded",
   signoffs: { 1: { prepared: true, approved: false }, 3: { prepared: false, approved: false }, 7: { received: false, noted: false, checked: false, approved: false } },
 };

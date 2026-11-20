@@ -46,6 +46,7 @@ function NewTransmittal() {
   });
 
   const [actionsSlot, setActionsSlot] = useState(null);
+  const [dirty, setDirty] = useState(false);
   const close = () => navigate(LIST_PATH);
 
   return (
@@ -54,6 +55,8 @@ function NewTransmittal() {
       onOpenChange={(next) => !next && close()}
       size="wide"
       expandable
+      dirty={dirty}
+      discardWhat="Transmittal"
       crumbs={["Transmittal", "Raise a Transmittal"]}
       actionsRef={setActionsSlot}
     >
@@ -75,6 +78,7 @@ function NewTransmittal() {
               navigate(`/purchasing/transmittals/${id}`, { state: extra?.backToIpas ? { backToIpas: extra.backToIpas } : undefined })
             }
             actionsSlot={actionsSlot}
+            onDirtyChange={setDirty}
           />
         </>
       )}

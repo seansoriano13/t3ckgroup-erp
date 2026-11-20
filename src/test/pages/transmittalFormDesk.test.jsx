@@ -79,3 +79,52 @@ describe("Transmittal form, P0 lines beside the slip", () => {
     expect(strip).toHaveTextContent("Pick a priority");
   });
 });
+
+/** What a P0 line has left (#1126): the picker shows it, and a line over it asks for a remark. */
+describe("Transmittal form, what is left of a P0 line", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service.pickablePoLines.mockResolvedValue([
+      { ...pick(1, "Cutter"), quantity: 5, left: 0 },
+      { ...pick(2, "Blade"), quantity: 5, left: 2 },
+    ]);
+  });
+
+  it("shows left on each line, and a line with nothing left is still added", async () => {
+    const user = setupUser();
+    renderWithProviders(<MemoryRouter><TransmittalForm /></MemoryRouter>);
+
+    const labels = await screen.findAllByTestId("pick-left");
+    expect(labels.map((l) => l.textContent)).toEqual(["0 of 5 left", "2 of 5 left"]);
+
+    await user.click(await screen.findByRole("button", { name: /Cutter/ }));
+    expect(screen.getByText("On the slip · 1")).toBeInTheDocument();
+  });
+
+  it("asks for a remark on a line over what is left, and Submit waits for it", async () => {
+    const user = setupUser();
+    renderWithProviders(<MemoryRouter><TransmittalForm /></MemoryRouter>);
+
+    await user.click(await screen.findByRole("button", { name: /Cutter/ }));
+    expect(screen.getByText(/5 more than this P0 line has left/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Add a remark on each line that is more than what is left");
+
+    await user.type(screen.getByLabelText("Remark"), "Replaces the NA unit");
+    expect(screen.getByRole("status")).not.toHaveTextContent("Add a remark");
+  });
+
+  it("says a quantity is more than 0, and refuses 2.5 pcs", async () => {
+    const user = setupUser();
+    renderWithProviders(<MemoryRouter><TransmittalForm /></MemoryRouter>);
+
+    await user.click(await screen.findByRole("button", { name: /Blade/ }));
+    const quantity = screen.getByLabelText("Quantity");
+    await user.clear(quantity);
+    await user.type(quantity, "-3");
+    expect(screen.getByRole("alert")).toHaveTextContent("A quantity is more than 0.");
+
+    await user.clear(quantity);
+    await user.type(quantity, "2.5");
+    expect(screen.getByRole("alert")).toHaveTextContent("pcs takes a whole number.");
+  });
+});

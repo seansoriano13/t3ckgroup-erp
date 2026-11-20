@@ -47,7 +47,7 @@ function BidDecisionsQueue() {
     (i) => !needle || [i.ref, i.title, i.typeLabel, i.person.name, i.person.dept].some((f) => (f || "").toLowerCase().includes(needle)),
   );
 
-  if (!isBidDecider) return <Navigate to="/approvals" replace />;
+  if (!isBidDecider) return <Navigate to="/" replace />;
 
   if (pendingQuery.isError) {
     return <QueryError className="m-6" title="Bid Decisions could not be loaded." onRetry={pendingQuery.refetch} />;

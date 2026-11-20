@@ -25,36 +25,36 @@ describe("orderMonitoringService ageing rules", () => {
   })
 
   it("reads back the days once a rule is set", async () => {
-    await orderAgeingRulesService.setRule("import_clearance", 3)
+    await orderAgeingRulesService.setRule("customs", 3)
 
-    expect(daysOf(await orderAgeingRulesService.getRules(), "import_clearance")).toBe(3)
+    expect(daysOf(await orderAgeingRulesService.getRules(), "customs")).toBe(3)
   })
 
   it("replaces a rule rather than adding a second one for the same step", async () => {
-    await orderAgeingRulesService.setRule("create_bill", 7)
-    await orderAgeingRulesService.setRule("create_bill", 10)
+    await orderAgeingRulesService.setRule("in_transit", 7)
+    await orderAgeingRulesService.setRule("in_transit", 10)
 
     const rules = await orderAgeingRulesService.getRules()
     expect(rules).toHaveLength(KEYS.length)
-    expect(daysOf(rules, "create_bill")).toBe(10)
+    expect(daysOf(rules, "in_transit")).toBe(10)
   })
 
   it("clearing a rule reads back as no rule", async () => {
-    await orderAgeingRulesService.setRule("import_clearance", 3)
-    await orderAgeingRulesService.setRule("import_clearance", null)
+    await orderAgeingRulesService.setRule("customs", 3)
+    await orderAgeingRulesService.setRule("customs", null)
 
-    expect(daysOf(await orderAgeingRulesService.getRules(), "import_clearance")).toBeNull()
+    expect(daysOf(await orderAgeingRulesService.getRules(), "customs")).toBeNull()
   })
 
   it("refuses a day count that is not a positive whole number, and writes nothing", async () => {
-    await expect(orderAgeingRulesService.setRule("create_bill", 0)).rejects.toThrow()
-    await expect(orderAgeingRulesService.setRule("create_bill", -2)).rejects.toThrow()
-    await expect(orderAgeingRulesService.setRule("create_bill", 2.5)).rejects.toThrow()
+    await expect(orderAgeingRulesService.setRule("in_transit", 0)).rejects.toThrow()
+    await expect(orderAgeingRulesService.setRule("in_transit", -2)).rejects.toThrow()
+    await expect(orderAgeingRulesService.setRule("in_transit", 2.5)).rejects.toThrow()
 
-    expect(daysOf(await orderAgeingRulesService.getRules(), "create_bill")).toBeNull()
+    expect(daysOf(await orderAgeingRulesService.getRules(), "in_transit")).toBeNull()
   })
 
-  it("refuses a step that is not one of the ten", async () => {
+  it("refuses a step that is not one of the steps", async () => {
     await expect(orderAgeingRulesService.setRule("not_a_step", 3)).rejects.toThrow()
   })
 })
@@ -104,9 +104,15 @@ function seedOrder({
   shippedOutOn = null,
   importClearanceOn = null,
   lineName = "[10GPT00030] Greenspirit 2 Cutter SC",
+  status = null,
+  statusOn = null,
 } = {}) {
   seq += 1
-  return db.seed("ipas", {
+  // The IPAS Status (#1156): a Delivered date puts the order at Delivered, otherwise Order-Draft
+  // unless the test names a step. The step is dated `statusOn`, else the Delivered date, else the raise day.
+  const step = status ?? (deliveredOn ? "delivered" : "order_draft")
+  const row = db.seed("ipas", {
+    status: step,
     number: `TGIPAS_${900 + seq}`,
     po_number: `P0${9000 + seq}`,
     priority: "high",
@@ -130,6 +136,14 @@ function seedOrder({
     odoo_fetched_at: at(15),
     created_at: createdAt,
   })
+  if (state !== "cancelled") {
+    db.seed("ipas_status_steps", {
+      ipas_id: row.id,
+      step,
+      reached_on: statusOn ?? deliveredOn ?? createdAt.slice(0, 10),
+    })
+  }
+  return row
 }
 
 /** A payment on the IPAS; with a proof it ticks With P.O.P. */
@@ -220,15 +234,15 @@ describe("orderMonitoringService: what needs doing", () => {
   const listAll = (options = {}) => orderMonitoringService.list({ today: TODAY, ...options })
 
   describe("grouping and the next thing", () => {
-    it("puts an Import six days past Arrived in PH, with no Import Clearance, past a three-day rule", async () => {
-      const ipas = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
-      seedPayment(ipas)
-      await orderAgeingRulesService.setRule("import_clearance", 3)
+    it("puts an Import In Transit past its rule into Needs chasing, counted from In Transit's date", async () => {
+      const ipas = seedOrder({ source: "import", status: "in_transit", statusOn: "2026-10-10" })
+      await orderAgeingRulesService.setRule("in_transit", 3)
 
       const row = rowsFor(await listAll(), ipas)
 
       expect(row.group).toBe("needs_chasing")
-      expect(row.next.step).toBe("import_clearance")
+      expect(row.next.step).toBe("in_transit")
+      expect(row.next.label).toBe("In Transit")
       expect(row.next.owner).toBe("others")
       expect(row.daysWaiting).toBe(6)
       expect(row.late).toBe(true)
@@ -236,8 +250,7 @@ describe("orderMonitoringService: what needs doing", () => {
     })
 
     it("leaves the same Import waiting on someone else, and never late, with no rule", async () => {
-      const ipas = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
-      seedPayment(ipas)
+      const ipas = seedOrder({ source: "import", status: "in_transit", statusOn: "2026-10-10" })
 
       const row = rowsFor(await listAll(), ipas)
 
@@ -246,14 +259,32 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.ruleDays).toBeNull()
     })
 
-    it("sends a payment with no proof of payment to Finance as With P.O.P", async () => {
-      const ipas = seedOrder()
-      seedPayment(ipas, { proof: false })
+    it("counts an order from the day its step was reached, not from when it was raised", async () => {
+      const ipas = seedOrder({ status: "ordered", statusOn: "2026-10-14", createdAt: at(1) })
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.step).toBe("with_pop")
-      expect(row.next.owner).toBe("finance")
+      expect(row.next.step).toBe("ordered")
+      expect(row.daysWaiting).toBe(2)
+    })
+
+    it("puts an Order-Draft with Purchasing, waiting on us", async () => {
+      const ipas = seedOrder()
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.step).toBe("order_draft")
+      expect(row.next.owner).toBe("purchasing")
+      expect(row.group).toBe("waiting_on_us")
+    })
+
+    it("puts Payment Approval with the order approvers, waiting on us", async () => {
+      const ipas = seedOrder({ status: "payment_approval" })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.step).toBe("payment_approval")
+      expect(row.next.owner).toBe("order_approvers")
       expect(row.group).toBe("waiting_on_us")
     })
 
@@ -464,15 +495,35 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.group).toBe("waiting_on_us")
     })
 
-    it("shows an RFQ-only order as no Purchase Order yet, owed by Purchasing", async () => {
+    it("shows a freshly raised order as Order-Draft, owed by Purchasing", async () => {
       const ipas = seedOrder({ poState: "draft", createdAt: at(12) })
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.step).toBe("purchase_order")
+      expect(row.next.step).toBe("order_draft")
       expect(row.next.owner).toBe("purchasing")
-      expect(row.next.label).toBe("Purchase Order — no PO confirmed yet")
+      expect(row.next.label).toBe("Order-Draft")
       expect(row.daysWaiting).toBe(4)
+    })
+
+    it("still shows Delivered, no Transmittal raised, for a Delivered order", async () => {
+      const ipas = seedOrder({ status: "delivered", statusOn: "2026-10-13" })
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.next.label).toBe("Delivered — no Transmittal raised")
+      expect(row.daysWaiting).toBe(3)
+    })
+
+    it("never lets an On-Hold order go late", async () => {
+      const ipas = seedOrder({ status: "in_transit", statusOn: "2026-10-01" })
+      db.internal.rowsOf("ipas").find((r) => r.id === ipas.id).on_hold = true
+      await orderAgeingRulesService.setRule("in_transit", 1)
+
+      const row = rowsFor(await listAll(), ipas)
+
+      expect(row.late).toBe(false)
+      expect(row.next.label).toBe("On-Hold")
     })
 
     it("files a filed order into the Filed group", async () => {
@@ -526,10 +577,9 @@ describe("orderMonitoringService: what needs doing", () => {
 
   describe("the list", () => {
     it("filters to one group when asked", async () => {
-      const late = seedOrder({ source: "import", arrivedInPh: "2026-10-10" })
-      seedPayment(late)
+      const late = seedOrder({ source: "import", status: "customs", statusOn: "2026-10-10" })
       const waiting = seedOrder({ poState: "draft" })
-      await orderAgeingRulesService.setRule("import_clearance", 3)
+      await orderAgeingRulesService.setRule("customs", 3)
 
       const rows = await listAll({ group: "needs_chasing" })
 
@@ -553,7 +603,9 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.currency).toBe("Php")
       expect(row.value).toBe(1000)
       expect(row.ageDays).toBe(15)
-      expect(row.buyerTrack.find((item) => item.key === "purchase_order").ticked).toBe(true)
+      expect(row).not.toHaveProperty("buyerTrack")
+      expect(row.status).toBe("order_draft")
+      expect(row.statusSteps).toEqual([{ step: "order_draft", on: "2026-10-01" }])
       expect(row.transmittals).toMatchObject({ count: 1, naCount: 1 })
     })
 
@@ -569,13 +621,11 @@ describe("orderMonitoringService: what needs doing", () => {
 
   describe("counts", () => {
     it("tiles match the groups, and value open totals each currency, leaving out filed", async () => {
-      const late = seedOrder({ source: "import", arrivedInPh: "2026-10-10", lines: [LINE(20001, 1000)] })
-      seedPayment(late)
+      seedOrder({ source: "import", status: "customs", statusOn: "2026-10-10", lines: [LINE(20001, 1000)] })
       seedOrder({ poState: "draft", lines: [LINE(20002, 2000)] })
-      const importOther = seedOrder({ source: "import", arrivedInPh: "2026-10-14", currency: "USD", lines: [LINE(20003, 500)] })
-      seedPayment(importOther)
+      seedOrder({ source: "import", status: "customs", statusOn: "2026-10-14", currency: "USD", lines: [LINE(20003, 500)] })
       seedOrder({ state: "filed", filedAt: at(3), deliveredOn: "2026-10-01", computationStatus: "lc_odoo_done", lines: [LINE(20004, 9999)] })
-      await orderAgeingRulesService.setRule("import_clearance", 3)
+      await orderAgeingRulesService.setRule("customs", 3)
 
       const counts = await orderMonitoringService.counts({ today: TODAY })
 
@@ -687,42 +737,6 @@ describe("orderMonitoringService: what needs doing", () => {
     })
   })
 
-  describe("the register (#264): the track", () => {
-    it("marks each step stamped, typed or pending, as the IPAS page does", async () => {
-      const ipas = seedOrder({ source: "import", importClearanceOn: "2026-10-12" })
-      seedPayment(ipas)
-
-      const row = rowsFor(await listAll(), ipas)
-      const mark = (key) => row.buyerTrack.find((item) => item.key === key).mark
-
-      expect(row.buyerTrack).toHaveLength(7)
-      expect(mark("purchase_order")).toBe("stamped")
-      expect(mark("with_pop")).toBe("stamped")
-      expect(mark("import_clearance")).toBe("typed")
-      expect(mark("delivered")).toBe("pending")
-      expect(mark("received_in_odoo")).toBe("pending")
-      expect(mark("create_bill")).toBe("pending")
-      expect(mark("actual_checking")).toBe("pending")
-    })
-
-    it("marks a typed Delivered date typed, and one stamped from a Transmittal stamped", async () => {
-      const typed = seedOrder({ deliveredOn: "2026-10-14" })
-      const slipped = seedOrder()
-      seedSlip({ stages: { warehouse_checking: at(10) }, lines: [{ ipas: slipped, odooPoLineId: slipped.odoo_copy.lines[0].line_id }] })
-
-      const rows = await listAll()
-
-      expect(rowsFor(rows, typed).buyerTrack.find((i) => i.key === "delivered").mark).toBe("typed")
-      expect(rowsFor(rows, slipped).buyerTrack.find((i) => i.key === "delivered").mark).toBe("stamped")
-    })
-
-    it("draws no Import Clearance for a Local order", async () => {
-      const ipas = seedOrder({ source: "local" })
-
-      expect(rowsFor(await listAll(), ipas).buyerTrack.map((i) => i.key)).not.toContain("import_clearance")
-    })
-  })
-
   describe("the register (#264): the hand-off", () => {
     const lineOf = (ipas) => ipas.odoo_copy.lines[0].line_id
 
@@ -788,30 +802,14 @@ describe("orderMonitoringService: what needs doing", () => {
     })
   })
 
-  describe("the register (#264): Supplier Origin on Delivered", () => {
-    it("gives an Import order waiting on Delivered its latest Supplier Origin date", async () => {
-      const ipas = seedOrder({
-        source: "import",
-        shippedOutOn: "2026-10-02",
-        onboardOn: "2026-10-05",
-        importClearanceOn: "2026-10-12",
-      })
-      seedPayment(ipas)
+  describe("the register (#264): the IPAS Status", () => {
+    it("carries the status and each reached step's day", async () => {
+      const ipas = seedOrder({ source: "import", status: "in_transit", statusOn: "2026-10-12" })
 
       const row = rowsFor(await listAll(), ipas)
 
-      expect(row.next.step).toBe("delivered")
-      expect(row.next.detail).toEqual({ label: "Onboard", on: "2026-10-05" })
-    })
-
-    it("gives a Local order waiting on Delivered no such date", async () => {
-      const ipas = seedOrder({ source: "local" })
-      seedPayment(ipas)
-
-      const row = rowsFor(await listAll(), ipas)
-
-      expect(row.next.step).toBe("delivered")
-      expect(row.next.detail).toBeNull()
+      expect(row.status).toBe("in_transit")
+      expect(row.statusSteps).toEqual([{ step: "in_transit", on: "2026-10-12" }])
     })
   })
 })

@@ -8,10 +8,9 @@ import { matchesSearch, sorSearchFields } from "./sorSearch";
 import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
 import {
-  buildBuyerTrack,
+  buildBuyerFacts,
   missingSuggestions,
   shapeDocuments,
-  supplierOriginOf,
   unfiledRequiredDocuments,
 } from "./ipasDocuments";
 import { section7Signoffs, sectionSignoffs, shapeSignoffs } from "./ipasSignoffs";
@@ -19,11 +18,13 @@ import {
   IPAS_COMPUTATION_STATUS,
   IPAS_LANDED_COST_SPLIT,
   IPAS_LANDED_COST_STATUS,
+  IPAS_ON_HOLD_FILTER,
   IPAS_OVERRIDE,
   IPAS_OVERRIDE_FIELDS,
   IPAS_PURPOSE,
   IPAS_SECTION_3_APPROVED_FILTER,
   IPAS_STATE,
+  IPAS_STATUSES,
   IPAS_WARNING,
 } from "../constants/ipas";
 
@@ -273,7 +274,8 @@ export function shapeIpas(row, sors = [], extras = null) {
     },
     // The required documents nobody has ticked: what Approving section 7 warns about.
     filingWarnings: unfiledRequiredDocuments(sections.documents ?? [], row.source),
-    supplierOrigin: supplierOriginOf(row),
+    // The IPAS Status steps reached, in order, each with its day and who set it (ADR 0054).
+    statusSteps: shapeStatusSteps(row.status_steps),
     entity: ipasEntity(row),
     supplier: ipasSupplier(row),
     currency: ipasCurrency(row),
@@ -296,6 +298,31 @@ export function shapeIpas(row, sors = [], extras = null) {
   };
 }
 
+/**
+ * The status steps an IPAS has reached (`ipas_status_steps` rows), in the status order:
+ * `[{ step, on, by: { id, name } | null, at }]`. Anything else (null, an unknown step) is left out.
+ */
+export function shapeStatusSteps(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((row) => IPAS_STATUSES.includes(row?.step))
+    .map((row) => ({
+      step: row.step,
+      on: row.reached_on ? String(row.reached_on).slice(0, 10) : null,
+      by: row.setter?.id ? { id: row.setter.id, name: row.setter.name ?? null } : null,
+      at: row.set_at ?? null,
+    }))
+    .sort((a, b) => IPAS_STATUSES.indexOf(a.step) - IPAS_STATUSES.indexOf(b.step));
+}
+
+/** The day an IPAS reached a status step, or null while it has not. */
+export const statusDayOf = (ipas, step) => (ipas?.statusSteps ?? []).find((item) => item.step === step)?.on ?? null;
+
+/** The Delivered day of a raw row: its Delivered status step, else the old typed column. */
+export function deliveredDayOf(row) {
+  const step = shapeStatusSteps(row?.status_steps).find((item) => item.step === "delivered");
+  return step?.on ?? row?.delivered_on ?? null;
+}
+
 /** The browsers' own words for a request that never reached the server. */
 const NETWORK_FAILURE = /^(?:typeerror:\s*)?(failed to fetch|networkerror when attempting to fetch|load failed|network request failed)/i;
 
@@ -311,11 +338,23 @@ export const REFUSAL_MESSAGES = {
   [REFUSAL.DUPLICATE]: "That already exists.",
 };
 
+const RAW_DATABASE_TEXT = /(duplicate key value|violates (?:unique|check|foreign key|not-null) constraint|numeric field overflow|Failing row contains|value too long for type|out of range for type|null value in column)/i;
+const RAW_DATABASE_MESSAGES = {
+  "23505": "That already exists.",
+  "23514": "One of the values is not allowed. Check the numbers and dates and try again.",
+  "22003": "One of the numbers is too big.",
+  "22001": "One of the texts is too long.",
+};
+const RAW_DATABASE_FALLBACK = "One of the values is not allowed. Check what you typed and try again.";
+
 /** A database error's message without the RPC's own name in front of it; a dropped connection in plain words. */
 export function ipasErrorMessage(error, fallback = "Something went wrong.") {
   const raw = error?.message;
   if (!raw || typeof raw !== "string") return REFUSAL_MESSAGES[error?.code] ?? fallback;
   if (NETWORK_FAILURE.test(raw.trim())) return IPAS_OFFLINE_MESSAGE;
+  // The functions check first and answer in words (spec #1123, D2). Raw Postgres text that still gets through
+  // (unique, check or size violations) never reaches a person.
+  if (RAW_DATABASE_TEXT.test(raw)) return RAW_DATABASE_MESSAGES[error?.code] ?? RAW_DATABASE_FALLBACK;
   // Database refusals lead with the function name (ipas_create:, transmittal_check:),
   // or with "packing list:" for the Packing List RPCs.
   // "transmittal:" too: the Transmittal checks lead with it (#: "Transmittal: line 1 isn't on …" read as a code).
@@ -334,8 +373,11 @@ export function filterIpas(rows, { state = "all", entity = null, purpose = null,
     if (state !== "all" && row.state !== state) return false;
     if (entity && row.entity !== entity) return false;
     if (purpose && row.purpose !== purpose) return false;
-    // The IPAS Status is worked out by the IPAS figures (utils/ipasFigures.js), which the list puts on each row.
-    if (status && row.figures?.status !== status) return false;
+    // The IPAS Status is the stored step, read through the IPAS figures the list puts on each row.
+    // On-Hold is a flag over the step, so it filters on the flag.
+    if (status === IPAS_ON_HOLD_FILTER) {
+      if (row.figures?.onHold !== true) return false;
+    } else if (status && row.figures?.status !== status) return false;
     if (computationStatus === IPAS_SECTION_3_APPROVED_FILTER) {
       if (!row.section3Approved) return false;
     } else if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) {
@@ -442,7 +484,8 @@ function shapeDocumentsAndTrack(row, { documents = [], options = [], payments = 
   // are set; the Transmittals fill what they don't.
   const derived = deriveTransmittalTrack(slips, {
     itemLocationId: row.item_location_id,
-    deliveredOn: row.delivered_on,
+    // Delivered is a status step now (ADR 0054); the old typed column only carries what was typed before.
+    deliveredOn: deliveredDayOf(row),
     actualCheckingBy: row.actual_checking_by,
     actualCheckingAt: row.actual_checking_at,
   });
@@ -453,7 +496,7 @@ function shapeDocumentsAndTrack(row, { documents = [], options = [], payments = 
     itemLocation: locationId ? (options.find((option) => option.id === locationId) ?? null) : null,
     itemLocationSource: derived.itemLocation.source,
     slips: derived.transmittals,
-    buyerTrack: buildBuyerTrack(row, statuses, {
+    buyerFacts: buildBuyerFacts(row, statuses, {
       hasProof: Boolean(paymentSummary?.hasProof),
       proofCount,
       transmittal: derived.governed ? derived : null,

@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import {
   RATE_TYPES,
+  assertPercentagesInRange,
   assertPercentagesSumTo100,
   calculateCommissionBreakdown,
   splitSalesShareForRoles,
@@ -8,6 +9,12 @@ import {
   aggregateOpportunityCommissions,
 } from "../utils/commission";
 import { getCurrentLocalDate } from "../utils/formatDate";
+
+/** Refuses a list of percentages that is out of range or does not sum to 100, before anything is written. */
+function assertValidPercentages(list, { label }) {
+  assertPercentagesInRange(list, { label });
+  assertPercentagesSumTo100(list, { label });
+}
 
 const RATE_TYPE_LIST = [RATE_TYPES.VAT, RATE_TYPES.WITHHOLDING, RATE_TYPES.POOL];
 
@@ -172,6 +179,7 @@ async function createRate({ rateType, percent, effectiveFrom }, actorId) {
   if (!effectiveFrom) {
     throw new Error("Effective-from date is required.");
   }
+  assertPercentagesInRange([percent], { label: "Rate percent" });
 
   const { data, error } = await supabase
     .from("commission_rates")
@@ -194,10 +202,7 @@ async function createRate({ rateType, percent, effectiveFrom }, actorId) {
 async function saveDepartmentAllocations(departments, actorId) {
   await requireSuperAdmin(actorId);
 
-  assertPercentagesSumTo100(
-    departments.map((department) => department.allocationPercent),
-    { label: "Department allocations" },
-  );
+  assertValidPercentages(departments.map((department) => department.allocationPercent), { label: "Department allocations" });
 
   for (const department of departments) {
     const { error } = await supabase
@@ -236,10 +241,7 @@ async function getPositions(departmentId) {
 async function savePositionAllocations(departmentId, positions, actorId) {
   await requireSuperAdmin(actorId);
 
-  assertPercentagesSumTo100(
-    positions.map((position) => position.allocationPercent),
-    { label: "Position allocations" },
-  );
+  assertValidPercentages(positions.map((position) => position.allocationPercent), { label: "Position allocations" });
 
   const existing = positions.filter((position) => position.id);
   const fresh = positions.filter((position) => !position.id);
@@ -282,10 +284,7 @@ async function savePositionAllocations(departmentId, positions, actorId) {
 async function saveSplitsForProjectType(projectType, splits, actorId) {
   await requireSalesDirectorOrSuperAdmin(actorId);
 
-  assertPercentagesSumTo100(
-    splits.map((split) => split.percent),
-    { label: "Commission Split percentages" },
-  );
+  assertValidPercentages(splits.map((split) => split.percent), { label: "Commission Split percentages" });
 
   const { error } = await supabase.from("commission_splits").upsert(
     splits.map((split) => ({

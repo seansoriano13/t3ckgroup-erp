@@ -2,7 +2,7 @@
  * #621 (spec #609): verify_form_token recognises an LWOP token, returns the record's live status,
  * and the reason stays behind lwop_leaves RLS (HR and the employee only).
  */
-import { describe, it, expect, beforeAll, afterEach } from "vitest"
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest"
 import { createHash } from "node:crypto"
 import { ids, clientFor, anonymousClient, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
@@ -10,7 +10,16 @@ import { serviceClient } from "./support/stack.js"
 const svc = () => serviceClient()
 const cleanup = []
 
+// #1134: the verify limiter is keyed on the caller address, so earlier anonymous calls in the
+// same run can exhaust it. Start and leave every test with an empty limiter.
+const resetLimiter = async () => {
+    await serviceClient().from("verification_rate_limits").delete().neq("ip_address", "")
+}
+
+beforeEach(resetLimiter)
+
 afterEach(async () => {
+    await resetLimiter()
     while (cleanup.length) await cleanup.pop()()
 })
 

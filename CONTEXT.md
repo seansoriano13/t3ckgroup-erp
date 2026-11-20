@@ -932,7 +932,7 @@ unconfirmed RFQ. A Project purchase names the SOR or SORs it buys for and
 appears in each one's PMS; an Inventory, Supplies or Events purchase names none.
 Numbered in one series across all four entities, carrying on from the sheet's.
 Anyone who can read an SOR sees a summary of each Project IPAS naming it on
-that SOR (number, PO, supplier, state, buyer track, costing and sign-off
+that SOR (number, PO, supplier, state, IPAS Status, costing and sign-off
 progress) and never its payments, charges, bank details or Landed Cost; the full
 IPAS opens only for its own readers.
 Its fields are defined by the company's own IPAS sheet, not by this glossary.
@@ -959,9 +959,11 @@ What a foreign-currency payment actually cost in pesos, read off the bank
 statement (the column is still called `php_debited`). Optional: Finance may
 record the payment the day it is made and fill this in when the statement
 arrives. While it is blank, that payment is taken at its payment date's
-Reference Rate and the Landed Cost is an estimate; the Computation status cannot
-reach LC Odoo Done, and a payment cannot be saved blank once it has. A PHP
-payment has no such figure, since its amount is already pesos.
+Reference Rate and the Landed Cost is an estimate. The Computation status may
+still reach LC Odoo Done with an estimate, and a payment can still be added or
+blanked at LC Odoo Done; it is Filing that waits for the pesos (it names each
+payment still blank), and only then does Landed Cost go final. A PHP payment has
+no such figure, since its amount is already pesos.
 _Avoid_: PHP debited (the old label), Peso equivalent, Converted amount
 
 **Payment scheme**:
@@ -974,7 +976,7 @@ _Avoid_: Payment terms (what the supplier agreed to, not what was done), Payment
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1,
-2 and 3 are approved and the Computation status is LC Odoo Done, since filing
+2 and 3 are approved, the Computation status is LC Odoo Done and every foreign-currency payment has its pesos, since filing
 freezes a Landed Cost that would otherwise still be provisional. Section 4 does
 not open until sections 1, 2 and 3 are all approved; sign-offs already given on
 an IPAS before the gate existed stay, and only the ones still to be given wait. A filed IPAS is frozen: its copy of the Odoo purchase order,
@@ -1002,22 +1004,56 @@ section 4 consequence and confirmation as a Return.
 _Avoid_: Unapprove, Revert
 
 **IPAS Status**:
-Where an IPAS stands, the six-step status Purchasing kept on the IPAS sheet, now
-worked out from the IPAS itself: Pending (raised, nothing done yet), Requested
-(section 1 sent for approval, nothing paid), Ongoing (a payment recorded, or the
-IPAS worked on since it was raised), Paid (a full payment recorded), and Done
-(filed). On-Hold (stopped on purpose — a supplier issue, waiting on the client) is
-the one a person sets, at any point, and clearing it returns the IPAS to the status
-it has earned. A cancelled IPAS has none. Paid and Done settle the IPAS's
-Remaining balance, since tax withheld from a payment would otherwise leave it
-owing forever. An On-Hold order does not go late. Separate from the IPAS's state
-(open, filed, cancelled) and from its Computation status.
-_Avoid_: Payment status, Progress
+Where an IPAS's order stands, set by hand by anyone with Purchasing access or
+Logistics access, in the team's own words: Order-Draft, Payment Approval, Ordered,
+Processing / Preparing Shipment, Shipped / Picked Up, In Transit, Customs / Port
+Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done. A Local purchase has
+no Customs / Port Hold, Arrived at Local Hub or Out for Delivery. Customs / Port
+Hold is the normal customs step, not trouble. The local hub is the forwarder's or
+courier's warehouse in the Philippines; Out for Delivery is leaving it for our
+warehouse, or for the client on a Direct delivery; Delivered is reaching our
+warehouse, or the client on a Direct delivery. Payment Approval is only for an
+order that must be approved for payment before it is placed; a pay-later order
+goes from Order-Draft to Ordered. Done comes only from Filing and leaves only on
+Reopen. When the IPAS already knows a fact that matches a step (raised, section 1
+sent, the Odoo PO confirmed, the goods received), it suggests that step; it never
+moves on its own. Any step may be picked, forward or back, and skipped steps stay
+blank: the status is the step last picked, not the furthest one. Each step keeps
+the date it was reached, today unless changed to an earlier day. One status covers
+the whole order: a step counts once all of the order has reached it. On-Hold sits
+on top of whatever step the order is at ("On-Hold · In Transit"), and clearing it
+leaves that step. A cancelled IPAS has none. An IPAS's status, never an SOR Stage:
+an SOR reads it on its IPAS summary. Replaces the old six-step status, the buyer
+track and the Supplier Origin dates. Separate from the IPAS's state (open, filed,
+cancelled) and from its Computation status.
+_Avoid_: Shipping status, Buyer track, Supplier Origin (the old dates), Pending,
+Requested, Ongoing or Paid (the old steps), Payment status, Progress, PMS status
+(the sheet put "PMS" before each step; screens do not)
+
+**Direct delivery**:
+An IPAS whose goods go from the supplier straight to the client and never reach
+our warehouse. Set for the whole order, by whoever may set its IPAS Status, until
+it is filed; an order split between our warehouse and the client is not one, and
+its remarks say which part went direct. It asks for no Item Location and expects
+no Transmittal or Warehouse and Technical check, so Order Monitoring never chases
+one. The Logistics sign-off is still given before Filing, confirming the client
+has the goods.
+_Avoid_: Drop ship, Dropship, Direct to site
+
+**IPAS document**:
+One paper an order needs on its IPAS's document list — a kind from the list the
+business edits, or one named by hand — holding any number of files, with one
+"Purchasing has it" and one "Finance has it" tick for the paper as a whole. A
+document a sign-off requires counts as there once it holds at least one file.
+Payment proofs and charge files are not IPAS documents and hold one file each.
+_Avoid_: Attachment (when meaning the paper), Filing item
 
 **Computation status**:
 Where an IPAS's cost work stands, in order: Encoding, Encoded, LC GS Done, LC
-Odoo Done. Only Purchasing moves it (one step either way); Landed Cost goes final
-at LC Odoo Done, which is also when section 3 can be submitted. The old last step,
+Odoo Done. Only Purchasing moves it, to any step, forward or back; LC Odoo Done
+may be reached while Landed Cost is still an estimate (a payment's pesos still
+blank), which is also when section 3 can be submitted. Landed Cost is called
+final only once Filing has the pesos. The old last step,
 Checked by, is gone: section 3's sign-off is the check. Shown on the record, the
 IPAS list (with a filter, plus "Section 3 approved") and the printed IPAS.
 _Avoid_: Costs complete (the old name for LC Odoo Done), Costing status, Checked by (the old step)
@@ -1039,6 +1075,14 @@ sub-department text. Finance receives an IPAS for Filing, records its payments
 and charges, and sees supplier bank details.
 _Avoid_: Accounting (as a role), Finance department (when meaning who has access)
 
+**Logistics access**:
+Who counts as Logistics — granted per employee by its own access flag, the way
+Finance access is, and never inferred from the department text. With it an
+employee sets an IPAS's Status and its Direct delivery, as Purchasing does. Not the
+"Sign Logistics" signer list, which says only who gives the Logistics sign-off;
+the flag starts out on the people that list names.
+_Avoid_: Logistics department (when meaning who has access), Logistics signer (when meaning who may set the status)
+
 **Charge**:
 An amount an IPAS pays to bring the goods in, apart from the goods themselves —
 an importation charge such as brokerage, destination charges or duties, or the
@@ -1058,8 +1102,8 @@ Transmittal Form, numbered TG03-525, TG03-526 and on — from where they came
 boxes decide those: Warehouse checking, Warehouse releasing when the goods leave
 for Technical (optional on a Warehouse-only slip, required when Technical
 follows), and Technical inspection. At each check the in-charge rates every
-line GC or NA, and the stage is signed by two people with its remarks and
-pictures. Received in Odoo by and two Check by signatures close it. It stands on its own, each line
+line GC or NA, and the stage has two signature slots with its remarks and
+pictures; one person may fill both (spec #251). Received in Odoo by and two Check by signatures close it. It stands on its own, each line
 naming the purchase order line and the SOR (Project Name) it is for, because one
 delivery is often split across slips and one slip often carries several orders. A
 line rated NA still lets the slip close — the check happened — and a replacement
@@ -1089,7 +1133,7 @@ _Avoid_: Tracker, Board, PMS (when meaning this page)
 
 **Ageing rule**:
 The number of days an order may wait at one step before it counts as late — one
-rule per step of an order's life (the seven buyer-track steps, a delivery with no
+rule per step of an order's life (the IPAS Status steps, a delivery with no
 Transmittal, an open Transmittal check, and costs ready to file). Purchasing sets
 them in Settings > Purchasing. A step with no rule never goes late. A late order
 says how many days past its rule it is.
@@ -1108,7 +1152,9 @@ Technical, the Check by signers, the section 4 signers, or someone else (the
 supplier, forwarder or port). Only someone else puts an order in Waiting on
 someone else; every other owner is "us". Where one order has Transmittals waiting
 on different checks the owner is the Warehouse, the earlier check, and the line
-reads "Warehouse or Technical".
+reads "Warehouse or Technical". Until an order is Delivered its IPAS Status step
+names the owner: Order-Draft is Purchasing's, Payment Approval the section 1
+approvers', and every step from Ordered to Out for Delivery someone else's.
 _Avoid_: Assignee, Responsible
 
 **Packing List**:

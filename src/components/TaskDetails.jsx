@@ -26,7 +26,6 @@ import { activeChatService } from "../services/tasks/activeChatService"
 import { taskQueryService } from "@/services/tasks/taskQueryService"
 import { Dialog } from "@/components/ui/dialog"
 import { RecordModalContent } from "@/components/ui/record-modal"
-import { useAppSettings } from "@/hooks/useAppSettings"
 import { cn } from "@/lib/utils"
 import { Button } from "./ui/button"
 import ConvertToGroupTaskDialog from "./ConvertToGroupTaskDialog"
@@ -49,8 +48,6 @@ export default function TaskDetails({
     }
     return false
   })
-
-  const { settings: appSettings } = useAppSettings()
 
   const [approvalGrade, setApprovalGrade] = useState(null)
   const [editGrade, setEditGrade] = useState(null)
@@ -758,19 +755,6 @@ export default function TaskDetails({
 
                 onHrVerify: handleVerify,
 
-                onSelfVerify: () =>
-                  executeUpdate({
-                    id: task.id,
-                    status: TASK_STATUS.COMPLETE,
-                    endAt: new Date().toISOString(),
-                    grade: 3,
-                    remarks: "Self-Verified (System Bypass)",
-                    evaluatedBy: user.id,
-                    editedBy: user.id,
-                    hrVerified: false,
-                    hrRemarks: "",
-                  }),
-
                 onRecallTask: () => {
                   setFormData((prev) => ({ ...prev, status: TASK_STATUS.INCOMPLETE, endAt: "" }))
                   return executeUpdate({
@@ -813,18 +797,11 @@ export default function TaskDetails({
                             : null))
                     : false),
                 canApprove: approvalGrade !== null && !hasUncheckedItems,
-                isMarketing,
-                universalTaskSubmission:
-                  appSettings?.universal_task_submission === true,
                 hasAttachments:
                   formData.attachments && formData.attachments.length > 0,
                 hasUncheckedItems,
                 isHrRejected,
                 isDelayed,
-                enableSelfVerification:
-                  appSettings?.enable_self_verification === true,
-                enableVisualShaming:
-                  appSettings?.enable_visual_shaming === true,
               }}
             />
           </div>

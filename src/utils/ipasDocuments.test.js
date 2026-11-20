@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
-  buildBuyerTrack,
+  buildBuyerFacts,
   filingChecklist,
   kindMatchesSource,
   kindsToAdd,
   missingSuggestions,
   shapeDocuments,
-  supplierOriginOf,
   unfiledDocuments,
 } from "./ipasDocuments"
 import { odooStatuses } from "./ipas"
@@ -89,35 +88,19 @@ describe("shaping documents", () => {
   })
 })
 
-describe("Supplier Origin", () => {
-  const dated = { shipped_out_on: "2026-10-01", onboard_on: null, arrived_in_ph_on: "2026-10-09", arrived_in_whs_on: null }
-
-  it("reads the four dates on an Import IPAS", () => {
-    expect(supplierOriginOf({ source: "import", ...dated })).toEqual({
-      shippedOut: "2026-10-01", onboard: null, arrivedInPh: "2026-10-09", arrivedInWhs: null,
-    })
-  })
-
-  it("reads nothing on a Local IPAS, whatever the row holds", () => {
-    expect(supplierOriginOf({ source: "local", ...dated })).toBeNull()
-    expect(supplierOriginOf(null)).toBeNull()
-  })
-})
-
-describe("the buyer track", () => {
+describe("the buyer facts", () => {
   const odoo = odooStatuses({ po: { state: "purchase" }, receipts: { status: "pending", done: 0, total: 1 }, bills: { count: 0, draft: 0 } })
   const keys = (items) => items.map((i) => i.key)
 
-  it("is in the sheet's order, with Import Clearance on Import only", () => {
-    expect(keys(buildBuyerTrack({ source: "import" }, odoo))).toEqual([
-      "purchase_order", "with_pop", "import_clearance", "delivered", "received_in_odoo", "create_bill", "actual_checking",
-    ])
-    expect(keys(buildBuyerTrack({ source: "local" }, odoo))).not.toContain("import_clearance")
+  it("holds only the facts that stay beside the IPAS Status, the same on either Source", () => {
+    const facts = ["with_pop", "received_in_odoo", "create_bill", "actual_checking"]
+    expect(keys(buildBuyerFacts({ source: "import" }, odoo))).toEqual(facts)
+    expect(keys(buildBuyerFacts({ source: "local" }, odoo))).toEqual(facts)
   })
 
   it("derives With P.O.P from proof of payment and says how many payments carry it", () => {
-    const none = buildBuyerTrack({ source: "local" }, odoo, { hasProof: false }).find((i) => i.key === "with_pop")
-    const two = buildBuyerTrack({ source: "local" }, odoo, { hasProof: true, proofCount: 2 }).find((i) => i.key === "with_pop")
+    const none = buildBuyerFacts({ source: "local" }, odoo, { hasProof: false }).find((i) => i.key === "with_pop")
+    const two = buildBuyerFacts({ source: "local" }, odoo, { hasProof: true, proofCount: 2 }).find((i) => i.key === "with_pop")
     expect(none).toMatchObject({ ticked: false, source: "derived" })
     expect(two).toMatchObject({ ticked: true, source: "derived", detail: "2 payments carry proof of payment" })
   })
@@ -125,30 +108,23 @@ describe("the buyer track", () => {
   it("carries who typed or stamped a status, and when", () => {
     const row = {
       source: "import",
-      import_clearance_on: "2026-10-05",
-      import_clearance_typer: { id: "e1", name: "Buyer" },
-      import_clearance_typed_at: "2026-10-05T01:00:00Z",
-      delivered_on: null,
       actual_checking_by: "e1",
       actual_checker: { id: "e1", name: "Buyer" },
       actual_checking_at: "2026-10-06T01:00:00Z",
     }
-    const items = Object.fromEntries(buildBuyerTrack(row, odoo).map((i) => [i.key, i]))
-    expect(items.import_clearance).toMatchObject({ ticked: true, on: "2026-10-05", by: { id: "e1", name: "Buyer" }, source: "typed" })
-    expect(items.delivered).toMatchObject({ ticked: false, by: null })
+    const items = Object.fromEntries(buildBuyerFacts(row, odoo).map((i) => [i.key, i]))
     expect(items.actual_checking).toMatchObject({ ticked: true, by: { name: "Buyer" }, at: "2026-10-06T01:00:00Z", source: "stamped" })
   })
 })
 
-describe("the buyer track's reasons", () => {
+describe("the buyer facts' reasons", () => {
   const reasons = (copy) =>
     Object.fromEntries(
-      buildBuyerTrack({ source: "local" }, odooStatuses(copy)).map((i) => [i.key, i.reason ?? null]),
+      buildBuyerFacts({ source: "local" }, odooStatuses(copy)).map((i) => [i.key, i.reason ?? null]),
     )
 
   it("says why each unticked Odoo line is not ticked", () => {
     const r = reasons({ po: { state: "draft" }, receipts: { status: "pending", done: 0, total: 2 }, bills: { count: 0, draft: 0 } })
-    expect(r.purchase_order).toBe("Not confirmed in Odoo yet (RFQ)")
     expect(r.received_in_odoo).toBe("0 of 2 receipts done")
     expect(r.create_bill).toBe("No bill yet")
   })
@@ -157,12 +133,11 @@ describe("the buyer track's reasons", () => {
     const partial = reasons({ po: { state: "purchase" }, receipts: { status: "partial", done: 1, total: 2 }, bills: { count: 0, draft: 0 } })
     expect(partial.received_in_odoo).toBe("Partly received · 1 of 2 receipts done")
     const none = reasons({ receipts: { total: 0 } })
-    expect(none.purchase_order).toBe("Not confirmed in Odoo yet")
     expect(none.received_in_odoo).toBe("No receipts in Odoo yet")
   })
 
   it("gives no reason once a line is ticked", () => {
     const r = reasons({ po: { state: "purchase" }, receipts: { status: "full", done: 2, total: 2 }, bills: { count: 1, draft: 0 } })
-    expect(r).toMatchObject({ purchase_order: null, received_in_odoo: null, create_bill: null })
+    expect(r).toMatchObject({ received_in_odoo: null, create_bill: null })
   })
 })

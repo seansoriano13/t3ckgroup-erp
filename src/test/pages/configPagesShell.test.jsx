@@ -73,8 +73,6 @@ describe("Settings on PageShell", () => {
       expect(shoutingHeadings(container), `tab ${name}`).toEqual([]);
     }
 
-    await user.click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
-    expect(await screen.findByRole("heading", { level: 2, hidden: true, name: "Approval rules" })).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Employee Groups", hidden: true }));
     expect(await screen.findByRole("heading", { level: 2, hidden: true, name: "Employee groups" })).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "System Announcements", hidden: true }));
@@ -109,7 +107,7 @@ describe("Profile on PageShell", () => {
     expect(screen.getByText("Your details, signature and appearance.")).toBeInTheDocument();
     expect(within(headerOf(heading)).queryByRole("button", { name: "Save settings" })).toBeNull();
 
-    await setupUser().type(screen.getByPlaceholderText(/7-word motivational quote/i), " more");
+    await setupUser().type(screen.getByLabelText(/custom quote/i), " more");
     const save = within(headerOf(heading)).getByRole("button", { name: "Save settings" });
     expect(save).toBeEnabled();
     expect(save.className).not.toMatch(/uppercase|rounded-full|tracking-widest|h-auto/);

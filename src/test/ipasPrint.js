@@ -90,6 +90,13 @@ export const ipasRow = (over = {}) => ({
   computation_status: "encoded",
   landed_cost_split: "value",
   item_location_id: "opt-loc",
+  status: "in_transit",
+  status_steps: [
+    { step: "order_draft", reached_on: "2026-09-02" },
+    { step: "ordered", reached_on: "2026-09-03" },
+    { step: "shipped", reached_on: "2026-09-05" },
+    { step: "in_transit", reached_on: "2026-09-06" },
+  ],
   shipped_out_on: "2026-09-05",
   onboard_on: "2026-09-06",
   arrived_in_ph_on: "2026-09-09",
