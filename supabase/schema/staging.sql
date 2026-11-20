@@ -2465,7 +2465,7 @@ alter table sor_stage_participants add constraint "sor_stage_participants_source
 alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_return_choice_check" CHECK ((return_choice = ANY (ARRAY['resume'::text, 'start_fresh'::text])));
 alter table sor_stage_visits add constraint "sor_stage_visits_revert_choice_check" CHECK ((revert_choice = ANY (ARRAY['keep'::text, 'remove'::text])));
-alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text, 'costing_settled'::text, 'costing_priced'::text, 'goods_checked'::text, 'orders_filed'::text, 'costing_evaluation_approved'::text])));
+alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text, 'purchasing_settled'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table transmittal_cleared_signatures add constraint "transmittal_cleared_signatures_kind_chk" CHECK ((kind = ANY (ARRAY['stage'::text, 'odoo'::text, 'check_by'::text])));
@@ -8926,6 +8926,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM sil_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -13931,6 +13932,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported offset leave decision: %.', p_status;
   END IF;
@@ -14059,6 +14061,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -14148,6 +14151,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported SIL leave decision: %.', p_status;
   END IF;
@@ -14635,6 +14639,51 @@ AS $function$
           and upper(trim(t.team)) = upper(trim(e.sub_department))
       )
     );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.employees_self_update_allowlist()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_caller_id    UUID;
+  v_privileged   BOOLEAN;
+  v_simulator    BOOLEAN;
+  v_self_allowed text[] := ARRAY[
+    'avatar_path', 'dashboard_banner_path', 'dashboard_quote', 'signature_path',
+    'updated_at', 'last_seen_changelog_version'
+  ];
+BEGIN
+  IF current_user <> 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
+  v_caller_id := public.get_employee_id();
+  IF v_caller_id IS NULL OR OLD.id <> v_caller_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- OLD is the caller's own row, so its flags are the caller's.
+  v_privileged := (OLD.is_super_admin IS TRUE OR OLD.is_hr IS TRUE);
+  v_simulator  := (OLD.is_role_simulator IS TRUE);
+
+  -- A leave function moving this person's balance (see below).
+  IF current_setting('app.leave_balance_write', true) = 'on' THEN
+    v_self_allowed := v_self_allowed || ARRAY['offset_hours_balance', 'sil_hours_balance'];
+  END IF;
+
+  IF NOT v_privileged
+     AND NOT v_simulator
+     AND (to_jsonb(NEW) - v_self_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_self_allowed)
+  THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: you can change only your avatar, banner, quote and signature.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb)
@@ -21235,10 +21284,6 @@ DECLARE
   v_caller_can_manage_leaves BOOLEAN;
   v_caller_is_role_simulator BOOLEAN;
   v_is_privileged            BOOLEAN;
-  v_self_allowed             text[] := ARRAY[
-    'avatar_path', 'dashboard_banner_path', 'dashboard_quote', 'signature_path',
-    'updated_at', 'last_seen_changelog_version'
-  ];
 BEGIN
   v_caller_id := public.get_employee_id();
 
@@ -21274,19 +21319,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Self-update allowlist (#1115, spec #1114 D1/D2). Refused with an error, not
-  -- reverted, so nobody believes a save worked when it did not. Compared as whole
-  -- rows, so a column added later is refused by default. A caller with no
-  -- employee row (service role, migration) is trusted, as before.
-  IF v_caller_id IS NOT NULL
-     AND OLD.id = v_caller_id
-     AND NOT v_is_privileged
-     AND (to_jsonb(NEW) - v_self_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_self_allowed)
-  THEN
-    RAISE EXCEPTION
-      'Insufficient privileges: you can change only your avatar, banner, quote and signature.'
-      USING ERRCODE = '42501';
-  END IF;
+  -- The self-update allowlist lives in employees_self_update_allowlist() below.
 
   IF NOT v_is_privileged THEN
     IF NEW.is_super_admin IS DISTINCT FROM OLD.is_super_admin THEN
@@ -23978,21 +24011,10 @@ declare
   v_target_form_field_ids uuid[];
   v_target_follow_up_stage_ids uuid[];
   v_won_stage_id uuid;
-  v_award_stage_id uuid;
-  v_contract_stage_id uuid;
   v_blockers text[] := array[]::text[];
   v_rec record;
   v_elem jsonb;
 begin
-  -- #884: a signed-in employee must be a Super Admin or a Flow editor. RLS would
-  -- refuse the writes below anyway; this says so plainly, before anything changes.
-  -- With no signed-in user (the service role, or a direct database connection
-  -- such as scripts/transfer-sales-flows.mjs) auth.role() is not
-  -- 'authenticated', so operator tooling is not gated here.
-  if auth.role() = 'authenticated' and not (is_super_admin() or can_edit_sales_flows()) then
-    raise exception 'Only a Super Admin or a Flow editor can restore a Sales Flow.'
-      using errcode = '42501';
-  end if;
   -- Lock the Sales Flow row first (ADR 0013 / lock_sales_flow).
   select * into v_flow from sales_flows where id = p_flow_id for update;
   if not found then
@@ -24012,8 +24034,6 @@ begin
 
   v_data := v_snapshot.snapshot_data;
   v_won_stage_id := nullif(v_data->>'wonStageId', '')::uuid;
-  v_award_stage_id := nullif(v_data->>'awardStageId', '')::uuid;
-  v_contract_stage_id := nullif(v_data->>'contractStageId', '')::uuid;
 
   select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
     into v_target_stage_ids
@@ -24055,12 +24075,11 @@ begin
 
   -- From here the draft is reshaped to match the target, keeping ids. Clear
   -- the Won Stage first so a dropped Stage that held it can be deleted.
-  update sales_flows set won_stage_id = null, award_stage_id = null, contract_stage_id = null, updated_at = now() where id = p_flow_id;
+  update sales_flows set won_stage_id = null, updated_at = now() where id = p_flow_id;
 
   -- Two Stages can swap names. The one-name-per-flow index is checked row by
   -- row, so park every surviving Stage on a unique placeholder first.
-  -- The one-flag-per-flow index is checked row by row too, so clear the flag here and set it from the target.
-  update flow_stages set name = '__restore__' || id::text, buying_opens_here = false where flow_id = p_flow_id;
+  update flow_stages set name = '__restore__' || id::text where flow_id = p_flow_id;
 
   -- Drop the Stages the target does not have. Their edges, conditions and
   -- actions go by cascade; the check above proved no SOR is referenced.
@@ -24072,7 +24091,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stages', '[]'::jsonb)) as e
   loop
     insert into flow_stages (
-      id, flow_id, name, sort_order, is_terminal, terminal_outcome, buying_opens_here, pos_x, pos_y, color, bracket_label, created_at, updated_at
+      id, flow_id, name, sort_order, is_terminal, terminal_outcome, pos_x, pos_y, color, bracket_label, created_at, updated_at
     )
     values (
       (v_elem->>'id')::uuid,
@@ -24081,7 +24100,6 @@ begin
       coalesce((v_elem->>'sort_order')::int, 0),
       coalesce((v_elem->>'is_terminal')::boolean, false),
       case when coalesce((v_elem->>'is_terminal')::boolean, false) then nullif(v_elem->>'terminal_outcome', '') end,
-      coalesce((v_elem->>'buying_opens_here')::boolean, false),
       coalesce((v_elem->>'pos_x')::int, 0),
       coalesce((v_elem->>'pos_y')::int, 0),
       nullif(v_elem->>'color', ''),
@@ -24094,7 +24112,6 @@ begin
       sort_order = excluded.sort_order,
       is_terminal = excluded.is_terminal,
       terminal_outcome = excluded.terminal_outcome,
-      buying_opens_here = excluded.buying_opens_here,
       pos_x = excluded.pos_x,
       pos_y = excluded.pos_y,
       color = excluded.color,
@@ -24207,7 +24224,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stageFields', '[]'::jsonb)) as e
   loop
     insert into flow_stage_fields (
-      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at, show_when
+      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at
     )
     values (
       (v_elem->>'id')::uuid,
@@ -24222,8 +24239,7 @@ begin
       coalesce((v_elem->>'sort_order')::int, 0),
       nullif(v_elem->>'archived_at', '')::timestamptz,
       coalesce((v_elem->>'created_at')::timestamptz, now()),
-      now(),
-      case when jsonb_typeof(v_elem->'show_when') = 'object' then v_elem->'show_when' end
+      now()
     )
     on conflict (id) do update set
       stage_id = excluded.stage_id,
@@ -24236,7 +24252,6 @@ begin
       is_required = excluded.is_required,
       sort_order = excluded.sort_order,
       archived_at = excluded.archived_at,
-      show_when = excluded.show_when,
       updated_at = now();
   end loop;
 
@@ -24354,8 +24369,6 @@ begin
 
   update sales_flows
      set won_stage_id = v_won_stage_id,
-         award_stage_id = v_award_stage_id,
-         contract_stage_id = v_contract_stage_id,
          updated_at = now()
    where id = p_flow_id
   returning * into v_flow;
@@ -25968,17 +25981,13 @@ begin
       select (f->>'id')::uuid as id,
              f->>'label' as label,
              f->>'source' as source,
-             f->>'sor_field' as sor_field,
-             f->'show_when' as show_when
+             f->>'sor_field' as sor_field
         from jsonb_array_elements(v_snapshot_data->'stageFields') f
        where (f->>'stage_id')::uuid = OLD.flow_stage_id
          and coalesce((f->>'is_required')::boolean, false) = true
          and f->>'archived_at' is null
        order by coalesce((f->>'sort_order')::integer, 0)
     loop
-      if not stage_field_shown(v_field.show_when, to_jsonb(NEW), v_current_visit_id) then
-        continue;
-      end if;
       if v_field.source = 'sor' then
         v_field_val := to_jsonb(NEW) ->> v_field.sor_field;
         if v_field_val is null or btrim(v_field_val) = '' then
@@ -26004,16 +26013,13 @@ begin
     end loop;
   else
     for v_field in
-      select id, label, source, sor_field, show_when
+      select id, label, source, sor_field
         from public.flow_stage_fields
        where stage_id = OLD.flow_stage_id
          and is_required = true
          and archived_at is null
        order by sort_order, created_at
     loop
-      if not stage_field_shown(v_field.show_when, to_jsonb(NEW), v_current_visit_id) then
-        continue;
-      end if;
       if v_field.source = 'sor' then
         v_field_val := to_jsonb(NEW) ->> v_field.sor_field;
         if v_field_val is null or btrim(v_field_val) = '' then
@@ -30811,6 +30817,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(COALESCE(approved_hours, hours)), 0), array_agg(date ORDER BY date)
@@ -30872,6 +30879,7 @@ DECLARE
   v_new_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -30934,6 +30942,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM sil_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(hours), 0), array_agg(date ORDER BY date)
@@ -31234,35 +31243,42 @@ DECLARE
   app_valid BOOLEAN;
   appr_valid BOOLEAN;
 BEGIN
-  -- Extract client IP
-  client_ip := current_setting('request.headers', true)::json->>'x-forwarded-for';
-  IF client_ip IS NULL THEN
-    client_ip := 'unknown';
+  -- Signed-in HR / Super Admin are not limited.
+  IF COALESCE(public.is_hr(), false) OR COALESCE(public.is_super_admin(), false) THEN
+    client_ip := NULL;
   ELSE
-    client_ip := split_part(client_ip, ',', 1);
-  END IF;
+    -- Extract an address the caller cannot set.
+    client_ip := NULLIF(btrim(current_setting('request.headers', true)::json->>'cf-connecting-ip'), '');
+    IF client_ip IS NULL THEN
+      client_ip := NULLIF(btrim(split_part(
+        current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
+        GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
+      )), '');
+    END IF;
+    IF client_ip IS NULL THEN
+      client_ip := 'unknown';
+    END IF;
 
-  -- Simple rate limiting logic
-  SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
-  IF FOUND THEN
-    IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
-      IF rate_limit_row.request_count >= 20 THEN
-        RAISE EXCEPTION 'Rate limit exceeded. Please try again later.';
+    SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
+    IF FOUND THEN
+      IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
+        IF rate_limit_row.request_count >= 20 THEN
+          RAISE EXCEPTION 'verify_rate_limited' USING ERRCODE = 'VF429';
+        ELSE
+          UPDATE public.verification_rate_limits
+          SET request_count = request_count + 1, last_request = NOW()
+          WHERE ip_address = client_ip;
+        END IF;
       ELSE
         UPDATE public.verification_rate_limits
-        SET request_count = request_count + 1, last_request = NOW()
+        SET request_count = 1, last_request = NOW()
         WHERE ip_address = client_ip;
       END IF;
     ELSE
-      UPDATE public.verification_rate_limits
-      SET request_count = 1, last_request = NOW()
-      WHERE ip_address = client_ip;
+      INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
+      VALUES (client_ip, 1, NOW());
     END IF;
-  ELSE
-    INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
-    VALUES (client_ip, 1, NOW());
   END IF;
-
 
   -- Try SIL Leaves
   SELECT s.*, e.name AS employee_name, c.label AS category_label,
@@ -31467,6 +31483,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM offset_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -31614,6 +31631,7 @@ CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
+CREATE TRIGGER trg_employees_self_update_allowlist BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION employees_self_update_allowlist();
 CREATE TRIGGER trg_prevent_privileged_flags_on_insert BEFORE INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_privileged_flags_on_insert();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER group_task_templates_block_delete_in_use BEFORE DELETE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_block_delete_in_use();
