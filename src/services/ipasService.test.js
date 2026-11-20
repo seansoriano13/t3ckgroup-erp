@@ -810,7 +810,7 @@ describe("ipasService", () => {
         // Import Clearance, Delivered, Actual Checking) and document ticks are people's to set; the
         // three Odoo statuses (Purchase Order, Received in Odoo, Create Bill) are nobody's.
         const offered = Object.keys(ipasService).filter((name) => /status|tick|stamp|received|bill/i.test(name))
-        expect(offered.sort()).toEqual(["setComputationStatus", "setTypedStatus", "stampActualChecking", "tickDocument"])
+        expect(offered.sort()).toEqual(["setComputationStatus", "setStatus", "setStatusDate", "stampActualChecking", "tickDocument"])
         expect(offered.filter((name) => /purchaseOrder|received|bill|createBill/i.test(name))).toEqual([])
         const direct = await supabase.rpc("ipas_set_header", {
           p_ipas_id: row.id,

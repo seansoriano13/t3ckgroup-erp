@@ -2,7 +2,6 @@
 // blocks while the page is in edit mode (#581). `form` and `set(key, value)` come
 // from useIpasEditForm. Only the sign-offs stay buttons: signing is an action, not a field.
 
-import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/FieldBox";
 import {
@@ -11,7 +10,6 @@ import {
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
   IPAS_SOURCE_LABELS,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
 } from "@/constants/ipas";
 import { optionsForPicker } from "@/utils/ipasPayments";
 import { formatDate } from "@/utils/formatDate.js";
@@ -175,36 +173,18 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
       );
     }
     case "status": {
-      const date = (key, label, limited = false) => (
-        <Field
-          key={key}
-          id={`f-${key}`}
-          label={label}
-          kind="date"
-          min={limited ? IPAS_DATE_MIN : undefined}
-          max={limited ? ipasDateMax() : undefined}
-          error={limited ? (ipasDateIssue(form[key], `The ${label} date`) ?? undefined) : undefined}
-          value={form[key]}
-          disabled={disabled}
-          onChange={(v) => set(key, v)}
-        />
-      );
       const stampable = actualCheckingStampable(ipas);
-      const isImport = Boolean(ipas.supplierOrigin);
       return (
         <div className="space-y-5">
-          {isImport && (
-            <div className="space-y-3">
-              <GroupTitle>Supplier Origin</GroupTitle>
-              <div className={GRID}>{IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field, label }) => date(field, label))}</div>
-            </div>
-          )}
           <div className="space-y-3">
-            <GroupTitle>Buyer track</GroupTitle>
+            <GroupTitle>IPAS Status</GroupTitle>
+            <p className="text-xs text-muted-foreground">Pick the step the order is at. It saves on its own, with the day it was reached.</p>
+            {blocks.statusSteps}
+          </div>
+          <div className="space-y-3">
+            <GroupTitle>Buyer facts</GroupTitle>
             <p className="text-xs text-muted-foreground">Purchase Order, Received in Odoo and Create Bill come from Odoo, so they are not typed.</p>
             <div className={GRID}>
-              {isImport && date("importClearance", "Import Clearance", true)}
-              {date("delivered", "Delivered", true)}
               <div className="flex flex-col gap-1.5">
                 <FieldBox label="Actual Checking" />
                 <Tick label="Checked on site" checked={form.actualChecking} disabled={disabled || !stampable} onChange={(v) => set("actualChecking", v)} />

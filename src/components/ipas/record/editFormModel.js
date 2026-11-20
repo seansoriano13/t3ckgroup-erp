@@ -11,8 +11,6 @@ import {
   IPAS_OVERRIDE,
   IPAS_PAYMENT_KIND,
   IPAS_STATUS_SOURCE,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
-  IPAS_TYPED_STATUS,
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
@@ -88,12 +86,6 @@ export const OWNS = {
   sales: ["sourceDoc", "analytic", "googleSheet", "ganttChart"],
   logistics: ["location"],
   status: [
-    "shippedOut",
-    "onboard",
-    "arrivedInPh",
-    "arrivedInWhs",
-    "importClearance",
-    "delivered",
     "actualChecking",
   ],
 };
@@ -193,7 +185,6 @@ export function formFromIpas(ipas) {
     const state = ipas.overrides?.[key];
     return state?.overridden ? (state.value ?? "") : "";
   };
-  const origin = ipas.supplierOrigin ?? {};
   const bank = ipas.bankDetails ?? null;
   const form = {
     entity: override(IPAS_OVERRIDE.ENTITY),
@@ -219,8 +210,6 @@ export function formFromIpas(ipas) {
     googleSheet: Boolean(ipas.googleSheet),
     ganttChart: Boolean(ipas.ganttChart),
     location: ipas.item_location_id ?? "",
-    importClearance: day(ipas.import_clearance_on),
-    delivered: day(ipas.delivered_on),
     actualChecking: Boolean(actualCheckingItem(ipas)?.ticked),
     // Not typed: whether the PO is in pesos decides which payment boxes are required.
     isPhp: isPhpCurrency(ipas.currency),
@@ -228,8 +217,6 @@ export function formFromIpas(ipas) {
     charges: (ipas.charges ?? []).map(chargeDraft),
     documents: (ipas.documents ?? []).map(documentDraft),
   };
-  for (const { field, column } of IPAS_SUPPLIER_ORIGIN_FIELDS)
-    form[field] = day(origin[field] ?? ipas[column]);
   return form;
 }
 
@@ -441,8 +428,6 @@ export function planSave(form, base) {
     overrides: [],
     header: {},
     location: undefined,
-    origin: {},
-    typed: [],
     stamp: undefined,
     payments: { add: [], update: [], isPhpPo: form.isPhp },
     charges: { add: [], update: [] },
@@ -511,26 +496,6 @@ export function planSave(form, base) {
     if (issue) fail(issue);
   }
   if (changed.has("location")) plan.location = form.location || null;
-  for (const { field } of IPAS_SUPPLIER_ORIGIN_FIELDS)
-    if (changed.has(field)) plan.origin[field] = form[field];
-  if (changed.has("importClearance")) {
-    const issue = ipasDateIssue(form.importClearance, "The Import Clearance date");
-    if (issue) fail(issue);
-  }
-  if (changed.has("delivered")) {
-    const issue = ipasDateIssue(form.delivered, "The Delivered date");
-    if (issue) fail(issue);
-  }
-  if (changed.has("importClearance"))
-    plan.typed.push({
-      kind: IPAS_TYPED_STATUS.IMPORT_CLEARANCE,
-      date: form.importClearance,
-    });
-  if (changed.has("delivered"))
-    plan.typed.push({
-      kind: IPAS_TYPED_STATUS.DELIVERED,
-      date: form.delivered,
-    });
   if (changed.has("actualChecking")) plan.stamp = form.actualChecking;
 
   const pay = rowChanges(form, base, "payments");
@@ -611,8 +576,6 @@ export function planIsEmpty(plan) {
     Object.keys(plan.header).length === 0 &&
     plan.location === undefined &&
     plan.freight === undefined &&
-    Object.keys(plan.origin).length === 0 &&
-    plan.typed.length === 0 &&
     plan.stamp === undefined &&
     plan.payments.add.length + plan.payments.update.length === 0 &&
     plan.charges.add.length + plan.charges.update.length === 0 &&

@@ -7,6 +7,7 @@ import { IpasBankDetails } from "@/components/ipas/IpasBankDetails";
 import { IpasDocuments } from "@/components/ipas/IpasDocuments";
 import { IpasFilingSection } from "@/components/ipas/IpasFiling";
 import { IpasLogisticsSection } from "@/components/ipas/IpasLogistics";
+import IpasStatusSteps from "@/components/ipas/IpasStatusSteps";
 import { IpasChargesSection, IpasCostingSection, IpasPaymentsBlock } from "@/components/ipas/IpasMoneySections";
 import {
   IpasHeaderSection,
@@ -77,8 +78,9 @@ export function buildBlocks(ctx) {
     <IpasStatusSection
       ipas={ipas}
       canChange={can.change}
-      onEditOrigin={on.editOrigin}
-      onEditStatus={on.editStatus}
+      canSetStatus={can.statusStep}
+      onPickStatus={on.pickStatus}
+      onEditStatusDate={on.editStatusDate}
       onStamp={on.stamp}
       onClearStamp={on.clearStamp}
     />
@@ -86,6 +88,7 @@ export function buildBlocks(ctx) {
 
   return {
     // Kept for the edit view's typed bodies, which embed the read parts they don't type.
+    statusSteps: <IpasStatusSteps ipas={ipas} canSet={can.statusStep} onPick={on.pickStatus} onEditDate={on.editStatusDate} />,
     filing: <IpasFilingSection ipas={ipas} rights={rights[7]} canSendBack={rights.sendBack7} />,
     // 1 · Order: what we bought, from whom, for which SOR.
     order: (

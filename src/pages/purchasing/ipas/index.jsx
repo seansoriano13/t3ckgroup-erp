@@ -39,6 +39,7 @@ import {
   IPAS_SECTION_3_APPROVED_FILTER,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
+  IPAS_ON_HOLD_FILTER,
   IPAS_STATUSES,
   IPAS_STATUS_LABELS,
   ipasSectionNo,
@@ -87,6 +88,7 @@ const IPAS_SORT = {
 const STATUS_OPTIONS = [
   { value: ALL, label: "Any IPAS Status" },
   ...IPAS_STATUSES.map((value) => ({ value, label: IPAS_STATUS_LABELS[value] })),
+  { value: IPAS_ON_HOLD_FILTER, label: "On-Hold" },
 ];
 
 const COSTING_OPTIONS = [

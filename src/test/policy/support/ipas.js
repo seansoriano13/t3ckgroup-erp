@@ -23,6 +23,7 @@ const CHILDREN = [
     ["ipas_documents", "ipas_id"],
     ["ipas_sors", "ipas_id"],
     ["ipas_work_marks", "ipas_id"],
+    ["ipas_status_steps", "ipas_id"],
 ]
 
 /**
@@ -198,16 +199,25 @@ async function giveWhatTheSignoffAsks(ipasId, section, role) {
     }
 }
 
-/** An Item Location, a bare Transmittal carrying the IPAS, and for an import the received date. */
+/** An Item Location, a bare Transmittal carrying the IPAS, and the Delivered status step (#1154). */
 async function placeGoods(ipasId) {
     const { rows: loc } = await sql().query(
         `select id from public.ipas_options where list = 'item_location' order by sort, label limit 1`,
     )
     await sql().query(
-        `update public.ipas set item_location_id = coalesce(item_location_id, $2),
-                arrived_in_whs_on = case when source = 'import' then coalesce(arrived_in_whs_on, current_date) end
+        `update public.ipas set item_location_id = coalesce(item_location_id, $2)
           where id = $1`,
         [ipasId, loc[0].id],
+    )
+    // Logistics waits for the Delivered step on a Local and an Import IPAS alike (#1154).
+    await sql().query(
+        `insert into public.ipas_status_steps (ipas_id, step, reached_on) values ($1, 'delivered', current_date)
+         on conflict (ipas_id, step) do nothing`,
+        [ipasId],
+    )
+    await sql().query(
+        `update public.ipas set status = 'delivered' where id = $1 and public._ipas_status_order(status) < public._ipas_status_order('delivered')`,
+        [ipasId],
     )
     const { rows: has } = await sql().query(`select 1 from public.transmittal_ipas where ipas_id = $1`, [ipasId])
     if (has.length) return
