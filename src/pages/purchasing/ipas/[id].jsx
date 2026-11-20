@@ -1191,6 +1191,7 @@ function IpasPage({ onClose }) {
             : "Who typed it and when is kept with the date and in history."
         }
         fields={dateFields}
+        limited={dates !== "origin"}
         onSubmit={(values) => {
           saveDates.mutate({ kind: dates, values });
           return Promise.resolve();

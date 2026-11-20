@@ -42,7 +42,7 @@ function caption(label, required, needed) {
 }
 
 /** One typed field. `kind`: text | amount | date | textarea. `odoo` is Odoo's value for an override field. */
-export function Field({ id, label, kind = "text", value, onChange, required, prefix, odoo, placeholder, disabled, error }) {
+export function Field({ id, label, kind = "text", value, onChange, required, prefix, odoo, placeholder, disabled, error, min, max }) {
   const needed = required && blank(value);
   const box = needed ? NEEDED_BOX : "";
   let control;
@@ -57,6 +57,9 @@ export function Field({ id, label, kind = "text", value, onChange, required, pre
       <Input
         id={id}
         type={kind === "date" ? "date" : "text"}
+        min={kind === "date" ? min : undefined}
+        max={kind === "date" ? max : undefined}
+        error={error}
         value={value}
         disabled={disabled}
         placeholder={placeholder ?? (odoo ? `Odoo: ${odoo}` : undefined)}

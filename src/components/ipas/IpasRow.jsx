@@ -29,7 +29,7 @@ const paymentTotal = (value, currency) => (value > 0 ? formatAmount(value, curre
  * the IPAS figures; nothing is worked out here.
  */
 function moneyCells(figures) {
-  const { currency, amount, amountSource, amountBeforeTax, paymentScheme, downPayment, fullPayment, remainingBalance } =
+  const { currency, amount, amountSource, amountBeforeTax, paymentScheme, downPayment, fullPayment, remainingBalance, overpaidBy } =
     figures;
   const money = "text-right text-xs tabular-nums text-foreground";
   return {
@@ -70,7 +70,7 @@ function moneyCells(figures) {
     "remaining-balance": () => (
       <TableCell className="text-right">
         <span className={`block ${money}`} data-testid="ipas-row-remaining">
-          {remainingBalance === null ? "—" : formatAmount(remainingBalance, currency)}
+          {overpaidBy > 0 ? `Overpaid by ${formatAmount(overpaidBy, currency)}` : remainingBalance === null ? "—" : formatAmount(remainingBalance, currency)}
         </span>
       </TableCell>
     ),

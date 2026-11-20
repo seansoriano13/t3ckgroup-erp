@@ -5,6 +5,7 @@ import ModalShell from "@/components/ui/ModalShell";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { isIsoDate } from "../../utils/ipasPayments";
+import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "../../utils/ipasDateLimits";
 
 /**
  * One or more typed dates (#246): the four Supplier Origin dates, or the one date
@@ -19,11 +20,12 @@ export default function DatesDialog({ open, onOpenChange, ...body }) {
   return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
-function Body({ title, description, fields, submitLabel = "Save", onSubmit, onClose }) {
+function Body({ title, description, fields, limited = false, submitLabel = "Save", onSubmit, onClose }) {
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.key, f.value ?? ""])));
   const [saving, setSaving] = useState(false);
 
-  const valid = fields.every((f) => values[f.key] === "" || isIsoDate(values[f.key]));
+  const issueOf = (f) => (limited ? ipasDateIssue(values[f.key], `The ${f.label} date`) : null);
+  const valid = fields.every((f) => values[f.key] === "" || (isIsoDate(values[f.key]) && !issueOf(f)));
   const changed = fields.some((f) => (values[f.key] ?? "") !== (f.value ?? ""));
 
   const submit = async () => {
@@ -58,9 +60,11 @@ function Body({ title, description, fields, submitLabel = "Save", onSubmit, onCl
           <FieldBox key={f.key} label={f.label} bare>
             <Input
               type="date"
+              min={limited ? IPAS_DATE_MIN : undefined}
+              max={limited ? ipasDateMax() : undefined}
               value={values[f.key]}
               onChange={(e) => setValues((prev) => ({ ...prev, [f.key]: e.target.value }))}
-              error={values[f.key] !== "" && !isIsoDate(values[f.key]) ? "Not a date" : undefined}
+              error={values[f.key] !== "" && !isIsoDate(values[f.key]) ? "Not a date" : (issueOf(f) ?? undefined)}
             />
           </FieldBox>
         ))}
