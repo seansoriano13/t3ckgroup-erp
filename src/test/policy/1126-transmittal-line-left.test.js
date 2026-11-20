@@ -63,6 +63,8 @@ const leftOf = async (ipas, lineId) => {
 
 beforeAll(async () => {
     await ensureCastLoaded()
+    const flag = await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
+    if (flag.error) throw flag.error
     const { error } = await svc()
         .from("ipas_signer_lists")
         .upsert({ list_key: "transmittal_warehouse", employee_id: ids.warehouse }, { onConflict: "list_key,employee_id" })
@@ -70,6 +72,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+    await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
     await svc().from("ipas_signer_lists").delete().eq("employee_id", ids.warehouse).eq("list_key", "transmittal_warehouse")
 })
 

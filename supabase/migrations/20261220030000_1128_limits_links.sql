@@ -50,6 +50,8 @@ begin
 end;
 $$;
 
+revoke all on function public.ipas_file_link_guard() from public, anon, authenticated;
+
 drop trigger if exists ipas_documents_file_link on public.ipas_documents;
 create trigger ipas_documents_file_link
   before insert or update of attachment_url on public.ipas_documents
@@ -107,6 +109,8 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.ipas_limits_guard() from public, anon, authenticated;
 
 drop trigger if exists ipas_limits_guard on public.ipas;
 create trigger ipas_limits_guard

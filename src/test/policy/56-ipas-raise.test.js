@@ -169,7 +169,7 @@ describe("one live IPAS per PO", () => {
             created_by: ids.outsider,
         })
         expect(error?.code).toBe("23505")
-        expect(error?.message).toMatch(/ipas_live_po_number_key/)
+        expect(error?.message).toMatch(/already has a live IPAS/)
     })
 
     it("allows a new IPAS once the first is cancelled, and keeps the cancelled one", async () => {
