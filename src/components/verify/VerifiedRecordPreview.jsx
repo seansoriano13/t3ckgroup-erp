@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import PageLoading from "@/components/ui/PageLoading";
+import { VERIFY_LIMIT_CODE } from "@/constants/verify";
 import { CheckCircle2, XCircle, Clock, SearchX, AlertTriangle, ArrowRight, ShieldCheck, ShieldAlert } from "lucide-react";
 
 function getStatusConfig(status) {
@@ -26,6 +27,16 @@ function treatedAsLabel(formType, category) {
   if (formType === "LWOP") return "Leave Without Pay (LWOP)";
   if (formType === "Leave") return "Leave With Pay (LWP)";
   return category;
+}
+
+/** "1 hr" for one hour, "hrs" otherwise. */
+function hoursLabel(hours) {
+  return `${hours} ${Number(hours) === 1 ? "hr" : "hrs"}`;
+}
+
+/** The limit raises its own code; anything else from the call means "not found". */
+function isRateLimited(err) {
+  return err?.code === VERIFY_LIMIT_CODE;
 }
 
 export default function VerifiedRecordPreview({ token, standalone = false }) {
@@ -53,7 +64,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
         const { data: rpcData, error: fetchError } = await supabase.rpc("verify_form_token", { lookup_token: token });
 
         if (fetchError) {
-          setError("not_found");
+          setError(isRateLimited(fetchError) ? "rate_limited" : "not_found");
         } else if (!rpcData) {
           setError("not_found");
         } else {
@@ -123,6 +134,20 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
     );
   }
 
+  if (error === "rate_limited") {
+    return (
+      <div className={`flex items-center justify-center p-4 ${standalone ? 'min-h-screen bg-[#F7F7F5]' : ''}`}>
+        <div role="alert" className="max-w-md w-full border border-[#E9E9E7] bg-white rounded-md p-8 text-center text-[#37352F] shadow-sm">
+          <Clock className="h-8 w-8 text-[#9B9A97] mx-auto mb-4" />
+          <h2 className="text-xl font-bold mb-2">Too many checks</h2>
+          <p className="text-sm opacity-80">
+            Too many checks from this network. Wait a minute and try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (error === "not_found") {
     return (
       <div className={`flex items-center justify-center p-4 ${standalone ? 'min-h-screen bg-[#F7F7F5]' : ''}`}>
@@ -142,14 +167,21 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
     );
   }
 
+  const isTampered = hashStatus.applicationValid === false || hashStatus.approvalValid === false;
+  // User requested to bypass tamper error if approved by HR
+  const approvedException = isTampered && !!data?.status && data.status.startsWith('APPROVED');
+  const checkFailed = isTampered && !approvedException;
+  const failedWhich = hashStatus.applicationValid === false && hashStatus.approvalValid === false
+    ? "the employee signature and the HR approval"
+    : hashStatus.applicationValid === false
+      ? "the employee signature"
+      : "the HR approval";
+
   const renderSignatureBadges = () => {
     if (hashStatus.applicationValid === null) return null;
 
-    const isTampered = hashStatus.applicationValid === false || hashStatus.approvalValid === false;
-
     if (isTampered) {
-      // User requested to bypass tamper error if approved by HR
-      if (data?.status && data.status.startsWith('APPROVED')) {
+      if (approvedException) {
         return (
           <div className="flex flex-col gap-2 mt-4">
             <div className="flex items-center gap-2 bg-[#F3FBF4] text-[#0F7B42] p-2.5 rounded-md border border-[#E1F3E5]">
@@ -160,16 +192,11 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
         );
       }
 
-      const which = hashStatus.applicationValid === false && hashStatus.approvalValid === false
-        ? "the employee signature and the HR approval"
-        : hashStatus.applicationValid === false
-          ? "the employee signature"
-          : "the HR approval";
       return (
         <div className="flex items-start gap-3 mt-4 bg-[#FFF4F4] text-[#E03E3E] p-3 rounded-md border border-[#FDEBEC]">
           <ShieldAlert className="h-5 w-5 mt-0.5 flex-shrink-0" />
           <div className="text-sm">
-            <p className="font-semibold">Signature Validation Failed: {which}</p>
+            <p className="font-semibold">Signature Validation Failed: {failedWhich}</p>
             <p className="opacity-90 mt-0.5">This record has been modified after it was signed.</p>
           </div>
         </div>
@@ -223,6 +250,11 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
                   {fullRecord.form_type} Record
                 </h1>
                 <p className="text-sm text-[#787774]">Internal Verified View</p>
+                {checkFailed && (
+                  <p className="mt-2 text-sm font-semibold text-[#E03E3E]">
+                    Does not match: signature check failed for {failedWhich}.
+                  </p>
+                )}
               </div>
               <div className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md border ${statusColor}`}>
                 <StatusIcon className="h-3.5 w-3.5" />
@@ -237,7 +269,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
                   <DetailRow label="Employee" value={fullRecord.employee_name} />
                   <DetailRow label="Treated as" value={treatedAsLabel(fullRecord.form_type, fullRecord.category)} />
                   <DetailRow label="Inclusive Dates" value={new Date(fullRecord.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} />
-                  <DetailRow label="Total Hours" value={`${fullRecord.total_hours} hrs`} />
+                  <DetailRow label="Total Hours" value={hoursLabel(fullRecord.total_hours)} />
                 </div>
               </div>
 
@@ -285,9 +317,19 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
       <div className={cardClass}>
         <div className="p-6 md:p-8">
           <div className="flex flex-col items-center text-center mb-8">
-            <CheckCircle2 className="h-10 w-10 text-[#0F7B42] mb-4" />
-            <h1 className="text-2xl font-bold text-[#37352F] tracking-tight mb-2">Verified Record</h1>
-            <p className="text-sm text-[#787774]">This printed form matches our system</p>
+            {checkFailed ? (
+              <>
+                <ShieldAlert className="h-10 w-10 text-[#E03E3E] mb-4" />
+                <h1 className="text-2xl font-bold text-[#E03E3E] tracking-tight mb-2">Does not match</h1>
+                <p className="text-sm text-[#787774]">Signature check failed for {failedWhich}.</p>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-10 w-10 text-[#0F7B42] mb-4" />
+                <h1 className="text-2xl font-bold text-[#37352F] tracking-tight mb-2">Verified Record</h1>
+                <p className="text-sm text-[#787774]">This printed form matches our system</p>
+              </>
+            )}
           </div>
           
           <div className="max-w-md mx-auto space-y-8">
@@ -304,7 +346,7 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
               <DetailRow label="Form Type" value={data.form_type} />
               <DetailRow label="Treated as" value={treatedAsLabel(data.form_type, data.category)} />
               <DetailRow label="Dates" value={data.inclusive_dates} />
-              <DetailRow label="Total Hours" value={`${data.total_hours} hrs`} />
+              <DetailRow label="Total Hours" value={hoursLabel(data.total_hours)} />
             </div>
             
             {renderSignatureBadges()}

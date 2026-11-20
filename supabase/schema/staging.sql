@@ -2302,6 +2302,7 @@ alter table currency_rate_currencies add constraint "currency_rate_currencies_cu
 alter table currency_rate_currencies add constraint "currency_rate_currencies_divergence_pct_check" CHECK ((divergence_pct > (0)::numeric));
 alter table currency_rates add constraint "currency_rates_php_per_unit_check" CHECK ((php_per_unit > (0)::numeric));
 alter table employees add constraint "employees_call_sign_chk" CHECK (((call_sign IS NULL) OR ((length(btrim(call_sign)) > 0) AND (call_sign = btrim(call_sign)))));
+alter table employees add constraint "employees_dashboard_quote_length" CHECK (((dashboard_quote IS NULL) OR (char_length(dashboard_quote) <= 100)));
 alter table faq_data add constraint "faq_data_id_check" CHECK ((id = 1));
 alter table flow_edges add constraint "flow_edges_no_self_loop" CHECK ((from_stage_id <> to_stage_id));
 alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" CHECK (((source <> 'custom'::text) OR ((label IS NOT NULL) AND (btrim(label) <> ''::text) AND (field_type IS NOT NULL))));
@@ -31270,35 +31271,39 @@ DECLARE
   app_valid BOOLEAN;
   appr_valid BOOLEAN;
 BEGIN
-  -- Extract client IP
-  client_ip := current_setting('request.headers', true)::json->>'x-forwarded-for';
-  IF client_ip IS NULL THEN
-    client_ip := 'unknown';
+  -- Signed-in HR / Super Admin are not limited.
+  IF COALESCE(public.is_hr(), false) OR COALESCE(public.is_super_admin(), false) THEN
+    client_ip := NULL;
   ELSE
-    client_ip := split_part(client_ip, ',', 1);
-  END IF;
+    -- Extract an address the caller cannot set.
+    client_ip := NULLIF(btrim(split_part(
+      current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
+      GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
+    )), '');
+    IF client_ip IS NULL THEN
+      client_ip := 'unknown';
+    END IF;
 
-  -- Simple rate limiting logic
-  SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
-  IF FOUND THEN
-    IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
-      IF rate_limit_row.request_count >= 20 THEN
-        RAISE EXCEPTION 'Rate limit exceeded. Please try again later.';
+    SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
+    IF FOUND THEN
+      IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
+        IF rate_limit_row.request_count >= 20 THEN
+          RAISE EXCEPTION 'verify_rate_limited' USING ERRCODE = 'VF429';
+        ELSE
+          UPDATE public.verification_rate_limits
+          SET request_count = request_count + 1, last_request = NOW()
+          WHERE ip_address = client_ip;
+        END IF;
       ELSE
         UPDATE public.verification_rate_limits
-        SET request_count = request_count + 1, last_request = NOW()
+        SET request_count = 1, last_request = NOW()
         WHERE ip_address = client_ip;
       END IF;
     ELSE
-      UPDATE public.verification_rate_limits
-      SET request_count = 1, last_request = NOW()
-      WHERE ip_address = client_ip;
+      INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
+      VALUES (client_ip, 1, NOW());
     END IF;
-  ELSE
-    INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
-    VALUES (client_ip, 1, NOW());
   END IF;
-
 
   -- Try SIL Leaves
   SELECT s.*, e.name AS employee_name, c.label AS category_label,

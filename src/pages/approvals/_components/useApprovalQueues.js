@@ -16,6 +16,9 @@ import {
   selectManagerPending,
 } from "../../../utils/approvalQueue.js";
 
+/** The one cached task list the dashboard, the Approval Center and the profile page share. */
+export const dashboardTasksKey = (userId) => ["dashboardTasks", userId, "all"];
+
 /**
  * The Approval Center queues. One page per queue, one design for all of them;
  * the tab strip at the top of each page is built from this list. IPAS sign-offs
@@ -117,7 +120,7 @@ export function useApprovalQueues({ reportedToMeOnly = true } = {}) {
   const { settings: appSettings } = useAppSettings();
 
   const tasksQuery = useQuery({
-    queryKey: ["dashboardTasks", user?.id, "all"],
+    queryKey: dashboardTasksKey(user?.id),
     queryFn: () => taskService.getAllTasks(),
     enabled: !!user?.id,
   });

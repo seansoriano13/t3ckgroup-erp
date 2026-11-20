@@ -156,4 +156,30 @@ describe("Login password form", () => {
     resolve();
     await waitFor(() => expect(btn).not.toBeDisabled());
   });
+  it("gives Forgot password? a tap area at least 24px tall", () => {
+    renderLoggedOut();
+    expect(screen.getByRole("button", { name: /forgot password/i }).className).toMatch(/min-h-6/);
+  });
+
+  it("does not load the intro video at phone width", () => {
+    vi.stubGlobal("matchMedia", (q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
+    const { container } = renderLoggedOut();
+    expect(container.querySelector("video")).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("loads the intro video from the large-screen width up", () => {
+    vi.stubGlobal("matchMedia", (q) => ({ matches: true, media: q, addEventListener() {}, removeEventListener() {} }));
+    const { container } = renderLoggedOut();
+    expect(container.querySelector("video")).not.toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the one not-active message left by a quiet sign-out", () => {
+    sessionStorage.setItem("t3ck_inactive_notice", "1");
+    const err = vi.spyOn(toast, "error");
+    renderLoggedOut();
+    expect(err).toHaveBeenCalledWith("This account is not active in the portal. Ask HR if this is wrong.");
+    expect(sessionStorage.getItem("t3ck_inactive_notice")).toBeNull();
+  });
 });

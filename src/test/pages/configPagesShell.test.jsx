@@ -109,7 +109,7 @@ describe("Profile on PageShell", () => {
     expect(screen.getByText("Your details, signature and appearance.")).toBeInTheDocument();
     expect(within(headerOf(heading)).queryByRole("button", { name: "Save settings" })).toBeNull();
 
-    await setupUser().type(screen.getByPlaceholderText(/7-word motivational quote/i), " more");
+    await setupUser().type(screen.getByLabelText(/custom quote/i), " more");
     const save = within(headerOf(heading)).getByRole("button", { name: "Save settings" });
     expect(save).toBeEnabled();
     expect(save.className).not.toMatch(/uppercase|rounded-full|tracking-widest|h-auto/);
