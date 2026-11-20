@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import SorAccessNotice from "./SorAccessNotice"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Dialog } from "@/components/ui/dialog";
@@ -945,8 +946,7 @@ export default function SorModal({
 
   // #475: a Mention Window says who opened it and when it ends.
   const windowsBanner = (myWindows.length > 0 || myMentionWindows.length > 0) && (
-      <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
-        <ul className="space-y-0.5">
+      <SorAccessNotice count={myMentionWindows.length + myWindows.length}>
           {myMentionWindows.map((m) => (
             <li key={m.id} className="text-xs leading-relaxed text-violet-11">
               {!m.hasVisit ? (
@@ -975,8 +975,7 @@ export default function SorModal({
               {w.closedAt ? ". This window has closed." : "."}
             </li>
           ))}
-        </ul>
-      </div>
+      </SorAccessNotice>
   );
 
   // Everything the layout renders.
