@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import PageLoading from "@/components/ui/PageLoading";
+import { VERIFY_LIMIT_CODE } from "@/constants/verify";
 import { CheckCircle2, XCircle, Clock, SearchX, AlertTriangle, ArrowRight, ShieldCheck, ShieldAlert } from "lucide-react";
 
 function getStatusConfig(status) {
@@ -35,7 +36,7 @@ function hoursLabel(hours) {
 
 /** The limit raises its own code; anything else from the call means "not found". */
 function isRateLimited(err) {
-  return err?.code === "VF429" || /verify_rate_limited/.test(err?.message || "");
+  return err?.code === VERIFY_LIMIT_CODE;
 }
 
 export default function VerifiedRecordPreview({ token, standalone = false }) {
@@ -191,12 +192,11 @@ export default function VerifiedRecordPreview({ token, standalone = false }) {
         );
       }
 
-      const which = failedWhich;
       return (
         <div className="flex items-start gap-3 mt-4 bg-[#FFF4F4] text-[#E03E3E] p-3 rounded-md border border-[#FDEBEC]">
           <ShieldAlert className="h-5 w-5 mt-0.5 flex-shrink-0" />
           <div className="text-sm">
-            <p className="font-semibold">Signature Validation Failed: {which}</p>
+            <p className="font-semibold">Signature Validation Failed: {failedWhich}</p>
             <p className="opacity-90 mt-0.5">This record has been modified after it was signed.</p>
           </div>
         </div>

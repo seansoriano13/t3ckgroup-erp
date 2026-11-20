@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { RESET_PASSWORD_PATH } from "../lib/recoveryLink";
 
-const EMAIL_SHAPE = /^[^s@]+@[^s@]+.[^s@]+$/;
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Issues or reissues a password-login credential for an employee, via the

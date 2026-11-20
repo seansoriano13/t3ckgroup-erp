@@ -7,6 +7,7 @@ import ImageCropModal from "@/components/ImageCropModal.jsx"
 import { employeeService } from "@/services/employeeService"
 import { renderWithProviders } from "@/test/support"
 import { makeEmployee } from "@/test/factories"
+import toast from "react-hot-toast"
 
 /** Spec #1133 / #1136: My Profile banner check, bad photo, labels, and a save that changes no row. */
 
@@ -18,6 +19,7 @@ vi.mock("@/services/storageService", () => ({
   storageService: { getSignedUrl: () => "", uploadProfileImage: vi.fn() },
 }))
 vi.mock("@/hooks/useUnsavedGuard", () => ({ useUnsavedGuard: () => {} }))
+vi.mock("react-hot-toast", () => ({ default: { error: vi.fn(), success: vi.fn() } }))
 
 beforeEach(() => {
   const e = makeEmployee({ name: "Dani" })
@@ -62,6 +64,7 @@ describe("ImageCropModal", () => {
         <ImageCropModal file={new File(["hi"], "a.txt", { type: "text/plain" })} isOpen onConfirm={vi.fn()} onCancel={onCancel} />,
       )
       await waitFor(() => expect(onCancel).toHaveBeenCalled())
+      expect(toast.error).toHaveBeenCalledWith("That file is not a picture. Choose a JPG or PNG.")
     } finally {
       globalThis.Image = origImage
     }

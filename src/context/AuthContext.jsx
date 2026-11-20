@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(mergedUser));
       } else {
         console.warn("Auth: No employee record found for", sessionUser.email);
-        await quietSignOut();
+        await logout({ silent: true });
       }
     } catch (err) {
       console.error("Auth: resolveEmployee failed:", err);
@@ -184,37 +184,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // No toast here: the login page shows the one "not active" message.
-  const quietSignOut = async () => {
+  // `silent` is for an inactive account: no toast, the login page shows the one "not active" message.
+  const logout = async ({ silent = false } = {}) => {
     try {
       localStorage.removeItem(PROFILE_CACHE_KEY);
-      sessionStorage.setItem(INACTIVE_NOTICE_KEY, "1");
+      if (silent) sessionStorage.setItem(INACTIVE_NOTICE_KEY, "1");
     } catch {
       /* storage blocked */
     }
     try {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      if (!silent) toast.success("Logged out successfully.");
     } catch (error) {
-      console.error("Error signing out inactive account", error);
+      console.error("Error logging out", error);
+      if (!silent) toast.error("Failed to logout. Please try again.");
     }
     setUser(null);
     window.location.replace("/login");
-  };
-
-  const logout = async () => {
-    try {
-      localStorage.removeItem(PROFILE_CACHE_KEY);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null);
-      toast.success("Logged out successfully.");
-      window.location.replace("/login");
-    } catch (error) {
-      console.error("Error logging out", error);
-      toast.error("Failed to logout. Please try again.");
-      setUser(null);
-      window.location.replace("/login");
-    }
   };
 
   const updateUserPreferences = (nextValues) => {

@@ -90,6 +90,27 @@ describe("verify_form_token limit (#1134)", () => {
         expect(limited.message).toBe("verify_rate_limited")
     })
 
+    it("still counts a caller who makes up a Cloudflare address header", async () => {
+        const row = await seedLeave()
+        let limited = null
+        for (let i = 0; i < 30 && !limited; i++) {
+            const { error } = await callWith(row.verification_token, {
+                "cf-connecting-ip": `10.8.${i}.1`,
+            })
+            if (error) limited = error
+        }
+        expect(limited?.code).toBe("VF429")
+    })
+
+    it("counts the call before it looks the code up, so a wrong code is limited too", async () => {
+        let limited = null
+        for (let i = 0; i < 30 && !limited; i++) {
+            const { error } = await callWith(`not-a-real-code-${i}`, {})
+            if (error) limited = error
+        }
+        expect(limited?.code).toBe("VF429")
+    })
+
     it("does not limit signed-in HR", async () => {
         const row = await seedLeave()
         const hr = await clientFor("hr")

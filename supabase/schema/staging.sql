@@ -31198,13 +31198,10 @@ BEGIN
     client_ip := NULL;
   ELSE
     -- Extract an address the caller cannot set.
-    client_ip := NULLIF(btrim(current_setting('request.headers', true)::json->>'cf-connecting-ip'), '');
-    IF client_ip IS NULL THEN
-      client_ip := NULLIF(btrim(split_part(
-        current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
-        GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
-      )), '');
-    END IF;
+    client_ip := NULLIF(btrim(split_part(
+      current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
+      GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
+    )), '');
     IF client_ip IS NULL THEN
       client_ip := 'unknown';
     END IF;

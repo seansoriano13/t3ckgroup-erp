@@ -1,9 +1,18 @@
 -- verify_form_token limit (#1134, tracker C2/C3).
 -- 1. Hitting the limit raises its own code (VF429, message verify_rate_limited), so the
 --    page can say "too many checks" instead of "Record Not Found".
--- 2. The limit keys on an address the caller cannot set: Cloudflare's cf-connecting-ip,
---    else the LAST x-forwarded-for entry (the one the platform proxy appended). The old
---    first entry was caller-supplied, so a made-up X-Forwarded-For dodged the limit.
+-- 2. The limit keys on the LAST x-forwarded-for entry, the one the platform proxy appended.
+--    The old first entry was caller-supplied, so a made-up X-Forwarded-For dodged the limit.
+--    What we found (Supabase docs and GitHub discussion supabase/discussions/34647; hosted
+--    Supabase does not document either header): the proxy APPENDS to x-forwarded-for and does
+--    not replace it (a spoofed value shows as "spoofed,real"), so only the last entry is
+--    trustworthy. cf-connecting-ip is set by Cloudflare, but nothing documents that it is
+--    overwritten before it reaches PostgREST, and a local stack has no Cloudflare at all, so
+--    a caller could send their own. We therefore ignore it. Still unverified on the hosted
+--    project: whether the last entry is the caller or a shared proxy address (the limit is
+--    then coarser, never bypassable).
+-- 2b. The limit runs BEFORE the token lookup on purpose: looking up first would let an
+--    attacker enumerate valid codes without being counted.
 -- 3. Signed-in HR and Super Admin are not limited.
 -- The record branches are unchanged.
 
@@ -33,13 +42,10 @@ BEGIN
     client_ip := NULL;
   ELSE
     -- Extract an address the caller cannot set.
-    client_ip := NULLIF(btrim(current_setting('request.headers', true)::json->>'cf-connecting-ip'), '');
-    IF client_ip IS NULL THEN
-      client_ip := NULLIF(btrim(split_part(
-        current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
-        GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
-      )), '');
-    END IF;
+    client_ip := NULLIF(btrim(split_part(
+      current_setting('request.headers', true)::json->>'x-forwarded-for', ',',
+      GREATEST(array_length(string_to_array(COALESCE(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ','), 1), 1)
+    )), '');
     IF client_ip IS NULL THEN
       client_ip := 'unknown';
     END IF;

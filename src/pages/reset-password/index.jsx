@@ -35,7 +35,6 @@ import { FieldBox } from "@/components/ui/FieldBox";
 // a definite yes/no normally arrives well before this.
 const VERIFY_TIMEOUT_MS = 12000;
 
-const EXPIRED_CODES = new Set(["otp_expired"]);
 const EXPIRED_COPY =
   "Your reset link has expired, or it has already been opened once.";
 const BAD_LINK_COPY =
@@ -139,7 +138,7 @@ export default function ResetPassword() {
       // GoTrue turned the link down before it ever reached us.
       done(
         "invalid",
-        EXPIRED_CODES.has(params.errorCode) ? EXPIRED_COPY : BAD_LINK_COPY,
+        params.errorCode === "otp_expired" ? EXPIRED_COPY : BAD_LINK_COPY,
       );
     } else if (params.tokenHash) {
       // Current-style link: redeem the token_hash ourselves. This POST is the

@@ -16,19 +16,16 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
 import { useUnsavedGuard } from "@/hooks/useUnsavedGuard";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { supabase } from "../../lib/supabase";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { storageService } from "../../services/storageService";
 import { employeeService } from "../../services/employeeService";
 import { signatureService } from "../../services/signatureService";
 import { passwordService } from "../../services/passwordService";
-import { taskService } from "../../services/taskService.js";
-import { selectHrPending, selectHrVerified } from "../../utils/approvalQueue.js";
+import { useProfileStats } from "./useProfileStats";
 import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
 import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
-import { HIDDEN_TASK_STATUS_FILTER, TASK_STATUS } from "../../constants/status";
 import PageShell from "../../components/ui/PageShell";
 import { Input } from "@/components/ui/input";
 
@@ -144,81 +141,7 @@ export default function ProfilePage() {
         ? bannerUrlInput.trim()
         : user?.dashboardBannerUrl || "/leaf-background.jpg";
 
-  const isHrUser = !user?.isSuperAdmin && !!(user?.isHr || user?.is_hr);
-  // HR's two numbers use the Approval Center's own queue and the same cached query, so they cannot drift.
-  const hrTasksQuery = useQuery({
-    queryKey: ["dashboardTasks", user?.id, "all"],
-    queryFn: () => taskService.getAllTasks(),
-    enabled: !!user?.id && isHrUser,
-  });
-  const hrStats = useMemo(() => {
-    if (!isHrUser) return null;
-    const tasks = hrTasksQuery.data || [];
-    return {
-      primary: selectHrPending(tasks, user?.id).length,
-      primaryLabel: "Pending HR Verifications",
-      secondary: selectHrVerified(tasks, user?.id).length,
-      secondaryLabel: "Total Verified",
-    };
-  }, [isHrUser, hrTasksQuery.data, user?.id]);
-
-  const { data: queryStats, isLoading: queryLoading, isError: queryError } = useQuery({
-    queryKey: ["profileStats", user?.id],
-    queryFn: async () => {
-      if (user?.isSuperAdmin) return null;
-
-      const userDept = user?.department || "";
-
-      if (isHrUser) {
-        return null; // HR's numbers come from the Approval Center's own task list (below)
-      } else if (user?.isHead || user?.is_head) {
-        // Department Head logic
-        const { count: pendingApprovals } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("department", userDept)
-          .eq("status", TASK_STATUS.AWAITING_APPROVAL);
-
-        const { count: totalApproved } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("department", userDept)
-          .in("status", [TASK_STATUS.COMPLETE, TASK_STATUS.NOT_APPROVED]);
-
-        return {
-          primary: pendingApprovals || 0,
-          primaryLabel: "Awaiting Your Approval",
-          secondary: totalApproved || 0,
-          secondaryLabel: "Your Evaluated Tasks",
-        };
-      } else {
-        // Regular Employee logic
-        const { count: totalLogged } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("logged_by", user.id)
-          .not("status", "in", HIDDEN_TASK_STATUS_FILTER);
-
-        const { count: totalDone } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("logged_by", user.id)
-          .eq("status", TASK_STATUS.COMPLETE);
-
-        return {
-          primary: totalLogged || 0,
-          primaryLabel: "Total Tasks Logged",
-          secondary: totalDone || 0,
-          secondaryLabel: "Tasks completed",
-        };
-      }
-    },
-    enabled: !!user?.id && !isHrUser,
-  });
-
-  const stats = isHrUser ? hrStats : queryStats;
-  const isStatsLoading = isHrUser ? hrTasksQuery.isLoading : queryLoading;
-  const isStatsError = isHrUser ? hrTasksQuery.isError : queryError;
+  const { stats, isStatsLoading, isStatsError } = useProfileStats(user);
 
   const generateQuoteMutation = useMutation({
     mutationFn: async () => {

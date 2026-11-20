@@ -74,6 +74,13 @@ describe("passwordService", () => {
       spy.mockRestore()
     })
 
+    it("accepts a normal address that contains the letter s", async () => {
+      const spy = vi.spyOn(supabase.auth, "resetPasswordForEmail").mockResolvedValue({ error: null })
+      await expect(passwordService.requestPasswordReset("sean@t3ckgroup.com")).resolves.not.toThrow()
+      expect(spy).toHaveBeenCalledWith("sean@t3ckgroup.com", expect.anything())
+      spy.mockRestore()
+    })
+
     it("turns a rate limit into a plain sentence", async () => {
       const spy = vi
         .spyOn(supabase.auth, "resetPasswordForEmail")
