@@ -274,6 +274,40 @@ describe("commissionService", () => {
     })
   })
 
+  describe("percent bounds", () => {
+    it("rejects a negative department allocation even when the total is 100", async () => {
+      const admin = makeSuperAdmin()
+      const before = await commissionService.getDepartments()
+
+      await expect(
+        commissionService.saveDepartmentAllocations(
+          before.map((d, i) => ({ id: d.id, name: d.name, allocationPercent: i === 0 ? -5 : i === 1 ? 105 : 0 })),
+          admin.id,
+        ),
+      ).rejects.toThrow(/between 0% and 100%/)
+      expect((await commissionService.getDepartments()).map((d) => d.allocationPercent)).toEqual(
+        before.map((d) => d.allocationPercent),
+      )
+    })
+
+    it("rejects a negative or oversized rate and split", async () => {
+      const admin = makeSuperAdmin()
+      await expect(
+        commissionService.createRate({ rateType: "POOL", percent: -1, effectiveFrom: "2027-01-01" }, admin.id),
+      ).rejects.toThrow(/between 0% and 100%/)
+      await expect(
+        commissionService.createRate({ rateType: "POOL", percent: 101, effectiveFrom: "2027-01-01" }, admin.id),
+      ).rejects.toThrow(/between 0% and 100%/)
+      await expect(
+        commissionService.saveSplitsForProjectType(
+          "CP",
+          [{ shareRole: "deal_owner", percent: -10 }, { shareRole: "closing_salesperson", percent: 110 }],
+          admin.id,
+        ),
+      ).rejects.toThrow(/between 0% and 100%/)
+    })
+  })
+
   describe("saveDepartmentAllocations", () => {
     it("persists new allocation percentages that sum to 100", async () => {
       const admin = makeSuperAdmin()
