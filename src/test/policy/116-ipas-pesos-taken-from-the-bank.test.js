@@ -6,8 +6,9 @@
  *   - Landed Cost is an estimate, each blank payment taken at the Reference Rate of its payment
  *     date (the latest rate on or before it). The estimate is worked out on the way out and never
  *     stored: the payment's column stays blank.
- *   - the Computation status can't move to LC Odoo Done, and the refusal names the payments;
- *   - nothing can be added or edited to blank once the IPAS is at LC Odoo Done.
+ *   - the Computation status may still reach LC Odoo Done with an estimate (any step, either way);
+ *   - a payment can still be added or blanked at LC Odoo Done: it is Filing that waits for the pesos
+ *     (#1124), and the refusal there names the payments.
  * A payment given pesos behaves as it always did: the rate actually paid.
  *
  * `outsider` holds Purchasing access. Reference Rates are written for a currency of this test's

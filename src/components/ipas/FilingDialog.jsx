@@ -90,7 +90,7 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
       <div className="space-y-2">
         <p className="text-base font-medium text-foreground">File {number}?</p>
         <p className="text-sm text-muted-foreground">
-          Approving section {ipasSectionLabel(7)} files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
+          Approving Section {ipasSectionLabel(7)} files this IPAS. It freezes Landed Cost as final and locks its payments, charges,
           documents, bank details, SORs and Purpose. Only a Super Admin can reopen it.
         </p>
         {/* From the record page: what filing adds, and who signs (the Approval Center passes neither). */}

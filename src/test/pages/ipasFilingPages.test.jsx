@@ -167,7 +167,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(check).toHaveTextContent("waiting");
       expect(within(check).queryByRole("button")).not.toBeInTheDocument();
       const section = await screen.findByRole("region", { name: "6 · Sign-offs" });
-      expect(within(section).queryByRole("button", { name: /^(Review and|Send back|Receive|Note|Check)/ })).not.toBeInTheDocument();
+      expect(within(section).queryByRole("button", { name: /^(Review and|Return|Receive|Note|Check)/ })).not.toBeInTheDocument();
     });
 
     it("offers Check to anyone on the Received, Noted or Checked list, and one press gives all three", async () => {
@@ -202,7 +202,7 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderDetail(row.id);
-      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: "Send back…" }));
+      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: "Return…" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Return section 6?" });
       const submit = within(dialog).getByRole("button", { name: "Return" });
@@ -221,7 +221,7 @@ describe("IPAS section 7 and Filing", () => {
     });
 
     it("offers no Send back before Check, to someone on no list, or on a filed IPAS", async () => {
-      const sendBack = /^Send back…/;
+      const sendBack = /^Return…/;
       const early = ipas();
       approvedFirstSections(early);
       signIn(noter);
@@ -258,7 +258,7 @@ describe("IPAS section 7 and Filing", () => {
 
       const region = await screen.findByRole("region", { name: "Your move" });
       expect(await step("check")).toHaveTextContent("waiting");
-      expect(within(region).queryByRole("button", { name: /^(Review and|Send back|Undo approval)/ })).not.toBeInTheDocument();
+      expect(within(region).queryByRole("button", { name: /^(Review and|Return|Undo approval)/ })).not.toBeInTheDocument();
     });
 
     it("holds Approve and file until Landed Cost is final, and says what it waits on", async () => {
@@ -376,7 +376,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(screen.queryByRole("button", { name: /Add payment|Add charge/ })).not.toBeInTheDocument();
       const region = await screen.findByRole("region", { name: "Your move" });
       expect(within(region).queryAllByRole("button")).toHaveLength(0);
-      expect(within(screen.getByRole("region", { name: "6 · Sign-offs" })).queryByRole("button", { name: /^(Edit section|Review and|Send back|Undo)/ })).not.toBeInTheDocument();
+      expect(within(screen.getByRole("region", { name: "6 · Sign-offs" })).queryByRole("button", { name: /^(Edit section|Review and|Return|Undo)/ })).not.toBeInTheDocument();
       // The header badge and the Sign-offs row both say so.
       expect(screen.getAllByText("Filed").length).toBeGreaterThanOrEqual(2);
     });

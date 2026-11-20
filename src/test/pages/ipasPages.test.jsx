@@ -384,6 +384,13 @@ describe("IPAS pages", () => {
       expect(await screen.findByText("No IPAS yet")).toBeInTheDocument();
     });
 
+    it("tells someone the database refuses that they have no access, instead of 'No IPAS yet' (E5)", async () => {
+      mockUser.current = salesperson;
+      renderList();
+      expect(await screen.findByText("You don't have access to IPAS")).toBeInTheDocument();
+      expect(screen.queryByText("No IPAS yet")).not.toBeInTheDocument();
+    });
+
     it("offers Raise IPAS to Purchasing and not to Finance", async () => {
       renderList();
       expect(await screen.findByRole("button", { name: /Raise IPAS/ })).toBeInTheDocument();
@@ -464,6 +471,29 @@ describe("IPAS pages", () => {
       expect(within(dialog).getByText("Priority")).toBeInTheDocument();
       expect(within(dialog).getByText("Purpose")).toBeInTheDocument();
       expect(within(dialog).getByRole("button", { name: "Raise IPAS" })).toBeDisabled();
+    });
+
+    it("marks Priority, Source and Purpose with a red asterisk and names what is missing above the buttons (E1)", async () => {
+      const user = setupUser();
+      stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...copy("P02552") });
+      const dialog = await openDialog(user);
+
+      await check(user, dialog);
+
+      await within(dialog).findByText("Priority");
+      for (const label of ["Priority", "Source", "Purpose"]) {
+        expect(within(dialog).getByText(label).parentElement).toHaveTextContent(`${label}*`);
+      }
+      expect(within(dialog).getByTestId("raise-ipas-missing")).toHaveTextContent("Still needed: Priority, Source, Purpose.");
+    });
+
+    it("asks 'Discard this IPAS?' on Esc once anything was typed (B4)", async () => {
+      const user = setupUser();
+      const dialog = await openDialog(user);
+
+      await user.type(within(dialog).getByPlaceholderText("e.g. P02552"), "P02552");
+      await user.keyboard("{Escape}");
+      expect(await screen.findByText("Discard this IPAS?")).toBeInTheDocument();
     });
 
     it("blocks a PO that already has a live IPAS, and names it", async () => {
@@ -641,7 +671,7 @@ describe("IPAS pages", () => {
       expect(costs).toHaveTextContent("Provisional");
       expect(screen.getByRole("button", { name: /^4 · Delivery/ })).toHaveTextContent("Not delivered yet");
       expect(screen.getByRole("button", { name: /^5 · Documents/ })).toHaveTextContent(/\d+ missing/);
-      expect(screen.getByRole("button", { name: /^6 · Sign-offs/ })).toHaveTextContent("0 of 4 signed");
+      expect(screen.getByRole("button", { name: /^6 · Sign-offs/ })).toHaveTextContent("0 of 5 signed");
     });
 
     // The record is a window over the list, as the Transmittal is.

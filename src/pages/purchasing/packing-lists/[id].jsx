@@ -502,6 +502,7 @@ function PackingListPage({ onClose }) {
             />
             <RecordWithRail
               status={status}
+              mine={moves.length > 0}
               rail={
                 <YourMoveCard
                   status={status}

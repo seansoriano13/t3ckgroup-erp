@@ -178,7 +178,7 @@ describe("IPAS sign-offs", () => {
 
       const region = await screen.findByRole("region", { name: "Your move" });
       expect(await step("approve")).toHaveTextContent("waiting");
-      expect(within(region).queryByRole("button", { name: /^(Review and|Send back|Undo approval)/ })).not.toBeInTheDocument();
+      expect(within(region).queryByRole("button", { name: /^(Review and|Return|Undo approval)/ })).not.toBeInTheDocument();
     });
 
     it("sends back a section with a reason that is required, and tells the sender", async () => {
@@ -189,7 +189,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       renderDetail(row.id);
-      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: "Send back…" }));
+      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: "Return…" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Return section 2?" });
       const send = within(dialog).getByRole("button", { name: "Return" });
@@ -220,7 +220,7 @@ describe("IPAS sign-offs", () => {
       const region = await screen.findByRole("region", { name: "Your move" });
       // Once approved it is Undo approval, never Send back.
       expect(await within(region).findByRole("button", { name: "Undo approval…" })).toBeInTheDocument();
-      expect(within(region).queryByRole("button", { name: "Send back…" })).not.toBeInTheDocument();
+      expect(within(region).queryByRole("button", { name: "Return…" })).not.toBeInTheDocument();
       await user.click(within(region).getByRole("button", { name: "Undo approval…" }));
 
       const dialog = await screen.findByRole("dialog", { name: "Undo approval of section 2?" });
@@ -320,7 +320,7 @@ describe("IPAS sign-offs", () => {
       const user = setupUser();
 
       const view = renderDetail(row.id);
-      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: /^(Send back|Undo approval)…/ }));
+      await user.click(await within(await screen.findByRole("region", { name: "Your move" })).findByRole("button", { name: /^(Return|Undo approval)…/ }));
       await screen.findByRole("dialog", { name: /^(Return|Undo approval of) section|^Return or undo an approval/ });
 
       // The IPAS list sits behind the record window; only the window and the dialog over it are read.

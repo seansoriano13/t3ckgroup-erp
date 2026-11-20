@@ -103,6 +103,8 @@ function NewPackingListDialog({ open, onOpenChange }) {
         onOpenChange(next);
       }}
       crumbs={["Packing List", "New Packing List"]}
+      dirty={sor.length > 0 || deliveryRef.trim() !== ""}
+      discardWhat="Packing List"
       actions={
         <Button onClick={create} disabled={saving || sor.length !== 1}>
           {saving ? "Making…" : "Make Packing List"}

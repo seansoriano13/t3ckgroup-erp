@@ -60,7 +60,7 @@ import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
 import { REFUSAL } from "../constants/refusal";
 import { shapeIpasSummaries } from "../utils/ipasSummary";
-import { ipasFigures } from "../utils/ipasFigures";
+import { ipasFigures, odooPoTotal } from "../utils/ipasFigures";
 import { TRANSMITTAL_OPTION_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 const IPAS_SELECT =
@@ -1540,7 +1540,8 @@ export const ipasService = {
           supplier: ipasSupplier(ipas),
           purpose: ipas.purpose,
           priority: ipas.priority,
-          total: (ipas.odoo_copy?.lines ?? []).reduce((sum, line) => sum + (Number(line?.price_subtotal) || 0), 0),
+          // The PO total with tax, as the record shows it (an old copy falls back to its line subtotals).
+          total: odooPoTotal(ipas.odoo_copy)?.total ?? 0,
           currency: ipasCurrency(ipas),
           // The Supplier bill check's figures (#603): the review warns beside section 1's Approve.
           figures: ipasFigures(ipas),

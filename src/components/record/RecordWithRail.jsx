@@ -11,9 +11,11 @@ import { useIsPhone } from "@/hooks/useScreenBand";
  * `status` is the one line saying what is next (shown in the phone bar). `children` is
  * the body; `rail` is the card.
  */
-export default function RecordWithRail({ status, rail, children, className }) {
+export default function RecordWithRail({ status, rail, children, className, mine = true }) {
   const phone = useIsPhone();
-  const label = phone && status ? `Your move · ${status}` : "Your move";
+  // "Next move" when the viewer is not one of the people the move is named for.
+  const word = mine ? "Your move" : "Next move";
+  const label = phone && status ? `${word} · ${status}` : word;
   return (
     <div className={cn("flex min-w-0 flex-col gap-4 max-md:pb-16 min-[1440px]:flex-row min-[1440px]:gap-8", className)}>
       <div className="min-w-0 flex-1 space-y-6">{children}</div>

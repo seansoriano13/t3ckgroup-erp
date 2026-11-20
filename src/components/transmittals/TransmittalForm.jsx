@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -113,7 +113,7 @@ const sameLine = (line, pick) => line.ipasId === pick.ipasId && line.odooPoLineI
  * and Submit in (null while the footer is not mounted yet); left out, they sit
  * under the form.
  */
-export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel, actionsSlot }) {
+export default function TransmittalForm({ existing = null, defaultOrigin = "", onSaved, onCancel, actionsSlot, onDirtyChange }) {
   const queryClient = useQueryClient();
   // ?ipas=TGIPAS_… from an IPAS's "Raise a Transmittal": its number waits in "Fill from an IPAS".
   const [searchParams] = useSearchParams();
@@ -124,6 +124,16 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
   const [referenceIds, setReferenceIds] = useState(() => existing?.references.map((r) => r.id) ?? []);
   const [lines, setLines] = useState(() => (existing ? existing.lines.map(lineFrom) : []));
   const [busy, setBusy] = useState(false);
+
+  // Whether anything was set on the slip (Raise a Transmittal asks before Esc throws it away).
+  const dirty =
+    lines.length > 0 ||
+    productIds.length > 0 ||
+    referenceIds.length > 0 ||
+    JSON.stringify(header) !== JSON.stringify(headerFrom(existing, defaultOrigin));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
 
   const { data: options = [] } = useQuery({
     queryKey: transmittalKeys.options,
@@ -359,7 +369,7 @@ export default function TransmittalForm({ existing = null, defaultOrigin = "", o
         createPortal(
           <>
             {submitBlocker && (
-              <span className="max-w-72 text-right text-label font-medium text-muted-foreground" data-testid="transmittal-submit-reason">
+              <span className="max-w-72 text-right text-label font-medium text-muted-foreground max-md:order-first max-md:max-w-none max-md:basis-full" data-testid="transmittal-submit-reason">
                 {submitBlocker}
               </span>
             )}
