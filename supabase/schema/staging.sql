@@ -584,7 +584,8 @@ create table if not exists public."employees" (
   "has_retail_access" boolean not null default false,
   "has_bug_report_access" boolean not null default false,
   "has_finance_flow" boolean not null default false,
-  "call_sign" text
+  "call_sign" text,
+  "has_logistics_flow" boolean not null default false
 );
 
 create table if not exists public."faq_data" (
@@ -796,7 +797,9 @@ create table if not exists public."ipas" (
   "freight_attachment_url" text,
   "retail_multiplier" numeric(10,4),
   "wholesale_discount_pct" numeric(5,2) not null default 30,
-  "file_rules_snapshot" jsonb
+  "file_rules_snapshot" jsonb,
+  "status" text default 'order_draft'::text,
+  "direct_delivery" boolean not null default false
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -820,6 +823,15 @@ create table if not exists public."ipas_charges" (
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
   "attachment_url" text
+);
+
+create table if not exists public."ipas_document_files" (
+  "id" uuid not null default gen_random_uuid(),
+  "document_id" uuid not null,
+  "url" text not null,
+  "file_name" text not null,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."ipas_documents" (
@@ -930,6 +942,14 @@ create table if not exists public."ipas_sors" (
   "ipas_id" uuid not null,
   "opportunity_id" uuid not null,
   "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."ipas_status_steps" (
+  "ipas_id" uuid not null,
+  "step" text not null,
+  "reached_on" date not null,
+  "set_by" uuid,
+  "set_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."ipas_work_marks" (
@@ -1101,13 +1121,13 @@ create table if not exists public."offset_leaves" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
+  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
   "hr_override" boolean not null default false,
-  "company_id" uuid,
   "approved_hours" numeric,
   "hr_processed_at" timestamp with time zone,
   "meal_break_kept_reason" text
@@ -1153,13 +1173,13 @@ create table if not exists public."overtime_requests" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
+  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
   "hr_override" boolean not null default false,
-  "company_id" uuid,
   "hr_processed_at" timestamp with time zone,
   "meal_break_kept_reason" text
 );
@@ -1582,13 +1602,13 @@ create table if not exists public."sil_leaves" (
   "approval_credits_snapshot" numeric,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
+  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
   "hr_override" boolean not null default false,
-  "company_id" uuid,
   "meal_break_kept_reason" text
 );
 
@@ -2090,6 +2110,7 @@ alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMAR
 alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
 alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KEY (ipas_id);
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
+alter table ipas_document_files add constraint "ipas_document_files_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
@@ -2100,6 +2121,7 @@ alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIM
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
 alter table ipas_signoffs add constraint "ipas_signoffs_pkey" PRIMARY KEY (id);
 alter table ipas_sors add constraint "ipas_sors_pkey" PRIMARY KEY (id);
+alter table ipas_status_steps add constraint "ipas_status_steps_pkey" PRIMARY KEY (ipas_id, step);
 alter table ipas_work_marks add constraint "ipas_work_marks_pkey" PRIMARY KEY (ipas_id);
 alter table lwop_leaves add constraint "lwop_leaves_pkey" PRIMARY KEY (id);
 alter table meal_break_settings add constraint "meal_break_settings_pkey" PRIMARY KEY (key);
@@ -2346,12 +2368,15 @@ alter table ipas add constraint "ipas_retail_multiplier_chk" CHECK (((retail_mul
 alter table ipas add constraint "ipas_sor_warning_checked_chk" CHECK (((sor_warning_checked IS NULL) OR (jsonb_typeof(sor_warning_checked) = 'object'::text)));
 alter table ipas add constraint "ipas_source_chk" CHECK ((source = ANY (ARRAY['import'::text, 'local'::text])));
 alter table ipas add constraint "ipas_state_chk" CHECK ((state = ANY (ARRAY['open'::text, 'filed'::text, 'cancelled'::text])));
+alter table ipas add constraint "ipas_status_chk" CHECK (((status IS NULL) OR (_ipas_status_order(status) IS NOT NULL)));
 alter table ipas add constraint "ipas_supplier_origin_import_chk" CHECK (((source = 'import'::text) OR ((shipped_out_on IS NULL) AND (onboard_on IS NULL) AND (arrived_in_ph_on IS NULL) AND (arrived_in_whs_on IS NULL))));
 alter table ipas add constraint "ipas_wholesale_discount_chk" CHECK (((wholesale_discount_pct >= (0)::numeric) AND (wholesale_discount_pct < (100)::numeric)));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_name_chk" CHECK (((account_name IS NULL) OR (length(account_name) <= 200)));
 alter table ipas_bank_details add constraint "ipas_bank_details_account_number_chk" CHECK (((account_number IS NULL) OR (length(account_number) <= 100)));
 alter table ipas_bank_details add constraint "ipas_bank_details_bank_name_chk" CHECK (((bank_name IS NULL) OR (length(bank_name) <= 200)));
 alter table ipas_charges add constraint "ipas_charges_amount_chk" CHECK (((amount_php IS NULL) OR (amount_php > (0)::numeric)));
+alter table ipas_document_files add constraint "ipas_document_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
+alter table ipas_document_files add constraint "ipas_document_files_url_chk" CHECK ((url ~* '^https?://'::text));
 alter table ipas_documents add constraint "ipas_documents_attachment_url_chk" CHECK (((attachment_url IS NULL) OR (attachment_url ~* '^https?://'::text)));
 alter table ipas_documents add constraint "ipas_documents_kind_or_label_chk" CHECK ((((kind_id IS NOT NULL) AND (label IS NULL)) OR ((kind_id IS NULL) AND (label IS NOT NULL) AND (length(btrim(label)) > 0) AND (length(label) <= 200))));
 alter table ipas_events add constraint "ipas_events_detail_chk" CHECK ((jsonb_typeof(detail) = 'object'::text));
@@ -2380,6 +2405,7 @@ alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((c
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7, 8])));
+alter table ipas_status_steps add constraint "ipas_status_steps_step_chk" CHECK ((_ipas_status_order(step) IS NOT NULL));
 alter table lwop_leaves add constraint "lwop_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table lwop_leaves add constraint "lwop_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -2408,7 +2434,7 @@ alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CH
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
-alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['purchase_order'::text, 'with_pop'::text, 'import_clearance'::text, 'delivered'::text, 'received_in_odoo'::text, 'create_bill'::text, 'actual_checking'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'payment_approval'::text, 'ordered'::text, 'processing'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
 alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -2601,6 +2627,8 @@ alter table ipas_bank_details add constraint "ipas_bank_details_updated_by_fkey"
 alter table ipas_charges add constraint "ipas_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_charges add constraint "ipas_charges_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
+alter table ipas_document_files add constraint "ipas_document_files_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas_document_files add constraint "ipas_document_files_document_id_fkey" FOREIGN KEY (document_id) REFERENCES ipas_documents(id) ON DELETE CASCADE;
 alter table ipas_documents add constraint "ipas_documents_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_documents add constraint "ipas_documents_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_documents add constraint "ipas_documents_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
@@ -2619,6 +2647,8 @@ alter table ipas_signoffs add constraint "ipas_signoffs_ipas_id_fkey" FOREIGN KE
 alter table ipas_signoffs add constraint "ipas_signoffs_signed_by_fkey" FOREIGN KEY (signed_by) REFERENCES employees(id);
 alter table ipas_sors add constraint "ipas_sors_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_sors add constraint "ipas_sors_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE RESTRICT;
+alter table ipas_status_steps add constraint "ipas_status_steps_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_status_steps add constraint "ipas_status_steps_set_by_fkey" FOREIGN KEY (set_by) REFERENCES employees(id);
 alter table ipas_work_marks add constraint "ipas_work_marks_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table lwop_leaves add constraint "lwop_leaves_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
 alter table lwop_leaves add constraint "lwop_leaves_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
@@ -2915,6 +2945,8 @@ CREATE INDEX ipas_bank_details_updated_by_idx ON public.ipas_bank_details USING 
 CREATE INDEX ipas_charges_created_by_idx ON public.ipas_charges USING btree (created_by);
 CREATE INDEX ipas_charges_ipas_id_idx ON public.ipas_charges USING btree (ipas_id, charged_on);
 CREATE INDEX ipas_charges_kind_id_idx ON public.ipas_charges USING btree (kind_id);
+CREATE INDEX ipas_document_files_created_by_idx ON public.ipas_document_files USING btree (created_by);
+CREATE INDEX ipas_document_files_document_id_idx ON public.ipas_document_files USING btree (document_id);
 CREATE INDEX ipas_documents_created_by_idx ON public.ipas_documents USING btree (created_by);
 CREATE INDEX ipas_documents_kind_id_idx ON public.ipas_documents USING btree (kind_id);
 CREATE UNIQUE INDEX ipas_documents_kind_key ON public.ipas_documents USING btree (ipas_id, kind_id) WHERE (kind_id IS NOT NULL);
@@ -2936,6 +2968,7 @@ CREATE INDEX ipas_signoffs_ipas_id_idx ON public.ipas_signoffs USING btree (ipas
 CREATE UNIQUE INDEX ipas_signoffs_live_key ON public.ipas_signoffs USING btree (ipas_id, section, role) WHERE (cleared_at IS NULL);
 CREATE INDEX ipas_signoffs_signed_by_idx ON public.ipas_signoffs USING btree (signed_by);
 CREATE INDEX ipas_sors_opportunity_id_idx ON public.ipas_sors USING btree (opportunity_id);
+CREATE INDEX ipas_status_steps_set_by_idx ON public.ipas_status_steps USING btree (set_by);
 CREATE INDEX lwop_leaves_company_id_idx ON public.lwop_leaves USING btree (company_id);
 CREATE INDEX lwop_leaves_employee_id_date_idx ON public.lwop_leaves USING btree (employee_id, date);
 CREATE INDEX lwop_leaves_head_id_idx ON public.lwop_leaves USING btree (head_id);
@@ -3118,6 +3151,7 @@ alter table public."hr_leave_categories" enable row level security;
 alter table public."ipas" enable row level security;
 alter table public."ipas_bank_details" enable row level security;
 alter table public."ipas_charges" enable row level security;
+alter table public."ipas_document_files" enable row level security;
 alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
 alter table public."ipas_file_rules" enable row level security;
@@ -3128,6 +3162,7 @@ alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
 alter table public."ipas_signoffs" enable row level security;
 alter table public."ipas_sors" enable row level security;
+alter table public."ipas_status_steps" enable row level security;
 alter table public."ipas_work_marks" enable row level security;
 alter table public."lwop_leaves" enable row level security;
 alter table public."meal_break_settings" enable row level security;
@@ -4041,6 +4076,11 @@ create policy "ipas_charges_read" on public."ipas_charges"
   for select
   to authenticated
   using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_document_files_read" on public."ipas_document_files"
+  as permissive
+  for select
+  to authenticated
+  using (( SELECT ipas_can_read() AS ipas_can_read));
 create policy "ipas_documents_read" on public."ipas_documents"
   as permissive
   for select
@@ -4118,6 +4158,11 @@ create policy "ipas_sors_read" on public."ipas_sors"
   for select
   to authenticated
   using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_status_steps_read" on public."ipas_status_steps"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
 create policy "ipas_work_marks_read" on public."ipas_work_marks"
   as permissive
   for select
@@ -5780,6 +5825,21 @@ AS $function$
   ) l;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_document_first_file()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.attachment_url is not null and btrim(new.attachment_url) <> '' then
+    insert into public.ipas_document_files (document_id, url, file_name, created_by)
+    values (new.id, btrim(new.attachment_url), public._ipas_file_name_from_url(btrim(new.attachment_url)), new.created_by);
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_document_label(p_document ipas_documents)
  RETURNS text
  LANGUAGE sql
@@ -5805,6 +5865,7 @@ AS $function$
       and (
         coalesce(e.has_purchasing_flow, false)
         or coalesce(e.has_finance_flow, false)
+        or coalesce(e.has_logistics_flow, false)
         or coalesce(e.is_super_admin, false)
         or exists (
           select 1 from ipas_signer_lists l
@@ -5812,6 +5873,18 @@ AS $function$
              and l.list_key not like 'transmittal\_%' escape '\'
         )
       )
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_file_name_from_url(p_url text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    nullif(left(btrim(regexp_replace(split_part(split_part(p_url, '?', 1), '#', 1), '^.*/', '')), 200), ''),
+    'File'
   );
 $function$
 ;
@@ -6200,14 +6273,16 @@ CREATE OR REPLACE FUNCTION public._ipas_logistics_missing(p_ipas_id uuid)
  SET search_path TO 'public'
 AS $function$
   select array_remove(array[
-    case when i.item_location_id is null and not exists (
+    case when not i.direct_delivery and i.item_location_id is null and not exists (
       select 1 from public.transmittal_ipas ti
         join public.transmittals t on t.id = ti.transmittal_id
        where ti.ipas_id = i.id and t.item_location_id is not null
     ) then 'the Item Location' end,
-    case when not exists (select 1 from public.transmittal_ipas ti where ti.ipas_id = i.id)
+    case when not i.direct_delivery and not exists (select 1 from public.transmittal_ipas ti where ti.ipas_id = i.id)
       then 'a Transmittal' end,
-    case when i.source = 'import' and i.arrived_in_whs_on is null then 'the received date' end
+    case when not exists (
+      select 1 from public.ipas_status_steps s where s.ipas_id = i.id and s.step = 'delivered'
+    ) then 'the Delivered status' end
   ], null)
   from public.ipas i
   where i.id = p_ipas_id;
@@ -6332,10 +6407,11 @@ begin
      and o.required_before = v_screen
      and o.applies_to in (v_source, 'both')
      and not exists (
-       select 1 from public.ipas_documents d
+       select 1
+         from public.ipas_documents d
+         join public.ipas_document_files f on f.document_id = d.id
         where d.ipas_id = p_ipas_id
           and d.kind_id = o.id
-          and d.attachment_url is not null
      );
 
   return to_jsonb(v_missing);
@@ -6731,6 +6807,120 @@ AS $function$
       or (p_section = 8 and p_role = 'approved');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_status_label(p_step text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select case p_step
+    when 'order_draft' then 'Order-Draft'
+    when 'payment_approval' then 'Payment Approval'
+    when 'ordered' then 'Ordered'
+    when 'processing' then 'Processing / Preparing Shipment'
+    when 'shipped' then 'Shipped / Picked Up'
+    when 'in_transit' then 'In Transit'
+    when 'customs' then 'Customs / Port Hold'
+    when 'local_hub' then 'Arrived at Local Hub'
+    when 'out_for_delivery' then 'Out for Delivery'
+    when 'delivered' then 'Delivered'
+    when 'done' then 'Done'
+    else p_step
+  end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_order(p_step text)
+ RETURNS integer
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select array_position(array[
+    'order_draft', 'payment_approval', 'ordered', 'processing', 'shipped', 'in_transit',
+    'customs', 'local_hub', 'out_for_delivery', 'delivered', 'done'
+  ]::text[], p_step);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_switch_over(p_ipas_id uuid DEFAULT NULL::uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  select i.id, s.step, s.on_day, null, now()
+    from public.ipas i
+   cross join lateral (values
+     ('order_draft', (i.created_at at time zone 'Asia/Manila')::date),
+     ('payment_approval', (
+        select (min(g.signed_at) at time zone 'Asia/Manila')::date
+          from public.ipas_signoffs g
+         where g.ipas_id = i.id and g.section = 1 and g.role = 'prepared' and g.cleared_at is null)),
+     ('ordered', case when i.odoo_copy -> 'po' ->> 'state' in ('purchase', 'done')
+                      then (i.odoo_fetched_at at time zone 'Asia/Manila')::date end),
+     ('shipped', i.shipped_out_on),
+     ('in_transit', i.onboard_on),
+     ('customs', case when i.source = 'import' then i.arrived_in_ph_on end),
+     ('delivered', coalesce(i.arrived_in_whs_on, i.delivered_on))
+   ) s(step, on_day)
+   where i.state <> 'cancelled'
+     and s.on_day is not null
+     and (p_ipas_id is null or i.id = p_ipas_id)
+  on conflict (ipas_id, step) do nothing;
+
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  select i.id, 'done', (coalesce(i.filed_at, i.updated_at) at time zone 'Asia/Manila')::date, null, now()
+    from public.ipas i
+   where i.state = 'filed'
+     and (p_ipas_id is null or i.id = p_ipas_id)
+  on conflict (ipas_id, step) do nothing;
+
+  -- A filed IPAS is frozen; this one update goes through the reopening switch, and the
+  -- updated_at stamp is left alone so the list order does not move.
+  perform set_config('ipas.reopening', 'on', true);
+  alter table public.ipas disable trigger ipas_updated_at;
+
+  update public.ipas i
+     set status = case
+       when i.state = 'cancelled' then null
+       when i.state = 'filed' then 'done'
+       else coalesce((
+         select s.step from public.ipas_status_steps s
+          where s.ipas_id = i.id
+          order by public._ipas_status_order(s.step) desc limit 1
+       ), 'order_draft')
+     end
+   where p_ipas_id is null or i.id = p_ipas_id;
+
+  alter table public.ipas enable trigger ipas_updated_at;
+  perform set_config('ipas.reopening', 'off', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_writer(p_fn text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if v_actor is null then
+    raise exception '%: not signed in', p_fn using errcode = '42501';
+  end if;
+  if not (
+    coalesce(public.has_purchasing_access(), false)
+    or coalesce(public.has_logistics_access(), false)
+    or coalesce(public.is_super_admin(), false)
+  ) then
+    raise exception '%: only Purchasing, Logistics or a Super Admin sets the status', p_fn using errcode = '42501';
+  end if;
+  return v_actor;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_suggest_documents(p_ipas_id uuid, p_actor uuid)
  RETURNS text[]
  LANGUAGE plpgsql
@@ -6765,6 +6955,15 @@ begin
 
   return v_labels;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_today()
+ RETURNS date
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  select (now() at time zone 'Asia/Manila')::date;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_write_event(p_ipas_id uuid, p_actor uuid, p_kind text, p_detail jsonb DEFAULT '{}'::jsonb)
@@ -16477,6 +16676,20 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.has_logistics_access()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from employees e
+    where e.id = get_employee_id()
+      and e.has_logistics_flow
+      and not coalesce(e.is_deleted, false)
+  );
+$function$
+;
 CREATE OR REPLACE FUNCTION public.has_purchasing_access()
  RETURNS boolean
  LANGUAGE sql
@@ -16691,6 +16904,44 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_add_document_file(p_document_id uuid, p_url text, p_file_name text DEFAULT NULL::text)
+ RETURNS ipas_document_files
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_add_document_file');
+  v_doc public.ipas_documents;
+  v_url text := nullif(btrim(p_url), '');
+  v_name text;
+  v_row public.ipas_document_files;
+begin
+  v_doc := public._ipas_lock_document('ipas_add_document_file', p_document_id);
+
+  if v_url is null or v_url !~* '^https?://' then
+    raise exception 'ipas_add_document_file: the file must be a link to the uploaded file'
+      using errcode = '22023';
+  end if;
+  if not public._ipas_is_own_file_link(v_url) then
+    raise exception 'ipas_file_link: attach a file you uploaded here, not a link to another site'
+      using errcode = '22023';
+  end if;
+
+  v_name := left(coalesce(nullif(btrim(p_file_name), ''), public._ipas_file_name_from_url(v_url)), 200);
+
+  insert into public.ipas_document_files (document_id, url, file_name, created_by)
+  values (v_doc.id, v_url, v_name, v_actor)
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_doc.ipas_id, v_actor, 'document_attachment_set',
+    jsonb_build_object('document_id', v_doc.id, 'label', public._ipas_document_label(v_doc),
+                       'file_id', v_row.id, 'file_name', v_row.file_name));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_add_payment(p_ipas_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_php_debited numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
@@ -16783,6 +17034,7 @@ AS $function$
       and (
         coalesce(e.has_purchasing_flow, false)
         or coalesce(e.has_finance_flow, false)
+        or coalesce(e.has_logistics_flow, false)
         or coalesce(e.is_super_admin, false)
         or exists (
           select 1 from ipas_signer_lists l
@@ -17995,6 +18247,37 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_remove_document_file(p_file_id uuid)
+ RETURNS ipas_document_files
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_purchasing_writer('ipas_remove_document_file');
+  v_row public.ipas_document_files;
+  v_doc public.ipas_documents;
+begin
+  select * into v_row from public.ipas_document_files where id = p_file_id;
+  if v_row.id is null then
+    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = '22023';
+  end if;
+
+  v_doc := public._ipas_lock_document('ipas_remove_document_file', v_row.document_id);
+
+  delete from public.ipas_document_files where id = v_row.id returning * into v_row;
+  if v_row.id is null then
+    raise exception 'ipas_remove_document_file: file % not found', p_file_id using errcode = '22023';
+  end if;
+
+  perform public._ipas_write_event(v_doc.ipas_id, v_actor, 'document_attachment_removed',
+    jsonb_build_object('document_id', v_doc.id, 'label', public._ipas_document_label(v_doc),
+                       'file_id', v_row.id, 'file_name', v_row.file_name));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_remove_payment(p_payment_id uuid)
  RETURNS ipas_payments
  LANGUAGE plpgsql
@@ -18460,32 +18743,39 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_set_document_attachment(p_document_id uuid, p_attachment_url text)
- RETURNS ipas_documents
+CREATE OR REPLACE FUNCTION public.ipas_set_direct_delivery(p_ipas_id uuid, p_on boolean)
+ RETURNS ipas
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public._ipas_purchasing_writer('ipas_set_document_attachment');
-  v_row public.ipas_documents;
-  v_url text := nullif(btrim(p_attachment_url), '');
+  v_actor uuid := public.get_employee_id();
+  v_row public.ipas;
 begin
-  v_row := public._ipas_lock_document('ipas_set_document_attachment', p_document_id);
-
-  if v_url is not null and v_url !~* '^https?://' then
-    raise exception 'ipas_set_document_attachment: the attachment must be a link to the uploaded file'
-      using errcode = '22023';
+  if v_actor is null then
+    raise exception 'ipas_set_direct_delivery: not signed in' using errcode = '42501';
   end if;
-  if v_url is not distinct from v_row.attachment_url then
+  if not (
+    coalesce(public.has_purchasing_access(), false)
+    or coalesce(public.has_logistics_access(), false)
+    or coalesce(public.is_super_admin(), false)
+  ) then
+    raise exception 'ipas_set_direct_delivery: only Purchasing, Logistics or a Super Admin sets Direct delivery'
+      using errcode = '42501';
+  end if;
+  if p_on is null then
+    raise exception 'ipas_set_direct_delivery: say on or off' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_set_direct_delivery', p_ipas_id);
+  if p_on = v_row.direct_delivery then
     return v_row;
   end if;
 
-  update public.ipas_documents set attachment_url = v_url where id = v_row.id returning * into v_row;
+  update public.ipas set direct_delivery = p_on where id = v_row.id returning * into v_row;
 
-  perform public._ipas_write_event(v_row.ipas_id, v_actor,
-    case when v_url is null then 'document_attachment_removed' else 'document_attachment_set' end,
-    jsonb_build_object('document_id', v_row.id, 'label', public._ipas_document_label(v_row)));
+  perform public._ipas_write_event(v_row.id, v_actor, 'direct_delivery_changed', jsonb_build_object('to', p_on));
 
   return v_row;
 end;
@@ -19151,6 +19441,124 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_set_status(p_ipas_id uuid, p_step text, p_reached_on date DEFAULT NULL::date)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_status_writer('ipas_set_status');
+  v_row public.ipas;
+  v_new integer := public._ipas_status_order(p_step);
+  v_cur integer;
+  v_existing date;
+  v_date date;
+  v_cleared text[];
+  v_from text;
+begin
+  if v_new is null then
+    raise exception 'ipas_set_status: % isn''t a status step', coalesce(p_step, 'null') using errcode = '22023';
+  end if;
+  if p_step = 'done' then
+    raise exception 'ipas_set_status: Done comes from filing; it can''t be picked by hand' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_set_status', p_ipas_id);
+  if v_row.source = 'local' and p_step in ('customs', 'local_hub', 'out_for_delivery') then
+    raise exception 'ipas_set_status: % is a Local IPAS; % is for Import only', v_row.number, public._ipas_status_label(p_step)
+      using errcode = '22023';
+  end if;
+
+  v_from := v_row.status;
+  v_cur := coalesce(public._ipas_status_order(v_row.status), 0);
+  select s.reached_on into v_existing from public.ipas_status_steps s where s.ipas_id = v_row.id and s.step = p_step;
+
+  -- Moving back to a step that already has a day keeps that day unless a new one is given.
+  v_date := coalesce(p_reached_on, case when v_new <= v_cur then v_existing end, public._ipas_today());
+  perform public._ipas_check_date('ipas_set_status', v_date, 'the ' || public._ipas_status_label(p_step) || ' date');
+
+  -- Dates out of order are allowed (#1151 follow-up): the record shows a warning instead of refusing.
+
+  if v_from is not distinct from p_step and v_existing is not distinct from v_date then
+    return v_row;
+  end if;
+
+  with gone as (
+    delete from public.ipas_status_steps s
+     where s.ipas_id = v_row.id and public._ipas_status_order(s.step) > v_new
+    returning s.step
+  )
+  select array_agg(step order by public._ipas_status_order(step)) into v_cleared from gone;
+
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  values (v_row.id, p_step, v_date, v_actor, now())
+  on conflict (ipas_id, step) do update
+    set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = excluded.set_at;
+
+  update public.ipas set status = p_step where id = v_row.id returning * into v_row;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'status_changed', jsonb_build_object(
+    'from', v_from,
+    'to', p_step,
+    'date', v_date,
+    'cleared', coalesce(to_jsonb(v_cleared), '[]'::jsonb)
+  ));
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_set_status_date(p_ipas_id uuid, p_step text, p_on date)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_status_writer('ipas_set_status_date');
+  v_row public.ipas;
+  v_order integer := public._ipas_status_order(p_step);
+  v_existing date;
+begin
+  if v_order is null then
+    raise exception 'ipas_set_status_date: % isn''t a status step', coalesce(p_step, 'null') using errcode = '22023';
+  end if;
+  if p_step = 'done' then
+    raise exception 'ipas_set_status_date: Done comes from filing' using errcode = '22023';
+  end if;
+  if p_on is null then
+    raise exception 'ipas_set_status_date: give the date' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_lock_open('ipas_set_status_date', p_ipas_id);
+  select s.reached_on into v_existing from public.ipas_status_steps s where s.ipas_id = v_row.id and s.step = p_step;
+  if v_existing is null then
+    raise exception 'ipas_set_status_date: % has not reached %', v_row.number, public._ipas_status_label(p_step)
+      using errcode = '22023';
+  end if;
+
+  perform public._ipas_check_date('ipas_set_status_date', p_on, 'the ' || public._ipas_status_label(p_step) || ' date');
+
+  -- Dates out of order are allowed; the record shows a warning instead (#1151 follow-up).
+
+  if v_existing = p_on then
+    return v_row;
+  end if;
+
+  update public.ipas_status_steps
+     set reached_on = p_on, set_by = v_actor, set_at = now()
+   where ipas_id = v_row.id and step = p_step;
+
+  perform public._ipas_write_event(v_row.id, v_actor, 'status_date_changed', jsonb_build_object(
+    'step', p_step, 'from', v_existing, 'to', p_on
+  ));
+
+  select * into v_row from public.ipas where id = v_row.id;
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_set_supplier_origin(p_ipas_id uuid, p_fields jsonb)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -19674,7 +20082,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_standing_for_sor(p_opportunity_id uuid)
- RETURNS TABLE(ipas_id uuid, source text, created_at timestamp with time zone, updated_at timestamp with time zone, costs_completed_at timestamp with time zone, proof_paid_on date, shipped_out_on date, onboard_on date, arrived_in_ph_on date, arrived_in_whs_on date, import_clearance_on date, delivered_on date, actual_checking_stamped boolean, actual_checking_at timestamp with time zone, slips jsonb, on_hold boolean)
+ RETURNS TABLE(ipas_id uuid, source text, created_at timestamp with time zone, updated_at timestamp with time zone, costs_completed_at timestamp with time zone, proof_paid_on date, shipped_out_on date, onboard_on date, arrived_in_ph_on date, arrived_in_whs_on date, import_clearance_on date, delivered_on date, actual_checking_stamped boolean, actual_checking_at timestamp with time zone, slips jsonb, on_hold boolean, status text, status_steps jsonb, received_state text, has_bill boolean, direct_delivery boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -19740,8 +20148,35 @@ AS $function$
             where l.transmittal_id = t.id and l.ipas_id = i.id
          )
     ), '[]'::jsonb),
-    i.on_hold
+    i.on_hold,
+    i.status,
+    coalesce((
+      select jsonb_agg(jsonb_build_object('step', s.step, 'reached_on', s.reached_on) order by s.reached_on)
+        from public.ipas_status_steps s
+       where s.ipas_id = i.id
+    ), '[]'::jsonb),
+    rs.received_state,
+    o.bill_count > 0,
+    coalesce(i.direct_delivery, false)
   from public.ipas i
+  cross join lateral (
+    select
+      i.odoo_copy #>> '{receipts,status}' as receipts_status,
+      case when (i.odoo_copy #>> '{receipts,total}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{receipts,total}')::numeric else 0 end as receipts_total,
+      case when (i.odoo_copy #>> '{receipts,done}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{receipts,done}')::numeric else 0 end as receipts_done,
+      case when (i.odoo_copy #>> '{bills,count}') ~ '^[0-9]+(\.[0-9]+)?$'
+        then (i.odoo_copy #>> '{bills,count}')::numeric else 0 end as bill_count
+  ) o
+  cross join lateral (
+    select case
+      when o.receipts_status = 'partial' then 'partial'
+      when o.receipts_status = 'full' or (o.receipts_total > 0 and o.receipts_done >= o.receipts_total) then 'received'
+      when o.receipts_done > 0 then 'partial'
+      else 'none'
+    end as received_state
+  ) rs
   where (select public.sor_access_level(p_opportunity_id)) = 'full'
     and i.purpose = 'project'
     and exists (
@@ -19749,6 +20184,59 @@ AS $function$
       where s.ipas_id = i.id and s.opportunity_id = p_opportunity_id
     )
   order by i.number;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_status_lifecycle()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_last text;
+begin
+  if new.state is distinct from old.state then
+    if new.state = 'filed' then
+      insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by)
+      values (new.id, 'done', public._ipas_today(), public.get_employee_id())
+      on conflict (ipas_id, step) do update set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = now();
+      new.status := 'done';
+    elsif old.state = 'filed' and new.state = 'open' then
+      delete from public.ipas_status_steps where ipas_id = new.id and step = 'done';
+      select s.step into v_last from public.ipas_status_steps s
+       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+      new.status := coalesce(v_last, 'order_draft');
+    elsif new.state = 'cancelled' then
+      new.status := null;
+    end if;
+  end if;
+
+  if new.source is distinct from old.source and new.source = 'local' then
+    delete from public.ipas_status_steps
+     where ipas_id = new.id and step in ('customs', 'local_hub', 'out_for_delivery');
+    if new.status in ('customs', 'local_hub', 'out_for_delivery') then
+      select s.step into v_last from public.ipas_status_steps s
+       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+      new.status := coalesce(v_last, 'order_draft');
+    end if;
+  end if;
+
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_status_on_insert()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by)
+  values (new.id, 'order_draft', (new.created_at at time zone 'Asia/Manila')::date, public.get_employee_id())
+  on conflict (ipas_id, step) do nothing;
+  return new;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_suggest_documents(p_ipas_id uuid)
@@ -19789,7 +20277,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_summaries_for_sor(p_opportunity_id uuid)
- RETURNS TABLE(ipas_id uuid, number text, po_number text, supplier text, purpose text, state text, buyer_track jsonb, computation_status text, signoffs jsonb, landed_cost_total_php numeric, landed_cost_mark text)
+ RETURNS TABLE(ipas_id uuid, number text, po_number text, supplier text, purpose text, state text, computation_status text, signoffs jsonb, landed_cost_total_php numeric, landed_cost_mark text, status text, status_reached_on date, on_hold boolean, direct_delivery boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -19801,25 +20289,6 @@ AS $function$
     nullif(btrim(i.odoo_copy #>> '{supplier,name}'), ''),
     i.purpose,
     i.state,
-    case when i.source = 'import'
-      then jsonb_build_array(
-        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
-        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'import_clearance', 'ticked', i.import_clearance_on is not null, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
-        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
-        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
-      )
-      else jsonb_build_array(
-        jsonb_build_object('key', 'purchase_order', 'ticked', coalesce(o.po_state in ('purchase', 'done'), false), 'partial', false),
-        jsonb_build_object('key', 'with_pop', 'ticked', pop.has_proof, 'partial', false),
-        jsonb_build_object('key', 'delivered', 'ticked', i.delivered_on is not null or tg.delivered, 'partial', false),
-        jsonb_build_object('key', 'received_in_odoo', 'ticked', rs.received_state = 'received', 'partial', rs.received_state = 'partial'),
-        jsonb_build_object('key', 'create_bill', 'ticked', o.bill_count > 0, 'partial', false),
-        jsonb_build_object('key', 'actual_checking', 'ticked', i.actual_checking_by is not null or tg.checked, 'partial', false)
-      )
-    end,
     i.computation_status,
     jsonb_build_object(
       '1', jsonb_build_object(
@@ -19842,59 +20311,17 @@ AS $function$
       )
     ),
     lcost.total,
-    lcost.mark
+    lcost.mark,
+    i.status,
+    (select st.reached_on from public.ipas_status_steps st where st.ipas_id = i.id and st.step = i.status),
+    coalesce(i.on_hold, false),
+    coalesce(i.direct_delivery, false)
   from public.ipas i
-  cross join lateral (
-    select
-      i.odoo_copy #>> '{po,state}' as po_state,
-      i.odoo_copy #>> '{receipts,status}' as receipts_status,
-      case when (i.odoo_copy #>> '{receipts,total}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{receipts,total}')::numeric else 0 end as receipts_total,
-      case when (i.odoo_copy #>> '{receipts,done}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{receipts,done}')::numeric else 0 end as receipts_done,
-      case when (i.odoo_copy #>> '{bills,count}') ~ '^[0-9]+(\.[0-9]+)?$'
-        then (i.odoo_copy #>> '{bills,count}')::numeric else 0 end as bill_count
-  ) o
-  cross join lateral (
-    select case
-      when o.receipts_status = 'partial' then 'partial'
-      when o.receipts_status = 'full' or (o.receipts_total > 0 and o.receipts_done >= o.receipts_total) then 'received'
-      when o.receipts_done > 0 then 'partial'
-      else 'none'
-    end as received_state
-  ) rs
-  cross join lateral (
-    select exists (
-      select 1 from public.ipas_payments p
-      where p.ipas_id = i.id and coalesce(p.proof_url, '') <> ''
-    ) as has_proof
-  ) pop
   cross join lateral (
     select coalesce(array_agg(so.section::text || ':' || so.role), '{}'::text[]) as live
     from public.ipas_signoffs so
     where so.ipas_id = i.id and so.cleared_at is null
   ) lv
-  cross join lateral (
-    select
-      coalesce(bool_or(first_done), false) as delivered,
-      coalesce(count(*) > 0 and bool_and(check_done), false) as checked
-    from (
-      select
-        exists (
-          select 1 from public.transmittal_stages st
-           where st.transmittal_id = t.id and st.completed_at is not null
-             and st.stage = case when t.check_warehouse then 'warehouse_checking' else 'technical_inspection' end
-        ) as first_done,
-        exists (
-          select 1 from public.transmittal_stages st
-           where st.transmittal_id = t.id and st.completed_at is not null
-             and st.stage = case when t.check_technical then 'technical_inspection' else 'warehouse_checking' end
-        ) as check_done
-      from public.transmittals t
-      where t.state not in ('draft', 'cancelled')
-        and exists (select 1 from public.transmittal_lines l where l.transmittal_id = t.id and l.ipas_id = i.id)
-    ) slips
-  ) tg
   -- #283: the IPAS's Landed Cost total and mark, for cost-tier readers only.
   cross join lateral (
     select
@@ -21686,6 +22113,9 @@ BEGIN
     END IF;
     IF NEW.has_finance_flow IS DISTINCT FROM OLD.has_finance_flow THEN
       NEW.has_finance_flow := OLD.has_finance_flow;
+    END IF;
+    IF NEW.has_logistics_flow IS DISTINCT FROM OLD.has_logistics_flow THEN
+      NEW.has_logistics_flow := OLD.has_logistics_flow;
     END IF;
   END IF;
 
@@ -32160,6 +32590,8 @@ CREATE TRIGGER ipas_limits_guard BEFORE INSERT OR UPDATE ON public.ipas FOR EACH
 CREATE TRIGGER ipas_receive_items_from_copy AFTER INSERT OR UPDATE OF odoo_copy, odoo_fetched_at ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_receive_items_from_copy();
 CREATE TRIGGER ipas_seed_blank_charges AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION _ipas_seed_blank_charges();
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
+CREATE TRIGGER ipas_status_lifecycle BEFORE UPDATE OF state, source ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_status_lifecycle();
+CREATE TRIGGER ipas_status_on_insert AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_status_on_insert();
 CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
@@ -32168,7 +32600,9 @@ CREATE TRIGGER ipas_charges_file_link BEFORE INSERT OR UPDATE OF attachment_url 
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_document_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_document_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
 CREATE TRIGGER ipas_documents_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
+CREATE TRIGGER ipas_documents_first_file AFTER INSERT ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION _ipas_document_first_file();
 CREATE TRIGGER ipas_documents_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_documents_updated_at BEFORE UPDATE ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_events_mark_worked_on AFTER INSERT ON public.ipas_events FOR EACH ROW EXECUTE FUNCTION _ipas_mark_worked_on();
