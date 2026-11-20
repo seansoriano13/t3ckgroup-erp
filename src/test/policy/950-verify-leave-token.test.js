@@ -3,7 +3,7 @@
  * back to sil_leaves.updated_at, a column that table does not have, so every
  * leave token raised and the verification page said "Record Not Found".
  */
-import { describe, it, expect, beforeAll, afterEach } from "vitest"
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest"
 import { createHash } from "node:crypto"
 import { ids, anonymousClient, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
@@ -11,7 +11,16 @@ import { serviceClient } from "./support/stack.js"
 const svc = () => serviceClient()
 const cleanup = []
 
+// #1134: the verify limiter is keyed on the caller address, so earlier anonymous calls in the
+// same run can exhaust it. Start and leave every test with an empty limiter.
+const resetLimiter = async () => {
+    await serviceClient().from("verification_rate_limits").delete().neq("ip_address", "")
+}
+
+beforeEach(resetLimiter)
+
 afterEach(async () => {
+    await resetLimiter()
     while (cleanup.length) await cleanup.pop()()
 })
 
