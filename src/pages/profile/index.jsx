@@ -23,6 +23,8 @@ import { storageService } from "../../services/storageService";
 import { employeeService } from "../../services/employeeService";
 import { signatureService } from "../../services/signatureService";
 import { passwordService } from "../../services/passwordService";
+import { taskService } from "../../services/taskService.js";
+import { selectHrPending, selectHrVerified } from "../../utils/approvalQueue.js";
 import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
 import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
@@ -142,31 +144,33 @@ export default function ProfilePage() {
         ? bannerUrlInput.trim()
         : user?.dashboardBannerUrl || "/leaf-background.jpg";
 
-  const { data: stats, isLoading: isStatsLoading, isError: isStatsError } = useQuery({
+  const isHrUser = !user?.isSuperAdmin && !!(user?.isHr || user?.is_hr);
+  // HR's two numbers use the Approval Center's own queue and the same cached query, so they cannot drift.
+  const hrTasksQuery = useQuery({
+    queryKey: ["dashboardTasks", user?.id, "all"],
+    queryFn: () => taskService.getAllTasks(),
+    enabled: !!user?.id && isHrUser,
+  });
+  const hrStats = useMemo(() => {
+    if (!isHrUser) return null;
+    const tasks = hrTasksQuery.data || [];
+    return {
+      primary: selectHrPending(tasks, user?.id).length,
+      primaryLabel: "Pending HR Verifications",
+      secondary: selectHrVerified(tasks, user?.id).length,
+      secondaryLabel: "Total Verified",
+    };
+  }, [isHrUser, hrTasksQuery.data, user?.id]);
+
+  const { data: queryStats, isLoading: queryLoading, isError: queryError } = useQuery({
     queryKey: ["profileStats", user?.id],
     queryFn: async () => {
       if (user?.isSuperAdmin) return null;
 
       const userDept = user?.department || "";
 
-      if (user?.isHr || user?.is_hr) {
-        // HR Access
-        const { count: pendingVerifications } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("hr_verified", false)
-          .eq("status", TASK_STATUS.COMPLETE);
-        const { count: totalVerified } = await supabase
-          .from("tasks")
-          .select("*", { count: "exact", head: true })
-          .eq("hr_verified", true);
-
-        return {
-          primary: pendingVerifications || 0,
-          primaryLabel: "Pending HR Verifications",
-          secondary: totalVerified || 0,
-          secondaryLabel: "Total Verified",
-        };
+      if (isHrUser) {
+        return null; // HR's numbers come from the Approval Center's own task list (below)
       } else if (user?.isHead || user?.is_head) {
         // Department Head logic
         const { count: pendingApprovals } = await supabase
@@ -205,12 +209,16 @@ export default function ProfilePage() {
           primary: totalLogged || 0,
           primaryLabel: "Total Tasks Logged",
           secondary: totalDone || 0,
-          secondaryLabel: "Activities Completed",
+          secondaryLabel: "Tasks completed",
         };
       }
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !isHrUser,
   });
+
+  const stats = isHrUser ? hrStats : queryStats;
+  const isStatsLoading = isHrUser ? hrTasksQuery.isLoading : queryLoading;
+  const isStatsError = isHrUser ? hrTasksQuery.isError : queryError;
 
   const generateQuoteMutation = useMutation({
     mutationFn: async () => {
@@ -307,6 +315,7 @@ export default function ProfilePage() {
   const isSaving = savePreferencesMutation.isPending;
   const quoteLength = customQuote.trim().length;
   const hasBannerUrl = (bannerUrlInput || "").trim().length > 0;
+  const bannerUrlInvalid = hasBannerUrl && !/^https:\/\//i.test(bannerUrlInput.trim());
   const isUsingDefaultBanner =
     removeBanner ||
     (!bannerFile && !hasBannerUrl && !user?.dashboardBannerPath);
@@ -337,7 +346,7 @@ export default function ProfilePage() {
     <Button
       type="button"
       onClick={() => savePreferencesMutation.mutate()}
-      disabled={isSaving || !hasChanges}
+      disabled={isSaving || !hasChanges || bannerUrlInvalid}
       className={phone ? "w-full" : undefined}
     >
       {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
@@ -393,7 +402,7 @@ export default function ProfilePage() {
                 variant="link"
                 onClick={handleChangePassword}
                 disabled={isSendingPasswordReset}
-                className="mt-3 h-auto p-0 text-xs font-bold text-foreground disabled:opacity-60"
+                className="mt-3 h-auto min-h-6 p-0 text-xs font-bold text-foreground disabled:opacity-60"
               >
                 {isSendingPasswordReset ? "Sending…" : "Change Password"}
               </Button>
@@ -704,7 +713,13 @@ export default function ProfilePage() {
                 }}
                 containerClassName="w-full"
                 placeholder="Paste Unsplash image URL"
+                aria-invalid={bannerUrlInvalid || undefined}
               />
+              {bannerUrlInvalid && (
+                <p role="alert" className="text-[11px] text-destructive">
+                  The banner link must start with https:// so the Dashboard can show it.
+                </p>
+              )}
             </div>
           </div>
 
@@ -759,7 +774,7 @@ export default function ProfilePage() {
                 setRemoveQuote(false);
               }}
               className="min-h-[70px] resize-none p-4 text-sm md:text-sm"
-              placeholder="Write your 7-word motivational quote (all users)…"
+              placeholder="A short line for your Dashboard (up to 100 characters)"
             />
           </div>
         </div>

@@ -2302,6 +2302,7 @@ alter table currency_rate_currencies add constraint "currency_rate_currencies_cu
 alter table currency_rate_currencies add constraint "currency_rate_currencies_divergence_pct_check" CHECK ((divergence_pct > (0)::numeric));
 alter table currency_rates add constraint "currency_rates_php_per_unit_check" CHECK ((php_per_unit > (0)::numeric));
 alter table employees add constraint "employees_call_sign_chk" CHECK (((call_sign IS NULL) OR ((length(btrim(call_sign)) > 0) AND (call_sign = btrim(call_sign)))));
+alter table employees add constraint "employees_dashboard_quote_length" CHECK (((dashboard_quote IS NULL) OR (char_length(dashboard_quote) <= 100)));
 alter table faq_data add constraint "faq_data_id_check" CHECK ((id = 1));
 alter table flow_edges add constraint "flow_edges_no_self_loop" CHECK ((from_stage_id <> to_stage_id));
 alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" CHECK (((source <> 'custom'::text) OR ((label IS NOT NULL) AND (btrim(label) <> ''::text) AND (field_type IS NOT NULL))));
