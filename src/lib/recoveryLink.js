@@ -40,7 +40,9 @@ export function readRecoveryParams({ hash = "", search = "" } = {}) {
   return {
     // GoTrue turned the link down before the app ever saw it.
     hasError: Boolean(get("error") || get("error_code")),
-    errorDescription: (get("error_description") || "").replace(/\+/g, " "),
+    // Only the code is read; error_description is free text anyone can put in a
+    // link, so it is never exposed.
+    errorCode: get("error_code") || "",
     // The current email links straight here with a token_hash for the app to
     // redeem via verifyOtp(); older `/auth/v1/verify` links arrive already
     // exchanged, as an implicit `#access_token` fragment or a PKCE `?code`.

@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase.js";
 import { isRecoveryActive } from "../lib/recoveryFlag.js";
 import { isResetPasswordPath } from "../lib/recoveryLink.js";
+import { INACTIVE_NOTICE_KEY, NOT_ACTIVE_MESSAGE } from "../utils/inactiveAccount.js";
 import { setErrorTrackingUser } from "../lib/errorTracking.js";
 
 const AuthContext = createContext(null);
@@ -68,7 +69,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(mergedUser));
       } else {
         console.warn("Auth: No employee record found for", sessionUser.email);
-        await logout();
+        await quietSignOut();
       }
     } catch (err) {
       console.error("Auth: resolveEmployee failed:", err);
@@ -172,7 +173,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const dbEmployee = await employeeService.getEmployeeByEmail(googleEmail);
       if (!dbEmployee) {
-        toast.error("Unauthorized: Your email is not registered.");
+        toast.error(NOT_ACTIVE_MESSAGE);
         return false;
       }
       return true;
@@ -181,6 +182,23 @@ export const AuthProvider = ({ children }) => {
       toast.error("Connection error. Try again.");
       return false;
     }
+  };
+
+  // No toast here: the login page shows the one "not active" message.
+  const quietSignOut = async () => {
+    try {
+      localStorage.removeItem(PROFILE_CACHE_KEY);
+      sessionStorage.setItem(INACTIVE_NOTICE_KEY, "1");
+    } catch {
+      /* storage blocked */
+    }
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error("Error signing out inactive account", error);
+    }
+    setUser(null);
+    window.location.replace("/login");
   };
 
   const logout = async () => {

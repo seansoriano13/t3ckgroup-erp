@@ -1,6 +1,8 @@
 import { supabase } from "../lib/supabase";
 import { RESET_PASSWORD_PATH } from "../lib/recoveryLink";
 
+const EMAIL_SHAPE = /^[^s@]+@[^s@]+.[^s@]+$/;
+
 /**
  * Issues or reissues a password-login credential for an employee, via the
  * manage-employee-password edge function — the only place allowed to touch
@@ -34,10 +36,22 @@ export const passwordService = {
 
   /** Sends the provider's password-reset email for self-service changes. */
   async requestPasswordReset(email) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const address = (email || "").trim();
+    if (!EMAIL_SHAPE.test(address)) {
+      throw new Error("Enter a full email address, like name@t3ckgroup.com.");
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(address, {
       redirectTo: `${window.location.origin}${RESET_PASSWORD_PATH}`,
     });
-    if (error) throw error;
+    if (error) {
+      const limited =
+        error.status === 429 || /rate.?limit/i.test(`${error.code} ${error.message}`);
+      throw new Error(
+        limited
+          ? "Too many reset emails were requested. Wait a few minutes and try again."
+          : "We could not send the email just now. Try again in a few minutes, or ask IT.",
+      );
+    }
   },
 
   /** Called once the employee has set their own password, clearing the flag. */
