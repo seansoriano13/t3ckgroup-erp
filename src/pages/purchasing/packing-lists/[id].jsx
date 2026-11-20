@@ -1,5 +1,6 @@
 import RecordNotFound from "@/components/ui/RecordNotFound";
 import { isRecordId } from "@/utils/recordLink";
+import { IPAS_LIMITS, boxWeightIssue, contentQuantityIssue, formatKg, textLengthIssue } from "@/utils/ipasLimits";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -54,6 +55,14 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
+    const issue =
+      textLengthIssue(marks, "Marks", IPAS_LIMITS.boxText) ||
+      textLengthIssue(sealNo, "Seal number", IPAS_LIMITS.boxText) ||
+      boxWeightIssue(weight);
+    if (issue) {
+      toast.error(issue);
+      return;
+    }
     setSaving(true);
     try {
       const fields = {
@@ -86,13 +95,13 @@ function BoxDialog({ open, onOpenChange, box, listId, onSaved }) {
       <p className="text-sm text-muted-foreground">Marks, seal number and gross weight, where known.</p>
         <div className="space-y-4">
           <FieldBox label="Marks" bare>
-            <Input value={marks} onChange={(e) => setMarks(e.target.value)} />
+            <Input maxLength={IPAS_LIMITS.boxText} value={marks} onChange={(e) => setMarks(e.target.value)} />
           </FieldBox>
           <FieldBox label="Seal number" bare>
-            <Input value={sealNo} onChange={(e) => setSealNo(e.target.value)} />
+            <Input maxLength={IPAS_LIMITS.boxText} value={sealNo} onChange={(e) => setSealNo(e.target.value)} />
           </FieldBox>
           <FieldBox label="Gross weight (kg)" bare>
-            <Input type="number" min="0" step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
+            <Input type="number" min="0" max={IPAS_LIMITS.boxWeightKg} step="0.01" value={weight} onChange={(e) => setWeight(e.target.value)} />
           </FieldBox>
         </div>
     </ModalShell>
@@ -191,8 +200,9 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
         unit: r.unit.trim() || null,
         snapshot: r.snapshot ?? null,
       }));
-    if (contents.some((c) => !(c.quantity > 0))) {
-      toast.error("Every content needs a quantity above zero.");
+    const quantityIssue = contents.map((c) => contentQuantityIssue(c.quantity)).find(Boolean);
+    if (quantityIssue) {
+      toast.error(quantityIssue);
       return;
     }
     setSaving(true);
@@ -244,7 +254,7 @@ function ContentsDialog({ open, onOpenChange, box, sorId, onSaved }) {
                 <Input value={row.description} onChange={(e) => setRow(index, { description: e.target.value, snapshot: null, lineId: null })} />
               </FieldBox>
               <FieldBox label="Quantity" bare>
-                <Input ref={(el) => { qtyRefs.current[rowKeys[index]] = el; }} type="number" min="0" step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
+                <Input ref={(el) => { qtyRefs.current[rowKeys[index]] = el; }} type="number" min="0" max={IPAS_LIMITS.contentQuantity} step="any" value={row.quantity} onChange={(e) => setRow(index, { quantity: e.target.value })} />
               </FieldBox>
               <FieldBox label="Unit" bare>
                 <SelectField
@@ -399,7 +409,7 @@ function PackingListPage({ onClose }) {
         ? "Waiting for you: Packed by"
         : "Nothing needs you right now. Purchasing, the Warehouse list (or whoever made the list) adds the boxes and signs Packed by.";
 
-  const weightText = weighed > 0 ? `${totalWeight.toFixed(2)} kg${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
+  const weightText = weighed > 0 ? `${formatKg(totalWeight)}${weighed < boxes.length ? ` (${weighed} of ${boxes.length} weighed)` : ""}` : "";
   const pills = list
     ? [
         { key: "sor", label: "SOR", value: list.sorReference },
@@ -416,7 +426,7 @@ function PackingListPage({ onClose }) {
       key: box.id,
       main: `Box ${box.boxNo}${box.marks ? ` · ${box.marks}` : ""}`,
       sub: `Seal ${box.sealNo ?? "—"} · ${count} ${count === 1 ? "content" : "contents"}`,
-      quantity: box.grossWeightKg == null ? "— kg" : `${box.grossWeightKg} kg`,
+      quantity: box.grossWeightKg == null ? "— kg" : formatKg(box.grossWeightKg),
       children: (
         <div className="space-y-3">
           <LinerList

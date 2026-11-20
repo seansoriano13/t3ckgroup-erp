@@ -18,6 +18,7 @@ import {
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
 import { isIsoDate, parseAmountInput } from "@/utils/ipasPayments";
 import { ipasDateIssue } from "@/utils/ipasDateLimits";
+import { IPAS_LIMITS, amountSizeIssue, textLengthIssue } from "@/utils/ipasLimits";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
 import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { isPhpCurrency } from "@/utils/landedCost";
@@ -494,6 +495,20 @@ export function planSave(form, base) {
     !parseAmountInput(form.piQtAmount).ok
   ) {
     fail("P.I/QT Amount must be a number.");
+  }
+  if (changed.has("piQtAmount") && !blank(form.piQtAmount)) {
+    const parsed = parseAmountInput(form.piQtAmount);
+    const issue = parsed.ok ? amountSizeIssue(parsed.value) : null;
+    if (issue) fail(issue);
+  }
+  for (const [key, what, max] of [
+    ["piNumber", "P.I #", IPAS_LIMITS.piNumber],
+    ["contact", "Supplier's name", IPAS_LIMITS.contact],
+    ["remarks", "Remarks", IPAS_LIMITS.remarks],
+  ]) {
+    if (!changed.has(key)) continue;
+    const issue = textLengthIssue(form[key], what, max);
+    if (issue) fail(issue);
   }
   if (changed.has("location")) plan.location = form.location || null;
   for (const { field } of IPAS_SUPPLIER_ORIGIN_FIELDS)

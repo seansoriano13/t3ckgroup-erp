@@ -29,6 +29,7 @@ import { evidenceOf, stageRowOf, transmittalStateLabel } from "@/utils/transmitt
 import { formatPreparedAt } from "@/utils/preparedAt";
 import { choosesSlot, picksOtherSigner, stageBlocker } from "./transmittalMoves";
 import { STAGE_SIGNERS, STAGE_TITLE } from "./transmittalRecord";
+import { IPAS_LIMITS } from "@/utils/ipasLimits";
 
 const caption = "text-label font-bold uppercase tracking-wider text-muted-foreground";
 const formatWhen = (value) => (value ? new Date(value).toLocaleString() : "");
@@ -345,7 +346,7 @@ export function OdooBody({ t, rights, odooRef, setOdooRef }) {
     <div className="space-y-4">
       {rights.canRecordOdoo ? (
         <FieldBox label="Odoo receipt (optional)" bare>
-          <Input value={odooRef} onChange={(e) => setOdooRef(e.target.value)} placeholder="WH/IN/01234" />
+          <Input maxLength={IPAS_LIMITS.receiptRef} value={odooRef} onChange={(e) => setOdooRef(e.target.value)} placeholder="WH/IN/01234" />
         </FieldBox>
       ) : (
         <p className="text-[13px] text-muted-foreground">Not yet.</p>
