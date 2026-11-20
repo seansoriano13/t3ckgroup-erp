@@ -28,7 +28,7 @@ describe("employees.dashboard_quote", () => {
     })
 
     it("refuses a 101-character quote", async () => {
-        await expect(setQuote("a".repeat(101))).rejects.toThrow(/dashboard_quote_length|check/i)
+        await expect(setQuote("a".repeat(101))).rejects.toThrow(/dashboard_quote_length|check|at most 100/i)
     })
 
     it("still allows no quote", async () => {
