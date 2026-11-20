@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeAll, afterEach } from "vitest"
 import { createHash } from "node:crypto"
-import { ids, anonymousClient, ensureCastLoaded } from "./support/cast.js"
+import { ids, anonymousClient, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 
 const svc = () => serviceClient()
@@ -62,5 +62,40 @@ describe("verify_form_token for a leave", () => {
         expect(error).toBeNull()
         expect(data.status).toBe("PENDING")
         expect(data.approval_date).toBeNull()
+    })
+})
+
+describe("verify_form_token limit (#1134)", () => {
+    const callWith = async (token, headers) => {
+        const { createClient } = await import("@supabase/supabase-js")
+        const { API_URL, ANON_KEY } = await import("./support/stack.js")
+        return createClient(API_URL, ANON_KEY, {
+            auth: { autoRefreshToken: false, persistSession: false },
+            global: { headers },
+        }).rpc("verify_form_token", { lookup_token: token })
+    }
+
+    it("raises its own code over the limit, and a made-up X-Forwarded-For does not reset the count", async () => {
+        const row = await seedLeave()
+        // Same real caller every time; only the made-up header value changes.
+        let limited = null
+        for (let i = 0; i < 30 && !limited; i++) {
+            const { error } = await callWith(row.verification_token, {
+                "x-forwarded-for": `10.9.${i}.1`,
+            })
+            if (error) limited = error
+        }
+        expect(limited).not.toBeNull()
+        expect(limited.code).toBe("VF429")
+        expect(limited.message).toBe("verify_rate_limited")
+    })
+
+    it("does not limit signed-in HR", async () => {
+        const row = await seedLeave()
+        const hr = await clientFor("hr")
+        for (let i = 0; i < 25; i++) {
+            const { error } = await hr.rpc("verify_form_token", { lookup_token: row.verification_token })
+            expect(error).toBeNull()
+        }
     })
 })
