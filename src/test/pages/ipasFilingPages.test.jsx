@@ -50,6 +50,13 @@ const poCopy = (po, extraLine = false) => ({
   bills: { count: 0, draft: 0 },
 });
 
+// A dollar PO: the page re-reads Odoo when it opens, so the fake Odoo has to say USD too.
+const usdCopy = (po) => {
+  const copy = poCopy(po);
+  return { ...copy, po: { ...copy.po, currency: "USD" } };
+};
+
+let options;
 let counter = 48;
 function ipas(overrides = {}) {
   counter += 1;
@@ -140,7 +147,7 @@ describe("IPAS section 7 and Filing", () => {
     noter = makeEmployee({ name: "Nina Noter" });
     checker = makeEmployee({ name: "Carl Checker" });
     superAdmin = makeEmployee({ name: "Super Admin", is_super_admin: true });
-    seedIpasOptions((table, row) => db.seed(table, row));
+    options = seedIpasOptions((table, row) => db.seed(table, row));
     onList("s1_approved", boss);
     onList("s3_approved", boss);
     onList("s7_received", receiver);
@@ -296,11 +303,12 @@ describe("IPAS section 7 and Filing", () => {
     });
 
     it("names the payments still waiting for their pesos and turns Approve and file off (#1124)", async () => {
-      const row = ipas({ odoo_copy: { ...poCopy("P03100"), po: { ...poCopy("P03100").po, currency: "USD" } } });
+      stubEdgeFunction("odoo-po-ipas", (body) => ({ success: true, found: true, ...usdCopy(body.poNumber) }));
+      const row = ipas({ po_number: "P03100", odoo_copy: usdCopy("P03100") });
       approvedFirstSections(row);
       givenThroughChecked(row);
-      db.seed("ipas_payments", { ipas_id: row.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: null, charge_fee_php: 0 });
-      db.seed("ipas_payments", { ipas_id: row.id, kind: "payment", paid_on: "2026-11-20", amount: 300, php_debited: 17000, charge_fee_php: 0 });
+      db.seed("ipas_payments", { ipas_id: row.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: null, charge_fee_php: 0, method_id: options.payment_method["Bank TT"].id, forex_rate: 56, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
+      db.seed("ipas_payments", { ipas_id: row.id, kind: "payment", paid_on: "2026-11-20", amount: 300, php_debited: 17000, charge_fee_php: 0, method_id: options.payment_method["Bank TT"].id, forex_rate: 56, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
       signIn(boss);
       const user = setupUser();
 
@@ -309,16 +317,17 @@ describe("IPAS section 7 and Filing", () => {
 
       const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
       const waiting = await within(dialog).findByTestId("ipas-filing-waiting-pesos");
-      expect(waiting).toHaveTextContent("Filing waits for the pesos of the down payment of Nov 19, 2026");
+      expect(waiting).toHaveTextContent("Down payment of USD 500.00 on Nov 19, 2026");
       expect(waiting).not.toHaveTextContent("Nov 20, 2026");
       expect(within(dialog).getByRole("button", { name: "Approve and file" })).toBeDisabled();
     });
 
     it("offers Approve and file once every payment has its pesos (#1124)", async () => {
-      const foreign = ipas({ odoo_copy: { ...poCopy("P03101"), po: { ...poCopy("P03101").po, currency: "USD" } } });
+      stubEdgeFunction("odoo-po-ipas", (body) => ({ success: true, found: true, ...usdCopy(body.poNumber) }));
+      const foreign = ipas({ po_number: "P03101", odoo_copy: usdCopy("P03101") });
       approvedFirstSections(foreign);
       givenThroughChecked(foreign);
-      db.seed("ipas_payments", { ipas_id: foreign.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: 28000, charge_fee_php: 0 });
+      db.seed("ipas_payments", { ipas_id: foreign.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: 28000, charge_fee_php: 0, method_id: options.payment_method["Bank TT"].id, forex_rate: 56, proof_url: "https://res.cloudinary.com/demo/image/upload/pop.jpg" });
       signIn(boss);
       const user = setupUser();
 
@@ -519,6 +528,7 @@ describe("IPAS section 7 and Filing", () => {
       await user.click(await screen.findByRole("button", { name: `Approve ${row.number} section 6` }));
 
       const dialog = await findOtherDialog();
+      expect(within(dialog).getByText(/Approving Section 6 · Sign-offs files this IPAS/)).toBeInTheDocument();
       expect(await within(dialog).findByTestId("ipas-filing-warnings")).toBeInTheDocument();
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("open");
       await user.click(within(dialog).getByRole("button", { name: "File anyway" }));
@@ -534,9 +544,12 @@ describe("IPAS section 7 and Filing", () => {
       const user = setupUser();
 
       renderQueue();
+      // The queue row names the part as the record does (#1130).
+      expect(await screen.findByText(/Section 6 · Sign-offs · Received/)).toBeInTheDocument();
       await user.click(await screen.findByText("Scorpe Technologies"));
 
       const sheet = await findOtherDialog();
+      expect(within(sheet).getByText("You are on the Section 6 · Sign-offs received list, and it is your turn.")).toBeInTheDocument();
       expect(within(sheet).getByText("Your step")).toBeInTheDocument();
       expect(within(sheet).getByText("Gave the sign-off before yours")).toBeInTheDocument();
       expect(within(sheet).getByRole("button", { name: "Receive" })).toBeInTheDocument();

@@ -275,4 +275,25 @@ describe("Transmittal record page", () => {
     // Submit is the card's move.
     expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
   });
+
+  it("cancels a draft from the More menu with a reason, and a blank reason is refused (#1127)", async () => {
+    const user = setupUser();
+    mockUser.current = { ...ME, id: PREPARER };
+    service.get.mockResolvedValue(shapeTransmittal(raw({ state: "draft", stages: [] })));
+    service.myStaffLists.mockResolvedValue([]);
+    service.cancel.mockResolvedValue({});
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "More" }));
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    const submit = await screen.findByRole("button", { name: "Cancel Transmittal" });
+    expect(submit).toBeDisabled();
+    await user.type(screen.getByRole("textbox", { name: /Reason/ }), "Raised by mistake");
+    await user.click(submit);
+
+    await waitFor(() =>
+      expect(service.cancel).toHaveBeenCalledWith("33333333-3333-4333-8333-333333333333", "Raised by mistake"),
+    );
+  });
 });

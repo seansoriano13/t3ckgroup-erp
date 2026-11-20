@@ -8,11 +8,10 @@ import { ipasService } from "../../services/ipasService";
 import {
   IPAS_DOCUMENT_APPLIES_TO_LABELS,
   IPAS_DOCUMENT_USED_FOR_LABELS,
-  IPAS_PAYMENT_KIND_LABELS,
   ipasSectionLabel,
 } from "../../constants/ipas";
-import { formatDateOnly } from "@/utils/formatDate.js";
-import { ipasFilingWarningsKey, ipasWaitingPesosKey } from "./ipasKeys";
+import { ipasFilingWarningsKey } from "./ipasKeys";
+import { WaitingPesosNotice, useWaitingPesos } from "./FilingWaitingPesos";
 
 /**
  * Approving section 7 files the IPAS (#248): one deliberate act that freezes
@@ -51,15 +50,7 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
   });
 
   // #1124: Filing waits for the pesos. Each foreign payment with them blank is named; the button is off.
-  const waiting = useQuery({
-    queryKey: ipasWaitingPesosKey(ipasId),
-    queryFn: () => ipasService.paymentsWaitingForPesos(ipasId),
-    staleTime: 0,
-    gcTime: 0,
-    retry: false,
-  });
-  const waitingPayments = waiting.data ?? [];
-  const blockedByPesos = waitingPayments.length > 0;
+  const waiting = useWaitingPesos(ipasId);
 
   const submit = async () => {
     setSaving(true);
@@ -82,7 +73,7 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
       crumbs={["IPAS", number, "File"]}
       title={`File ${number}?`}
       actions={
-        <Button disabled={saving || warnings.isLoading || waiting.isLoading || blockedByPesos} onClick={submit}>
+        <Button disabled={saving || warnings.isLoading || waiting.isLoading || waiting.blocked} onClick={submit}>
           {saving ? "Filing…" : unticked.length > 0 ? "File anyway" : "Approve and file"}
         </Button>
       }
@@ -98,26 +89,7 @@ function Body({ ipasId, number, onConfirm, summary, signer, onClose }) {
         {signer && <p className="text-sm font-medium text-foreground">{signer}</p>}
       </div>
 
-      {blockedByPesos && (
-        <div
-          role="alert"
-          data-testid="ipas-filing-waiting-pesos"
-          className="rounded-xl border border-red-400 bg-red-3/40 p-3 text-[13px] text-red-11"
-        >
-          <p className="flex items-center gap-1.5 font-semibold">
-            <CircleAlert size={15} aria-hidden="true" />
-            Filing waits for the pesos. Fill in &ldquo;Pesos taken from the bank&rdquo; first.
-          </p>
-          <ul className="mt-1.5 space-y-0.5 text-xs">
-            {waitingPayments.map((payment) => (
-              <li key={payment.id}>
-                Filing waits for the pesos of the {(IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind).toLowerCase()} of{" "}
-                {formatDateOnly(payment.paidOn)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <WaitingPesosNotice payments={waiting.payments} />
 
       {warnings.isLoading ? (
         <p className="text-sm text-muted-foreground" role="status">

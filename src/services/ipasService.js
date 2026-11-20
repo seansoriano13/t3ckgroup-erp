@@ -54,7 +54,7 @@ import {
 } from "../utils/ipas";
 import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "../utils/ipasPaymentPercent";
-import { isPhpCurrency, sumPesos } from "../utils/landedCost";
+import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
 import { isLandedCostFinal, shapeSignoff } from "../utils/ipasSignoffs";
 import { rawOf } from "../utils/ipasOptimistic";
@@ -1321,22 +1321,14 @@ export const ipasService = {
 
   /**
    * The payments Filing is waiting on (#1124): on a foreign-currency IPAS, every payment whose
-   * "Pesos taken from the bank" is blank. Each is { id, kind, paidOn, amount, currency }; empty on a
-   * peso IPAS. The database refuses Approve and file while any are listed.
+   * "Pesos taken from the bank" is blank, one phrase each ("Down payment of USD 500.00 on Nov 19,
+   * 2026"). Empty on a peso IPAS. The list comes from the database, the same one that refuses
+   * Approve and file while any are named.
    */
   async paymentsWaitingForPesos(id) {
-    const [ipas, payments] = await Promise.all([
-      supabase.from("ipas").select("id, odoo_copy").eq("id", id).maybeSingle(),
-      supabase.from("ipas_payments").select("id, kind, paid_on, amount, php_debited").eq("ipas_id", id).order("paid_on", { ascending: true }),
-    ]);
-    for (const result of [ipas, payments]) {
-      if (result.error) throw result.error;
-    }
-    const currency = ipas.data?.odoo_copy?.po?.currency ?? "";
-    if (!ipas.data || isPhpCurrency(currency)) return [];
-    return (payments.data || [])
-      .filter((row) => row.php_debited === null || row.php_debited === undefined)
-      .map((row) => ({ id: row.id, kind: row.kind, paidOn: row.paid_on, amount: Number(row.amount), currency }));
+    const { data, error } = await supabase.rpc("ipas_payments_waiting_for_pesos", { p_ipas_id: id });
+    if (error) throw error;
+    return data ?? [];
   },
 
   /**
