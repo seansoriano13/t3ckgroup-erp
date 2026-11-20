@@ -73,10 +73,21 @@ export function Field({ id, label, kind = "text", value, onChange, required, pre
       <FieldBox label={caption(label, required, needed)} htmlFor={id} bare>
         {control}
       </FieldBox>
+      <FieldError error={error} />
       {odoo !== undefined && (
         <p className="mt-1 pl-1 text-xs text-muted-foreground">{blank(value) ? "Using Odoo's value" : `Odoo says ${odoo ?? "blank"}`}</p>
       )}
     </div>
+  );
+}
+
+/** The sentence under a field whose value breaks a rule; the red box alone does not say why (#1123). */
+export function FieldError({ error }) {
+  if (typeof error !== "string" || error === "") return null;
+  return (
+    <p role="alert" className="mt-1 pl-1 text-xs text-destructive">
+      {error}
+    </p>
   );
 }
 

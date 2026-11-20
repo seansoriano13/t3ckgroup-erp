@@ -137,7 +137,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       label: "Mark Landed Cost final",
       done: Boolean(digest.costsComplete),
       line: digest.costsComplete
-        ? `${digest.landedEstimate ? "Estimate" : "Final"} at ${digest.money.landedFigureText}.`
+        ? `${digest.money.landedEstimate ? "Estimate" : "Final"} at ${digest.money.landedFigureText}.`
         : blankCharges > 0
           ? `Can't be marked final while ${blankCharges} ${blankCharges === 1 ? "charge has" : "charges have"} no amount. Fill in or remove ${blankCharges === 1 ? "it" : "them"} in 3 · Costs.`
         : digest.landedUnavailable

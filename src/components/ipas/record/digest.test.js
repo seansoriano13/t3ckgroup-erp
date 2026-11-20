@@ -4,14 +4,14 @@ import { sectionState } from "./digest";
 
 /** #1124: a Landed Cost taken from estimates is never called Final. */
 describe("sectionState: the Costs card", () => {
-  const costs = (over) => sectionState("costs", { costsComplete: true, landedEstimate: false, landedUnavailable: false, ...over });
+  const costs = (over) => sectionState("costs", { costsComplete: true, landedUnavailable: false, money: { landedEstimate: false }, ...over });
 
   it("reads Final once the pesos are all in", () => {
     expect(costs({})).toMatchObject({ detail: "Final" });
   });
 
   it("reads Estimate while a payment's pesos are blank", () => {
-    expect(costs({ landedEstimate: true })).toMatchObject({ detail: "Estimate" });
+    expect(costs({ money: { landedEstimate: true } })).toMatchObject({ detail: "Estimate" });
   });
 
   it("reads Provisional before LC Odoo Done", () => {
