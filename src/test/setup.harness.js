@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest"
 import { server } from "./msw/server"
-import { resetExternalStubs, resetStorageStubs, resetStubs } from "./msw/server"
+import { resetExternalStubs, resetStorageStubs, resetStubs, stubTableRpc } from "./msw/server"
 import { db } from "./db/store"
 import { resetFactories } from "./factories"
 import { waitForNetworkIdle } from "./network"
@@ -82,6 +82,11 @@ beforeEach(() => {
   stubMoveOpportunitiesToSnapshotRpc()
   stubResumeStageWorkRpc()
   stubStartFreshStageWorkRpc()
+  // Notes and History read through this RPC (it applies the SOR read rule, which the fake does not
+  // run): every log row of the asked SORs, filterable like the table.
+  stubTableRpc("sor_logs_for_sors", "sales_opportunity_logs", ({ p_opportunity_ids }) =>
+    db.internal.rowsOf("sales_opportunity_logs").filter((l) => p_opportunity_ids.includes(l.opportunity_id)),
+  )
 })
 
 afterAll(() => {
