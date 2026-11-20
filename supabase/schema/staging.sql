@@ -2238,7 +2238,10 @@ alter table app_settings add constraint "app_settings_id_check" CHECK ((id = tru
 alter table bug_report_notes add constraint "bug_report_notes_kind_check" CHECK ((kind = ANY (ARRAY['note'::text, 'resolved'::text, 'reopened'::text])));
 alter table bug_reports add constraint "bug_reports_description_check" CHECK ((length(btrim(description)) > 0));
 alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_check" CHECK ((entity_type = ANY (ARRAY['TASK'::text, 'SALES'::text, 'COMMITTEE_TASK'::text, 'GROUP_TASK'::text])));
+alter table commission_departments add constraint "commission_departments_allocation_percent_range" CHECK (((allocation_percent >= (0)::numeric) AND (allocation_percent <= (100)::numeric)));
+alter table commission_positions add constraint "commission_positions_allocation_percent_range" CHECK (((allocation_percent >= (0)::numeric) AND (allocation_percent <= (100)::numeric)));
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
+alter table commission_splits add constraint "commission_splits_percent_range" CHECK (((percent >= (0)::numeric) AND (percent <= (100)::numeric)));
 alter table commission_splits add constraint "commission_splits_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
 alter table costing_bid_decisions add constraint "costing_bid_decisions_cleared_chk" CHECK (((cleared_at IS NULL) = (cleared_reason IS NULL)));
@@ -3506,7 +3509,7 @@ create policy "costing_bid_decisions_read" on public."costing_bid_decisions"
   as permissive
   for select
   to authenticated
-  using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
+  using (((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text) AND costing_sees_bid(costing_matrix_opp(matrix_id))));
 create policy "costing_column_bands_read" on public."costing_column_bands"
   as permissive
   for select
@@ -9041,6 +9044,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM sil_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -11532,6 +11536,7 @@ begin
     where e.matrix_id = v_matrix
       and (p_table is null or e.detail ->> 'table' = p_table)
       and (p_row is null or e.detail ->> 'row' = p_row::text)
+      and (e.detail ->> 'table' is distinct from 'costing_bid_decisions' or public.costing_sees_bid(p_opportunity_id))
       and (
         case
           when e.detail ? 'column' then exists (
@@ -12308,6 +12313,7 @@ declare
   v_rows   jsonb;
   v_tables jsonb := '{}'::jsonb;
   v_bands  text[];
+  v_sees_bid boolean := public.costing_sees_bid(p_opportunity_id);
 begin
   if v_tier is null then
     return null;
@@ -12322,6 +12328,10 @@ begin
     from public.costing_column_tiers c
     where c.table_name = v_def.table_name and c.column_name <> '*' and v_tier = any (c.tiers);
     if cardinality(v_cols) = 0 then
+      continue;
+    end if;
+    -- #1107: the Bid Decision is not sent to a purchaser who is not the Deal Team, a decider or a Super Admin.
+    if v_def.table_name = 'costing_bid_decisions' and not v_sees_bid then
       continue;
     end if;
 
@@ -12346,7 +12356,7 @@ begin
     from unnest(array['sales', 'purchasing', 'management', 'technical', 'finance', 'super_admin_only', 'markup']) b
    where public.costing_in_band(p_opportunity_id, b);
 
-  return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'tables', v_tables);
+  return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'bid_visible', v_sees_bid, 'tables', v_tables);
 end;
 $function$
 ;
@@ -12977,6 +12987,22 @@ begin
   where s.score >= 0.6
   order by s.score desc, s.item_name, s.line_name;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_sees_bid(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false)
+    or public.costing_on_list('final_acquire')
+    or exists (
+      select 1 from public.sales_opportunities o
+      where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
+    )
+    -- Only Purchasing is narrowed: everyone else keeps what their tier already gives.
+    or not coalesce(public.has_purchasing_access(), false)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_set_acquire_source()
@@ -14024,6 +14050,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported offset leave decision: %.', p_status;
   END IF;
@@ -14152,6 +14179,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -14241,6 +14269,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported SIL leave decision: %.', p_status;
   END IF;
@@ -14728,6 +14757,51 @@ AS $function$
           and upper(trim(t.team)) = upper(trim(e.sub_department))
       )
     );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.employees_self_update_allowlist()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_caller_id    UUID;
+  v_privileged   BOOLEAN;
+  v_simulator    BOOLEAN;
+  v_self_allowed text[] := ARRAY[
+    'avatar_path', 'dashboard_banner_path', 'dashboard_quote', 'signature_path',
+    'updated_at', 'last_seen_changelog_version'
+  ];
+BEGIN
+  IF current_user <> 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
+  v_caller_id := public.get_employee_id();
+  IF v_caller_id IS NULL OR OLD.id <> v_caller_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- OLD is the caller's own row, so its flags are the caller's.
+  v_privileged := (OLD.is_super_admin IS TRUE OR OLD.is_hr IS TRUE);
+  v_simulator  := (OLD.is_role_simulator IS TRUE);
+
+  -- A leave function moving this person's balance (see below).
+  IF current_setting('app.leave_balance_write', true) = 'on' THEN
+    v_self_allowed := v_self_allowed || ARRAY['offset_hours_balance', 'sil_hours_balance'];
+  END IF;
+
+  IF NOT v_privileged
+     AND NOT v_simulator
+     AND (to_jsonb(NEW) - v_self_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_self_allowed)
+  THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: you can change only your avatar, banner, quote and signature.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb)
@@ -21502,6 +21576,7 @@ DECLARE
   v_caller_is_hr             BOOLEAN;
   v_caller_can_manage_leaves BOOLEAN;
   v_caller_is_role_simulator BOOLEAN;
+  v_is_privileged            BOOLEAN;
 BEGIN
   v_caller_id := public.get_employee_id();
 
@@ -21510,11 +21585,36 @@ BEGIN
   FROM   public.employees
   WHERE  id = v_caller_id;
 
+  v_is_privileged := (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE);
+
+  -- Quote length (#1115). Only checked when the quote changes, so an older,
+  -- longer quote does not block an unrelated edit of that person.
+  IF NEW.dashboard_quote IS DISTINCT FROM OLD.dashboard_quote
+     AND char_length(NEW.dashboard_quote) > 100
+  THEN
+    RAISE EXCEPTION 'The quote can be at most 100 characters.'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Banner address (#1116). Allowed: empty, an https:// address, or a storage
+  -- path (no scheme before the first slash).
+  IF NEW.dashboard_banner_path IS DISTINCT FROM OLD.dashboard_banner_path
+     AND NEW.dashboard_banner_path IS NOT NULL
+     AND NEW.dashboard_banner_path <> ''
+     AND NEW.dashboard_banner_path !~* '^https://'
+     AND NEW.dashboard_banner_path !~ '^[^:/]*/'
+  THEN
+    RAISE EXCEPTION 'The banner must be a web address that starts with https://.'
+      USING ERRCODE = '23514';
+  END IF;
+
   IF v_caller_is_role_simulator IS TRUE THEN
     RETURN NEW;
   END IF;
 
-  IF NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+  -- The self-update allowlist lives in employees_self_update_allowlist() below.
+
+  IF NOT v_is_privileged THEN
     IF NEW.is_super_admin IS DISTINCT FROM OLD.is_super_admin THEN
       NEW.is_super_admin := OLD.is_super_admin;
     END IF;
@@ -21556,7 +21656,7 @@ BEGIN
   -- employee row is the service role or a migration, and is trusted.
   IF v_caller_id IS NOT NULL
      AND (
-       NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+       NOT v_is_privileged
        OR (OLD.id = v_caller_id AND NOT (v_caller_is_super_admin IS TRUE))
      )
   THEN
@@ -21570,7 +21670,7 @@ BEGIN
 
   -- Call sign (#247). Only HR and Super Admins set one, their own included.
   IF v_caller_id IS NOT NULL
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND NEW.call_sign IS DISTINCT FROM OLD.call_sign
   THEN
     NEW.call_sign := OLD.call_sign;
@@ -21579,13 +21679,13 @@ BEGIN
   -- Nobody edits their own hidden-navigation override — server-side, not by
   -- hiding the control — and only HR/Super Admin may edit anyone else's.
   IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
-    IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+    IF OLD.id = v_caller_id OR NOT v_is_privileged THEN
       NEW.hidden_nav_keys := OLD.hidden_nav_keys;
     END IF;
   END IF;
 
   IF v_caller_can_manage_leaves IS TRUE
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND OLD.id IS DISTINCT FROM v_caller_id
   THEN
     NEW := jsonb_populate_record(OLD, jsonb_build_object(
@@ -31056,6 +31156,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(COALESCE(approved_hours, hours)), 0), array_agg(date ORDER BY date)
@@ -31117,6 +31218,7 @@ DECLARE
   v_new_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -31179,6 +31281,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM sil_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(hours), 0), array_agg(date ORDER BY date)
@@ -31712,6 +31815,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM offset_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -31859,6 +31963,7 @@ CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
+CREATE TRIGGER trg_employees_self_update_allowlist BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION employees_self_update_allowlist();
 CREATE TRIGGER trg_prevent_privileged_flags_on_insert BEFORE INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_privileged_flags_on_insert();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER group_task_templates_block_delete_in_use BEFORE DELETE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_block_delete_in_use();

@@ -254,6 +254,7 @@ describe("Super Admin, the Final Acquire list, the Deal Team and Purchasing (Clo
         const read = await readMatrix(who)
         expect(read.tier).toBe("closed_book")
         for (const [table, rows] of Object.entries(read.tables)) {
+            if (table === "costing_bid_decisions" && who === "outsider") continue // #1107: a purchaser with no part in the deal gets no Bid Decision
             expect(rows.length, `${who} ${table}`).toBeGreaterThan(0)
             const allowed = [...columnsFor(table, "closed_book")]
             for (const column of allowed) {
@@ -269,6 +270,10 @@ describe("Super Admin, the Final Acquire list, the Deal Team and Purchasing (Clo
         expect(t.costing_matrix_money[0].opex).toBe(OPEX)
         expect(t.costing_matrix_money[0].default_factor).toBe(DEFAULT_FACTOR)
         expect(t.costing_tender_line_prices.map((r) => r.final_offer_unit).sort((a, b) => a - b)).toEqual([OFFER_2, OFFER_1])
+        if (who === "outsider") {
+            expect(t.costing_bid_decisions ?? []).toEqual([])
+            return
+        }
         const decision = t.costing_bid_decisions.find((r) => r.cleared_at === null)
         expect("final_offer_total" in decision && "abc_total" in decision).toBe(true)
     })
@@ -288,6 +293,10 @@ describe("Super Admin, the Final Acquire list, the Deal Team and Purchasing (Clo
             for (const table of moneyTables) {
                 const { data, error } = await (await clientFor(who)).from(table).select("*")
                 expect(error, `${who} ${table}`).toBeNull()
+                if (who === "outsider" && table === "costing_bid_decisions") {
+                    expect(data, `${who} ${table}`).toEqual([]) // #1107
+                    continue
+                }
                 expect(data.length, `${who} ${table}`).toBeGreaterThan(0)
             }
         }

@@ -179,6 +179,19 @@ describe("CommissionDashboardView", () => {
       expect(screen.queryByText("₱3,285.71")).not.toBeInTheDocument();
     });
 
+    it("masks the Sales fund the same way for a Sales Director with no visible amount and a Sales Executive", async () => {
+      commissionService.getCommissionDashboardData.mockResolvedValue({ ...dashboardData([]), salesDeptTotal: 0 });
+      const director = { id: "user-dir", name: "Dina Director", is_head: true, department: "Sales" };
+      for (const who of [director, aliceUser]) {
+        asUser(who);
+        const view = renderView();
+        const label = await screen.findByText("Sales fund");
+        expect(label.parentElement).toHaveTextContent("••••••");
+        expect(label.parentElement).not.toHaveTextContent("₱0.00");
+        view.unmount();
+      }
+    });
+
     it("filters SORs by search", async () => {
       asUser(superAdmin);
       renderView();

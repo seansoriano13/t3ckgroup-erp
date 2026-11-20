@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertPercentagesInRange,
   assertPercentagesSumTo100,
   calculateCommissionableRevenue,
   calculateCommissionBreakdown,
@@ -555,7 +556,7 @@ describe("aggregateOpportunityCommissions", () => {
     expect(agg.totalCommissionPool).toBe(0);
   });
 
-  it("includes early pipeline deals when scope is FORECAST", () => {
+  it("counts only open deals before Awarded when scope is FORECAST", () => {
     const agg = aggregateOpportunityCommissions({
       opportunities: [opp1, opp2, oppPipeline, oppLost],
       ratesResolver: () => RATES,
@@ -564,9 +565,38 @@ describe("aggregateOpportunityCommissions", () => {
       scope: "FORECAST",
     });
 
-    expect(agg.totalDealsCount).toBe(3); // excludes oppLost
-    expect(agg.wonDealsCount).toBe(2);
-    expect(agg.totalContractValue).toBe(3_500_000);
+    expect(agg.totalDealsCount).toBe(1); // only oppPipeline
+    expect(agg.wonDealsCount).toBe(0);
+    expect(agg.totalContractValue).toBe(500_000);
+  });
+
+  it("leaves an AWARDED deal with no Contract Date out of Projected (#1105)", () => {
+    const unstamped = { ...opp1, id: "opp-unstamped", contract_date: null };
+    const args = {
+      opportunities: [unstamped, oppPipeline],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+    };
+    const projected = aggregateOpportunityCommissions({ ...args, scope: "FORECAST" });
+    const realized = aggregateOpportunityCommissions({ ...args, scope: "REALIZED" });
+
+    expect(projected.totalContractValue).toBe(500_000);
+    expect(realized.totalContractValue).toBe(0);
+  });
+
+  it("counts an AWARDED deal with a Contract Date in Realized only", () => {
+    const args = {
+      opportunities: [opp1, oppPipeline],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+    };
+    const realized = aggregateOpportunityCommissions({ ...args, scope: "REALIZED" });
+    const projected = aggregateOpportunityCommissions({ ...args, scope: "FORECAST" });
+
+    expect(realized.totalContractValue).toBe(1_000_000);
+    expect(projected.totalContractValue).toBe(500_000);
   });
 
   it("filters by date range correctly", () => {
@@ -654,5 +684,22 @@ describe("aggregateOpportunityCommissions", () => {
 
     const bobMetrics = agg.salesEmployees.find((e) => e.employeeId === "emp-bob");
     expect(bobMetrics.roleBreakdown.closing_salesperson).toBeCloseTo(821.43, 2);
+  });
+});
+
+describe("assertPercentagesInRange", () => {
+  it("accepts 0 and 100 and values between", () => {
+    expect(() => assertPercentagesInRange([0, 50, 100])).not.toThrow();
+  });
+
+  it("refuses a negative value even when the total is 100", () => {
+    expect(() => assertPercentagesInRange([-5, 105], { label: "Department allocations" })).toThrow(
+      /Department allocations must each be between 0% and 100%/,
+    );
+  });
+
+  it("refuses a value above 100 and a non-number", () => {
+    expect(() => assertPercentagesInRange([100.5])).toThrow();
+    expect(() => assertPercentagesInRange([Number.NaN])).toThrow();
   });
 });

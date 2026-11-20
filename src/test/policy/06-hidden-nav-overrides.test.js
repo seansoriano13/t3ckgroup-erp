@@ -100,9 +100,10 @@ describe("hidden_nav_keys write path", () => {
         const result = await tryUpdate(clients.ordinary, "employees", ids.ordinary, {
             hidden_nav_keys: ["workspace.dashboard"],
         })
-        // The row-update itself is allowed (an employee may edit their own
-        // profile); the trigger silently reverts just this field.
-        expect(result.ok, result.message).toBe(true)
+        // #1115: an employee may change only avatar, banner, quote and
+        // signature on their own row, so this is refused outright.
+        expect(result.ok).toBe(false)
+        expect(result.code).toBe("42501")
 
         const { data } = await serviceClient().from("employees").select("hidden_nav_keys").eq("id", ids.ordinary).single()
         expect(data.hidden_nav_keys).not.toEqual(["workspace.dashboard"])

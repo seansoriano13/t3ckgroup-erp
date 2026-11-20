@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const bannerInputRef = useRef(null);
 
   const isHttpUrl = (value) => /^https?:\/\//i.test(value || "");
+  const isHttpsUrl = (value) => /^https:\/\//i.test(value || "");
 
   const [customQuote, setCustomQuote] = useState(() => user?.dashboardQuote || "");
   const [prevDashboardQuote, setPrevDashboardQuote] = useState(
@@ -319,6 +320,10 @@ export default function ProfilePage() {
     isHttpUrl(user?.dashboardBannerPath) ? user.dashboardBannerPath : ""
   ).trim();
 
+  // A typed banner address must be https:// (the server refuses anything else).
+  const bannerUrlInvalid =
+    hasBannerUrl && !isHttpsUrl(bannerUrlInput.trim());
+
   const hasChanges =
     !!avatarFile ||
     !!bannerFile ||
@@ -337,7 +342,7 @@ export default function ProfilePage() {
     <Button
       type="button"
       onClick={() => savePreferencesMutation.mutate()}
-      disabled={isSaving || !hasChanges}
+      disabled={isSaving || !hasChanges || bannerUrlInvalid}
       className={phone ? "w-full" : undefined}
     >
       {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
@@ -704,7 +709,13 @@ export default function ProfilePage() {
                 }}
                 containerClassName="w-full"
                 placeholder="Paste Unsplash image URL"
+                aria-invalid={bannerUrlInvalid || undefined}
               />
+              {bannerUrlInvalid && (
+                <p role="alert" className="text-xs text-destructive">
+                  Enter a web address that starts with https://
+                </p>
+              )}
             </div>
           </div>
 

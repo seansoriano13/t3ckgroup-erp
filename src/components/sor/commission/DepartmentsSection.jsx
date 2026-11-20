@@ -5,6 +5,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { commissionService } from "../../../services/commissionService";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
+import { isPercentInRange } from "../../../utils/commission";
 import { compactPHP } from "./commissionView";
 import { Meter, Swatch, UsageRow, UsageSection } from "./parts";
 
@@ -37,7 +38,7 @@ function PositionsDetail({ department, canEdit, actorId }) {
   const rows = draft ?? positions;
   const total = sumOf(rows.map((r) => r.allocationPercent));
   const dirty = draft !== null;
-  const valid = isHundred(total) && rows.length > 0 && rows.every((r) => r.name.trim());
+  const valid = isHundred(total) && rows.length > 0 && rows.every((r) => isPercentInRange(r.allocationPercent)) && rows.every((r) => r.name.trim());
   const patch = (index, change) => setDraft(rows.map((row, i) => (i === index ? { ...row, ...change } : row)));
 
   const save = useMutation({
@@ -186,7 +187,7 @@ export default function DepartmentsSection({ departments, canViewAllFinancials, 
         <div className="flex items-center justify-end gap-3 px-4 py-3">
           <Total total={total} />
           <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
-          <Button type="button" size="sm" disabled={!dirty || !isHundred(total) || save.isPending} onClick={() => save.mutate()}>Save allocations</Button>
+          <Button type="button" size="sm" disabled={!dirty || !isHundred(total) || !records.every((r) => isPercentInRange(values(r))) || save.isPending} onClick={() => save.mutate()}>Save allocations</Button>
         </div>
       )}
     </UsageSection>

@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { REFUSAL } from "../constants/refusal";
-import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
+import { ABC_MODE, BID_VERDICT, COSTING_SIGNER_LIST, DEFAULT_COSTING_SETTINGS, FINAL_ACQUIRE_PERCENT_HIGH, FINAL_ACQUIRE_PERCENT_LOW, STANDALONE_START_PROBLEM, bandRefusalMessage, readsBid, tierReadsBidDecision, tierReadsLandedCost, tierReadsSummary } from "../constants/costing";
 import { DEFAULT_FINAL_ACQUIRE_PERCENT, abcSettingOf, offerSettingOf, applyPercentRows, projectExpensesTotal, complianceRollup, componentMarkup, componentTotals, costRowsTotals, costRowTotals, lineMarkup, lineTotals, markupPriceSum, landedCostRollup, matrixMarkup, matrixTotals, revenueComparison, revenueInputs, summary } from "../utils/costingMath";
 import { shapeMatrixPage } from "../utils/costingMatrixPage";
 import { numberOrNull } from "../utils/numberOrNull";
@@ -341,6 +341,8 @@ export function shapeMatrix(read, settings = null) {
 
   const shaped = {
     tier: read.tier,
+    // #1107: false for a purchaser outside the Deal Team, the decider list and Super Admins; absent counts as visible.
+    bidVisible: read.bid_visible !== false,
     bands: read.bands ?? [],
     matrixId: read.matrix_id,
     matrix,
@@ -367,7 +369,7 @@ export function shapeMatrix(read, settings = null) {
 
   // The Bid Decision (#320): the tiers that read it get `bidDecision` (the live one, or null) and the
   // earlier cleared ones; any other tier gets neither key. The stamped figures are in it only for Closed Book.
-  if (tierReadsBidDecision(read.tier)) {
+  if (readsBid(shaped)) {
     const decisions = (tables.costing_bid_decisions ?? []).map(shapeBidDecision);
     shaped.bidDecision = decisions.find((d) => d.clearedAt === null) ?? null;
     shaped.bidDecisionHistory = decisions.filter((d) => d.clearedAt !== null).reverse();

@@ -1,5 +1,9 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import StatusBadge from "../../StatusBadge";
+import { flowStageTone } from "../../../constants/salesFlow";
+import { salesFlowService } from "../../../services/salesFlowService";
 import { Button } from "../../ui/button";
 import { SelectField } from "../../ui/SelectField";
 import { DATE_PRESETS, SPLIT_PROJECT_TYPES, TONE } from "./commissionView";
@@ -155,4 +159,22 @@ export function UsageRow({ lead, label, sub, meter, value, valueSub, detail, ope
       {detail && open && <div className="border-t border-border bg-muted/30 px-4 py-3 pl-11">{detail}</div>}
     </div>
   );
+}
+
+/**
+ * The Stage of a deal, the same in the Pool table and the receipt header. A SOR
+ * on a Sales Flow keeps a stale `status`, so it shows its flow Stage; only a SOR
+ * with no Sale Type shows `status`.
+ */
+export function DealStageBadge({ deal }) {
+  const { data: index } = useQuery({
+    queryKey: ["allFlowStagesIndex"],
+    queryFn: () => salesFlowService.getAllStagesIndex(),
+  });
+  if (!deal.saleTypeId) return <StatusBadge status={deal.status} />;
+  const stage = index?.stagesById?.[deal.flowStageId];
+  if (!stage) return <StatusBadge label="—" theme="mauve" />;
+  const flow = index.flowsById[stage.flow_id];
+  const stagesOfFlow = index.stagesByFlow[stage.flow_id] || [];
+  return <StatusBadge label={stage.name} theme={flowStageTone(stage, flow, stagesOfFlow)} />;
 }
