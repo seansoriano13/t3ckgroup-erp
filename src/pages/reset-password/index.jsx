@@ -146,7 +146,7 @@ export default function ResetPassword() {
       // here — and a success is a live recovery session.
       timer = setTimeout(() => done("invalid", noSessionCopy()), VERIFY_TIMEOUT_MS);
       redeemRecoveryToken(params.tokenHash, params.otpType).then(
-        ({ session, error }) => {
+        ({ session }) => {
           scrubTokenFromUrl();
           if (session) done("ready");
           else done("invalid", EXPIRED_COPY);
