@@ -13,7 +13,14 @@ import { printDate, printDateTime } from './ipasViewModel';
 
 const BLANK = '—';
 
-/** A quantity or weight as paper shows it: no trailing zeros, no thousands separators. */
+/** A weight as paper shows it: separators and two decimals ("1,250.00 kg"). */
+function printKg(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return BLANK;
+  return `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`;
+}
+
+/** A quantity as paper shows it: no trailing zeros, no thousands separators. */
 export function printNumber(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return BLANK;
@@ -28,12 +35,12 @@ export function packingListTotals(boxes = []) {
   const totalKg = weighed.reduce((sum, box) => sum + Number(box.grossWeightKg), 0);
   let weightLine;
   if (boxCount === 0) weightLine = 'No boxes';
-  else if (weighedCount === boxCount) weightLine = `${printNumber(totalKg)} kg total gross weight`;
-  else weightLine = `${printNumber(totalKg)} kg known · ${weighedCount} of ${boxCount} boxes weighed`;
+  else if (weighedCount === boxCount) weightLine = `${printKg(totalKg)} total gross weight`;
+  else weightLine = `${printKg(totalKg)} known · ${weighedCount} of ${boxCount} boxes weighed`;
   return {
     boxCount,
     weighedCount,
-    totalKg: printNumber(totalKg),
+    totalKg: printKg(totalKg).replace(/ kg$/, ''),
     partial: weighedCount < boxCount,
     boxesLine: `${boxCount} ${boxCount === 1 ? 'box' : 'boxes'}`,
     weightLine,
@@ -65,7 +72,7 @@ function boxView(box) {
     boxNo: box.boxNo,
     marks: box.marks || BLANK,
     sealNo: box.sealNo || BLANK,
-    weight: box.grossWeightKg == null ? BLANK : `${printNumber(box.grossWeightKg)} kg`,
+    weight: box.grossWeightKg == null ? BLANK : printKg(box.grossWeightKg),
     contents: (box.contents ?? []).map((c) => ({
       description: c.description,
       quantity: `${printNumber(c.quantity)}${c.unit ? ` ${c.unit}` : ''}`,
