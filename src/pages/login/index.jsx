@@ -1,6 +1,6 @@
 import PageLoading from "@/components/ui/PageLoading";
 import { Input } from "@/components/ui/input";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { useNavigate, useLocation, Navigate } from "react-router";
 import toast from "react-hot-toast";
@@ -12,6 +12,7 @@ import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
 import { getDevLoginPrefill } from "../../utils/devLoginPrefill.js";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { INACTIVE_NOTICE_KEY, NOT_ACTIVE_MESSAGE } from "../../utils/inactiveAccount";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -26,6 +27,28 @@ export default function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [errors, setErrors] = useState({});
+  // The intro panel is `lg:` only; a phone must not download the video.
+  const [showVideo, setShowVideo] = useState(
+    () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(min-width: 1024px)").matches),
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.("(min-width: 1024px)");
+    if (!mq) return undefined;
+    const onChange = () => setShowVideo(mq.matches);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+  // Left by AuthContext when it signed out an account with no live employee row.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(INACTIVE_NOTICE_KEY)) {
+        sessionStorage.removeItem(INACTIVE_NOTICE_KEY);
+        toast.error(NOT_ACTIVE_MESSAGE);
+      }
+    } catch {
+      /* storage blocked; nothing to show */
+    }
+  }, []);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
 
@@ -93,7 +116,10 @@ export default function Login() {
       toast.success("Check your email for a link to reset your password.");
     } catch (error) {
       console.error("Password reset request failed:", error);
-      toast.error(error.message || "Could not send reset email.");
+      toast.error(
+        error.message ||
+          "We could not send the email just now. Try again in a few minutes, or ask IT.",
+      );
     } finally {
       setIsResetting(false);
     }
@@ -193,7 +219,7 @@ export default function Login() {
                   variant="link"
                   disabled={isResetting}
                   onClick={handleForgotPassword}
-                  className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
+                  className="h-auto min-h-6 px-0 py-1 text-xs font-medium text-mauve-11 hover:underline"
                 >
                   Forgot password?
                 </Button>
@@ -245,13 +271,15 @@ export default function Login() {
             alt="Corporate Banner"
           /> */}
 
-          <video
-            src="/intro-tg-white.mp4"
-            autoPlay
-            muted
-            loop
-            className="pointer-events-none object-cover h-full w-full"
-          ></video>
+          {showVideo && (
+            <video
+              src="/intro-tg-white.mp4"
+              autoPlay
+              muted
+              loop
+              className="pointer-events-none object-cover h-full w-full"
+            ></video>
+          )}
         </div>
       </div>
     </div>

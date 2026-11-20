@@ -284,7 +284,7 @@ describe("AuthContext", () => {
       await setupUser().click(screen.getByRole("button", { name: "Check login" }))
 
       await waitFor(() =>
-        expect(toast.error).toHaveBeenCalledWith("Unauthorized: Your email is not registered."),
+        expect(toast.error).toHaveBeenCalledWith("This account is not active in the portal. Ask HR if this is wrong."),
       )
     })
 

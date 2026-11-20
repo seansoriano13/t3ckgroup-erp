@@ -35,8 +35,11 @@ import { FieldBox } from "@/components/ui/FieldBox";
 // a definite yes/no normally arrives well before this.
 const VERIFY_TIMEOUT_MS = 12000;
 
+const EXPIRED_CODES = new Set(["otp_expired"]);
 const EXPIRED_COPY =
   "Your reset link has expired, or it has already been opened once.";
+const BAD_LINK_COPY =
+  "This link does not work. Ask for a new reset email from the login page.";
 const NO_TOKEN_COPY =
   "Open this page from the link in your password-reset email.";
 
@@ -134,7 +137,10 @@ export default function ResetPassword() {
 
     if (params.hasError) {
       // GoTrue turned the link down before it ever reached us.
-      done("invalid", params.errorDescription || EXPIRED_COPY);
+      done(
+        "invalid",
+        EXPIRED_CODES.has(params.errorCode) ? EXPIRED_COPY : BAD_LINK_COPY,
+      );
     } else if (params.tokenHash) {
       // Current-style link: redeem the token_hash ourselves. This POST is the
       // moment the one-time token is spent — a prefetch of the link never gets
@@ -144,7 +150,7 @@ export default function ResetPassword() {
         ({ session, error }) => {
           scrubTokenFromUrl();
           if (session) done("ready");
-          else done("invalid", error?.message?.replace(/\+/g, " ") || EXPIRED_COPY);
+          else done("invalid", EXPIRED_COPY);
         },
       );
     } else if (!params.hasRecoveryToken) {
