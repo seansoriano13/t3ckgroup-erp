@@ -9,8 +9,8 @@ import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "../../utils/ipasDateL
 import { FieldError } from "./record/FormFields";
 
 /**
- * One or more typed dates (#246): the four Supplier Origin dates, or the one date
- * of Import Clearance or Delivered. A blank clears a date. `fields` is
+ * One or more typed dates (#246, #1154): the day an IPAS Status step was reached. A blank
+ * clears a date, unless `requireDate` is set (a step always has its day). `fields` is
  * `[{ key, label, value }]`; `onSubmit(values)` gets `{ [key]: "YYYY-MM-DD" | "" }`
  * and returns a promise: the dialog closes when it resolves, and the caller words
  * a failure with a toast. A half-typed date only keeps Save disabled.
@@ -21,20 +21,21 @@ export default function DatesDialog({ open, onOpenChange, ...body }) {
   return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
-function Body({ title, description, fields, limited = false, submitLabel = "Save", onSubmit, onClose }) {
+function Body({ title, description, fields, limited = false, requireDate = false, submitLabel = "Save", onSubmit, onClose }) {
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.key, f.value ?? ""])));
   const [saving, setSaving] = useState(false);
 
   const errorOf = (f) => (values[f.key] !== "" && !isIsoDate(values[f.key]) ? "Not a date" : (issueOf(f) ?? undefined));
   const issueOf = (f) => (limited ? ipasDateIssue(values[f.key], `The ${f.label} date`) : null);
-  const valid = fields.every((f) => values[f.key] === "" || (isIsoDate(values[f.key]) && !issueOf(f)));
-  const changed = fields.some((f) => (values[f.key] ?? "") !== (f.value ?? ""));
+  const valid = fields.every((f) => (values[f.key] === "" ? !requireDate : isIsoDate(values[f.key]) && !issueOf(f)));
+  // A required date is always savable once it is a date: a step is picked even when today is kept.
+  const changed = requireDate || fields.some((f) => (values[f.key] ?? "") !== (f.value ?? ""));
 
   const submit = async () => {
     setSaving(true);
     try {
       // Only what changed: an untouched date isn't rewritten.
-      const changes = Object.fromEntries(fields.filter((f) => (values[f.key] ?? "") !== (f.value ?? "")).map((f) => [f.key, values[f.key]]));
+      const changes = Object.fromEntries(fields.filter((f) => requireDate || (values[f.key] ?? "") !== (f.value ?? "")).map((f) => [f.key, values[f.key]]));
       await onSubmit(changes);
       onClose();
     } catch {
@@ -74,7 +75,7 @@ function Body({ title, description, fields, limited = false, submitLabel = "Save
           </div>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground">Clear a date to take it off.</p>
+      {!requireDate && <p className="text-xs text-muted-foreground">Clear a date to take it off.</p>}
     </ModalShell>
   );
 }

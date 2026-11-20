@@ -1,6 +1,6 @@
 import { stubRpc } from "@/test/msw/server"
 import { stubs } from "@/test/msw/postgrest"
-import { db, insertRow, updateRow } from "@/test/db/store"
+import { db, deleteRows, insertRow, updateRow } from "@/test/db/store"
 import { pgrstError } from "@/test/db/schema"
 import { computeLandedCost } from "@/test/stubs/landedCostFake"
 
@@ -92,6 +92,8 @@ export function stubIpasRpcs({
   bankReader = true,
   finance = undefined,
   superAdmin = false,
+  // #1154: a caller with Logistics access (sets the IPAS Status without Purchasing).
+  logistics = false,
   sorReader = true,
   // #283: whether the caller is in the SOR's Costing Matrix money tier (costing_can_read_money).
   costingMoney = false,
@@ -269,9 +271,11 @@ export function stubIpasRpcs({
       odoo_copy: copy,
       odoo_fetched_at: new Date().toISOString(),
       created_by: actorId,
+      status: "order_draft",
       ...filledFromCopy({}, copy),
     })
     for (const opportunityId of sors) insertRow("ipas_sors", { ipas_id: row.id, opportunity_id: opportunityId })
+    insertRow("ipas_status_steps", { ipas_id: row.id, step: "order_draft", reached_on: manilaToday(), set_by: actorId })
     suggestDocuments(row.id, row.source)
     event(row.id, "created", {
       number: row.number,
@@ -353,6 +357,7 @@ export function stubIpasRpcs({
     if (row.state === "cancelled") refuse("55000", `ipas_cancel: ${row.number} is already cancelled`)
     const updated = updateRow("ipas", row, {
       state: "cancelled",
+      status: null,
       cancel_reason: reason,
       cancelled_by: actorId,
       cancelled_at: new Date().toISOString(),
@@ -1446,66 +1451,95 @@ export function stubIpasRpcs({
     return doc
   })
 
-  const ORIGIN_KEYS = ["shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on"]
+  // #1154 (ADR 0054): the IPAS Status, set by hand. The retired writers are refused as the database does
+  // once their grants are gone. The real functions are proven in the policy tier (1154-ipas-status).
+  stubRpc("ipas_set_supplier_origin", () => refuse("42501", "permission denied for function ipas_set_supplier_origin"))
+  stubRpc("ipas_set_typed_status", () => refuse("42501", "permission denied for function ipas_set_typed_status"))
 
-  const readDate = (fn, fields, key, label, current) => {
-    if (!(key in fields)) return current ?? null
-    const raw = fields[key]
-    if (raw === null) return null
-    if (typeof raw !== "string") refuse("22023", `${fn}: ${label} must be a date`)
-    const text = raw.trim()
-    if (text === "") return null
-    const real = /^\d{4}-\d{2}-\d{2}$/.test(text) && new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) === text
-    if (!real) refuse("22023", `${fn}: ${label} must be a date`)
-    return text
+  const STATUS_ORDER = [
+    "order_draft", "payment_approval", "ordered", "processing", "shipped", "in_transit",
+    "customs", "local_hub", "out_for_delivery", "delivered", "done",
+  ]
+  const STATUS_LABELS = {
+    order_draft: "Order-Draft", payment_approval: "Payment Approval", ordered: "Ordered",
+    processing: "Processing / Preparing Shipment", shipped: "Shipped / Picked Up", in_transit: "In Transit",
+    customs: "Customs / Port Hold", local_hub: "Arrived at Local Hub", out_for_delivery: "Out for Delivery",
+    delivered: "Delivered", done: "Done",
+  }
+  const IMPORT_ONLY = ["customs", "local_hub", "out_for_delivery"]
+  const orderOf = (step) => {
+    const at = STATUS_ORDER.indexOf(step)
+    return at === -1 ? null : at + 1
+  }
+  const manilaToday = () =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
+  const stepsOf = (ipasId) => rowsOf("ipas_status_steps").filter((s) => s.ipas_id === ipasId)
+  const requireStatusWriter = (fn) => {
+    if (!(purchasing || logistics || superAdmin)) refuse("42501", `${fn}: only Purchasing, Logistics or a Super Admin sets the status`)
+  }
+  const checkStatusDate = (fn, date, what) => {
+    if (date > manilaToday()) refuse("22023", `${fn}: ${what} cannot be after today`)
+    if (date < "2015-01-01") refuse("22023", `${fn}: ${what} cannot be before January 1, 2015`)
   }
 
-  stubRpc("ipas_set_supplier_origin", (args) => {
-    requirePurchasing("ipas_set_supplier_origin")
-    const fields = args.p_fields
-    if (!fields || typeof fields !== "object" || Array.isArray(fields)) {
-      refuse("22023", "ipas_set_supplier_origin: the fields must be an object")
+  stubRpc("ipas_set_status", (args) => {
+    requireStatusWriter("ipas_set_status")
+    const step = args.p_step
+    const wanted = orderOf(step)
+    if (!wanted) refuse("22023", `ipas_set_status: ${step ?? "null"} isn't a status step`)
+    if (step === "done") refuse("22023", "ipas_set_status: Done comes from filing; it can't be picked by hand")
+    const row = requireOpenIpas("ipas_set_status", args.p_ipas_id)
+    if (row.source === "local" && IMPORT_ONLY.includes(step)) {
+      refuse("22023", `ipas_set_status: ${row.number} is a Local IPAS; ${STATUS_LABELS[step]} is for Import only`)
     }
-    for (const key of Object.keys(fields)) {
-      if (!ORIGIN_KEYS.includes(key)) refuse("22023", `ipas_set_supplier_origin: ${key} isn't a Supplier Origin date`)
+    const previous = row.status ?? null
+    const current = orderOf(row.status) ?? 0
+    const existing = stepsOf(row.id).find((s) => s.step === step)
+    const date = args.p_reached_on ?? (wanted <= current ? existing?.reached_on : null) ?? manilaToday()
+    checkStatusDate("ipas_set_status", date, `the ${STATUS_LABELS[step]} date`)
+    const before = stepsOf(row.id)
+      .filter((s) => orderOf(s.step) < wanted && s.step !== "order_draft")
+      .map((s) => s.reached_on)
+      .sort()
+      .at(-1)
+    if (before && date < before) {
+      refuse("22023", `ipas_set_status: the ${STATUS_LABELS[step]} date cannot be before the step before it (${before})`)
     }
-    const row = requireOpenIpas("ipas_set_supplier_origin", args.p_ipas_id)
-    if (row.source !== "import") {
-      refuse("22023", `ipas_set_supplier_origin: ${row.number} is a Local IPAS; Supplier Origin is for Import only`)
-    }
-    const names = { shipped_out_on: "Shipped Out", onboard_on: "Onboard", arrived_in_ph_on: "Arrived in PH", arrived_in_whs_on: "Arrived in Whs." }
-    const next = {}
-    const changes = {}
-    for (const key of ORIGIN_KEYS) {
-      next[key] = readDate("ipas_set_supplier_origin", fields, key, names[key], row[key])
-      if (next[key] !== (row[key] ?? null)) changes[key] = { from: row[key] ?? null, to: next[key] }
-    }
-    if (!Object.keys(changes).length) return row
-    const updated = updateRow("ipas", row, next)
-    event(row.id, "supplier_origin_changed", { fields: changes })
+    if (row.status === step && existing?.reached_on === date) return row
+    const gone = stepsOf(row.id).filter((s) => orderOf(s.step) > wanted)
+    deleteRows("ipas_status_steps", gone)
+    if (existing) updateRow("ipas_status_steps", existing, { reached_on: date, set_by: actorId, set_at: new Date().toISOString() })
+    else insertRow("ipas_status_steps", { ipas_id: row.id, step, reached_on: date, set_by: actorId })
+    const updated = updateRow("ipas", row, { status: step })
+    event(row.id, "status_changed", {
+      from: previous,
+      to: step,
+      date,
+      cleared: gone.sort((a, b) => orderOf(a.step) - orderOf(b.step)).map((s) => s.step),
+    })
     return updated
   })
 
-  stubRpc("ipas_set_typed_status", (args) => {
-    requirePurchasing("ipas_set_typed_status")
-    if (!["import_clearance", "delivered"].includes(args.p_status)) {
-      refuse("22023", "ipas_set_typed_status: Import Clearance and Delivered are the typed statuses")
-    }
-    const row = requireOpenIpas("ipas_set_typed_status", args.p_ipas_id)
-    if (args.p_status === "import_clearance" && row.source !== "import") {
-      refuse("22023", `ipas_set_typed_status: ${row.number} is a Local IPAS; Import Clearance is for Import only`)
-    }
-    const column = args.p_status === "import_clearance" ? "import_clearance" : "delivered"
-    const from = row[`${column}_on`] ?? null
-    const to = args.p_date ?? null
-    if (from === to) return row
-    const updated = updateRow("ipas", row, {
-      [`${column}_on`]: to,
-      [`${column}_typed_by`]: to === null ? null : actorId,
-      [`${column}_typed_at`]: to === null ? null : new Date().toISOString(),
-    })
-    event(row.id, to === null ? "status_cleared" : "status_typed", { status: args.p_status, from, to })
-    return updated
+  stubRpc("ipas_set_status_date", (args) => {
+    requireStatusWriter("ipas_set_status_date")
+    const step = args.p_step
+    const wanted = orderOf(step)
+    if (!wanted) refuse("22023", `ipas_set_status_date: ${step ?? "null"} isn't a status step`)
+    if (step === "done") refuse("22023", "ipas_set_status_date: Done comes from filing")
+    if (!args.p_on) refuse("22023", "ipas_set_status_date: give the date")
+    const row = requireOpenIpas("ipas_set_status_date", args.p_ipas_id)
+    const existing = stepsOf(row.id).find((s) => s.step === step)
+    if (!existing) refuse("22023", `ipas_set_status_date: ${row.number} has not reached ${STATUS_LABELS[step]}`)
+    checkStatusDate("ipas_set_status_date", args.p_on, `the ${STATUS_LABELS[step]} date`)
+    const dates = (test) => stepsOf(row.id).filter(test).map((s) => s.reached_on).sort()
+    const before = dates((s) => orderOf(s.step) < wanted && s.step !== "order_draft").at(-1)
+    const after = dates((s) => orderOf(s.step) > wanted && s.step !== "done")[0]
+    if (before && args.p_on < before) refuse("22023", `ipas_set_status_date: the ${STATUS_LABELS[step]} date cannot be before the step before it (${before})`)
+    if (after && args.p_on > after && step !== "order_draft") refuse("22023", `ipas_set_status_date: the ${STATUS_LABELS[step]} date cannot be after the step after it (${after})`)
+    if (existing.reached_on === args.p_on) return row
+    updateRow("ipas_status_steps", existing, { reached_on: args.p_on, set_by: actorId, set_at: new Date().toISOString() })
+    event(row.id, "status_date_changed", { step, from: existing.reached_on, to: args.p_on })
+    return findRow("ipas", row.id)
   })
 
   stubRpc("ipas_stamp_actual_checking", (args) => {
@@ -1640,7 +1674,8 @@ export function stubIpasRpcs({
     let notify = []
     let filedIpas = ipas
     if (section === 7 && role === "approved") {
-      filedIpas = updateRow("ipas", ipas, { state: "filed", filed_at: new Date().toISOString() })
+      filedIpas = updateRow("ipas", ipas, { state: "filed", filed_at: new Date().toISOString(), status: "done" })
+      insertRow("ipas_status_steps", { ipas_id: ipas.id, step: "done", reached_on: manilaToday(), set_by: actorId })
       // Filing clears On-Hold (#597), as the database trigger does.
       if (ipas.on_hold) {
         filedIpas = updateRow("ipas", filedIpas, { on_hold: false, on_hold_note: null })
@@ -1727,7 +1762,9 @@ export function stubIpasRpcs({
     const row = findRow("ipas", args.p_ipas_id)
     if (!row) refuse("P0002", `ipas_reopen: IPAS ${args.p_ipas_id} not found`)
     if (row.state !== "filed") refuse("55000", `ipas_reopen: ${row.number} isn't filed`)
-    const updated = updateRow("ipas", row, { state: "open", filed_at: null, odoo_changed_since_filing: false })
+    deleteRows("ipas_status_steps", stepsOf(row.id).filter((s) => s.step === "done"))
+    const furthest = stepsOf(row.id).sort((a, b) => orderOf(b.step) - orderOf(a.step))[0]
+    const updated = updateRow("ipas", row, { state: "open", filed_at: null, odoo_changed_since_filing: false, status: furthest?.step ?? "order_draft" })
     const live = liveSignoffs(row.id).filter((s) => s.section === 7)
     for (const s of live) {
       updateRow("ipas_signoffs", s, {

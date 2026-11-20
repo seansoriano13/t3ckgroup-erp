@@ -39,9 +39,9 @@ import {
   IPAS_SOURCES,
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
   IPAS_TICK_SIDES,
-  IPAS_TYPED_STATUSES,
+  IPAS_STATUS,
+  IPAS_STATUSES,
 } from "../constants/ipas";
 import { PO_NUMBER_HINT, isValidPoNumber, normalizePoNumber } from "../constants/procurement";
 import {
@@ -67,7 +67,9 @@ const IPAS_SELECT =
   "*, creator:employees!ipas_created_by_fkey(id, name, avatar_path, call_sign), canceller:employees!ipas_cancelled_by_fkey(id, name)," +
   " import_clearance_typer:employees!ipas_import_clearance_typed_by_fkey(id, name)," +
   " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
-  " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)";
+  " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)," +
+  // The IPAS Status steps reached, each with the day and who set it (ADR 0054).
+  " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))";
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
@@ -76,7 +78,7 @@ const LIST_COLUMNS = [
   "state", "cancel_reason", "cancelled_by", "cancelled_at", "filed_at", "created_by", "created_at", "updated_at",
   "supplier_contact", "pi_number", "entity_override", "source_doc_override", "analytic_override",
   "odoo_change_note", "odoo_changed_since_filing", "pi_qt_amount", "freight_service_id", "landed_cost_split",
-  "computation_status", "shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on",
+  "computation_status", "status", "shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on",
   "import_clearance_on", "import_clearance_typed_by", "import_clearance_typed_at", "delivered_on",
   "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id",
   "google_sheet", "gantt_chart", "on_hold", "on_hold_note", "sor_warning_checked", "freight_amount",
@@ -869,44 +871,32 @@ export const ipasService = {
     return data;
   },
 
-  // ── Supplier Origin, the buyer track and Item Location (#246) ───────────
+  // ── The IPAS Status, set by hand (#1154, ADR 0054) ─────────────────────
 
   /**
-   * Types the Supplier Origin dates of an Import IPAS (Purchasing): any of
-   * `{ shippedOut, onboard, arrivedInPh, arrivedInWhs }`, each `YYYY-MM-DD` or
-   * blank to clear; keys left out are untouched. A Local IPAS refuses them (the
-   * database does, twice over). Half-typed dates are refused with a sentence.
-   * Returns the row.
+   * Sets the IPAS Status to `step` (Purchasing access, Logistics access or a Super Admin): any step
+   * forward or back, skipped steps stay blank, going back clears the steps after it. `on` is the day
+   * it was reached (`YYYY-MM-DD`), today when left out. Done comes from filing and is refused. Returns the row.
    */
-  async setSupplierOrigin(id, dates = {}) {
-    const fields = {};
-    for (const { field, column, label } of IPAS_SUPPLIER_ORIGIN_FIELDS) {
-      const value = dates[field];
-      if (value === undefined) continue;
-      const text = (value ?? "").trim();
-      if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, `${label} must be a date.`);
-      fields[column] = text === "" ? null : text;
-    }
-    if (Object.keys(fields).length === 0) throw new IpasError(IPAS_ERROR.INVALID, "Nothing to change.");
-    const { data, error } = await supabase.rpc("ipas_set_supplier_origin", { p_ipas_id: id, p_fields: fields });
+  async setStatus(id, step, on = null) {
+    requireOneOf(step, IPAS_STATUSES.filter((s) => s !== IPAS_STATUS.DONE), "Pick a status step.");
+    const text = (on ?? "").trim();
+    if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
+    const { data, error } = await supabase.rpc("ipas_set_status", {
+      p_ipas_id: id,
+      p_step: step,
+      p_reached_on: text === "" ? null : text,
+    });
     if (error) throw error;
     return data;
   },
 
-  /**
-   * Types a buyer-track status (Purchasing): `status` is "import_clearance"
-   * (Import IPAS only) or "delivered"; `date` is `YYYY-MM-DD`, or blank to
-   * clear. Who typed it and when is kept with it and in history. Returns the row.
-   */
-  async setTypedStatus(id, status, date) {
-    requireOneOf(status, IPAS_TYPED_STATUSES, "Import Clearance and Delivered are the statuses you type.");
-    const text = (date ?? "").trim();
-    if (text !== "" && !isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
-    const { data, error } = await supabase.rpc("ipas_set_typed_status", {
-      p_ipas_id: id,
-      p_status: status,
-      p_date: text === "" ? null : text,
-    });
+  /** Changes the day of a status step already reached, under the same date rules. Returns the row. */
+  async setStatusDate(id, step, on) {
+    requireOneOf(step, IPAS_STATUSES.filter((s) => s !== IPAS_STATUS.DONE), "Pick a status step.");
+    const text = (on ?? "").trim();
+    if (!isIsoDate(text)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
+    const { data, error } = await supabase.rpc("ipas_set_status_date", { p_ipas_id: id, p_step: step, p_on: text });
     if (error) throw error;
     return data;
   },

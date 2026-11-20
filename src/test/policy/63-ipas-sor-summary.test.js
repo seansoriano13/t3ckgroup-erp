@@ -140,7 +140,7 @@ beforeAll(async () => {
         }),
         "ipas_set_bank_details",
     )
-    await ok(rpc("outsider", "ipas_set_typed_status", { p_ipas_id: both.id, p_status: "delivered", p_date: "2026-10-08" }), "delivered")
+    await ok(sql().query(`update public.ipas set delivered_on = $2 where id = $1`, [both.id, "2026-10-08"]), "delivered")
     await ok(rpc("outsider", "ipas_set_header", { p_ipas_id: both.id, p_fields: { computation_status: "encoded" } }), "encoded")
     await ok(rpc("outsider", "ipas_sign", { p_ipas_id: both.id, p_section: 1, p_role: "prepared" }), "section 1 prepared")
 

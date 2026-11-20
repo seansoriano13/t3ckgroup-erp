@@ -363,6 +363,9 @@ export function buildBuyerTrack(row, odoo, { hasProof = false, proofCount = 0, t
  */
 function deliveredItem(row, transmittal) {
   const derived = transmittal?.delivered;
+  // The Delivered status step (ADR 0054, set by hand on the record), else what was typed before it.
+  const stepDay = (Array.isArray(row?.status_steps) ? row.status_steps : []).find((item) => item?.step === "delivered")?.reached_on;
+  const deliveredOn = stepDay ? String(stepDay).slice(0, 10) : (row?.delivered_on ?? null);
   if (derived && derived.source !== IPAS_STATUS_SOURCE.TYPED) {
     return {
       key: "delivered",
@@ -380,11 +383,11 @@ function deliveredItem(row, transmittal) {
   return {
     key: "delivered",
     label: "Delivered",
-    ticked: Boolean(row?.delivered_on),
+    ticked: Boolean(deliveredOn),
     partial: false,
     source: IPAS_STATUS_SOURCE.TYPED,
     detail: null,
-    on: row?.delivered_on ?? null,
+    on: deliveredOn,
     by: person(row?.delivered_typer),
     at: row?.delivered_typed_at ?? null,
   };

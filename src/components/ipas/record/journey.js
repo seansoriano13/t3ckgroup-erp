@@ -8,9 +8,9 @@ import {
   IPAS_COMPUTATION_STATUS,
   IPAS_LANDED_COST_REASON,
   IPAS_SIGNER_LIST,
-  IPAS_SOURCE,
 } from "@/constants/ipas";
 import { TRANSMITTAL_STAFF_LIST } from "@/constants/transmittals";
+import { hasDelivered } from "@/utils/ipasLogistics";
 import { chargesLackingFile, isBlankCharge } from "@/utils/ipasDocuments";
 
 const LIST_NAME = {
@@ -74,8 +74,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   const logisticsSigned = Boolean(s8?.approved);
   const located = logisticsSigned || Boolean(ipas.itemLocation || ipas.item_location_id);
   const carried = logisticsSigned || (ipas.slips ?? []).length > 0;
-  const isImport = ipas.source === IPAS_SOURCE.IMPORT;
-  const arrived = logisticsSigned || !isImport || Boolean(ipas.arrived_in_whs_on);
+  const arrived = logisticsSigned || hasDelivered(ipas);
   const logisticsReady = located && carried && arrived;
 
   // Why Landed Cost has no figure, and where to fix it.
@@ -174,13 +173,13 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
         ? { kind: "link", to: `/purchasing/transmittals/new?ipas=${encodeURIComponent(ipas.number ?? "")}`, label: "Raise a Transmittal" }
         : null,
     },
-    isImport && {
+    {
       key: "arrived",
-      label: "Type the warehouse arrival date",
+      label: "Set the status to Delivered",
       done: arrived,
-      line: arrived ? "Typed." : "The day the goods reached the warehouse.",
+      line: arrived ? "Delivered." : "Pick Delivered once the goods have arrived.",
       who: buyer,
-      action: can.change && !arrived ? { kind: "edit", section: "delivery", label: "Type it in 4 · Delivery" } : null,
+      action: can.change && !arrived ? { kind: "edit", section: "delivery", label: "Pick it in 4 · Delivery" } : null,
     },
     {
       key: "logistics",
@@ -190,7 +189,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
         ? `Signed by ${s8.approved.signedBy?.name ?? "someone"}.`
         : logisticsReady
           ? "The goods are at their location: sign it."
-          : `Opens once the ${andList([!located && "Item Location", !carried && "Transmittal", !arrived && "arrival date"].filter(Boolean))} ${[!located, !carried, !arrived].filter(Boolean).length > 1 ? "are" : "is"} in.`,
+          : `Opens once the ${andList([!located && "Item Location", !carried && "Transmittal", !arrived && "Delivered status"].filter(Boolean))} ${[!located, !carried, !arrived].filter(Boolean).length > 1 ? "are" : "is"} in.`,
       who: who([IPAS_SIGNER_LIST.LOGISTICS_SIGNED]),
       action: !s8?.approved && logisticsReady && onList([IPAS_SIGNER_LIST.LOGISTICS_SIGNED])
         ? { kind: "logistics", label: "Review and sign", confirm: "Sign Logistics", what: "the goods are signed as delivered" }

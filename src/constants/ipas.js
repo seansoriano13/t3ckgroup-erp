@@ -72,30 +72,58 @@ export const IPAS_STATE_LABELS = {
 export const IPAS_STATE_FILTER_ALL = "all";
 
 /**
- * The IPAS Status (spec #595, #597): the six steps the sheet kept, worked out from
- * the IPAS by utils/ipasFigures.js and never stored. Only On-Hold is set by a person
- * (`ipas.on_hold`). A cancelled IPAS has none. Separate from the state above and from
- * the Computation status. In the order the filter lists them.
+ * The IPAS Status (spec #1151, ADR 0054): set by hand on the record, in the team's own
+ * words, and stored (`ipas.status`, with each step's day in `ipas_status_steps`). Done comes
+ * only from filing. Customs / Port Hold, Arrived at Local Hub and Out for Delivery belong to
+ * an Import IPAS. A cancelled IPAS has none. Separate from the state above and from the
+ * Computation status. On-Hold is a flag on top of the step (`ipas.on_hold`), not a step.
  */
 export const IPAS_STATUS = {
-  PENDING: "pending",
-  REQUESTED: "requested",
-  ONGOING: "ongoing",
-  PAID: "paid",
+  ORDER_DRAFT: "order_draft",
+  PAYMENT_APPROVAL: "payment_approval",
+  ORDERED: "ordered",
+  PROCESSING: "processing",
+  SHIPPED: "shipped",
+  IN_TRANSIT: "in_transit",
+  CUSTOMS: "customs",
+  LOCAL_HUB: "local_hub",
+  OUT_FOR_DELIVERY: "out_for_delivery",
+  DELIVERED: "delivered",
   DONE: "done",
-  ON_HOLD: "on_hold",
 };
 
+/** In order: the order the list's filter and sort use. */
 export const IPAS_STATUSES = Object.values(IPAS_STATUS);
 
 export const IPAS_STATUS_LABELS = {
-  [IPAS_STATUS.PENDING]: "Pending",
-  [IPAS_STATUS.REQUESTED]: "Requested",
-  [IPAS_STATUS.ONGOING]: "Ongoing",
-  [IPAS_STATUS.PAID]: "Paid",
+  [IPAS_STATUS.ORDER_DRAFT]: "Order-Draft",
+  [IPAS_STATUS.PAYMENT_APPROVAL]: "Payment Approval",
+  [IPAS_STATUS.ORDERED]: "Ordered",
+  [IPAS_STATUS.PROCESSING]: "Processing / Preparing Shipment",
+  [IPAS_STATUS.SHIPPED]: "Shipped / Picked Up",
+  [IPAS_STATUS.IN_TRANSIT]: "In Transit",
+  [IPAS_STATUS.CUSTOMS]: "Customs / Port Hold",
+  [IPAS_STATUS.LOCAL_HUB]: "Arrived at Local Hub",
+  [IPAS_STATUS.OUT_FOR_DELIVERY]: "Out for Delivery",
+  [IPAS_STATUS.DELIVERED]: "Delivered",
   [IPAS_STATUS.DONE]: "Done",
-  [IPAS_STATUS.ON_HOLD]: "On-Hold",
 };
+
+/** The list filter's value for an IPAS that is On-Hold (a flag over its step, not a step). */
+export const IPAS_ON_HOLD_FILTER = "on_hold";
+
+/** The steps only an Import IPAS has. */
+export const IPAS_IMPORT_ONLY_STATUSES = [IPAS_STATUS.CUSTOMS, IPAS_STATUS.LOCAL_HUB, IPAS_STATUS.OUT_FOR_DELIVERY];
+
+/** The steps an IPAS of this source goes through, in order (Done last). */
+export function ipasStatusesFor(source) {
+  return source === IPAS_SOURCE.LOCAL
+    ? IPAS_STATUSES.filter((step) => !IPAS_IMPORT_ONLY_STATUSES.includes(step))
+    : IPAS_STATUSES;
+}
+
+/** The steps a person can pick: every step of the source but Done, which comes from filing. */
+export const ipasPickableStatusesFor = (source) => ipasStatusesFor(source).filter((step) => step !== IPAS_STATUS.DONE);
 
 /**
  * Why a PO couldn't become an IPAS, for the screen to say apart:
@@ -678,6 +706,8 @@ export const IPAS_EVENT_LABELS = {
   supplier_origin_changed: "Supplier Origin changed",
   status_typed: "Status typed",
   status_cleared: "Status cleared",
+  status_changed: "Status changed",
+  status_date_changed: "Status date changed",
   actual_checking_stamped: "Actual Checking stamped",
   actual_checking_cleared: "Actual Checking cleared",
   item_location_changed: "Item Location changed",

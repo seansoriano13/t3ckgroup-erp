@@ -3,7 +3,7 @@
  * figures each row carries (utils/ipasFigures.js) and by the signed-in employee.
  */
 
-import { IPAS_STATE, IPAS_STATUS } from "../constants/ipas";
+import { IPAS_STATE } from "../constants/ipas";
 
 /** The list's built-in views (a view narrows the rows; null is no view). */
 export const IPAS_VIEW = Object.freeze({
@@ -21,18 +21,18 @@ export const IPAS_VIEW_LABELS = {
 };
 
 /**
- * Whether a row belongs to a view. Unpaid is the open IPAS that are not yet
- * Paid (Done is a filed one, so it is never open); On-Hold and Ongoing are that
- * IPAS Status; Raised by me is the IPAS the signed-in employee raised.
+ * Whether a row belongs to a view. Unpaid is the open IPAS with no full payment
+ * recorded; On-Hold is the On-Hold flag; Ongoing is an open IPAS with some money
+ * paid and no full payment; Raised by me is the IPAS the signed-in employee raised.
  */
 export function inIpasView(row, view, userId) {
   switch (view) {
     case IPAS_VIEW.UNPAID:
-      return row.state === IPAS_STATE.OPEN && row.figures?.status !== IPAS_STATUS.PAID && row.figures?.status !== IPAS_STATUS.DONE;
+      return row.state === IPAS_STATE.OPEN && !row.figures?.hasFullPayment;
     case IPAS_VIEW.ON_HOLD:
-      return row.figures?.status === IPAS_STATUS.ON_HOLD;
+      return row.figures?.onHold === true;
     case IPAS_VIEW.ONGOING:
-      return row.figures?.status === IPAS_STATUS.ONGOING;
+      return row.state === IPAS_STATE.OPEN && Number(row.figures?.paid) > 0 && !row.figures?.hasFullPayment;
     case IPAS_VIEW.MINE:
       return Boolean(userId) && row.created_by === userId;
     default:
