@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { isRecordId } from "@/utils/recordLink";
 import { purchaseRequestService } from "@/services/purchaseRequestService";
 import { CANVASS_LIST_KEY } from "@/constants/canvass";
-import { procurementQueueKey, purchaseRequestKeys } from "./queryKeys";
+import { deletedRequestsKey, procurementQueueKey, purchaseRequestKeys } from "./queryKeys";
 
 /** The database's refusal, without the function name it leads with. */
 export const refusal = (error) => (error?.message || "Something went wrong.").replace(/^[a-z_]+: /, "");
@@ -45,5 +45,35 @@ export function useTakeRequest(requestId) {
     onSuccess: () => toast.success("You’re the Buyer."),
     onError: (err) => toast.error(refusal(err)),
     onSettled: refresh,
+  });
+}
+
+/** Delete a request with a written reason. A refusal is thrown for the dialog to show. */
+export function useDeleteRequest(requestId) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reason) => purchaseRequestService.remove(requestId, reason),
+    onSuccess: () => toast.success("Request deleted."),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: procurementQueueKey });
+      queryClient.invalidateQueries({ queryKey: purchaseRequestKeys.all(requestId) });
+      queryClient.invalidateQueries({ queryKey: deletedRequestsKey });
+      queryClient.invalidateQueries({ queryKey: ["canvass"] });
+    },
+  });
+}
+
+/** Restore a deleted request from the Deleted view. */
+export function useRestoreRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (requestId) => purchaseRequestService.restore(requestId),
+    onSuccess: () => toast.success("Request restored."),
+    onError: (err) => toast.error(refusal(err)),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: procurementQueueKey });
+      queryClient.invalidateQueries({ queryKey: deletedRequestsKey });
+      queryClient.invalidateQueries({ queryKey: ["canvass"] });
+    },
   });
 }

@@ -2,7 +2,7 @@ import { useRequestInGlobalWindow } from "@/hooks/useRequestInGlobalWindow";
 import { useMemo, useState } from "react";
 import QueryError from "@/components/ui/QueryError";
 import { useQuery } from "@tanstack/react-query";
-import { Hand, Layers, PackageSearch, Plus, UserRound } from "lucide-react";
+import { Hand, Layers, PackageSearch, Plus, Trash2, UserRound } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageShell from "../../components/ui/PageShell";
@@ -27,6 +27,7 @@ import { listAge, listAgeDays, listDate } from "../../utils/listDates";
 import { QUEUE_EXPORT_HEADER, REQUEST_STATE, REQUEST_STATE_TONES, queueExportRows, requestStateOf } from "../../components/purchase-request/queueList";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
+import DeletedRequestsDialog from "../../components/purchase-request/DeletedRequestsDialog";
 import NewPurchaseRequestDialog from "../../components/purchase-request/NewPurchaseRequestDialog";
 import { useTakeRequest } from "../../components/purchase-request/requestHooks";
 import { procurementQueueKey } from "../../components/purchase-request/queryKeys";
@@ -245,6 +246,7 @@ function PurchaseRequests() {
   const buyer = purchaser ? buyerPick : QUEUE_BUYER.ALL;
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   // Every item, member and Buyer change posts a message, so this one signal
   // keeps the list (and any request open beside it) current.
@@ -361,10 +363,18 @@ function PurchaseRequests() {
             : "Ask Purchasing to buy something, and follow your requests here."
         }
         action={
-          <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
-            <Plus size={14} />
-            New Purchase Request
-          </Button>
+          <div className="flex items-center gap-2">
+            {purchaser && (
+              <Button size="sm" variant="outline" onClick={() => setShowDeleted(true)} className="gap-1.5">
+                <Trash2 size={14} />
+                Deleted
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
+              <Plus size={14} />
+              New Purchase Request
+            </Button>
+          </div>
         }
         toolbar={toolbar}
       >
@@ -432,6 +442,7 @@ function PurchaseRequests() {
         )}
       </PageShell>
 
+      {purchaser && <DeletedRequestsDialog open={showDeleted} onOpenChange={setShowDeleted} />}
       <NewPurchaseRequestDialog open={creating} onOpenChange={setCreating} onOpened={open} />
     </>
   );
