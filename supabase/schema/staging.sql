@@ -3435,7 +3435,7 @@ create policy "committee_task_members_read" on public."committee_task_members"
   as permissive
   for select
   to authenticated
-  using (committee_task_visible(committee_task_id));
+  using ((committee_task_id IN ( SELECT visible_committee_task_ids() AS visible_committee_task_ids)));
 create policy "committee_task_members_update" on public."committee_task_members"
   as permissive
   for update
@@ -3484,9 +3484,7 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using ((( SELECT is_super_admin() AS is_super_admin) OR (evaluator_id = ( SELECT get_employee_id() AS get_employee_id)) OR (EXISTS ( SELECT 1
-   FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = ( SELECT get_employee_id() AS get_employee_id))))) OR ((created_by = ( SELECT get_employee_id() AS get_employee_id)) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
+  using ((( SELECT is_super_admin() AS is_super_admin) OR (evaluator_id = ( SELECT get_employee_id() AS get_employee_id)) OR (id IN ( SELECT my_committee_task_ids() AS my_committee_task_ids)) OR ((created_by = ( SELECT get_employee_id() AS get_employee_id)) AND ((opportunity_id IS NULL) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))))));
 create policy "committee_tasks_read_on_hold" on public."committee_tasks"
   as permissive
   for select
@@ -20879,6 +20877,17 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.my_committee_task_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select ctm.committee_task_id
+    from public.committee_task_members ctm
+   where ctm.employee_id = public.get_employee_id()
+$function$
+;
 CREATE OR REPLACE FUNCTION public.oid_dist(oid, oid)
  RETURNS oid
  LANGUAGE c
@@ -31935,6 +31944,40 @@ BEGIN
   -- If not found
   RETURN NULL;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.visible_committee_task_ids()
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with me as (
+    select public.get_employee_id() as id, coalesce(public.is_super_admin(), false) as super_admin
+  )
+  select ct.id
+    from public.committee_tasks ct, me
+   where me.super_admin
+      or ct.created_by = me.id
+      or ct.evaluator_id = me.id
+      or exists (
+        select 1 from public.committee_task_members ctm
+         where ctm.committee_task_id = ct.id
+           and ctm.employee_id = me.id
+      )
+      or (
+        ct.status = 'ON_HOLD'
+        and exists (
+          select 1
+            from public.employees h
+            join public.employees c on c.id = ct.created_by
+           where h.id = me.id
+             and h.is_head
+             and not coalesce(h.is_deleted, false)
+             and h.department is not null
+             and h.department = c.department
+        )
+      )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.withdraw_offset_leave(p_leave_id uuid, p_employee_id uuid)
