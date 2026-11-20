@@ -74,11 +74,58 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
             unit: line.unit ?? null,
             entity: entityOf(ipas),
             sors: sorsOf(ipas.id),
+            left: Math.max(poLineLeft(ipas, line, null), 0),
           })),
       )
   })
 
-  /** Writes the header's lines (and products and references), returning the entity warnings. */
+  /** What a P0 line has left: its quantity less live slips' lines (not `excludeId`'s), an NA line not counted. */
+  const poLineLeft = (ipas, poLine, excludeId) => {
+    const live = new Set(
+      rowsOf("transmittals")
+        .filter((t) => t.state !== "cancelled" && t.id !== excludeId)
+        .map((t) => t.id),
+    )
+    const carried = rowsOf("transmittal_lines")
+      .filter(
+        (l) =>
+          live.has(l.transmittal_id) &&
+          l.ipas_id === ipas.id &&
+          l.odoo_po_line_id === poLine.line_id &&
+          l.wh_rating !== "na" &&
+          l.tech_rating !== "na",
+      )
+      .reduce((sum, l) => sum + Number(l.quantity), 0)
+    return Number(poLine.quantity) - carried
+  }
+
+  /** One warning per line whose P0 line has less left than the slip carries. */
+  const overClaims = (transmittal) => {
+    const mine = rowsOf("transmittal_lines").filter((l) => l.transmittal_id === transmittal.id && l.kind === "po_line")
+    return mine.flatMap((l) => {
+      const ipas = findRow("ipas", l.ipas_id)
+      const poLine = (ipas?.odoo_copy?.lines ?? []).find((p) => p.line_id === l.odoo_po_line_id)
+      if (!poLine) return []
+      const left = Math.max(poLineLeft(ipas, poLine, transmittal.id), 0)
+      const carrying = mine
+        .filter((o) => o.ipas_id === l.ipas_id && o.odoo_po_line_id === l.odoo_po_line_id)
+        .reduce((sum, o) => sum + Number(o.quantity), 0)
+      if (carrying <= left) return []
+      return [
+        {
+          kind: "over_claim",
+          position: l.position,
+          po_number: ipas.po_number,
+          left,
+          carrying,
+          more: carrying - left,
+          has_remark: Boolean((l.over_claim_remark ?? "").trim()),
+        },
+      ]
+    })
+  }
+
+  /** Writes the header's lines (and products and references), returning the entity and over-claim warnings. */
   const writeLines = (transmittal, lines) => {
     const warnings = []
     deleteRows(
@@ -119,6 +166,7 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
           opportunity_id: opportunityId,
           serial_numbers: line.serial_numbers ?? null,
           box_quantity: line.box_quantity ?? null,
+          over_claim_remark: (line.over_claim_remark ?? "").trim() || null,
         })
       } else if (line.kind === "typed") {
         if (!(line.description ?? "").trim()) refuse("22023", `transmittal: line ${position} needs a description`)
@@ -140,7 +188,7 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
         refuse("22023", `transmittal: line ${position} has no kind (po_line or typed)`)
       }
     })
-    return warnings
+    return [...warnings, ...overClaims(transmittal)]
   }
 
   const checkHeader = (fields) => {
@@ -234,7 +282,14 @@ export function stubTransmittalRpcs({ actorId, purchasing = false, superAdmin = 
     const notifyIds = rowsOf("ipas_signer_lists")
       .filter((row) => row.list_key === notifyList)
       .map((row) => row.employee_id)
-    return { id: transmittal.id, number: transmittal.number, state: first, notify_list: notifyList, notify_ids: notifyIds }
+    return {
+      id: transmittal.id,
+      number: transmittal.number,
+      state: first,
+      notify_list: notifyList,
+      warnings: overClaims(transmittal),
+      notify_ids: notifyIds,
+    }
   })
 
   stubRpc("transmittal_cancel", ({ p_transmittal_id, p_reason }) => {

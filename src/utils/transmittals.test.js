@@ -3,6 +3,8 @@ import {
   checkingStageOf,
   companyOptions,
   firstStageOf,
+  leftLabel,
+  overClaim,
   matchCompany,
   pickedLineLabel,
   shapeTransmittal,
@@ -261,5 +263,41 @@ describe("what still stops a draft slip from being submitted", () => {
 
   it("needs a quantity above zero on every line", () => {
     expect(slipGaps({ header, lines: [{ ...po, quantity: "0" }] }).map((g) => g.key)).toEqual(["quantity"]);
+  });
+});
+
+describe("quantity and what is left (#1126)", () => {
+  const header = { origin: "purchasing", priority: "high", checkWarehouse: true, checkTechnical: false, entity: "T3CK Trading" };
+  const po = { kind: "po_line", ipasId: "i1", odooPoLineId: 1, description: "Cutter", unit: "pc", quantity: "2", left: 5 };
+
+  it("says a quantity is more than 0 for zero or a negative", () => {
+    for (const quantity of ["-3", "0", ""]) {
+      const [gap] = slipGaps({ header, lines: [{ ...po, quantity }] });
+      expect(gap).toMatchObject({ key: "quantity", sentence: "A quantity is more than 0." });
+    }
+  });
+
+  it("takes decimals only for measured units", () => {
+    for (const unit of ["pc", "Unit", "Set", "Pair", "Kit", "pcs"]) {
+      expect(slipGaps({ header, lines: [{ ...po, unit, quantity: "1.5" }] }).map((g) => g.key)).toEqual(["whole"]);
+    }
+    for (const unit of ["m", "kg", "L"]) {
+      expect(slipGaps({ header, lines: [{ ...po, unit, quantity: "2.5" }] })).toEqual([]);
+    }
+  });
+
+  it("labels what is left and adds up the lines of one P0 line", () => {
+    expect(leftLabel({ left: 0, quantity: 5 })).toBe("0 of 5 left");
+    expect(leftLabel({ left: null, quantity: 5 })).toBeNull();
+    expect(overClaim({ ...po, quantity: "3", left: 5 }, [{ ...po, quantity: "3" }])).toBe(0);
+    expect(overClaim({ ...po, quantity: "3", left: 0 }, [{ ...po, quantity: "3", left: 0 }])).toBe(3);
+    const twin = { ...po, quantity: "4", left: 5 };
+    expect(overClaim(twin, [{ ...po, quantity: "3" }, twin])).toBe(2);
+  });
+
+  it("asks for a remark on a line over what is left, until it has one", () => {
+    const over = { ...po, quantity: "3", left: 0 };
+    expect(slipGaps({ header, lines: [over] }).map((g) => g.key)).toEqual(["remark"]);
+    expect(slipGaps({ header, lines: [{ ...over, overClaimRemark: "Replaces the NA unit" }] })).toEqual([]);
   });
 });
