@@ -14,6 +14,7 @@ import { makeEmployee, makeHead } from "@/test/factories";
 import { db, insertRow } from "@/test/db/store";
 import { stubRpc } from "@/test/msw/server";
 import { manilaDate, manilaToday } from "@/lib/manilaDate.js";
+import { pinManilaDaytime } from "@/test/manilaDaytime";
 
 const mocks = vi.hoisted(() => ({ user: null }));
 
@@ -22,6 +23,7 @@ vi.mock("@/context/AuthContext", () => ({
 }));
 
 // Tomorrow in Manila, so the form's "not in the past" rule always passes.
+pinManilaDaytime();
 const tomorrow = manilaDate(new Date(Date.now() + 24 * 3600 * 1000));
 
 beforeEach(() => {

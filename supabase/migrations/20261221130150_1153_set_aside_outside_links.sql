@@ -1,3 +1,4 @@
+-- allow-out-of-order: must run before 20261221130200_1153 (which stopped on staging and never applied); staging ledger tip is 20261221130100
 -- 20261221130150_1153_set_aside_outside_links.sql
 -- Runs just before 20261221130200_1153_ipas_document_files.sql (spec #1151, T7).
 --

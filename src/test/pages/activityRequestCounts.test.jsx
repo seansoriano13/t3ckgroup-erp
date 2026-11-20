@@ -19,6 +19,7 @@ import { db, insertRow } from "@/test/db/store";
 import { server, stubRpc } from "@/test/msw/server";
 import { waitForNetworkIdle } from "@/test/network";
 import { manilaDate, manilaToday } from "@/lib/manilaDate.js";
+import { pinManilaDaytime } from "@/test/manilaDaytime";
 
 const mocks = vi.hoisted(() => ({ user: null }));
 
@@ -26,6 +27,7 @@ vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mocks.user, isAuthLoading: false }),
 }));
 
+pinManilaDaytime();
 const tomorrow = manilaDate(new Date(Date.now() + 24 * 3600 * 1000));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

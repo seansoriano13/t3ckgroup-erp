@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { manilaDate, manilaToday } from "@/lib/manilaDate.js"
+import { pinManilaDaytime } from "@/test/manilaDaytime"
 import { supabase } from "@/lib/supabase"
 import { db, insertRow } from "@/test/db/store"
 import { makeEmployee, makeHead, makeHrEmployee } from "@/test/factories"
@@ -26,6 +27,7 @@ const auth = () => ({ user: mockUser.current, isAuthLoading: false })
 vi.mock("@/context/AuthContext", () => ({ useAuth: auth }))
 vi.mock("@/pages/../context/AuthContext", () => ({ useAuth: auth }))
 
+pinManilaDaytime()
 const tomorrow = manilaDate(new Date(Date.now() + 24 * 3600 * 1000))
 
 let applicant
