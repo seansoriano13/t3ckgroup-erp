@@ -17,6 +17,8 @@ as $$
       select 1 from public.sales_opportunities o
       where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
     )
+    -- Only Purchasing is narrowed: everyone else keeps what their tier already gives.
+    or not coalesce(public.has_purchasing_access(), false)
 $$;
 
 revoke all on function public.costing_sees_bid(uuid) from public, anon;
