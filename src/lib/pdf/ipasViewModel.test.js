@@ -165,31 +165,7 @@ describe("Landed Cost mark", () => {
   })
 })
 
-describe("Odoo marks and the read time", () => {
-  it("marks the three statuses Odoo stamps, and no others", () => {
-    const track = vm().section6.buyerTrack
-    const stamped = track.filter((item) => item.stampedFromOdoo).map((item) => item.key)
-
-    expect(stamped).toEqual(["purchase_order", "received_in_odoo", "create_bill"])
-    expect(track.find((item) => item.key === "delivered").stampedFromOdoo).toBe(false)
-    expect(track.find((item) => item.key === "with_pop").stampedFromOdoo).toBe(false)
-    expect(vm().section6.hasOdooMarks).toBe(true)
-  })
-
-  it("says what Odoo says about each stamped status", () => {
-    const byKey = Object.fromEntries(vm().section6.buyerTrack.map((item) => [item.key, item]))
-
-    expect(byKey.purchase_order).toMatchObject({ ticked: true, detail: "Purchase order" })
-    expect(byKey.received_in_odoo).toMatchObject({ ticked: false, partial: true, detail: "Partly received · 1 of 2 receipts done" })
-    expect(byKey.create_bill).toMatchObject({ ticked: true, detail: "1 draft bill" })
-  })
-
-  it("shows a typed status with its date and who typed it", () => {
-    const delivered = vm().section6.buyerTrack.find((item) => item.key === "delivered")
-
-    expect(delivered).toMatchObject({ ticked: true, detail: "Sep 14, 2026 · typed by J. Bautista" })
-  })
-
+describe("the read time", () => {
   it("prints the Odoo read time in the footer", () => {
     expect(vm().footer.odooRead).toBe("Odoo copy read Sep 15, 2026 09:12")
     expect(vm({ row: { odoo_fetched_at: null } }).footer.odooRead).toBe("Odoo copy not read yet")
@@ -413,14 +389,32 @@ describe("the page's content", () => {
     }
   })
 
-  it("prints Supplier Origin on an Import IPAS and leaves it out of a Local one", () => {
-    expect(vm().section6.origin).toEqual([
-      { label: "Shipped Out", date: "Sep 5, 2026" },
-      { label: "Onboard", date: "Sep 6, 2026" },
-      { label: "Arrived in PH", date: "Sep 9, 2026" },
-      { label: "Arrived in Whs.", date: null },
+  it("prints the source's status steps with their days, blank where skipped", () => {
+    const { status } = vm().section6
+
+    expect(status.label).toBe("In Transit")
+    expect(status.steps.map((step) => [step.label, step.date, step.current])).toEqual([
+      ["Order-Draft", "Sep 2, 2026", false],
+      ["Payment Approval", null, false],
+      ["Ordered", "Sep 3, 2026", false],
+      ["Processing / Preparing Shipment", null, false],
+      ["Shipped / Picked Up", "Sep 5, 2026", false],
+      ["In Transit", "Sep 6, 2026", true],
+      ["Customs / Port Hold", null, false],
+      ["Arrived at Local Hub", null, false],
+      ["Out for Delivery", null, false],
+      ["Delivered", null, false],
+      ["Done", null, false],
     ])
-    expect(vm({ row: { source: "local" } }).section6.origin).toBeNull()
+  })
+
+  it("leaves Customs, Local Hub and Out for Delivery off a Local IPAS", () => {
+    const labels = vm({ row: { source: "local" } }).section6.status.steps.map((step) => step.label)
+
+    expect(labels).not.toContain("Customs / Port Hold")
+    expect(labels).not.toContain("Arrived at Local Hub")
+    expect(labels).not.toContain("Out for Delivery")
+    expect(labels).toContain("Delivered")
   })
 
   it("carries the computation ladder and section 7's checklist", () => {
@@ -461,26 +455,5 @@ describe("the page's content", () => {
 
   it("refuses to print nothing", () => {
     expect(() => buildIpasViewModel(null)).toThrow(/IPAS is needed/)
-  })
-})
-
-describe("the buyer track's reasons on paper", () => {
-  const unticked = {
-    row: {
-      odoo_copy: {
-        ...ipasRow().odoo_copy,
-        po: { ...ipasRow().odoo_copy.po, state: "draft" },
-        receipts: { status: "pending", done: 0, total: 2 },
-        bills: { count: 0, draft: 0 },
-      },
-    },
-  }
-
-  it("carries the reason beside each unticked Odoo line", () => {
-    const byKey = Object.fromEntries(vm(unticked).section6.buyerTrack.map((item) => [item.key, item]))
-
-    expect(byKey.purchase_order.detail).toBe("Not confirmed in Odoo yet (RFQ)")
-    expect(byKey.received_in_odoo.detail).toBe("0 of 2 receipts done")
-    expect(byKey.create_bill.detail).toBe("No bill yet")
   })
 })

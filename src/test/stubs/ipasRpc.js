@@ -522,6 +522,11 @@ export function stubIpasRpcs({
             8: roles(8, ["approved"]),
           },
           ...summaryLandedCost(row),
+          status: row.status ?? null,
+          status_reached_on:
+            rowsOf("ipas_status_steps").find((st) => st.ipas_id === row.id && st.step === row.status)?.reached_on ?? null,
+          on_hold: row.on_hold === true,
+          direct_delivery: row.direct_delivery === true,
         }
       })
   })

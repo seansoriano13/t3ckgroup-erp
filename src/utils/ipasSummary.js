@@ -12,6 +12,7 @@ import {
   IPAS_COMPUTATION_STATUS,
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_STATE,
+  IPAS_STATUS_LABELS,
   ipasSectionName,
 } from "../constants/ipas";
 
@@ -24,14 +25,18 @@ import {
 export const IPAS_SUMMARY_KEYS = [
   "buyer_track",
   "computation_status",
+  "direct_delivery",
   "ipas_id",
   "landed_cost_mark",
   "landed_cost_total_php",
   "number",
+  "on_hold",
   "po_number",
   "purpose",
   "signoffs",
   "state",
+  "status",
+  "status_reached_on",
   "supplier",
 ];
 
@@ -102,6 +107,12 @@ export function shapeIpasSummary(row) {
     supplier: row.supplier || null,
     purpose: row.purpose ?? null,
     state: row.state ?? null,
+    // #1157: the IPAS Status, the day it was reached, the On-Hold flag and Direct delivery.
+    status: IPAS_STATUS_LABELS[row.status] ? row.status : null,
+    statusReachedOn: row.status_reached_on ?? null,
+    onHold: row.on_hold === true,
+    directDelivery: row.direct_delivery === true,
+    // Kept for the SOR's standing (ipasSorStandingService); the page no longer shows it.
     buyerTrack,
     trackDone: buyerTrack.filter((item) => item.ticked).length,
     trackTotal: buyerTrack.length,
@@ -125,4 +136,15 @@ export function shapeIpasSummary(row) {
 /** The summaries of a result, in the database's order, leaving out anything unusable. */
 export function shapeIpasSummaries(rows) {
   return (Array.isArray(rows) ? rows : []).map(shapeIpasSummary).filter(Boolean);
+}
+
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A day as "Nov 18" (the SOR card is tight); the year joins only when it is not this year's. */
+export function shortDay(value, today = new Date()) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ""));
+  if (!match) return "";
+  const [, year, month, day] = match;
+  const base = `${SHORT_MONTHS[Number(month) - 1]} ${Number(day)}`;
+  return Number(year) === today.getFullYear() ? base : `${base}, ${year}`;
 }

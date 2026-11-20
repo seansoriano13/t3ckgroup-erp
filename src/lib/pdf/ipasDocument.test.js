@@ -168,12 +168,11 @@ describe("signatures", () => {
   })
 })
 
-describe("marks and the legend", () => {
-  it("carries the Odoo mark on stamped statuses, the legend '● stamped from Odoo' and the read time in the footer", () => {
+describe("the read time", () => {
+  it("carries the Odoo read time in the footer, and no Odoo marks (the status is the team's own)", () => {
     const html = doc()
 
-    expect(html).toContain("● stamped from Odoo")
-    expect(html.match(/class="odoo" title="stamped from Odoo">●/g)).toHaveLength(3)
+    expect(html).not.toContain("stamped from Odoo")
     expect(html.match(/Odoo copy read Sep 15, 2026 09:12/g)).toHaveLength(1)
   })
 
@@ -273,19 +272,29 @@ describe("escaping", () => {
   })
 })
 
-describe("the buyer track's reasons on paper", () => {
-  it("prints the reason beside each unticked Odoo line", () => {
-    const copy = ipasRow().odoo_copy
-    const html = buildIpasDocument(
-      buildIpasViewModel(
-        makePrintableIpas({
-          row: { odoo_copy: { ...copy, po: { ...copy.po, state: "draft" }, receipts: { status: "pending", done: 0, total: 2 }, bills: { count: 0, draft: 0 } } },
-        }),
-      ),
-    )
+describe("the IPAS Status on paper (#1157)", () => {
+  it("prints the source's steps with the day each was reached, blank where skipped", () => {
+    const html = doc()
 
-    expect(html).toContain("Not confirmed in Odoo yet (RFQ)")
-    expect(html).toContain("0 of 2 receipts done")
-    expect(html).toContain("No bill yet")
+    expect(html).toContain("IPAS Status · In Transit")
+    for (const label of ["Order-Draft", "Payment Approval", "Customs / Port Hold", "Out for Delivery", "Delivered", "Done"]) {
+      expect(html).toContain(label)
+    }
+    expect(html).toContain("Sep 5, 2026")
+    expect(html).not.toContain("Supplier origin")
+    expect(html).not.toContain("Buyer track")
+  })
+
+  it("prints a Local IPAS without Customs, Arrived at Local Hub or Out for Delivery", () => {
+    const html = doc({ row: { source: "local" } })
+
+    expect(html).toContain("Shipped / Picked Up")
+    expect(html).not.toContain("Customs / Port Hold")
+    expect(html).not.toContain("Arrived at Local Hub")
+    expect(html).not.toContain("Out for Delivery")
+  })
+
+  it("says On-Hold over the step", () => {
+    expect(doc({ row: { on_hold: true } })).toContain("IPAS Status · On-Hold · In Transit")
   })
 })

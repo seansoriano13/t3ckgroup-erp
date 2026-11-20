@@ -168,15 +168,7 @@ describe("sign-offs", () => {
   })
 })
 
-describe("typed dates, the stamp and bank details", () => {
-  it("types and clears a buyer-track date, with who typed it", () => {
-    const typed = edit.reshapeIpas(cached({ row: { source: "import" } }), edit.setTypedStatus({ status: "delivered", date: "2026-10-20", by }))
-    const delivered = typed.buyerTrack.find((item) => item.key === "delivered")
-    expect(delivered).toMatchObject({ ticked: true, on: "2026-10-20", by: { name: "Ana" } })
-    const cleared = edit.reshapeIpas(typed, edit.setTypedStatus({ status: "delivered", date: "", by }))
-    expect(cleared.buyerTrack.find((item) => item.key === "delivered").ticked).toBe(false)
-  })
-
+describe("the stamp and bank details", () => {
   it("stamps Actual Checking and clears it", () => {
     const stamped = edit.reshapeIpas(cached(), edit.stampActualChecking({ stamped: true, by }))
     expect(stamped.buyerTrack.find((item) => item.key === "actual_checking")).toMatchObject({ ticked: true, by: { name: "Ana" } })

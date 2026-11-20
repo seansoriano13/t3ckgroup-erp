@@ -16,6 +16,10 @@ const summary = (over = {}) => ({
   supplier: "Scorpe Technologies",
   purpose: "project",
   state: "open",
+  status: "in_transit",
+  status_reached_on: "2026-11-18",
+  on_hold: false,
+  direct_delivery: false,
   buyer_track: [
     { key: "purchase_order", ticked: true, partial: false },
     { key: "with_pop", ticked: false, partial: false },
@@ -34,7 +38,7 @@ const summary = (over = {}) => ({
 describe("IpasSorSection (#249)", () => {
   beforeEach(() => stubRpc("ipas_standing_for_sor", []))
 
-  it("lists the summary: number, PO, supplier, state, buyer track, costing and sign-offs", async () => {
+  it("lists the summary: number, PO, supplier, state, IPAS Status, costing and sign-offs", async () => {
     authUser = { id: "emp-1" }
     stubRpc("ipas_summaries_for_sor", [summary()])
     renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
@@ -42,9 +46,9 @@ describe("IpasSorSection (#249)", () => {
     expect(await screen.findByText("TGIPAS_052")).toBeInTheDocument()
     expect(screen.getByText("P05123 · Scorpe Technologies · Project")).toBeInTheDocument()
     expect(screen.getByText("Open")).toBeInTheDocument()
-    expect(screen.getByText(/Buyer track · 1 of 3/)).toBeInTheDocument()
-    expect(screen.getByTitle("Purchase Order: done")).toBeInTheDocument()
-    expect(screen.getByTitle("Received in Odoo: partly done")).toBeInTheDocument()
+    expect(screen.getByText("In Transit")).toBeInTheDocument()
+    expect(screen.getByTestId("ipas-summary-status-day")).toHaveTextContent("Nov 18")
+    expect(screen.queryByText(/Buyer track/)).not.toBeInTheDocument()
     expect(screen.getByText("Encoded")).toBeInTheDocument()
     expect(screen.getByText("Submitted, Approved")).toBeInTheDocument()
     expect(screen.getAllByText("Not started")).toHaveLength(2)
