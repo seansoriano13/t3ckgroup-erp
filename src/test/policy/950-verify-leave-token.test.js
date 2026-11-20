@@ -77,7 +77,6 @@ describe("verify_form_token limit (#1134)", () => {
 
     it("raises its own code over the limit, and a made-up X-Forwarded-For does not reset the count", async () => {
         const row = await seedLeave()
-        const marker = "unknown-or-real"
         // Same real caller every time; only the made-up header value changes.
         let limited = null
         for (let i = 0; i < 30 && !limited; i++) {
