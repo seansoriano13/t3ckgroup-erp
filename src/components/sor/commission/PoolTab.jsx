@@ -68,8 +68,9 @@ export default function PoolTab({ access, departments }) {
         figure={canViewAllFinancials ? formatPHP(dashboard.totalCommissionPool) : MASK}
         note={`An estimate · ${rates.pool}% of ${canViewAllFinancials ? compactPHP(dashboard.totalCommissionableRevenue) : "Commissionable Revenue"}`}
         stats={[
-          // Masked only when this viewer cannot see Sales amounts; a permitted viewer whose total is 0 reads ₱0.00.
-          { label: "Sales fund", value: canViewSalesAmounts ? formatPHP(dashboard.salesDeptTotal) : MASK },
+          // #1110: one rule. The total comes back 0 when the amount is hidden from this viewer, so 0 is masked too
+          // (a real ₱0 fund reads as masked; the data has no way to tell the two apart).
+          { label: "Sales fund", value: canViewSalesAmounts && dashboard.salesDeptTotal > 0 ? formatPHP(dashboard.salesDeptTotal) : MASK },
           {
             label: "With a Contract Date",
             value: (

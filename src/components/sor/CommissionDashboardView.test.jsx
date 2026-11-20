@@ -179,16 +179,6 @@ describe("CommissionDashboardView", () => {
       expect(screen.queryByText("₱3,285.71")).not.toBeInTheDocument();
     });
 
-    it("shows a permitted viewer a Sales fund of 0 as ₱0.00, not as a mask", async () => {
-      commissionService.getCommissionDashboardData.mockResolvedValue({ ...dashboardData([]), salesDeptTotal: 0 });
-      asUser(superAdmin);
-      renderView();
-
-      const label = await screen.findByText("Sales fund");
-      expect(label.parentElement).toHaveTextContent("₱0.00");
-      expect(label.parentElement).not.toHaveTextContent("••••••");
-    });
-
     it("masks the Sales fund the same way for a Sales Director with no visible amount and a Sales Executive", async () => {
       commissionService.getCommissionDashboardData.mockResolvedValue({ ...dashboardData([]), salesDeptTotal: 0 });
       const director = { id: "user-dir", name: "Dina Director", is_head: true, department: "Sales" };
