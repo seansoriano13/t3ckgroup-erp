@@ -30,6 +30,8 @@ export const ipasPendingPrefix = ["ipas", "pending-signoffs"];
 export const ipasPendingKey = (employeeId) => [...ipasPendingPrefix, employeeId];
 /** The required documents nobody has ticked, read when the Approve (files the IPAS) dialog opens. */
 export const ipasFilingWarningsKey = (id) => ["ipas", "filing-warnings", id];
+/** The foreign payments whose pesos are still blank, read when the filing question opens (#1124). */
+export const ipasWaitingPesosKey = (id) => ["ipas", "waiting-pesos", id];
 /** An SOR's IPAS summaries (#249). */
 export const ipasSorSummariesKey = (opportunityId) => ["ipas", "sor-summaries", opportunityId];
 /** The number the next IPAS will take (#600). */

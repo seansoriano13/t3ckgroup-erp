@@ -295,6 +295,41 @@ describe("IPAS section 7 and Filing", () => {
       expect(toastError).not.toHaveBeenCalled();
     });
 
+    it("names the payments still waiting for their pesos and turns Approve and file off (#1124)", async () => {
+      const row = ipas({ odoo_copy: { ...poCopy("P03100"), po: { ...poCopy("P03100").po, currency: "USD" } } });
+      approvedFirstSections(row);
+      givenThroughChecked(row);
+      db.seed("ipas_payments", { ipas_id: row.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: null, charge_fee_php: 0 });
+      db.seed("ipas_payments", { ipas_id: row.id, kind: "payment", paid_on: "2026-11-20", amount: 300, php_debited: 17000, charge_fee_php: 0 });
+      signIn(boss);
+      const user = setupUser();
+
+      renderDetail(row.id);
+      await openSignReview(user, "file");
+
+      const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
+      const waiting = await within(dialog).findByTestId("ipas-filing-waiting-pesos");
+      expect(waiting).toHaveTextContent("Filing waits for the pesos of the down payment of Nov 19, 2026");
+      expect(waiting).not.toHaveTextContent("Nov 20, 2026");
+      expect(within(dialog).getByRole("button", { name: "Approve and file" })).toBeDisabled();
+    });
+
+    it("offers Approve and file once every payment has its pesos (#1124)", async () => {
+      const foreign = ipas({ odoo_copy: { ...poCopy("P03101"), po: { ...poCopy("P03101").po, currency: "USD" } } });
+      approvedFirstSections(foreign);
+      givenThroughChecked(foreign);
+      db.seed("ipas_payments", { ipas_id: foreign.id, kind: "down_payment", paid_on: "2026-11-19", amount: 500, php_debited: 28000, charge_fee_php: 0 });
+      signIn(boss);
+      const user = setupUser();
+
+      renderDetail(foreign.id);
+      await openSignReview(user, "file");
+
+      const dialog = await screen.findByRole("dialog", { name: "Approve and file" });
+      await waitFor(() => expect(within(dialog).getByRole("button", { name: "Approve and file" })).toBeEnabled());
+      expect(within(dialog).queryByTestId("ipas-filing-waiting-pesos")).not.toBeInTheDocument();
+    });
+
     it("words the database's refusal in a sentence when Filing is refused", async () => {
       const row = ipas();
       approvedFirstSections(row);
