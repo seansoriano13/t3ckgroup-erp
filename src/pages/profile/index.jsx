@@ -46,6 +46,7 @@ export default function ProfilePage() {
   const bannerInputRef = useRef(null);
 
   const isHttpUrl = (value) => /^https?:\/\//i.test(value || "");
+  const isHttpsUrl = (value) => /^https:\/\//i.test(value || "");
 
   const [customQuote, setCustomQuote] = useState(() => user?.dashboardQuote || "");
   const [prevDashboardQuote, setPrevDashboardQuote] = useState(
@@ -238,7 +239,6 @@ export default function ProfilePage() {
   const isSaving = savePreferencesMutation.isPending;
   const quoteLength = customQuote.trim().length;
   const hasBannerUrl = (bannerUrlInput || "").trim().length > 0;
-  const bannerUrlInvalid = hasBannerUrl && !/^https:\/\//i.test(bannerUrlInput.trim());
   const isUsingDefaultBanner =
     removeBanner ||
     (!bannerFile && !hasBannerUrl && !user?.dashboardBannerPath);
@@ -250,6 +250,10 @@ export default function ProfilePage() {
   const initialBannerUrl = (
     isHttpUrl(user?.dashboardBannerPath) ? user.dashboardBannerPath : ""
   ).trim();
+
+  // A typed banner address must be https:// (the server refuses anything else).
+  const bannerUrlInvalid =
+    hasBannerUrl && !isHttpsUrl(bannerUrlInput.trim());
 
   const hasChanges =
     !!avatarFile ||
@@ -639,8 +643,8 @@ export default function ProfilePage() {
                 aria-invalid={bannerUrlInvalid || undefined}
               />
               {bannerUrlInvalid && (
-                <p role="alert" className="text-[11px] text-destructive">
-                  The banner link must start with https:// so the Dashboard can show it.
+                <p role="alert" className="text-xs text-destructive">
+                  Enter a web address that starts with https://
                 </p>
               )}
             </div>

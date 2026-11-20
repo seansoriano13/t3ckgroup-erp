@@ -700,13 +700,15 @@ describe("Purchasing and Finance access are granted by HR or a Super Admin", () 
         await svc().from("employees").update({ has_purchasing_flow: false, has_finance_flow: false }).eq("id", id)
     }
 
-    it("reverts an employee granting themselves either flag", async () => {
+    it("refuses an employee granting themselves either flag", async () => {
         try {
             const result = await tryUpdate(await clientFor("ordinary"), "employees", ids.ordinary, {
                 has_finance_flow: true,
                 has_purchasing_flow: true,
             })
-            expect(result.ok, result.message).toBe(true)
+            // #1115: refused outright, not reverted.
+            expect(result.ok).toBe(false)
+            expect(result.code).toBe("42501")
             expect(await flagsOf(ids.ordinary)).toEqual({ has_purchasing_flow: false, has_finance_flow: false })
             expect((await (await clientFor("ordinary")).rpc("ipas_can_read")).data).toBe(false)
         } finally {
@@ -714,7 +716,7 @@ describe("Purchasing and Finance access are granted by HR or a Super Admin", () 
         }
     })
 
-    it("reverts a signer or a purchaser granting Finance access to themselves", async () => {
+    it("refuses a signer or a purchaser granting Finance access to themselves", async () => {
         try {
             for (const who of ["ipasSigner", "outsider"]) {
                 await tryUpdate(await clientFor(who), "employees", ids[who], { has_finance_flow: true })
