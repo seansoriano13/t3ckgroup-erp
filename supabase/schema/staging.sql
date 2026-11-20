@@ -8926,6 +8926,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM sil_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -13931,6 +13932,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported offset leave decision: %.', p_status;
   END IF;
@@ -14059,6 +14061,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -14148,6 +14151,7 @@ DECLARE
   v_hr_signature_timestamp timestamptz;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   IF p_status NOT IN ('APPROVED', 'REJECTED') THEN
     RAISE EXCEPTION 'Unsupported SIL leave decision: %.', p_status;
   END IF;
@@ -14635,6 +14639,51 @@ AS $function$
           and upper(trim(t.team)) = upper(trim(e.sub_department))
       )
     );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.employees_self_update_allowlist()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_caller_id    UUID;
+  v_privileged   BOOLEAN;
+  v_simulator    BOOLEAN;
+  v_self_allowed text[] := ARRAY[
+    'avatar_path', 'dashboard_banner_path', 'dashboard_quote', 'signature_path',
+    'updated_at', 'last_seen_changelog_version'
+  ];
+BEGIN
+  IF current_user <> 'authenticated' THEN
+    RETURN NEW;
+  END IF;
+
+  v_caller_id := public.get_employee_id();
+  IF v_caller_id IS NULL OR OLD.id <> v_caller_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- OLD is the caller's own row, so its flags are the caller's.
+  v_privileged := (OLD.is_super_admin IS TRUE OR OLD.is_hr IS TRUE);
+  v_simulator  := (OLD.is_role_simulator IS TRUE);
+
+  -- A leave function moving this person's balance (see below).
+  IF current_setting('app.leave_balance_write', true) = 'on' THEN
+    v_self_allowed := v_self_allowed || ARRAY['offset_hours_balance', 'sil_hours_balance'];
+  END IF;
+
+  IF NOT v_privileged
+     AND NOT v_simulator
+     AND (to_jsonb(NEW) - v_self_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_self_allowed)
+  THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: you can change only your avatar, banner, quote and signature.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  RETURN NEW;
+END;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb)
@@ -21234,6 +21283,7 @@ DECLARE
   v_caller_is_hr             BOOLEAN;
   v_caller_can_manage_leaves BOOLEAN;
   v_caller_is_role_simulator BOOLEAN;
+  v_is_privileged            BOOLEAN;
 BEGIN
   v_caller_id := public.get_employee_id();
 
@@ -21242,11 +21292,36 @@ BEGIN
   FROM   public.employees
   WHERE  id = v_caller_id;
 
+  v_is_privileged := (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE);
+
+  -- Quote length (#1115). Only checked when the quote changes, so an older,
+  -- longer quote does not block an unrelated edit of that person.
+  IF NEW.dashboard_quote IS DISTINCT FROM OLD.dashboard_quote
+     AND char_length(NEW.dashboard_quote) > 100
+  THEN
+    RAISE EXCEPTION 'The quote can be at most 100 characters.'
+      USING ERRCODE = '23514';
+  END IF;
+
+  -- Banner address (#1116). Allowed: empty, an https:// address, or a storage
+  -- path (no scheme before the first slash).
+  IF NEW.dashboard_banner_path IS DISTINCT FROM OLD.dashboard_banner_path
+     AND NEW.dashboard_banner_path IS NOT NULL
+     AND NEW.dashboard_banner_path <> ''
+     AND NEW.dashboard_banner_path !~* '^https://'
+     AND NEW.dashboard_banner_path !~ '^[^:/]*/'
+  THEN
+    RAISE EXCEPTION 'The banner must be a web address that starts with https://.'
+      USING ERRCODE = '23514';
+  END IF;
+
   IF v_caller_is_role_simulator IS TRUE THEN
     RETURN NEW;
   END IF;
 
-  IF NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+  -- The self-update allowlist lives in employees_self_update_allowlist() below.
+
+  IF NOT v_is_privileged THEN
     IF NEW.is_super_admin IS DISTINCT FROM OLD.is_super_admin THEN
       NEW.is_super_admin := OLD.is_super_admin;
     END IF;
@@ -21288,7 +21363,7 @@ BEGIN
   -- employee row is the service role or a migration, and is trusted.
   IF v_caller_id IS NOT NULL
      AND (
-       NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+       NOT v_is_privileged
        OR (OLD.id = v_caller_id AND NOT (v_caller_is_super_admin IS TRUE))
      )
   THEN
@@ -21302,7 +21377,7 @@ BEGIN
 
   -- Call sign (#247). Only HR and Super Admins set one, their own included.
   IF v_caller_id IS NOT NULL
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND NEW.call_sign IS DISTINCT FROM OLD.call_sign
   THEN
     NEW.call_sign := OLD.call_sign;
@@ -21311,13 +21386,13 @@ BEGIN
   -- Nobody edits their own hidden-navigation override — server-side, not by
   -- hiding the control — and only HR/Super Admin may edit anyone else's.
   IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
-    IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+    IF OLD.id = v_caller_id OR NOT v_is_privileged THEN
       NEW.hidden_nav_keys := OLD.hidden_nav_keys;
     END IF;
   END IF;
 
   IF v_caller_can_manage_leaves IS TRUE
-     AND NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE)
+     AND NOT v_is_privileged
      AND OLD.id IS DISTINCT FROM v_caller_id
   THEN
     NEW := jsonb_populate_record(OLD, jsonb_build_object(
@@ -30769,6 +30844,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(COALESCE(approved_hours, hours)), 0), array_agg(date ORDER BY date)
@@ -30830,6 +30906,7 @@ DECLARE
   v_new_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
@@ -30892,6 +30969,7 @@ DECLARE
   v_refund_withheld boolean := false;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   PERFORM 1 FROM sil_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
   SELECT count(*), COALESCE(sum(hours), 0), array_agg(date ORDER BY date)
@@ -31425,6 +31503,7 @@ DECLARE
   v_balance numeric;
   v_now timestamptz := now();
 BEGIN
+  PERFORM set_config('app.leave_balance_write', 'on', true);
   SELECT leave_group_id INTO v_group_id FROM offset_leaves WHERE id = p_leave_id;
   IF v_group_id IS NULL THEN
     RAISE EXCEPTION 'Leave application not found.';
@@ -31572,6 +31651,7 @@ CREATE TRIGGER costing_tender_line_removal_guard BEFORE DELETE ON public.costing
 CREATE TRIGGER costing_tender_lines_cleanup BEFORE DELETE ON public.costing_tender_lines FOR EACH ROW EXECUTE FUNCTION costing_tender_lines_cleanup();
 CREATE TRIGGER purchase_request_access_changed AFTER UPDATE OF has_purchasing_flow, is_deleted ON public.employees FOR EACH ROW WHEN (((old.has_purchasing_flow IS DISTINCT FROM new.has_purchasing_flow) OR (old.is_deleted IS DISTINCT FROM new.is_deleted))) EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
 CREATE TRIGGER purchase_request_access_granted_on_insert AFTER INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION _purchase_request_purchasing_access_changed();
+CREATE TRIGGER trg_employees_self_update_allowlist BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION employees_self_update_allowlist();
 CREATE TRIGGER trg_prevent_privileged_flags_on_insert BEFORE INSERT ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_privileged_flags_on_insert();
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER group_task_templates_block_delete_in_use BEFORE DELETE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_block_delete_in_use();

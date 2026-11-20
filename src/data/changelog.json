@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-11-20",
+        "title": "Profile safety checks",
+        "version": "1.11.7",
+        "changes": [
+            "On your own record you can now change only your photo, banner, quote and signature. Other fields are locked.",
+            "Your dashboard quote can be at most 100 characters.",
+            "A banner web address must start with https://. The Profile page now says so.",
+            "Opening a Reset password link while signed in now tells you so and points you to My Profile."
+        ]
+    },
+    {
+        "date": "2026-11-20",
         "title": "Commission and Bid Decision fixes",
         "version": "1.11.6",
         "changes": [
