@@ -106,6 +106,51 @@ describe("a packed Packing List is frozen for everyone, the service role include
     })
 })
 
+describe("cancelling a Packing List (#1127)", () => {
+    it("cancels a draft with a reason, refuses a blank reason, then freezes it", async () => {
+        const sor = await makeSor({ registeredBy: ids.outsider, dealOwnerId: ids.dealOwner })
+        const made = await makeList("warehouse", sor)
+        const box = await addBox("warehouse", made.id, "X")
+
+        const blank = await rpc("warehouse", "packing_list_cancel", { p_packing_list_id: made.id, p_reason: "   " })
+        expect(blank.error?.message ?? "").toMatch(/needs a reason/)
+        expect(await listState(made.id)).toBe("draft")
+
+        const cancelled = await rpc("warehouse", "packing_list_cancel", { p_packing_list_id: made.id, p_reason: "Wrong SOR" })
+        expect(cancelled.error).toBeNull()
+        expect(await listState(made.id)).toBe("cancelled")
+
+        const row = await svc().from("packing_lists").select("cancel_reason, cancelled_by").eq("id", made.id).single()
+        expect(row.data.cancel_reason).toBe("Wrong SOR")
+        expect(row.data.cancelled_by).toBe(ids.warehouse)
+
+        const again = await rpc("warehouse", "packing_list_cancel", { p_packing_list_id: made.id, p_reason: "Twice" })
+        expect(again.error?.message ?? "").toMatch(/cancelled and can't be changed/)
+
+        const boxRow = await svc().from("packing_list_boxes").update({ marks: "changed" }).eq("id", box.id)
+        expect(boxRow.error, "a cancelled list's box changed").toBeTruthy()
+        const deleted = await svc().from("packing_lists").delete().eq("id", made.id)
+        expect(deleted.error, "a cancelled list was deleted").toBeTruthy()
+    })
+
+    it("refuses to cancel a packed list, and refuses an employee who may not change it", async () => {
+        const sor = await makeSor({ registeredBy: ids.outsider, dealOwnerId: ids.dealOwner })
+        const made = await makeList("warehouse", sor)
+        const box = await addBox("warehouse", made.id, "Y")
+        await setContents("warehouse", box.id, [{ description: "Cable", quantity: 1, unit: "m" }])
+
+        const stranger = await rpc("ordinary", "packing_list_cancel", { p_packing_list_id: made.id, p_reason: "Nope" })
+        expect(stranger.error, "an employee with no right cancelled a draft").toBeTruthy()
+        expect(await listState(made.id)).toBe("draft")
+
+        const packed = await rpc("warehouse", "packing_list_pack", { p_packing_list_id: made.id })
+        expect(packed.error).toBeNull()
+        const late = await rpc("warehouse", "packing_list_cancel", { p_packing_list_id: made.id, p_reason: "Too late" })
+        expect(late.error?.message ?? "").toMatch(/packed and can't be changed/)
+        expect(await listState(made.id)).toBe("packed")
+    })
+})
+
 describe("who reads a Packing List", () => {
     it("lets the SOR's deal owner read it, and refuses an employee who cannot read the SOR", async () => {
         const sor = await makeSor({ registeredBy: ids.outsider, dealOwnerId: ids.dealOwner })

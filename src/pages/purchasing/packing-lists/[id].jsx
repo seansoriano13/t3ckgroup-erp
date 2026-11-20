@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Check, Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Printer, Trash2, XCircle } from "lucide-react";
 import { openPackingListPrintWindow, printPackingList } from "../../../lib/pdf/packingListPrinter";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
@@ -14,6 +14,7 @@ import PageLoading from "../../../components/ui/PageLoading";
 import QueryError from "../../../components/ui/QueryError";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import { Input } from "../../../components/ui/input";
+import { Textarea } from "../../../components/ui/textarea";
 import { SelectField } from "../../../components/ui/SelectField";
 import { unitOptionsWith } from "../../../constants/procurement";
 import MoveButton from "../../../components/record/MoveButton";
@@ -282,6 +283,9 @@ function PackingListPage({ onClose }) {
   const [contentsBox, setContentsBox] = useState(null);
   const [packing, setPacking] = useState(false);
   const [failure, setFailure] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   const { data: list, isLoading, isError, refetch } = useQuery({
     queryKey: KEY(id),
@@ -294,6 +298,21 @@ function PackingListPage({ onClose }) {
     setFailure(null);
     queryClient.invalidateQueries({ queryKey: KEY(id) });
     queryClient.invalidateQueries({ queryKey: ["packing-lists"] });
+  };
+
+  const cancelList = async () => {
+    setCancelBusy(true);
+    try {
+      await packingListService.cancel(id, cancelReason);
+      toast.success(`${list.number} cancelled.`);
+      setCancelling(false);
+      setCancelReason("");
+      refresh();
+    } catch (error) {
+      toast.error(ipasErrorMessage(error, "The Packing List could not be cancelled."));
+    } finally {
+      setCancelBusy(false);
+    }
   };
 
   const removeBox = async (box) => {
@@ -350,7 +369,8 @@ function PackingListPage({ onClose }) {
   const boxes = list?.boxes ?? [];
   const totalWeight = boxes.reduce((sum, box) => sum + (box.grossWeightKg ?? 0), 0);
   const weighed = boxes.filter((box) => box.grossWeightKg != null).length;
-  const packed = Boolean(list) && !draft;
+  const packed = list?.state === "packed";
+  const cancelled = list?.state === "cancelled";
 
   const moves = [];
   if (list && canEdit) {
@@ -371,7 +391,9 @@ function PackingListPage({ onClose }) {
   }
   const status = !list
     ? ""
-    : packed
+    : cancelled
+      ? "Cancelled. Nothing left to do."
+      : packed
       ? "Packed. Nothing left to do."
       : moves.length > 0
         ? "Waiting for you: Packed by"
@@ -426,7 +448,9 @@ function PackingListPage({ onClose }) {
     };
   });
 
-  const packedLine = packed
+  const packedLine = cancelled
+    ? `Cancelled${list.cancelReason ? ` · ${list.cancelReason}` : ""}`
+    : packed
     ? `Packed by ${list.packerName ?? "someone"}${list.packedAt ? ` · ${formatWhen(list.packedAt)}` : ""}`
     : "Waiting for the maker of the list, Purchasing or the Warehouse";
 
@@ -440,7 +464,16 @@ function PackingListPage({ onClose }) {
       onOpenChange={(next) => !next && onClose()}
       size="record"
       crumbs={["Packing List", list?.number].filter(Boolean)}
-      headerActions={list && <RecordMoreMenu items={[{ key: "print", label: "Print", icon: Printer, onSelect: printList }]} />}
+      headerActions={
+        list && (
+          <RecordMoreMenu
+            items={[
+              { key: "print", label: "Print", icon: Printer, onSelect: printList },
+              ...(canEdit ? [{ key: "cancel", label: "Cancel", icon: XCircle, destructive: true, onSelect: () => setCancelling(true) }] : []),
+            ]}
+          />
+        )
+      }
     >
       {isLoading && <PageLoading label="Packing List" />}
       {isError && <QueryError title="This Packing List could not be loaded." onRetry={refetch} />}
@@ -454,7 +487,7 @@ function PackingListPage({ onClose }) {
             <RecordHeader
               reference={list.number}
               name={list.projectTitle}
-              badge={{ label: packed ? "Packed" : "Draft", theme: packed ? "green" : "mauve" }}
+              badge={{ label: cancelled ? "Cancelled" : packed ? "Packed" : "Draft", theme: cancelled ? "red" : packed ? "green" : "mauve" }}
               line={[list.sorReference, list.creatorName && `made by ${list.creatorName}`].filter(Boolean).join(" · ")}
             />
             <RecordWithRail
@@ -467,9 +500,9 @@ function PackingListPage({ onClose }) {
                       key: SECTION.PACKED_BY,
                       title: "Packed by",
                       summary: packedLine,
-                      state: packed ? STATE.DONE : STATE.CURRENT,
+                      state: packed ? STATE.DONE : cancelled ? STATE.WAITING : STATE.CURRENT,
                       needsMe: moves.length > 0,
-                      body: packed ? null : <p className="text-[13px] text-muted-foreground">Signing closes the list. The boxes and their contents can't be changed after.</p>,
+                      body: packed || cancelled ? null : <p className="text-[13px] text-muted-foreground">Signing closes the list. The boxes and their contents can't be changed after.</p>,
                       moves:
                         moves.length > 0 ? (
                           <ul className="space-y-3">
@@ -506,6 +539,26 @@ function PackingListPage({ onClose }) {
             </RecordWithRail>
           </div>
           {dialog}
+
+          {cancelling && (
+            <ModalShell
+              open
+              onOpenChange={(open) => !open && setCancelling(false)}
+              crumbs={["Packing List", list.number, "Cancel"]}
+              title={`Cancel ${list.number}?`}
+              cancelLabel="Keep it"
+              actions={
+                <Button onClick={cancelList} disabled={cancelBusy || cancelReason.trim() === ""}>
+                  Cancel Packing List
+                </Button>
+              }
+            >
+              <p className="text-sm text-muted-foreground">Cancel {list.number}? It is kept, never deleted, and can't be changed after. Give the reason.</p>
+              <FieldBox label="Reason" bare>
+                <Textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+              </FieldBox>
+            </ModalShell>
+          )}
 
           {canEdit && (
             <BoxDialog

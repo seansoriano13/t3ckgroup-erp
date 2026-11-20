@@ -159,6 +159,16 @@ export const packingListService = {
     if (error) throw error;
   },
 
+  /** Cancels a draft with a reason. A packed list is refused. Returns `{ id, number }`. */
+  async cancel(id, reason) {
+    const { data, error } = await supabase.rpc("packing_list_cancel", {
+      p_packing_list_id: id,
+      p_reason: reason,
+    });
+    if (error) throw error;
+    return data;
+  },
+
   /** Signs Packed by and closes the list. Refused with no box, or a box with no contents. */
   async pack(id) {
     const { data, error } = await supabase.rpc("packing_list_pack", { p_packing_list_id: id });
@@ -192,6 +202,7 @@ export function shapePackingList(row) {
     packerName: row.packer?.name ?? null,
     packerDepartment: row.packer?.sub_department ?? null,
     packedAt: row.packed_at ?? null,
+    cancelReason: row.cancel_reason ?? null,
     signatureDeclined: Boolean(row.signature_declined),
     boxes: [...(row.boxes ?? [])]
       .sort((a, b) => a.box_no - b.box_no)
