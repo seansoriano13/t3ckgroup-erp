@@ -572,20 +572,7 @@ export const employeeService = {
       .maybeSingle();
 
     if (error) throw error;
-    if (data) return data;
-
-    // Some policies can block returning rows after update; provide a stable shape.
-    return {
-      id,
-      avatar_path: Object.prototype.hasOwnProperty.call(payload, "avatar_path")
-        ? payload.avatar_path
-        : null,
-      dashboard_banner_path: Object.prototype.hasOwnProperty.call(payload, "dashboard_banner_path")
-        ? payload.dashboard_banner_path
-        : null,
-      dashboard_quote: Object.prototype.hasOwnProperty.call(payload, "dashboard_quote")
-        ? payload.dashboard_quote
-        : null,
-    };
+    if (!data) throw new Error("Could not save. Reload the page and try again.");
+    return data;
   },
 };

@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, Check, CropIcon } from "lucide-react";
+import toast from "react-hot-toast";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,10 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
   const animFrameRef = useRef(null);
+  const onCancelRef = useRef(onCancel);
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  });
 
   // Interaction state
   const [zoom, setZoom] = useState(1);
@@ -82,6 +87,11 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
       setImgNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
       setImgLoaded(true);
       URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      onCancelRef.current?.();
+      toast.error("That file is not a picture. Choose a JPG or PNG.");
     };
     img.src = url;
     return () => URL.revokeObjectURL(url);
