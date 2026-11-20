@@ -135,7 +135,7 @@ create trigger transmittals_receipt_ref_guard
   for each row execute function public.transmittals_receipt_ref_guard();
 
 -- ---------------------------------------------------------------------------
--- Packing list boxes and contents: the 20261218220000 guards, plus the limits in words
+-- Packing list boxes and contents: the 20261220010000 guards, plus the limits in words
 -- ---------------------------------------------------------------------------
 create or replace function public.packing_list_boxes_guard()
 returns trigger

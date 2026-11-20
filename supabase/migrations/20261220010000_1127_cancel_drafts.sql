@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 20261218220000_1127_cancel_drafts.sql
+-- 20261220010000_1127_cancel_drafts.sql
 --
 -- Spec #1123, ticket #1127 (tracker B2, C2, Decision 4).
 --
@@ -22,7 +22,7 @@
 
 alter table public.transmittals drop constraint if exists transmittals_submitted_chk;
 alter table public.transmittals add constraint transmittals_submitted_chk
-  check (state in ('draft', 'cancelled') or submitted_at is not null);
+  check (state = 'draft' or state = 'cancelled' or submitted_at is not null);
 
 -- ------------------------------------------------------------------------------
 -- Packing Lists: the cancelled state

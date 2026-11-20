@@ -11,7 +11,8 @@ import {
   ipasSectionLabel,
 } from "../../constants/ipas";
 import { ipasFilingWarningsKey } from "./ipasKeys";
-import { WaitingPesosNotice, useWaitingPesos } from "./FilingWaitingPesos";
+import { WaitingPesosNotice } from "./FilingWaitingPesos";
+import { useWaitingPesos } from "./useWaitingPesos";
 
 /**
  * Approving section 7 files the IPAS (#248): one deliberate act that freezes

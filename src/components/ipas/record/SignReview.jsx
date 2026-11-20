@@ -12,7 +12,8 @@ import { ipasErrorMessage } from "@/utils/ipas";
 import { fileRulesOf, missingDocumentsByPart } from "@/utils/ipasDocuments";
 import { ipasService } from "@/services/ipasService";
 import { ipasFilingWarningsKey } from "../ipasKeys";
-import { WaitingPesosNotice, useWaitingPesos } from "../FilingWaitingPesos";
+import { WaitingPesosNotice } from "../FilingWaitingPesos";
+import { useWaitingPesos } from "../useWaitingPesos";
 import { PreviewFrame } from "./PrintPreview";
 
 /** What signing an item does, by the kind of its action. */

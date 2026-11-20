@@ -1,6 +1,6 @@
 /**
  * Spec #1123 (D1, C1): how long or how big a typed value may be. The same numbers are checked by the
- * database (migration 20261218230000_1128_limits_links.sql), so the form can say it first, in words.
+ * database (migration 20261220030000_1128_limits_links.sql), so the form can say it first, in words.
  */
 export const IPAS_LIMITS = {
   piNumber: 60,
