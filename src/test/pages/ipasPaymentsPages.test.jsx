@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import SettingsPage from "@/pages/settings";
@@ -163,6 +163,62 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
       expect(db.rows("ipas_payments")[0].amount).toBe(1250.5);
     });
+
+    it("warns before saving a payment that takes the total paid past the order, and still allows the save", async () => {
+      // The PO is 7,500.00; 7,000 is already paid, so 1,300 more is 800 over.
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      db.seed("ipas_payments", {
+        ipas_id: row.id, kind: "down_payment", paid_on: "2026-10-01", amount: 7000, php_debited: null, charge_fee_php: 0,
+        method_id: options.payment_method["Dated Check"].id, check_no: null, proof_url: null, created_by: purchaser.id,
+      });
+      const user = setupUser();
+
+      renderDetail(row.id, "payments", "edit");
+      await user.click(await screen.findByRole("button", { name: "Add payment" }));
+      const payment = await screen.findByRole("group", { name: "Payment 2" });
+      await pick(user, payment, /^Method/, "Dated Check");
+      expect(screen.queryByTestId("payment-amount-warning")).not.toBeInTheDocument();
+      await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "1300");
+
+      expect(await screen.findByTestId("payment-amount-warning")).toHaveTextContent(/800\.00 more than the order amount of .*7,500\.00/);
+      await saveAll(user);
+      await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(2));
+    }, 20_000);
+
+    it("shows Overpaid by on the record's money summary when the payments pass the order", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      db.seed("ipas_payments", {
+        ipas_id: row.id, kind: "full_payment", paid_on: "2026-10-01", amount: 8325, php_debited: null, charge_fee_php: 0,
+        method_id: options.payment_method["Dated Check"].id, check_no: null, proof_url: null, created_by: purchaser.id,
+      });
+      renderDetail(row.id);
+      const summary = await screen.findByTestId("ipas-money-summary");
+      expect(summary).toHaveTextContent(/Overpaid by .*825\.00/);
+      expect(summary).not.toHaveTextContent("Settled");
+    });
+
+    it("refuses a payment dated tomorrow or before 2015 on Save all, with a sentence, and keeps what was typed", async () => {
+      const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+      const user = setupUser();
+
+      renderDetail(row.id, "payments", "edit");
+      await user.click(await screen.findByRole("button", { name: "Add payment" }));
+      const payment = await screen.findByRole("group", { name: "Payment 1" });
+      await pick(user, payment, /^Method/, "Dated Check");
+      await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "50");
+
+      const date = payment.querySelector('input[type="date"]');
+      fireEvent.change(date, { target: { value: "2099-01-01" } });
+      await saveAll(user);
+      expect(await screen.findAllByText(/payment date cannot be after today/i)).not.toHaveLength(0);
+      expect(date).toHaveValue("2099-01-01");
+      expect(db.rows("ipas_payments")).toHaveLength(0);
+
+      fireEvent.change(date, { target: { value: "2014-12-31" } });
+      await saveAll(user);
+      expect(await screen.findAllByText(/payment date cannot be before January 1, 2015/i)).not.toHaveLength(0);
+      expect(db.rows("ipas_payments")).toHaveLength(0);
+    }, 20_000);
 
     it("counts a new payment's required boxes, marks them Needed, and counts them as they are filled", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });

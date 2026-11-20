@@ -19,6 +19,20 @@ const ipas = ({ total = 11200, untaxed = 10000, lines, copyOver, ...over } = {})
 
 const pay = (kind, amount, methodLabel, over = {}) => ({ kind, amount, methodLabel, ...over })
 
+describe("ipasFigures: overpaid (spec #1123, A2)", () => {
+  it("reads how far the payments pass the order amount, and 0 when they do not", () => {
+    expect(ipasFigures(ipas({ payments: [pay("full_payment", 12000, "Bank TT")] })).overpaidBy).toBe(800)
+    expect(ipasFigures(ipas({ payments: [pay("full_payment", 11200, "Bank TT")] })).overpaidBy).toBe(0)
+    expect(ipasFigures(ipas({ payments: [] })).overpaidBy).toBe(0)
+  })
+
+  it("still reads 0 remaining once a full payment settles it, but says how much it is over", () => {
+    const figures = ipasFigures(ipas({ payments: [pay("full_payment", 12000, "Bank TT")] }))
+    expect(figures.remainingBalance).toBe(0)
+    expect(figures.overpaidBy).toBe(800)
+  })
+})
+
 describe("ipasFigures: Amount", () => {
   it.each([
     ["the P.I/QT Amount when it is typed", { pi_qt_amount: 10800 }, 10800, IPAS_AMOUNT_SOURCE.PI_QT],

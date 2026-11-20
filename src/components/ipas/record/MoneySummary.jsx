@@ -132,6 +132,7 @@ export default function MoneySummary({ digest, onOpen }) {
   const { money, figures, bill } = digest;
   const currency = figures.currency ?? money.currency;
   const settled = figures.remainingBalance === 0;
+  const overpaid = figures.overpaidBy > 0;
 
   return (
     <div
@@ -149,11 +150,13 @@ export default function MoneySummary({ digest, onOpen }) {
         />
         <Stat
           label="Remaining balance"
-          value={figures.remainingBalance === null ? "—" : formatAmount(figures.remainingBalance, currency)}
+          value={overpaid ? `Overpaid by ${formatAmount(figures.overpaidBy, currency)}` : figures.remainingBalance === null ? "—" : formatAmount(figures.remainingBalance, currency)}
           sub={
             figures.amount === null
               ? "No Amount yet"
-              : settled
+              : overpaid
+                ? `Paid ${formatAmount(figures.paid, currency)} on an order of ${formatAmount(figures.amount, currency)}`
+                : settled
                 ? "Settled"
                 : `of ${formatAmount(figures.amount, currency)} (${SOURCE_WORDS[figures.amountSource]}${figures.amountBeforeTax ? ", before tax" : ""})`
           }

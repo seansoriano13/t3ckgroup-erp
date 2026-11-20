@@ -45,7 +45,7 @@ const saveArgs = (over = {}) => ({
     p_ipas_id: null,
     p_payment_id: null,
     p_kind: "payment",
-    p_paid_on: "2026-12-01",
+    p_paid_on: "2026-11-01",
     p_amount: 300,
     p_forex_rate: null,
     p_doc_stamp_php: 0,
