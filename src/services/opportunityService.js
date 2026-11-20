@@ -3235,10 +3235,12 @@ export const opportunityService = {
 
   async getNotes(opportunityId) {
     if (!opportunityId) return [];
+    // Through sor_logs_for_sors, not a table read: the table's read policy works out every
+    // Stage Visit the caller may see across ALL SORs (about 7 s for a Stage Participant on prod,
+    // against an 8 s timeout), so the notes came back empty. Same rule, this SOR only.
     const { data, error } = await supabase
-      .from("sales_opportunity_logs")
+      .rpc("sor_logs_for_sors", { p_opportunity_ids: [opportunityId] })
       .select("*, author:employees!sales_opportunity_logs_author_id_fkey(id, name, avatar_path)")
-      .eq("opportunity_id", opportunityId)
       .order("created_at", { ascending: true });
 
     if (error) throw error;
@@ -3252,10 +3254,10 @@ export const opportunityService = {
    */
   async getNotesPage(opportunityId, { before = null, limit = 30 } = {}) {
     if (!opportunityId) return [];
+    // See getNotes: the RPC, not the table, so the read stays fast for Stage Participants.
     let query = supabase
-      .from("sales_opportunity_logs")
+      .rpc("sor_logs_for_sors", { p_opportunity_ids: [opportunityId] })
       .select("*, author:employees!sales_opportunity_logs_author_id_fkey(id, name, avatar_path)")
-      .eq("opportunity_id", opportunityId)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (before) query = query.lt("created_at", before);
