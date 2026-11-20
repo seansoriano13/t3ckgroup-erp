@@ -83,6 +83,38 @@ describe("IpasStatusSteps (#1154)", () => {
     expect(within(done).queryByRole("button")).toBeNull()
   })
 
+  describe("the suggestion line (#1155)", () => {
+    const poConfirmed = { purchaseOrder: { ticked: true }, receivedInOdoo: { ticked: false } }
+    const draft = (over = {}) => ipasOf({ status: "order_draft", statusSteps: [], statuses: poConfirmed, ...over })
+
+    it("asks to move to the furthest matching step, and moves only on the click", async () => {
+      const onSuggest = vi.fn()
+      renderSteps(draft(), { onSuggest })
+
+      const line = screen.getByTestId("ipas-status-suggestion")
+      expect(line).toHaveTextContent("Odoo says this PO is confirmed. Move to Ordered?")
+      expect(onSuggest).not.toHaveBeenCalled()
+
+      await userEvent.click(within(line).getByRole("button", { name: "Move to Ordered" }))
+      expect(onSuggest).toHaveBeenCalledWith("ordered")
+    })
+
+    it("shows nothing when the status is already at or past the step", () => {
+      renderSteps(ipasOf({ statuses: poConfirmed }), { onSuggest: vi.fn() })
+      expect(screen.queryByTestId("ipas-status-suggestion")).toBeNull()
+    })
+
+    it("suggests Delivered from a Transmittal on Out for Delivery", () => {
+      renderSteps(ipasOf({ status: "out_for_delivery", slips: [{ id: "t1" }] }), { onSuggest: vi.fn() })
+      expect(screen.getByTestId("ipas-status-suggestion")).toHaveTextContent("Move to Delivered?")
+    })
+
+    it("shows nothing to a viewer who may not set the status", () => {
+      renderSteps(draft(), { canSet: false, onSuggest: vi.fn() })
+      expect(screen.queryByTestId("ipas-status-suggestion")).toBeNull()
+    })
+  })
+
   it("is read-only without the right to set the status, and on a filed IPAS", () => {
     const { rerender } = render(<IpasStatusSteps ipas={ipasOf()} canSet={false} onPick={vi.fn()} onEditDate={vi.fn()} />)
     expect(screen.queryAllByRole("button")).toHaveLength(0)

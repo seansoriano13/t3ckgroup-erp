@@ -680,6 +680,8 @@ export function IpasStatusSection({
   canSetStatus: grantedStatus = false,
   onPickStatus,
   onEditStatusDate,
+  onSuggestStatus,
+  suggestingStatus = false,
   onStamp,
   onClearStamp,
 }) {
@@ -690,7 +692,7 @@ export function IpasStatusSection({
   return (
     <IpasSection title={ipasSectionLabel("status")} aside="Pick the step the order is at.">
       <div className="space-y-4">
-        <IpasStatusSteps ipas={ipas} canSet={canSetStatus} onPick={onPickStatus} onEditDate={onEditStatusDate} />
+        <IpasStatusSteps ipas={ipas} canSet={canSetStatus} onPick={onPickStatus} onEditDate={onEditStatusDate} onSuggest={onSuggestStatus} suggesting={suggestingStatus} />
         <div>
           <SectionHeader title="Buyer facts" className="border-b-0 pb-2" />
           <ul className="mt-1 divide-y divide-border">

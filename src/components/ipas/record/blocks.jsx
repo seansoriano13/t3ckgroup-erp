@@ -81,6 +81,8 @@ export function buildBlocks(ctx) {
       canSetStatus={can.statusStep}
       onPickStatus={on.pickStatus}
       onEditStatusDate={on.editStatusDate}
+      onSuggestStatus={on.suggestStatus}
+      suggestingStatus={on.statusSaving}
       onStamp={on.stamp}
       onClearStamp={on.clearStamp}
     />
@@ -88,7 +90,7 @@ export function buildBlocks(ctx) {
 
   return {
     // Kept for the edit view's typed bodies, which embed the read parts they don't type.
-    statusSteps: <IpasStatusSteps ipas={ipas} canSet={can.statusStep} onPick={on.pickStatus} onEditDate={on.editStatusDate} />,
+    statusSteps: <IpasStatusSteps ipas={ipas} canSet={can.statusStep} onPick={on.pickStatus} onEditDate={on.editStatusDate} onSuggest={on.suggestStatus} suggesting={on.statusSaving} />,
     filing: <IpasFilingSection ipas={ipas} rights={rights[7]} canSendBack={rights.sendBack7} />,
     // 1 · Order: what we bought, from whom, for which SOR.
     order: (

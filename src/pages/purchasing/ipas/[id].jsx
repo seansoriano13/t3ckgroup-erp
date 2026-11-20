@@ -962,6 +962,9 @@ function IpasPage({ onClose }) {
     pickLocation: (optionId) => locate.mutate(optionId),
     pickStatus: (step) => setStatusAsk({ step, mode: "move" }),
     editStatusDate: (step) => setStatusAsk({ step, mode: "date" }),
+    // The suggestion's one click (#1155): moves to the step dated today (the database's default). Nothing else moves it.
+    suggestStatus: (step) => saveStatus.mutate({ step, mode: "move", on: null }),
+    statusSaving: saveStatus.isPending,
     stamp: () => stamp.mutate(true),
     clearStamp: () => stamp.mutate(false),
     setComputationStatus: (computationStatus, from) =>

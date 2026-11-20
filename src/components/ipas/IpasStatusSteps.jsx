@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipasStatusesFor } from "../../constants/ipas";
 import { formatDay } from "../../utils/ipasPayments";
+import { suggestStatus } from "../../utils/ipasStatusSuggestion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,13 +17,29 @@ import { cn } from "@/lib/utils";
  *   canSet      Purchasing access, Logistics access or a Super Admin
  *   onPick      (step) => void   the page asks for the date, then calls the service
  *   onEditDate  (step) => void   the same dialog, for a step already reached
+ *   onSuggest   (step) => void   the one-click move to a suggested step, dated today (#1155)
+ *   suggesting  true while that move is saving
  */
-export default function IpasStatusSteps({ ipas, canSet = false, onPick, onEditDate }) {
+export default function IpasStatusSteps({ ipas, canSet = false, onPick, onEditDate, onSuggest, suggesting = false }) {
   const open = ipas.state === IPAS_STATE.OPEN;
   const settable = canSet && open;
   const reached = new Map((ipas.statusSteps ?? []).map((item) => [item.step, item]));
 
+  // One quiet line, only for people who may set the status; the status never moves without the click.
+  const suggestion = settable && onSuggest ? suggestStatus(ipas) : null;
+
   return (
+    <div className="space-y-2">
+      {suggestion && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" data-testid="ipas-status-suggestion">
+          <span>
+            {suggestion.because} Move to {suggestion.label}?
+          </span>
+          <Button type="button" variant="outline" size="xs" disabled={suggesting} onClick={() => onSuggest(suggestion.step)}>
+            Move to {suggestion.label}
+          </Button>
+        </p>
+      )}
     <ul className="divide-y divide-border" data-testid="ipas-status-steps">
       {ipasStatusesFor(ipas.source).map((step) => {
         const label = IPAS_STATUS_LABELS[step];
@@ -98,5 +115,6 @@ export default function IpasStatusSteps({ ipas, canSet = false, onPick, onEditDa
         );
       })}
     </ul>
+    </div>
   );
 }
