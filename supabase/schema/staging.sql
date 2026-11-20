@@ -1310,7 +1310,10 @@ create table if not exists public."purchase_requests" (
   "title" text,
   "requesters" jsonb,
   "pr_number" text,
-  "for_opportunity_id" uuid
+  "for_opportunity_id" uuid,
+  "deleted_at" timestamp with time zone,
+  "deleted_by" uuid,
+  "delete_reason" text
 );
 
 create table if not exists public."push_subscriptions" (
@@ -2680,6 +2683,7 @@ alter table purchase_request_messages add constraint "purchase_request_messages_
 alter table purchase_requests add constraint "purchase_requests_access_until_stage_id_fkey" FOREIGN KEY (access_until_stage_id) REFERENCES flow_stages(id);
 alter table purchase_requests add constraint "purchase_requests_buyer_id_fkey" FOREIGN KEY (buyer_id) REFERENCES employees(id);
 alter table purchase_requests add constraint "purchase_requests_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table purchase_requests add constraint "purchase_requests_deleted_by_fkey" FOREIGN KEY (deleted_by) REFERENCES employees(id);
 alter table purchase_requests add constraint "purchase_requests_for_opportunity_id_fkey" FOREIGN KEY (for_opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opened_by_action_id_fkey" FOREIGN KEY (opened_by_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
 alter table purchase_requests add constraint "purchase_requests_opened_visit_id_fkey" FOREIGN KEY (opened_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
@@ -7012,7 +7016,8 @@ CREATE OR REPLACE FUNCTION public._purchase_request_is_live(p_req purchase_reque
  STABLE
  SET search_path TO 'public'
 AS $function$
-  select not exists (
+  select p_req.deleted_at is null
+    and not exists (
       select 1 from sales_opportunities o
       where o.id = p_req.opportunity_id and public._sor_closed_for_purchasing(o)
     )
@@ -8884,7 +8889,12 @@ CREATE OR REPLACE FUNCTION public.can_read_purchase_request(p_request_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select coalesce(is_super_admin(), false)
+  select not exists (
+      select 1 from purchase_requests r
+      where r.id = p_request_id and r.deleted_at is not null
+    )
+    and (
+      coalesce(is_super_admin(), false)
       or is_purchase_request_member(p_request_id)
       or (
         has_purchasing_access()
@@ -8892,7 +8902,8 @@ AS $function$
           select 1 from purchase_requests r
           where r.id = p_request_id and r.buyer_id is null
         )
-      );
+      )
+    );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.cancel_lwop_leave(p_leave_id uuid, p_employee_id uuid)
@@ -14422,7 +14433,6 @@ declare
   v_sor public.sales_opportunities;
 begin
   select * into v_sor from public.sales_opportunities o where o.id = p_opportunity_id;
-  -- coalesce: an empty deal-team column makes sor_is_deal_team NULL, and `not NULL` would leak.
   if not found or not coalesce(
     public.is_super_admin()
     or public.sor_is_deal_team(v_sor, v_actor)
@@ -14463,6 +14473,7 @@ begin
       ) i on true
      where r.for_opportunity_id = p_opportunity_id
        and r.opportunity_id is null
+       and r.deleted_at is null
   ), '[]'::jsonb);
 end;
 $function$
@@ -22066,6 +22077,90 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.purchase_request_delete(p_request_id uuid, p_reason text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.purchase_requests;
+  v_reason text := btrim(coalesce(p_reason, ''));
+  v_label text;
+begin
+  if v_actor is null then
+    raise exception 'purchase_request_delete: not signed in' using errcode = '42501';
+  end if;
+  if v_reason = '' then
+    raise exception 'Say why you are deleting this request.' using errcode = '22023';
+  end if;
+
+  select * into v_req from public.purchase_requests where id = p_request_id for update;
+  if not found or v_req.deleted_at is not null then
+    raise exception 'That request no longer exists.' using errcode = '22023';
+  end if;
+
+  if not (
+    coalesce(public.is_super_admin(), false)
+    or coalesce(public.has_purchasing_access(), false)
+    or v_req.created_by = v_actor
+  ) then
+    raise exception 'purchase_request_delete: not allowed' using errcode = '42501';
+  end if;
+
+  if exists (
+    select 1 from public.purchase_request_items i
+    where i.request_id = p_request_id
+      and (i.status in ('purchased', 'received') or i.ipas_number is not null or i.ipas_pending)
+  ) then
+    raise exception 'A line is already purchased, received or on an IPAS. Cancel those lines one by one instead.'
+      using errcode = '22023';
+  end if;
+
+  update public.purchase_requests
+     set deleted_at = now(), deleted_by = v_actor, delete_reason = v_reason, updated_at = now()
+   where id = p_request_id;
+
+  v_label := coalesce(v_req.pr_number, 'Purchase Request');
+  perform public._purchase_request_post_event(
+    p_request_id, v_actor,
+    'Deleted this request: ' || v_reason,
+    jsonb_build_object('event', 'deleted', 'reason', v_reason)
+  );
+  perform public._purchase_request_notify(
+    p_request_id,
+    array(select m.employee_id from public.purchase_request_members m where m.request_id = p_request_id),
+    v_actor, 'PURCHASE_REQUEST_DELETED',
+    v_label || ' was deleted', v_reason, true
+  );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_deleted_list()
+ RETURNS TABLE(id uuid, pr_number text, title text, sales_reference text, opportunity_id uuid, item_count integer, deleted_at timestamp with time zone, deleted_by_name text, delete_reason text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    r.id,
+    r.pr_number,
+    r.title,
+    coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
+    r.opportunity_id,
+    (select count(*)::integer from public.purchase_request_items it where it.request_id = r.id),
+    r.deleted_at,
+    e.name,
+    r.delete_reason
+  from public.purchase_requests r
+  left join public.sales_opportunities o on o.id = r.opportunity_id
+  left join public.employees e on e.id = r.deleted_by
+  where r.deleted_at is not null
+    and (coalesce(public.is_super_admin(), false) or coalesce(public.has_purchasing_access(), false))
+  order by r.deleted_at desc;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.purchase_request_item_apply_po_check(p_actor_email text, p_item_id uuid, p_action text, p_po_number text, p_odoo text)
  RETURNS purchase_request_items
  LANGUAGE plpgsql
@@ -22846,6 +22941,43 @@ begin
   end if;
 
   return v_new.id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_restore(p_request_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_req public.purchase_requests;
+begin
+  if v_actor is null or not (
+    coalesce(public.is_super_admin(), false) or coalesce(public.has_purchasing_access(), false)
+  ) then
+    raise exception 'purchase_request_restore: not allowed' using errcode = '42501';
+  end if;
+
+  select * into v_req from public.purchase_requests where id = p_request_id for update;
+  if not found or v_req.deleted_at is null then
+    raise exception 'That request is not deleted.' using errcode = '22023';
+  end if;
+
+  update public.purchase_requests
+     set deleted_at = null, deleted_by = null, delete_reason = null, updated_at = now()
+   where id = p_request_id;
+
+  perform public._purchase_request_post_event(
+    p_request_id, v_actor, 'Restored this request.', jsonb_build_object('event', 'restored')
+  );
+  perform public._purchase_request_notify(
+    p_request_id,
+    array(select m.employee_id from public.purchase_request_members m where m.request_id = p_request_id),
+    v_actor, 'PURCHASE_REQUEST_RESTORED',
+    coalesce(v_req.pr_number, 'Purchase Request') || ' was restored', 'It is back in the queue.', true
+  );
 end;
 $function$
 ;

@@ -6,7 +6,7 @@
  * 20261221100000_purchase_request_delete.sql
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
+import { clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
 
