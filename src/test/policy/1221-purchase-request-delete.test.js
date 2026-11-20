@@ -3,7 +3,7 @@
  * Admin may delete, with a written reason; it is refused once a line is
  * purchased, received or on an IPAS; a deleted request is hidden from every
  * reader; only Purchasing and Super Admin can restore it.
- * 20261221100000_purchase_request_delete.sql
+ * 20261221130000_purchase_request_delete.sql
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { clientFor, ensureCastLoaded } from "./support/cast.js"
