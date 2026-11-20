@@ -430,13 +430,13 @@ export function byPriorityThenAge(a, b) {
  * The manager queue: tasks waiting on this reviewer's grade.
  *
  * A task that names its head (`reportedTo`) goes to that head. Legacy tasks
- * without one fall back to department matching, where AWAITING_APPROVAL only
- * reaches a head when the app settings route it there. `reportedToMeOnly` off
- * (the "System-wide" scope, heads and super admins only) takes every open task.
- * Your own tasks never come to you.
+ * without one fall back to department matching; an AWAITING_APPROVAL Marketing
+ * task among them reaches no department head, only the "System-wide" scope.
+ * `reportedToMeOnly` off (the "System-wide" scope, heads and super admins only)
+ * takes every open task. Your own tasks never come to you.
  */
 export function selectManagerPending(tasks = [], ctx = {}) {
-    const { userId, userDept, userSubDept, isHead, isSuperAdmin, appSettings, reportedToMeOnly = true } = ctx;
+    const { userId, userDept, userSubDept, isHead, isSuperAdmin, reportedToMeOnly = true } = ctx;
     if (!isHead && !isSuperAdmin) return [];
     const wide = !reportedToMeOnly;
 
@@ -453,8 +453,7 @@ export function selectManagerPending(tasks = [], ctx = {}) {
             if (t.status === TASK_STATUS.AWAITING_APPROVAL) {
                 if (wide) return true;
                 const isMarketing = taskSubDept === "MARKETING" || taskDept === "MARKETING";
-                if (isMarketing) return !!appSettings?.marketing_approval_by_ops_manager && isMyDept;
-                return !!appSettings?.universal_task_submission && isMyDept;
+                return !isMarketing && isMyDept;
             }
             return false;
         })
