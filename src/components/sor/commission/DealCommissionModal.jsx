@@ -3,10 +3,9 @@ import { ArrowUpRight } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../ui/dialog";
 import Avatar from "../../Avatar";
-import StatusBadge from "../../StatusBadge";
 import { formatPHP } from "../../../constants/sor";
 import { MASK, TONE, compactPHP, formatContractDate, projectTypeInfo, shareRoleLabel } from "./commissionView";
-import { Swatch, SplitBar } from "./parts";
+import { DealStageBadge, Swatch, SplitBar } from "./parts";
 
 function Figure({ label, value, tone }) {
   return (
@@ -61,7 +60,7 @@ export default function DealCommissionModal({ deal, onClose, access }) {
         {deal && (
           <>
             <DialogHeader className="mx-0 mt-0 gap-1 px-6 pb-4 pt-6 pr-12">
-              <div className="mb-1"><StatusBadge status={deal.status} /></div>
+              <div className="mb-1"><DealStageBadge deal={deal} /></div>
               <DialogTitle className="text-lg font-semibold tracking-tight">{deal.clientName}</DialogTitle>
               <DialogDescription className="truncate text-xs">{meta.join(" · ")}</DialogDescription>
             </DialogHeader>

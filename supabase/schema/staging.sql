@@ -2234,7 +2234,10 @@ alter table app_settings add constraint "app_settings_id_check" CHECK ((id = tru
 alter table bug_report_notes add constraint "bug_report_notes_kind_check" CHECK ((kind = ANY (ARRAY['note'::text, 'resolved'::text, 'reopened'::text])));
 alter table bug_reports add constraint "bug_reports_description_check" CHECK ((length(btrim(description)) > 0));
 alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_check" CHECK ((entity_type = ANY (ARRAY['TASK'::text, 'SALES'::text, 'COMMITTEE_TASK'::text, 'GROUP_TASK'::text])));
+alter table commission_departments add constraint "commission_departments_allocation_percent_range" CHECK (((allocation_percent >= (0)::numeric) AND (allocation_percent <= (100)::numeric)));
+alter table commission_positions add constraint "commission_positions_allocation_percent_range" CHECK (((allocation_percent >= (0)::numeric) AND (allocation_percent <= (100)::numeric)));
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
+alter table commission_splits add constraint "commission_splits_percent_range" CHECK (((percent >= (0)::numeric) AND (percent <= (100)::numeric)));
 alter table commission_splits add constraint "commission_splits_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
 alter table costing_bid_decisions add constraint "costing_bid_decisions_cleared_chk" CHECK (((cleared_at IS NULL) = (cleared_reason IS NULL)));
@@ -3499,7 +3502,7 @@ create policy "costing_bid_decisions_read" on public."costing_bid_decisions"
   as permissive
   for select
   to authenticated
-  using ((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text));
+  using (((costing_tier(costing_matrix_opp(matrix_id)) = 'closed_book'::text) AND costing_sees_bid(costing_matrix_opp(matrix_id))));
 create policy "costing_column_bands_read" on public."costing_column_bands"
   as permissive
   for select
@@ -11414,6 +11417,7 @@ begin
     where e.matrix_id = v_matrix
       and (p_table is null or e.detail ->> 'table' = p_table)
       and (p_row is null or e.detail ->> 'row' = p_row::text)
+      and (e.detail ->> 'table' is distinct from 'costing_bid_decisions' or public.costing_sees_bid(p_opportunity_id))
       and (
         case
           when e.detail ? 'column' then exists (
@@ -12190,6 +12194,7 @@ declare
   v_rows   jsonb;
   v_tables jsonb := '{}'::jsonb;
   v_bands  text[];
+  v_sees_bid boolean := public.costing_sees_bid(p_opportunity_id);
 begin
   if v_tier is null then
     return null;
@@ -12204,6 +12209,10 @@ begin
     from public.costing_column_tiers c
     where c.table_name = v_def.table_name and c.column_name <> '*' and v_tier = any (c.tiers);
     if cardinality(v_cols) = 0 then
+      continue;
+    end if;
+    -- #1107: the Bid Decision is not sent to a purchaser who is not the Deal Team, a decider or a Super Admin.
+    if v_def.table_name = 'costing_bid_decisions' and not v_sees_bid then
       continue;
     end if;
 
@@ -12228,7 +12237,7 @@ begin
     from unnest(array['sales', 'purchasing', 'management', 'technical', 'finance', 'super_admin_only', 'markup']) b
    where public.costing_in_band(p_opportunity_id, b);
 
-  return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'tables', v_tables);
+  return jsonb_build_object('tier', v_tier, 'matrix_id', v_matrix, 'bands', to_jsonb(v_bands), 'bid_visible', v_sees_bid, 'tables', v_tables);
 end;
 $function$
 ;
@@ -12859,6 +12868,22 @@ begin
   where s.score >= 0.6
   order by s.score desc, s.item_name, s.line_name;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.costing_sees_bid(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(public.is_super_admin(), false)
+    or public.costing_on_list('final_acquire')
+    or exists (
+      select 1 from public.sales_opportunities o
+      where o.id = p_opportunity_id and public.sor_is_deal_team(o, public.get_employee_id())
+    )
+    -- Only Purchasing is narrowed: everyone else keeps what their tier already gives.
+    or not coalesce(public.has_purchasing_access(), false)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.costing_set_acquire_source()

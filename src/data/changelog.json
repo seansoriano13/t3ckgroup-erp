@@ -2,12 +2,25 @@
     {
         "date": "2026-11-20",
         "title": "Profile safety checks",
-        "version": "1.11.6",
+        "version": "1.11.7",
         "changes": [
             "On your own record you can now change only your photo, banner, quote and signature. Other fields are locked.",
             "Your dashboard quote can be at most 100 characters.",
             "A banner web address must start with https://. The Profile page now says so.",
             "Opening a Reset password link while signed in now tells you so and points you to My Profile."
+        ]
+    },
+    {
+        "date": "2026-11-20",
+        "title": "Commission and Bid Decision fixes",
+        "version": "1.11.6",
+        "changes": [
+            "Purchasers no longer see the Bid Decision on a Costing sheet. They keep the Closed Book.",
+            "If you open the Bid Decisions page without access, you are sent back to the home page.",
+            "The Sales fund on the Commission Pool page is hidden from anyone who cannot see Sales amounts. If you can see it and it is zero, it shows ₱0.00.",
+            "Commission percentages below 0 or above 100 are now refused when you save a rate, a department, a position or a split.",
+            "The Projected Commission Pool no longer counts deals that are already Awarded or later but have no Contract Date.",
+            "Opening a deal on the Commission Pool page shows its receipt, with the stage it is at."
         ]
     },
     {
