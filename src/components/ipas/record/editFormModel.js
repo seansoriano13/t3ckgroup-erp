@@ -84,7 +84,7 @@ export const OWNS = {
   costing: ["split", "computationStatus"],
   filing: [],
   sales: ["sourceDoc", "analytic", "googleSheet", "ganttChart"],
-  logistics: ["location"],
+  logistics: ["location", "directDelivery"],
   status: [
     "actualChecking",
   ],
@@ -211,6 +211,7 @@ export function formFromIpas(ipas) {
     googleSheet: Boolean(ipas.googleSheet),
     ganttChart: Boolean(ipas.ganttChart),
     location: ipas.item_location_id ?? "",
+    directDelivery: ipas.direct_delivery === true,
     actualChecking: Boolean(actualCheckingItem(ipas)?.ticked),
     // Not typed: whether the PO is in pesos decides which payment boxes are required.
     isPhp: isPhpCurrency(ipas.currency),
@@ -293,7 +294,8 @@ export function requiredFields(form) {
       if (d.choice === BY_HAND)
         need("documents", `doc-${d.key}-label`, `${n} name`, d.label);
     });
-  need("delivery", "f-location", "Item Location", form.location);
+  // A Direct delivery never comes to our warehouse: no Item Location is asked for (#1158).
+  if (!form.directDelivery) need("delivery", "f-location", "Item Location", form.location);
   return out.sort(
     (a, b) =>
       SCREEN_ORDER.indexOf(a.section) - SCREEN_ORDER.indexOf(b.section),
@@ -429,6 +431,7 @@ export function planSave(form, base) {
     overrides: [],
     header: {},
     location: undefined,
+    directDelivery: undefined,
     stamp: undefined,
     payments: { add: [], update: [], isPhpPo: form.isPhp },
     charges: { add: [], update: [] },
@@ -496,7 +499,8 @@ export function planSave(form, base) {
     const issue = textLengthIssue(form[key], what, max);
     if (issue) fail(issue);
   }
-  if (changed.has("location")) plan.location = form.location || null;
+  if (changed.has("location") && !form.directDelivery) plan.location = form.location || null;
+  if (changed.has("directDelivery")) plan.directDelivery = form.directDelivery === true;
   if (changed.has("actualChecking")) plan.stamp = form.actualChecking;
 
   const pay = rowChanges(form, base, "payments");
@@ -579,6 +583,7 @@ export function planIsEmpty(plan) {
     plan.overrides.length === 0 &&
     Object.keys(plan.header).length === 0 &&
     plan.location === undefined &&
+    plan.directDelivery === undefined &&
     plan.freight === undefined &&
     plan.stamp === undefined &&
     plan.payments.add.length + plan.payments.update.length === 0 &&

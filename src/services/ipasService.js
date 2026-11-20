@@ -80,7 +80,7 @@ const LIST_COLUMNS = [
   "odoo_change_note", "odoo_changed_since_filing", "pi_qt_amount", "freight_service_id", "landed_cost_split",
   "computation_status", "status", "shipped_out_on", "onboard_on", "arrived_in_ph_on", "arrived_in_whs_on",
   "import_clearance_on", "import_clearance_typed_by", "import_clearance_typed_at", "delivered_on",
-  "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id",
+  "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id", "direct_delivery",
   "google_sheet", "gantt_chart", "on_hold", "on_hold_note", "sor_warning_checked", "freight_amount",
   "freight_currency", "freight_billed_by_supplier", "freight_attachment_url", "retail_multiplier",
   "wholesale_discount_pct",
@@ -949,6 +949,13 @@ export const ipasService = {
       p_ipas_id: id,
       p_option_id: optionId || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Switches Direct delivery to the client on an open IPAS (#1158). Returns the row. */
+  async setDirectDelivery(id, on) {
+    const { data, error } = await supabase.rpc("ipas_set_direct_delivery", { p_ipas_id: id, p_on: on === true });
     if (error) throw error;
     return data;
   },

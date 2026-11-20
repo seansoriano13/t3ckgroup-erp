@@ -231,6 +231,18 @@ describe("The IPAS Status steps (#1156)", () => {
     expect(standing.daysWaiting).toBe(5);
   });
 
+  it("a Direct delivery never chases the Transmittal or Actual Checking (#1158)", () => {
+    const direct = { ...at("delivered", "2026-10-15"), directDelivery: true };
+    expect(orderStanding(direct, [], TODAY).next.step).not.toBe("no_transmittal");
+    const track = [
+      { key: "received_in_odoo", ticked: true },
+      { key: "create_bill", ticked: true },
+      { key: "actual_checking", ticked: false },
+    ];
+    expect(orderStanding({ ...direct, buyerTrack: track }, [], TODAY).next.step).not.toBe("actual_checking");
+    expect(orderStanding({ ...direct, directDelivery: false, buyerTrack: track }, [], TODAY).next.step).toBe("no_transmittal");
+  });
+
   it("after Delivered and a Transmittal, asks for Received in Odoo, then Create Bill, then Actual Checking", () => {
     const track = (ticked) => ["received_in_odoo", "create_bill", "actual_checking"].map((key) => ({ key, ticked: ticked.includes(key) }));
     const done = { stage: "warehouse_checking", completed_at: "2026-10-16T08:00:00Z" };

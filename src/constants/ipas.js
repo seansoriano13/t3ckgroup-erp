@@ -711,6 +711,7 @@ export const IPAS_EVENT_LABELS = {
   actual_checking_stamped: "Actual Checking stamped",
   actual_checking_cleared: "Actual Checking cleared",
   item_location_changed: "Item Location changed",
+  direct_delivery_changed: "Direct delivery changed",
   on_hold_set: "Put On-Hold",
   on_hold_changed: "On-Hold note changed",
   on_hold_cleared: "On-Hold cleared",

@@ -14,7 +14,7 @@ import { IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipasStatusesFor } from "..
  * `{ step, label, because }` or null. `because` is the plain sentence that leads the question.
  *
  *   ipas  the shaped IPAS: `state`, `source`, `status`, `statuses` (Odoo), `signoffSections`, `slips`,
- *         `directDelivery` (the seam for #1151 T6: absent until it ships, read as false)
+ *         `directDelivery` or the raw `direct_delivery` (#1158; absent reads as false)
  */
 export function suggestStatus(ipas) {
   if (!ipas || ipas.state !== IPAS_STATE.OPEN || !ipas.status) return null;
@@ -22,7 +22,7 @@ export function suggestStatus(ipas) {
   const current = steps.indexOf(ipas.status);
   if (current < 0) return null;
 
-  const direct = ipas.directDelivery === true;
+  const direct = ipas.directDelivery === true || ipas.direct_delivery === true;
   const odoo = ipas.statuses ?? {};
   const matches = [];
   if (ipas.signoffSections?.[1]?.prepared) {

@@ -157,18 +157,37 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
         label: option.active ? option.label : `${option.label} (deactivated)`,
       }));
       return (
-        <div className={GRID}>
-          <PickField
-            id="f-location"
-            label="Item Location"
-            required
-            options={options}
-            value={form.location}
-            emptyLabel="Not set"
-            disabled={disabled}
-            onChange={(value) => set("location", value)}
-            hint={ipas.itemLocation?.label ? `The Transmittals say ${ipas.itemLocation.label}. Pick one to keep it on this IPAS.` : undefined}
-          />
+        <div className="space-y-3">
+          <div className={GRID}>
+            <div className="flex flex-col gap-1.5">
+              <FieldBox label="Direct delivery" />
+              <Tick
+                label="Direct delivery to client"
+                checked={form.directDelivery}
+                disabled={disabled || money?.can?.setDirectDelivery === false}
+                onChange={(v) => set("directDelivery", v)}
+              />
+            </div>
+          </div>
+          {form.directDelivery ? (
+            <p className="text-xs text-muted-foreground">
+              The supplier delivers straight to the client, so no Item Location or Transmittal is asked for. Pick Delivered once the client has the goods.
+            </p>
+          ) : (
+            <div className={GRID}>
+              <PickField
+                id="f-location"
+                label="Item Location"
+                required
+                options={options}
+                value={form.location}
+                emptyLabel="Not set"
+                disabled={disabled}
+                onChange={(value) => set("location", value)}
+                hint={ipas.itemLocation?.label ? `The Transmittals say ${ipas.itemLocation.label}. Pick one to keep it on this IPAS.` : undefined}
+              />
+            </div>
+          )}
         </div>
       );
     }

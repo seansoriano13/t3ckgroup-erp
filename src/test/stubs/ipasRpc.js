@@ -1945,6 +1945,16 @@ export function stubIpasRpcs({
     event(row.id, "item_location_changed", { from: fromLabel, to: toLabel })
     return updated
   })
+
+  stubRpc("ipas_set_direct_delivery", (args) => {
+    if (!purchasing && !logistics && !superAdmin) refuse("42501", "ipas_set_direct_delivery: only Purchasing, Logistics or a Super Admin sets Direct delivery")
+    const row = requireOpenIpas("ipas_set_direct_delivery", args.p_ipas_id)
+    const on = args.p_on === true
+    if (on === (row.direct_delivery === true)) return row
+    const updated = updateRow("ipas", row, { direct_delivery: on })
+    event(row.id, "direct_delivery_changed", { to: on })
+    return updated
+  })
 }
 
 /**

@@ -145,6 +145,7 @@ async function loadOrders(today) {
         slips: named,
         // The On-Hold rule is the IPAS Status's, read from the figures (utils/ipasFigures.js), not the raw flag.
         onHold: ipasFigures(shaped).onHold,
+        directDelivery: row.direct_delivery === true,
       }),
       rules,
       today,

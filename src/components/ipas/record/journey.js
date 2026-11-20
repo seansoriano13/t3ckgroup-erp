@@ -72,8 +72,10 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   const noRate = foreignPo ? (ipas.payments ?? []).filter((payment) => payment.forex_rate === null || payment.forex_rate === undefined).length : 0;
   // Logistics signed means what it needed was in when it was signed: those items stay ticked.
   const logisticsSigned = Boolean(s8?.approved);
-  const located = logisticsSigned || Boolean(ipas.itemLocation || ipas.item_location_id);
-  const carried = logisticsSigned || (ipas.slips ?? []).length > 0;
+  // Direct delivery (#1158): the goods never reach our warehouse, so no Item Location and no Transmittal are asked for.
+  const direct = ipas.direct_delivery === true || ipas.directDelivery === true;
+  const located = direct || logisticsSigned || Boolean(ipas.itemLocation || ipas.item_location_id);
+  const carried = direct || logisticsSigned || (ipas.slips ?? []).length > 0;
   const arrived = logisticsSigned || hasDelivered(ipas);
   const logisticsReady = located && carried && arrived;
 
@@ -153,7 +155,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
             ? { kind: "landed", label: "Mark Landed Cost final", status: IPAS_COMPUTATION_STATUS.LC_ODOO_DONE }
             : null,
     },
-    {
+    direct ? null : {
       key: "location",
       label: "Pick the Item Location",
       done: located,
@@ -161,7 +163,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       who: buyer,
       action: can.pickLocation && !located ? { kind: "edit", section: "delivery", label: "Pick it in 4 · Delivery" } : null,
     },
-    {
+    direct ? null : {
       key: "transmittal",
       label: "Raise a Transmittal",
       done: carried,
@@ -177,7 +179,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       key: "arrived",
       label: "Set the status to Delivered",
       done: arrived,
-      line: arrived ? "Delivered." : "Pick Delivered once the goods have arrived.",
+      line: arrived ? "Delivered." : direct ? "Pick Delivered once the client has the goods." : "Pick Delivered once the goods have arrived.",
       who: buyer,
       action: can.change && !arrived ? { kind: "edit", section: "delivery", label: "Pick it in 4 · Delivery" } : null,
     },
@@ -188,7 +190,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       line: s8?.approved
         ? `Signed by ${s8.approved.signedBy?.name ?? "someone"}.`
         : logisticsReady
-          ? "The goods are at their location: sign it."
+          ? direct ? "The client has the goods: sign it." : "The goods are at their location: sign it."
           : `Opens once the ${andList([!located && "Item Location", !carried && "Transmittal", !arrived && "Delivered status"].filter(Boolean))} ${[!located, !carried, !arrived].filter(Boolean).length > 1 ? "are" : "is"} in.`,
       who: who([IPAS_SIGNER_LIST.LOGISTICS_SIGNED]),
       action: !s8?.approved && logisticsReady && onList([IPAS_SIGNER_LIST.LOGISTICS_SIGNED])

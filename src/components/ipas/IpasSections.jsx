@@ -923,6 +923,8 @@ function eventDetail(event) {
     }
     case "status_date_changed":
       return `${IPAS_STATUS_LABELS[detail.step] ?? detail.step}: ${detail.from ? `${formatDay(detail.from)} → ` : ""}${formatDay(detail.to)}`;
+    case "direct_delivery_changed":
+      return detail.to ? "Direct delivery to client: on" : "Direct delivery to client: off";
     case "item_location_changed":
       return detail.to ? `Item Location: ${detail.to}` : "Item Location: cleared";
     case "on_hold_set":

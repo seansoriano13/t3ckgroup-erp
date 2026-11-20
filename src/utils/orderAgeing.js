@@ -37,6 +37,7 @@ export function orderStandingInput({
   statusSteps,
   slips = [],
   onHold = false,
+  directDelivery = false,
 }) {
   const submitted = submittedSlips(slips);
   return {
@@ -55,5 +56,6 @@ export function orderStandingInput({
     slips: submitted,
     hasDraftTransmittal: submitted.length < slips.length,
     onHold: onHold === true,
+    directDelivery: directDelivery === true,
   };
 }

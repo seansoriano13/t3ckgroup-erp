@@ -27,6 +27,7 @@
  *   Odoo, Create Bill and Actual Checking are read), and
  *   slips (the raw submitted Transmittal rows that name this IPAS, with stages and
  *   lines) and hasDraftTransmittal (a draft names it: raised, not yet submitted).
+ *   directDelivery (#1158): skips "Delivered, no Transmittal raised" and Actual Checking.
  *   onHold (#597): the IPAS is On-Hold; it is checked before any step, so the order waits on
  *   someone else and never counts late.
  *
@@ -290,7 +291,8 @@ function nextThing(order, slips, track) {
 
   // A draft Transmittal counts as raised: someone has started the hand-off, so Purchasing is not
   // owed a nudge. The spec is silent on drafts; this keeps Purchasing from chasing itself.
-  if (isDelivered(order) && slips.length === 0 && !order.hasDraftTransmittal) {
+  // Nothing is chased on a Direct delivery (#1158): the goods never reach our Warehouse.
+  if (!order.directDelivery && isDelivered(order) && slips.length === 0 && !order.hasDraftTransmittal) {
     return {
       label: "Delivered — no Transmittal raised",
       owner: ORDER_OWNER.PURCHASING,
@@ -312,7 +314,9 @@ function nextThing(order, slips, track) {
 
   // Delivered: then the first fact not yet true. They have no ageing rule.
   const deliveredSince = reachedMs(order, IPAS_STATUS.DELIVERED) ?? instantOf(order.createdAt);
-  const open = AFTER_DELIVERED_FACTS.map((key) => track.find((item) => item.key === key)).find(
+  // Actual Checking is a Warehouse or Technical check; a Direct delivery has none (#1158).
+  const facts = order.directDelivery ? AFTER_DELIVERED_FACTS.filter((key) => key !== "actual_checking") : AFTER_DELIVERED_FACTS;
+  const open = facts.map((key) => track.find((item) => item.key === key)).find(
     (item) => item && !item.ticked,
   );
   if (open) {

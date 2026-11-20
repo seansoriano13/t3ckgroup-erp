@@ -710,6 +710,7 @@ function IpasPage({ onClose }) {
         }
         if (Object.keys(plan.header).length > 0) await ipasService.setHeader(id, plan.header);
         if (plan.freight !== undefined) await once("freight", () => ipasService.setFreight(id, plan.freight));
+        if (plan.directDelivery !== undefined) await ipasService.setDirectDelivery(id, plan.directDelivery);
         if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
         if (plan.stamp !== undefined) await ipasService.stampActualChecking(id, { stamped: plan.stamp });
         const { isPhpPo } = plan.payments;
@@ -993,6 +994,7 @@ function IpasPage({ onClose }) {
       record: canRecord,
       tickFinance: canTickFinance,
       // Only Purchasing moves the Computation status; section 3's sign-off is the check.
+      setDirectDelivery: canSetStatusStep,
       setStatus: (from, to) => open && canSetComputationStatus({ from, to, hasPurchasingFlow }),
       reopen: isSuperAdmin && filed,
       printFiling: filed && ipas.canReadBankDetails,

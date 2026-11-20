@@ -47,6 +47,13 @@ describe("IPAS edit form model", () => {
     expect(form).toMatchObject({ entity: "", analytic: "A-1", contact: "R. Cruz", piQtAmount: "8400" });
   });
 
+  it("asks for no Item Location on a Direct delivery (#1158)", () => {
+    const form = formFromIpas(ipas({ contact: "R. Cruz", direct_delivery: true }));
+    expect(form.directDelivery).toBe(true);
+    expect(missingFields(form).map((m) => m.id)).not.toContain("f-location");
+    expect(missingFields({ ...form, directDelivery: false }).map((m) => m.id)).toContain("f-location");
+  });
+
   it("lists the required boxes still empty and counts them per section", () => {
     const form = formFromIpas(ipas({ contact: "R. Cruz" }));
     expect(missingFields(form).map((m) => m.id)).toEqual(["f-piNumber", "f-piQtAmount", "f-location"]);
