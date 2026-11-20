@@ -140,12 +140,20 @@ async function documentKind(label) {
 }
 
 async function attachDocument(ipasId, label) {
-    await sql().query(
-        `insert into public.ipas_documents (ipas_id, kind_id, attachment_url)
-         values ($1, $2, $3)
+    const { rows } = await sql().query(
+        `insert into public.ipas_documents (ipas_id, kind_id)
+         values ($1, $2)
          on conflict (ipas_id, kind_id) where kind_id is not null
-         do update set attachment_url = coalesce(public.ipas_documents.attachment_url, excluded.attachment_url)`,
-        [ipasId, await documentKind(label), FIXTURE_FILE],
+         do update set updated_at = now()
+         returning id`,
+        [ipasId, await documentKind(label)],
+    )
+    // A document holds its files in ipas_document_files (#1153); one file is enough to count as present.
+    await sql().query(
+        `insert into public.ipas_document_files (document_id, url, file_name)
+         select $1, $2, 'policy-tier.pdf'
+          where not exists (select 1 from public.ipas_document_files where document_id = $1)`,
+        [rows[0].id, FIXTURE_FILE],
     )
 }
 

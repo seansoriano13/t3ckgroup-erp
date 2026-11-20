@@ -47,7 +47,7 @@ const refuse = (code, message) => {
  * details there to exercise the flag.
  *
  * #246 adds documents (`ipas_suggest_documents`, `ipas_add_document`,
- * `ipas_set_document_attachment`, `ipas_tick_document`, `ipas_remove_document`),
+ * `ipas_add_document_file`, `ipas_tick_document`, `ipas_remove_document`),
  * Supplier Origin, the typed statuses, Actual Checking and Item Location. A new
  * IPAS gets a row for every active document kind matching its Source, as the
  * database's insert trigger does. `finance: true` is a caller with Finance
@@ -1357,6 +1357,7 @@ export function stubIpasRpcs({
       finance_has: false,
       created_by: actorId,
     })
+    if (url) insertRow("ipas_document_files", { document_id: row.id, url, file_name: url.split("?")[0].split("/").pop(), created_by: actorId })
     event(ipas.id, "document_added", {
       document_id: row.id,
       kind_id: row.kind_id,
@@ -1367,20 +1368,32 @@ export function stubIpasRpcs({
     return row
   })
 
-  stubRpc("ipas_set_document_attachment", (args) => {
-    requirePurchasing("ipas_set_document_attachment")
-    const doc = lockDocument("ipas_set_document_attachment", args.p_document_id)
-    const url = clean(args.p_attachment_url)
-    if (url && !/^https?:\/\//i.test(url)) {
-      refuse("22023", "ipas_set_document_attachment: the attachment must be a link to the uploaded file")
+  stubRpc("ipas_add_document_file", (args) => {
+    requirePurchasing("ipas_add_document_file")
+    const doc = lockDocument("ipas_add_document_file", args.p_document_id)
+    const url = clean(args.p_url)
+    if (!url || !/^https?:\/\//i.test(url)) {
+      refuse("22023", "ipas_add_document_file: the file must be a link to the uploaded file")
     }
-    if ((url ?? null) === (doc.attachment_url ?? null)) return doc
-    const updated = updateRow("ipas_documents", doc, { attachment_url: url })
-    event(doc.ipas_id, url ? "document_attachment_set" : "document_attachment_removed", {
+    const row = insertRow("ipas_document_files", {
       document_id: doc.id,
-      label: documentLabel(updated),
+      url,
+      file_name: clean(args.p_file_name) ?? url.split("?")[0].split("/").pop(),
+      created_by: actorId,
     })
-    return updated
+    event(doc.ipas_id, "document_attachment_set", { document_id: doc.id, label: documentLabel(doc), file_id: row.id, file_name: row.file_name })
+    return row
+  })
+
+  stubRpc("ipas_remove_document_file", (args) => {
+    requirePurchasing("ipas_remove_document_file")
+    const file = findRow("ipas_document_files", args.p_file_id)
+    if (!file) refuse("P0002", `ipas_remove_document_file: file ${args.p_file_id} not found`)
+    const doc = lockDocument("ipas_remove_document_file", file.document_id)
+    const rows = rowsOf("ipas_document_files")
+    rows.splice(rows.indexOf(file), 1)
+    event(doc.ipas_id, "document_attachment_removed", { document_id: doc.id, label: documentLabel(doc), file_id: file.id, file_name: file.file_name })
+    return file
   })
 
   stubRpc("ipas_tick_document", (args) => {
@@ -1422,6 +1435,8 @@ export function stubIpasRpcs({
     }
     const rows = rowsOf("ipas_documents")
     rows.splice(rows.indexOf(doc), 1)
+    const files = rowsOf("ipas_document_files")
+    for (const file of files.filter((f) => f.document_id === doc.id)) files.splice(files.indexOf(file), 1)
     event(doc.ipas_id, "document_removed", {
       document_id: doc.id,
       label: documentLabel(doc),

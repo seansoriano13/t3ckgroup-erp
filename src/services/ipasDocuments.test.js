@@ -244,18 +244,32 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
   })
 
   describe("attachments, removal and the filing checklist", () => {
-    it("attaches a file and removes it, keeping both in history", async () => {
+    it("holds several files on one document, removes one at a time, and keeps both in history", async () => {
       const ipas = await raise("import", "P03030")
       const bir = doc(await read(ipas.id), "BIR 2307")
-      const url = "https://res.cloudinary.com/demo/raw/upload/2307.pdf"
+      const base = "https://res.cloudinary.com/demo/raw/upload"
 
-      await ipasService.setDocument(bir.id, { attachmentUrl: ` ${url} ` })
-      expect(doc(await read(ipas.id), "BIR 2307").attachmentUrl).toBe(url)
+      for (const name of ["page-1.pdf", "page-2.pdf", "page-3.pdf"]) {
+        await ipasService.addDocumentFile(bir.id, { url: ` ${base}/${name} `, fileName: name })
+      }
+      let shaped = doc(await read(ipas.id), "BIR 2307")
+      expect(shaped.files.map((f) => f.fileName)).toEqual(["page-1.pdf", "page-2.pdf", "page-3.pdf"])
+      expect(shaped.hasFile).toBe(true)
 
-      await ipasService.setDocument(bir.id, { attachmentUrl: "" })
-      expect(doc(await read(ipas.id), "BIR 2307").attachmentUrl).toBeNull()
+      await ipasService.removeDocumentFile(shaped.files[1].id)
+      shaped = doc(await read(ipas.id), "BIR 2307")
+      expect(shaped.files.map((f) => f.fileName)).toEqual(["page-1.pdf", "page-3.pdf"])
+
+      for (const file of shaped.files) await ipasService.removeDocumentFile(file.id)
+      shaped = doc(await read(ipas.id), "BIR 2307")
+      expect(shaped.files).toEqual([])
+      expect(shaped.hasFile).toBe(false)
       expect(eventsOf("document_attachment_set", "document_attachment_removed").map((e) => e.kind)).toEqual([
         "document_attachment_set",
+        "document_attachment_set",
+        "document_attachment_set",
+        "document_attachment_removed",
+        "document_attachment_removed",
         "document_attachment_removed",
       ])
     })

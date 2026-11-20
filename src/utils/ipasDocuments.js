@@ -50,6 +50,21 @@ export function kindIsFiling(kind) {
 }
 
 /**
+ * A document's files, oldest first: `{ id, url, fileName }`. A row read without its files (an old copy
+ * with only the retired attachment_url) shows that link as its one file.
+ */
+function filesOf(row) {
+  if (Array.isArray(row.files)) {
+    return [...row.files]
+      .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
+      .map((file) => ({ id: file.id ?? null, url: file.url, fileName: clean(file.file_name) ?? "File" }))
+      .filter((file) => file.url);
+  }
+  const legacy = clean(row.attachment_url);
+  return legacy ? [{ id: null, url: legacy, fileName: "File" }] : [];
+}
+
+/**
  * A document row as the page reads it. `options` is a Map of ipas_options id ->
  * row (inactive ones included: a row keeps the kind it was given).
  *
@@ -66,6 +81,7 @@ export function shapeDocument(row, options = new Map()) {
   const kind = row.kind_id ? (options.get(row.kind_id) ?? null) : null;
   const purchasingHas = Boolean(row.purchasing_has);
   const financeHas = Boolean(row.finance_has);
+  const files = filesOf(row);
   return {
     ...row,
     kind,
@@ -76,8 +92,12 @@ export function shapeDocument(row, options = new Map()) {
     isFiling: kindIsFiling(kind),
     purchasingHas,
     financeHas,
-    ticked: purchasingHas || financeHas || Boolean(clean(row.attachment_url)),
-    attachmentUrl: clean(row.attachment_url),
+    // Any number of files (#1153); a document counts as present with at least one.
+    files,
+    hasFile: files.length > 0,
+    ticked: purchasingHas || financeHas || files.length > 0,
+    // The first file's link, for the readers that only ask "is there one" or want a link to open.
+    attachmentUrl: files[0]?.url ?? null,
   };
 }
 

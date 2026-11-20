@@ -68,10 +68,17 @@ describe("documents", () => {
     expect(next.documents[0]).toMatchObject({ financeHas: true, purchasingHas: false, ticked: true })
   })
 
-  it("attaches and removes a file, and removes a row", () => {
-    const attached = edit.reshapeIpas(cached(), edit.attachDocument("d1", " https://x/y.pdf "))
-    expect(attached.documents[0].attachmentUrl).toBe("https://x/y.pdf")
-    expect(edit.reshapeIpas(attached, edit.attachDocument("d1", "")).documents[0].attachmentUrl).toBeNull()
+  it("adds several files, removes the middle one and keeps the others, and removes a row", () => {
+    let next = cached()
+    for (const name of ["a.pdf", "b.pdf", "c.pdf"]) {
+      next = edit.reshapeIpas(next, edit.addDocumentFile("d1", { url: ` https://x/${name} `, fileName: name }))
+    }
+    expect(next.documents[0].files.map((f) => f.fileName)).toEqual(["a.pdf", "b.pdf", "c.pdf"])
+    expect(next.documents[0].attachmentUrl).toBe("https://x/a.pdf")
+    const middle = next.documents[0].files[1]
+    next = edit.reshapeIpas(next, edit.removeDocumentFile("d1", middle.id))
+    expect(next.documents[0].files.map((f) => f.fileName)).toEqual(["a.pdf", "c.pdf"])
+    expect(next.documents[0].hasFile).toBe(true)
     expect(edit.reshapeIpas(cached(), edit.removeDocument("d1")).documents).toEqual([])
   })
 

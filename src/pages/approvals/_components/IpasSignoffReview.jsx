@@ -15,6 +15,7 @@ import { canSendBackItem } from "../../../utils/ipasSignoffs";
 import { billCheckView } from "../../../utils/ipasBillCheck";
 import { relativeAge } from "../../../utils/approvalItems.js";
 import { whyYouSeeThis } from "./approvalUi";
+import { ExternalLink } from "@/components/ui/external-link";
 import { APPROVE_CLASS } from "@/components/ui/approveClass";
 
 /**
@@ -71,6 +72,24 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
             Open the IPAS
           </Link>
         </DetailSection>
+
+        {(pending.documents ?? []).length > 0 && (
+          <DetailSection title="Documents">
+            <dl className="divide-y divide-border/70" data-testid="ipas-review-documents">
+              {pending.documents.map((doc) => (
+                <DetailRow key={doc.id} label={doc.label}>
+                  <span className="flex flex-col gap-0.5">
+                    {doc.files.map((file) => (
+                      <ExternalLink key={file.id} href={file.url} className="truncate font-medium text-foreground underline underline-offset-2">
+                        {file.fileName}
+                      </ExternalLink>
+                    ))}
+                  </span>
+                </DetailRow>
+              ))}
+            </dl>
+          </DetailSection>
+        )}
 
         <DetailSection title="Sign-off chain">
           <ApprovalChain chain={item.chain} />

@@ -21,6 +21,7 @@ import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "@/components/StatusBadge";
 import { IpasCostingSection } from "@/components/ipas/IpasMoneySections";
 import { uploadDocumentFile } from "@/components/ipas/uploadDocumentFile";
+import { DocumentFiles } from "@/components/ipas/DocumentFiles";
 import { useReferenceRate } from "@/hooks/useReferenceRate";
 import { storageService } from "@/services/storageService";
 import { cn } from "@/lib/utils";
@@ -567,37 +568,16 @@ export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSave
 }
 
 function AttachmentField({ document, row, disabled, onPatch }) {
-  const [uploading, setUploading] = useState(false);
-  const attach = async ([file]) => {
-    setUploading(true);
-    try {
-      const url = await uploadDocumentFile(file);
-      if (url) onPatch({ attachmentUrl: url });
-    } finally {
-      setUploading(false);
-    }
-  };
-  if (row.attachmentUrl) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs">
-        <ExternalLink href={row.attachmentUrl} className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2">
-          <Paperclip size={12} aria-hidden="true" />
-          View
-        </ExternalLink>
-        {!disabled && (
-          <Button type="button" variant="ghost" size="icon-xs" className="text-muted-foreground" aria-label={`Remove the attachment of ${document.label}`} onClick={() => onPatch({ attachmentUrl: "" })}>
-            <X />
-          </Button>
-        )}
-      </span>
-    );
-  }
-  if (disabled) return <span className="text-xs text-muted-foreground">—</span>;
+  const files = row.files ?? [];
   return (
-    <FileInput data-missing-file="documents" accept={ALLOWED_EXTENSIONS_STRING} disabled={uploading} onFiles={attach} size="xs" className="gap-1" aria-label={`Attach a file to ${document.label}`}>
-      {uploading ? <Spinner size="sm" /> : <Paperclip size={12} aria-hidden="true" />}
-      {uploading ? "Uploading…" : "Attach"}
-    </FileInput>
+    <DocumentFiles
+      label={document.label}
+      files={files}
+      canChange={!disabled}
+      missing={files.length === 0}
+      onAdd={async (picked) => onPatch({ files: [...files, ...picked.map((p) => ({ id: null, url: p.url, fileName: p.fileName }))] })}
+      onRemove={(file) => onPatch({ files: files.filter((f) => f !== file) })}
+    />
   );
 }
 
@@ -729,7 +709,7 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
               list.length > 0 && (
                 <div className="space-y-2">
                   <p className="pl-1 text-xs font-semibold text-muted-foreground">
-                    {title} · {list.filter((row) => row.attachmentUrl || savedById.get(row.id)?.attachmentUrl).length} of {list.length} attached
+                    {title} · {list.filter((row) => (row.files ?? []).length > 0).length} of {list.length} attached
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">{list.map(tile)}</div>
                 </div>

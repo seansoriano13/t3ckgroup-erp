@@ -78,7 +78,9 @@ function sigs(boxes) {
 
 /** A part's documents as ticks (#711): the files that belong to that part. */
 const docTicks = (docs = []) =>
-  docs.length ? `<div class="ticks">${docs.map((d) => `<span>${tick(d.have)} ${esc(d.label)}</span>`).join('')}</div>` : '';
+  docs.length
+    ? `<div class="ticks">${docs.map((d) => `<span>${tick(d.have)} ${esc(d.label)}${d.files?.length ? ` (${d.files.map(esc).join(', ')})` : ''}</span>`).join('')}</div>`
+    : '';
 
 // ── Chrome ───────────────────────────────────────────────────────────────────
 

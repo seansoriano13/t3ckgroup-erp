@@ -444,37 +444,37 @@ describe("who ticks", () => {
 })
 
 describe("attachments and removal", () => {
-    it("lets Purchasing attach and remove a file, with history, and refuses a bad link", async () => {
+    it("lets Purchasing add and remove files, with history, and refuses a bad link", async () => {
         const ipas = await raise("import")
         const doc = await docByLabel(ipas.id, "BIR 2307")
         const url = "https://res.cloudinary.com/demo/raw/upload/2307.pdf"
 
-        const set = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: url })
+        const set = await rpc("outsider", "ipas_add_document_file", { p_document_id: doc.id, p_url: url, p_file_name: "2307.pdf" })
         expect(set.error).toBeNull()
-        expect(set.data.attachment_url).toBe(url)
+        expect(set.data).toMatchObject({ url, file_name: "2307.pdf" })
 
-        const bad = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: "ftp://x" })
+        const bad = await rpc("outsider", "ipas_add_document_file", { p_document_id: doc.id, p_url: "ftp://x", p_file_name: null })
         expect(bad.error?.code).toBe("22023")
 
-        const cleared = await rpc("outsider", "ipas_set_document_attachment", { p_document_id: doc.id, p_attachment_url: null })
-        expect(cleared.data.attachment_url).toBeNull()
+        const cleared = await rpc("outsider", "ipas_remove_document_file", { p_file_id: set.data.id })
+        expect(cleared.error).toBeNull()
         expect((await events(ipas.id, "document_attachment_set", "document_attachment_removed")).map((e) => e.kind)).toEqual([
             "document_attachment_set",
             "document_attachment_removed",
         ])
     })
 
-    it("refuses Finance and everyone else an attachment", async () => {
+    it("refuses Finance and everyone else a file", async () => {
         const ipas = await raise("import")
         const doc = await docByLabel(ipas.id, "BIR 2307")
         for (const who of CAST_KEYS.filter((k) => k !== "outsider")) {
-            const { error } = await rpc(who, "ipas_set_document_attachment", {
+            const { error } = await rpc(who, "ipas_add_document_file", {
                 p_document_id: doc.id,
-                p_attachment_url: "https://example.com/x.pdf",
+                p_url: "https://res.cloudinary.com/demo/raw/upload/x.pdf",
+                p_file_name: "x.pdf",
             })
             expect(error?.code, `${who} attached a file`).toBe("42501")
         }
-        expect((await docByLabel(ipas.id, "BIR 2307")).attachment_url).toBeNull()
     })
 
     it("lets Purchasing remove a hand-added row, unless Finance has ticked it", async () => {

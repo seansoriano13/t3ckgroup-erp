@@ -112,6 +112,32 @@ describe("IPAS page: documents, Supplier Origin and the buyer track", () => {
       expect(within(section).queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
     });
 
+    // #1153: a document holds several files, each listed by its file name and removable on its own.
+    it("lists each file of a document by name, opening on click, and removes one at a time", async () => {
+      const user = setupUser();
+      const row = ipas({ source: "import", created_by: purchaser.id });
+      giveDocuments(row);
+      const waybill = db.rows("ipas_documents").find((d) => d.ipas_id === row.id && d.kind_id === options.document_kind.Waybill.id);
+      for (const name of ["page-1.pdf", "page-2.pdf", "page-3.pdf"]) {
+        db.seed("ipas_document_files", { document_id: waybill.id, url: `https://res.cloudinary.com/demo/raw/upload/${name}`, file_name: name });
+      }
+
+      renderDetail(row.id, "documents");
+
+      const section = await screen.findByRole("region", { name: "5 · Documents" });
+      const rowEl = (await within(section).findByText("Waybill")).closest("[data-testid=ipas-document-row]");
+      for (const name of ["page-1.pdf", "page-2.pdf", "page-3.pdf"]) {
+        expect(within(rowEl).getByRole("link", { name })).toHaveAttribute("href", `https://res.cloudinary.com/demo/raw/upload/${name}`);
+      }
+
+      await user.click(within(rowEl).getByRole("button", { name: "Remove page-2.pdf from Waybill" }));
+
+      await waitFor(() => expect(db.rows("ipas_document_files").map((f) => f.file_name)).toEqual(["page-1.pdf", "page-3.pdf"]));
+      expect(within(rowEl).queryByRole("link", { name: "page-2.pdf" })).not.toBeInTheDocument();
+      expect(within(rowEl).getByRole("link", { name: "page-1.pdf" })).toBeInTheDocument();
+      expect(within(rowEl).getByRole("link", { name: "page-3.pdf" })).toBeInTheDocument();
+    });
+
     it.skipIf(!SHOW_HAS_TICKS)("lists the documents for the Source, each with two ticks and a filing mark on filing items", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
