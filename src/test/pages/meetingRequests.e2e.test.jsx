@@ -2,8 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { manilaDate, manilaToday } from "@/lib/manilaDate.js"
-import { pinManilaDaytime } from "@/test/manilaDaytime"
+import { manilaDate } from "@/lib/manilaDate.js"
 import { supabase } from "@/lib/supabase"
 import { db, insertRow } from "@/test/db/store"
 import { makeEmployee, makeHead, makeHrEmployee } from "@/test/factories"
@@ -27,7 +26,6 @@ const auth = () => ({ user: mockUser.current, isAuthLoading: false })
 vi.mock("@/context/AuthContext", () => ({ useAuth: auth }))
 vi.mock("@/pages/../context/AuthContext", () => ({ useAuth: auth }))
 
-pinManilaDaytime()
 const tomorrow = manilaDate(new Date(Date.now() + 24 * 3600 * 1000))
 
 let applicant
@@ -121,7 +119,7 @@ describe("Meeting Request journey", () => {
         const dialog = await screen.findByRole("dialog")
         await user.click(within(dialog).getAllByRole("combobox")[2])
         await user.click(await screen.findByRole("option", { name: "Conference Room" }))
-        fireEvent.change(within(dialog).getByDisplayValue(manilaToday()), { target: { value: tomorrow } })
+        fireEvent.change(dialog.querySelector('input[type="date"]'), { target: { value: tomorrow } })
         await user.click(within(dialog).getAllByRole("combobox")[5])
         await user.click(await screen.findByRole("option", { name: "Head Honcho" }))
         await user.type(within(dialog).getByPlaceholderText("What is the Activity for?"), "Quarterly planning")

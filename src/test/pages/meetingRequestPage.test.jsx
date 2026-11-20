@@ -13,8 +13,7 @@ import { renderWithProviders } from "@/test/support";
 import { makeEmployee, makeHead } from "@/test/factories";
 import { db, insertRow } from "@/test/db/store";
 import { stubRpc } from "@/test/msw/server";
-import { manilaDate, manilaToday } from "@/lib/manilaDate.js";
-import { pinManilaDaytime } from "@/test/manilaDaytime";
+import { manilaDate } from "@/lib/manilaDate.js";
 
 const mocks = vi.hoisted(() => ({ user: null }));
 
@@ -23,7 +22,6 @@ vi.mock("@/context/AuthContext", () => ({
 }));
 
 // Tomorrow in Manila, so the form's "not in the past" rule always passes.
-pinManilaDaytime();
 const tomorrow = manilaDate(new Date(Date.now() + 24 * 3600 * 1000));
 
 beforeEach(() => {
@@ -81,7 +79,7 @@ describe("Meeting Request from the Calendar page", () => {
 
     await user.click(within(dialog).getAllByRole("combobox")[2]);
     await user.click(await screen.findByRole("option", { name: "Conference Room" }));
-    const date = within(dialog).getByDisplayValue(manilaToday());
+    const date = dialog.querySelector('input[type="date"]');
     fireEvent.change(date, { target: { value: tomorrow } });
     await user.click(within(dialog).getAllByRole("combobox")[5]);
     await user.click(await screen.findByRole("option", { name: "Head Honcho" }));

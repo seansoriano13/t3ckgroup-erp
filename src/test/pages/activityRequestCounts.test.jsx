@@ -19,7 +19,6 @@ import { db, insertRow } from "@/test/db/store";
 import { server, stubRpc } from "@/test/msw/server";
 import { waitForNetworkIdle } from "@/test/network";
 import { manilaDate, manilaToday } from "@/lib/manilaDate.js";
-import { pinManilaDaytime } from "@/test/manilaDaytime";
 
 const mocks = vi.hoisted(() => ({ user: null }));
 
@@ -27,7 +26,6 @@ vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mocks.user, isAuthLoading: false }),
 }));
 
-pinManilaDaytime();
 const tomorrow = manilaDate(new Date(Date.now() + 24 * 3600 * 1000));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -138,7 +136,7 @@ describe("Activity pages ask for each list once", () => {
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getAllByRole("combobox")[2]);
     await user.click(await screen.findByRole("option", { name: "Conference Room" }));
-    fireEvent.change(within(dialog).getByDisplayValue(manilaToday()), { target: { value: tomorrow } });
+    fireEvent.change(dialog.querySelector('input[type="date"]'), { target: { value: tomorrow } });
     await user.click(within(dialog).getAllByRole("combobox")[5]);
     await user.click(await screen.findByRole("option", { name: "Head Honcho" }));
     await user.type(within(dialog).getByPlaceholderText("What is the Activity for?"), "Quarterly planning");
