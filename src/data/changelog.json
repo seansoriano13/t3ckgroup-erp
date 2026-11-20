@@ -2,7 +2,7 @@
     {
         "date": "2026-11-20",
         "title": "IPAS and Transmittal fixes",
-        "version": "1.11.8",
+        "version": "1.11.9",
         "modules": [
             "purchasing"
         ],
@@ -15,6 +15,20 @@
             "Raise an IPAS marks Priority, Source and Purpose as required, and the sign-off steps are called Return and Section 6 · Sign-offs everywhere.",
             "Esc asks Discard this ...? on Raise an IPAS, Raise a Transmittal and New Packing List when you have typed something.",
             "The Transmittal Check by page tells you which list you need, and the IPAS list tells you when you have no access."
+        ]
+    },
+    {
+        "date": "2026-11-20",
+        "title": "Sign-in, profile and record check fixes",
+        "version": "1.11.8",
+        "changes": [
+            "The record check page now says when you have checked too many records in a short time, instead of saying Record Not Found.",
+            "The record check page headline now follows the signature checks, and says 1 hr for a single hour.",
+            "Signed-in HR and Super Admin are no longer slowed down when checking records.",
+            "The sign-in and reset-password pages use plain words, and the intro video no longer loads on phones.",
+            "An inactive account is signed out quietly, with one clear message on the login page.",
+            "HR's profile numbers match the Approval Center.",
+            "Choosing a file that is not a picture for your photo now closes the window and tells you."
         ]
     },
     {

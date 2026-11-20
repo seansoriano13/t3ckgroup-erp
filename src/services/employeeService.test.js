@@ -499,14 +499,11 @@ describe("employeeService", () => {
       expect(db.rows("employees").find((e) => e.id === employee.id).dashboard_quote).toBeNull()
     })
 
-    it("returns a usable shape even when the update matched no row", async () => {
-      const result = await employeeService.updateSelfPreferences(
-        "00000000-0000-4000-8000-000000009999",
-        { avatarPath: "x.png" },
-      )
-
-      expect(result).toMatchObject({ avatar_path: "x.png" })
-    })
+    it("says so plainly when the update matched no row", async () => {
+      await expect(
+        employeeService.updateSelfPreferences("00000000-0000-4000-8000-000000009999", { avatarPath: "x.png" }),
+      ).rejects.toThrow("Could not save. Reload the page and try again.")
+    });
   })
 
   describe("avatar paths", () => {
