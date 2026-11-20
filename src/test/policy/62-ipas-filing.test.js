@@ -682,6 +682,16 @@ describe("Filing waits for the pesos (#1124)", () => {
             p_php_debited: 28000, p_charge_fee_php: 0, p_method_id: methodId, p_check_no: null, p_proof_url: null,
         })
         expect(filled.error).toBeNull()
+        // Editing the payment clears the approvals that rested on the old figure; sign again what it cleared.
+        const live = new Set(await liveKeys(ipas.id))
+        for (const section of [1, 3]) {
+            if (live.has(`${section}/approved`)) continue
+            if (!live.has(`${section}/prepared`)) await signOk("outsider", ipas.id, section, "prepared")
+            await signOk("ipasSigner", ipas.id, section, "approved")
+        }
+        if (!live.has("6/approved") && !live.has("6/prepared")) await approvedThrough(ipas, [6])
+        if (!live.has("8/approved")) await approvedThrough(ipas, [8])
+        if (!live.has("7/received")) await receivedNotedChecked(ipas)
         expect((await sign("ipasSigner", ipas.id, 7, "approved")).error).toBeNull()
         expect((await rowOf(ipas.id)).state).toBe("filed")
     })
