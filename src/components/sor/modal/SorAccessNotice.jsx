@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { ChevronDown, ChevronUp } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 /**
  * The violet notice about why the viewer sees only part of the deal. It can be
@@ -21,15 +22,17 @@ export default function SorAccessNotice({ count, children }) {
             <ul className="space-y-0.5">{children}</ul>
           )}
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           onClick={() => setFolded((f) => !f)}
           aria-expanded={!folded}
           aria-label={folded ? "Show access notice" : "Fold access notice"}
-          className="shrink-0 rounded p-0.5 text-violet-11 hover:bg-violet-a3"
+          className="shrink-0 text-violet-11"
         >
-          <Icon className="h-4 w-4" />
-        </button>
+          <Icon />
+        </Button>
       </div>
     </div>
   )

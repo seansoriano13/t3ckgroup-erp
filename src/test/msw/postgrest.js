@@ -17,6 +17,9 @@ const BASE_URL = import.meta.env.VITE_SUPABASE_URL
 /** Stubs for endpoints that are not tables: RPCs and edge functions. */
 export const stubs = {
   rpc: new Map(),
+  // RPCs that return `setof <table>`: PostgREST lets callers filter, order, limit and embed on
+  // those like on the table itself. name -> table name.
+  rpcTables: new Map(),
   edgeFunctions: new Map(),
   // Fake of what a server-side edge function does after it has asked a stubbed
   // upstream: (body, ask) => response, where `await ask(poNumber)` is the
@@ -26,6 +29,7 @@ export const stubs = {
 
 export function resetStubs() {
   stubs.rpc.clear()
+  stubs.rpcTables.clear()
   stubs.edgeFunctions.clear()
   stubs.edgeRaise.clear()
 }
@@ -120,7 +124,18 @@ export const postgrestHandlers = [
     }
     try {
       const body = await request.json().catch(() => ({}))
-      return HttpResponse.json(await stub(body))
+      const result = await stub(body)
+      const table = stubs.rpcTables.get(params.fn)
+      if (table && Array.isArray(result)) {
+        const url = new URL(request.url)
+        const select = url.searchParams.get("select")
+        const { base, embedded } = splitParams(select, url.searchParams)
+        const matched = filterRows(table, result, base)
+        const ordered = orderRows(table, matched, url.searchParams.get("order"))
+        const page = paginateRows(ordered, url.searchParams)
+        return HttpResponse.json(projectRows(table, page, select, embedded))
+      }
+      return HttpResponse.json(result)
     } catch (error) {
       return errorResponse(error)
     }
@@ -201,6 +216,15 @@ export const postgrestHandlers = [
     }
   }),
 ]
+
+/**
+ * Registers an RPC that returns rows of `table`, so `.select()`, `.order()`, `.limit()` and filters
+ * chained on the call work as they do on PostgREST.
+ */
+export function stubTableRpc(name, table, handler) {
+  stubs.rpcTables.set(name, table)
+  stubs.rpc.set(name, handler)
+}
 
 /** Registers the result a `supabase.rpc(name, args)` call should return. */
 export function stubRpc(name, handler) {

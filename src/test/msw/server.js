@@ -5,7 +5,7 @@ import { storageHandlers } from "./storage"
 
 export const server = setupServer(...postgrestHandlers, ...externalHandlers, ...storageHandlers)
 
-export { stubRpc, stubEdgeFunction, resetStubs } from "./postgrest"
+export { stubRpc, stubTableRpc, stubEdgeFunction, resetStubs } from "./postgrest"
 export {
   resetExternalStubs,
   stubAuthUser,
