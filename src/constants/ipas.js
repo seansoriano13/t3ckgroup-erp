@@ -674,6 +674,7 @@ export const IPAS_EVENT_LABELS = {
   document_attachment_set: "Document attached",
   document_attachment_removed: "Attachment removed",
   document_removed: "Document removed",
+  document_link_set_aside: "Outside link set aside",
   supplier_origin_changed: "Supplier Origin changed",
   status_typed: "Status typed",
   status_cleared: "Status cleared",

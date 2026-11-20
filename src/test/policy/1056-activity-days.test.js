@@ -82,10 +82,9 @@ const daysOf = async (id) => (await svc().from("meeting_request_days").select("*
 const startDays = async (id, count) => {
     const days = await daysOf(id)
     for (let i = 0; i < count; i++) {
-        const past = new Date(Date.now() - (count - i) * 24 * HOUR - HOUR)
-        past.setUTCMinutes(0, 0, 0)
-        const end = new Date(past.getTime() + HOUR)
-        const { error } = await svc().from("meeting_request_days").update({ starts_at: past.toISOString(), ends_at: end.toISOString() }).eq("id", days[i].id)
+        // 09:00 to 10:00 Manila on an earlier day: started, and an hour can be added without crossing midnight.
+        const { starts_at, ends_at } = soonAt(-(count - i))
+        const { error } = await svc().from("meeting_request_days").update({ starts_at, ends_at }).eq("id", days[i].id)
         if (error) throw new Error(error.message)
     }
     const after = await daysOf(id)
