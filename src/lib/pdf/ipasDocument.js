@@ -50,8 +50,6 @@ const tick = (on, part = false) =>
 const field = (label, value, { mono = false, note = '' } = {}) =>
   `<div class="f"><span class="k">${esc(label)}</span><span class="v${mono ? ' mono' : ''}">${value}</span>${note ? `<span class="x">${note}</span>` : ''}</div>`;
 
-const odooMark = '<span class="odoo" title="stamped from Odoo">●</span>';
-const legend = '<span class="legend">● stamped from Odoo</span>';
 
 const section = (title, aside, body) =>
   `<section class="sec"><h3><span>${title}</span>${aside ? `<b>${aside}</b>` : ''}</h3><div class="body">${body}</div></section>`;
@@ -261,7 +259,7 @@ function bankBox(vm) {
 function logistics(vm) {
   return section(
     esc(ipasSectionLabel('logistics')),
-    vm.section6.hasOdooMarks ? legend : '',
+    '',
     `<div class="fields n2">${field('Item Location', esc(vm.section5.itemLocation ?? '—'))}</div>${tg03Rows(vm.section5.tg03)}${status(vm)}`,
   );
 }
@@ -279,27 +277,18 @@ function tg03Rows(slips = []) {
 }
 
 const statusChip = (item) =>
-  `<span class="s${item.ticked ? ' done' : ''}">${tick(item.ticked, item.partial)}
-    <span class="t">${esc(item.label)}</span>${item.stampedFromOdoo ? odooMark : ''}${
-      item.detail ? `<span class="d">${esc(item.detail)}</span>` : ''
+  `<span class="s${item.date ? ' done' : ''}">${tick(Boolean(item.date))}
+    <span class="t">${item.current ? '<b>' : ''}${esc(item.label)}${item.current ? '</b>' : ''}</span>${
+      item.date ? `<span class="d">${esc(item.date)}</span>` : ''
     }</span>`;
 
-/** Supplier Origin (Import only) and the buyer track. */
+/** The IPAS Status: the source's steps and the day each was reached (blank where skipped). */
 function status(vm) {
-  const s = vm.section6;
-
-  const origin = s.origin
-    ? `<div><div class="group-k">Supplier origin</div><div class="stat">${s.origin
-        .map(
-          (o) => `<span class="s${o.date ? ' done' : ''}">${tick(Boolean(o.date))}<span class="t">${esc(o.label)}</span>${
-            o.date ? `<span class="d">${esc(o.date)}</span>` : ''
-          }</span>`,
-        )
-        .join('')}</div></div>`
-    : '';
-
-  return `<div class="track">${origin}
-    <div><div class="group-k">Buyer track</div><div class="stat">${s.buyerTrack.map(statusChip).join('')}</div></div></div>`;
+  const s = vm.section6.status;
+  const now = s.label ? `${s.onHold ? 'On-Hold · ' : ''}${s.label}` : '—';
+  const direct = s.directDelivery ? ' · Direct delivery to client' : '';
+  return `<div class="track">
+    <div><div class="group-k">IPAS Status · ${esc(now)}${direct}</div><div class="stat">${s.steps.map(statusChip).join('')}</div></div></div>`;
 }
 
 /** The computation status and Landed Cost per line, with its provisional or final mark. */

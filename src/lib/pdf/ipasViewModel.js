@@ -36,9 +36,8 @@ import {
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_SOURCE_LABELS,
   IPAS_STATE,
-  IPAS_STATUS_SOURCE,
-  IPAS_SUPPLIER_ORIGIN_FIELDS,
-  ODOO_PO_STATE_LABELS,
+  IPAS_STATUS_LABELS,
+  ipasStatusesFor,
 } from '../../constants/ipas';
 import { filingChecklist } from '../../utils/ipasDocuments';
 import { paymentKindWithPercent } from '../../utils/ipasPaymentPercent';
@@ -159,45 +158,18 @@ const signoffPair = (section, state = {}) => [
 
 // ── Section 6 ────────────────────────────────────────────────────────────────
 
-/** What Odoo says about a stamped status, in a few words. */
-function odooDetail(key, statuses = {}) {
-  const { purchaseOrder, receivedInOdoo, createBill } = statuses;
-  if (key === 'purchase_order') return ODOO_PO_STATE_LABELS[purchaseOrder?.state] ?? null;
-  if (key === 'received_in_odoo' && receivedInOdoo) {
-    const word = receivedInOdoo.ticked ? 'Received' : receivedInOdoo.partial ? 'Partly received' : 'Not received';
-    return receivedInOdoo.receiptsTotal > 0
-      ? `${word} · ${receivedInOdoo.receiptsDone} of ${receivedInOdoo.receiptsTotal} receipts`
-      : receivedInOdoo.ticked || receivedInOdoo.partial
-        ? word
-        : null;
-  }
-  if (key === 'create_bill' && createBill?.ticked) {
-    if (createBill.draftsOnly) return `${createBill.count} draft ${createBill.count === 1 ? 'bill' : 'bills'}`;
-    return `${createBill.count} ${createBill.count === 1 ? 'bill' : 'bills'}${createBill.drafts ? `, ${createBill.drafts} in draft` : ''}`;
-  }
-  return null;
-}
-
-function trackItem(item, statuses) {
-  const stampedFromOdoo = item.source === IPAS_STATUS_SOURCE.ODOO;
-  let detail = item.detail ?? null;
-  if (stampedFromOdoo) detail = (!item.ticked && item.reason) || odooDetail(item.key, statuses);
-  else if (item.source === IPAS_STATUS_SOURCE.TYPED || item.source === IPAS_STATUS_SOURCE.STAMPED) {
-    const parts = [];
-    if (item.on) parts.push(formatDay(item.on));
-    const who = text(item.by?.name);
-    if (item.ticked && who) parts.push(`${item.source === IPAS_STATUS_SOURCE.TYPED ? 'typed' : 'stamped'} by ${who}`);
-    if (item.ticked && !item.on && item.at) parts.push(printDate(item.at));
-    detail = parts.join(' · ') || null;
-  }
-  return {
-    key: item.key,
-    label: item.label,
-    ticked: Boolean(item.ticked),
-    partial: Boolean(item.partial) && !item.ticked,
-    stampedFromOdoo,
-    detail,
-  };
+/**
+ * The IPAS Status steps of the IPAS's source, each with the day it was reached (blank where it was skipped).
+ * A Local IPAS has no Customs / Port Hold, Arrived at Local Hub or Out for Delivery. Done comes from filing.
+ */
+function statusStepsOf(ipas) {
+  const reached = new Map((Array.isArray(ipas.statusSteps) ? ipas.statusSteps : []).map((item) => [item.step, item.on]));
+  return ipasStatusesFor(ipas.source).map((step) => ({
+    key: step,
+    label: IPAS_STATUS_LABELS[step],
+    date: reached.get(step) ? formatDay(reached.get(step)) : null,
+    current: ipas.status === step,
+  }));
 }
 
 function landedCostOf(ipas, filed, charges) {
@@ -329,7 +301,6 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   const charges = Array.isArray(ipas.charges) ? ipas.charges : [];
   const documents = Array.isArray(ipas.documents) ? ipas.documents : [];
   const summary = ipas.paymentSummary ?? {};
-  const statuses = ipas.statuses ?? {};
   const state7 = ipas.signoffSections?.[7] ?? {};
 
   const field = (key) => {
@@ -447,13 +418,12 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   };
 
   // ── Section 6 ──
-  const origin = ipas.supplierOrigin
-    ? IPAS_SUPPLIER_ORIGIN_FIELDS.map(({ field: key, label }) => ({
-        label,
-        date: ipas.supplierOrigin[key] ? formatDay(ipas.supplierOrigin[key]) : null,
-      }))
-    : null;
-  const buyerTrack = (Array.isArray(ipas.buyerTrack) ? ipas.buyerTrack : []).map((item) => trackItem(item, statuses));
+  const status = {
+    label: ipas.status ? IPAS_STATUS_LABELS[ipas.status] ?? null : null,
+    onHold: ipas.on_hold === true,
+    directDelivery: ipas.direct_delivery === true,
+    steps: statusStepsOf(ipas),
+  };
   const reached = IPAS_COMPUTATION_STATUSES.indexOf(ipas.computationStatus);
   const computation = IPAS_COMPUTATION_STATUSES.map((status, index) => ({
     key: status,
@@ -463,16 +433,13 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   }));
   const landedCost = landedCostOf(ipas, filed, section3.charges);
   const section6 = {
-    origin,
-    buyerTrack,
+    status,
     computation,
     landedCost,
     landedTable: landedTableOf(ipas),
     docs: documentsOf('costing', documents, ipas.file_rules_snapshot ?? null),
     // Section 3's sign-offs (stored section 6): Submitted and Approved.
     signoffs: signoffPair(6, ipas.signoffSections?.[6]),
-    // The legend prints whenever a status carries the mark.
-    hasOdooMarks: buyerTrack.some((item) => item.stampedFromOdoo),
   };
 
   // ── Section 7 ──

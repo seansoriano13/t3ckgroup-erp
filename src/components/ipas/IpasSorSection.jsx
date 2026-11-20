@@ -1,4 +1,4 @@
-import { Check, Circle, CircleDot, ReceiptText } from "lucide-react";
+import { ReceiptText } from "lucide-react";
 
 import { Button } from "../ui/button";
 import SectionHeader from "../ui/SectionHeader";
@@ -10,8 +10,10 @@ import { pluralize } from "../../utils/plural";
 import { IPAS_PURPOSE_LABELS, ipasSectionNo } from "../../constants/ipas";
 import { ORDER_OWNER_LABELS } from "../../constants/orderMonitoring";
 import IpasStateBadge from "./IpasStateBadge";
+import IpasStatusPill from "./IpasStatusPill";
 import { LandedCostMark } from "../costing/LandedCost";
 import { formatPHP } from "../../constants/sor";
+import { shortDay } from "../../utils/ipasSummary";
 import { useIpasSorSummaries } from "./useIpasSorSummaries";
 
 /** Opens the full IPAS in its own tab, so the SOR stays where it is. */
@@ -19,23 +21,6 @@ const openIpas = (id) => window.open(`/purchasing/ipas/${id}`, "_blank", "noopen
 
 /** A row that names a Transmittal opens that slip, as the Dashboard does (#588). */
 const openSlip = (id) => window.open(`/purchasing/transmittals/${id}`, "_blank", "noopener");
-
-function TrackChip({ item }) {
-  const Icon = item.ticked ? Check : item.partial ? CircleDot : Circle;
-  const status = item.ticked ? "done" : item.partial ? "partial" : "waiting";
-  return (
-    <li>
-      <StatusBadge
-        status={status}
-        className="gap-1"
-        title={item.ticked ? `${item.label}: done` : item.partial ? `${item.label}: partly done` : `${item.label}: not yet`}
-      >
-        <Icon size={11} aria-hidden="true" />
-        {item.label}
-      </StatusBadge>
-    </li>
-  );
-}
 
 function SummaryRow({ summary, canOpen }) {
   const { user } = useAuth();
@@ -83,20 +68,23 @@ function SummaryRow({ summary, canOpen }) {
               · {pluralize(summary.daysWaiting, "day")} waiting
             </span>
           )}
-          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
+          {summary.late && <StatusBadge theme="red">Late</StatusBadge>}
+
         </p>
       )}
 
-      <div>
-        <p className="mb-1 text-xs font-semibold text-muted-foreground">
-          Buyer track · {summary.trackDone} of {summary.trackTotal}
+      {(summary.status || summary.directDelivery) && (
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-testid="ipas-summary-status">
+          <span className="font-semibold text-muted-foreground">Status</span>
+          <IpasStatusPill status={summary.status} onHold={summary.onHold} />
+          {summary.statusReachedOn && (
+            <span className="tabular-nums text-muted-foreground" data-testid="ipas-summary-status-day">
+              · {shortDay(summary.statusReachedOn)}
+            </span>
+          )}
+          {summary.directDelivery && <span className="text-muted-foreground">· Direct delivery to client</span>}
         </p>
-        <ul className="flex flex-wrap gap-1.5" aria-label="Buyer track">
-          {summary.buyerTrack.map((item) => (
-            <TrackChip key={item.key} item={item} />
-          ))}
-        </ul>
-      </div>
+      )}
 
       <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
         <div className="flex items-baseline gap-2">
@@ -138,7 +126,7 @@ function SummaryRow({ summary, canOpen }) {
 
 /**
  * The IPAS section of an SOR (#249): each Project IPAS naming it, as a summary
- * (number, PO, supplier, state, the buyer track, costing and sign-off
+ * (number, PO, supplier, state, the IPAS Status and its day, costing and sign-off
  * progress). Never payments, charges, bank details or Landed Cost: the database
  * returns none of those to this reader.
  *

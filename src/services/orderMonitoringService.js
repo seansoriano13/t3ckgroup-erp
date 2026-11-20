@@ -8,7 +8,7 @@ import { deadlineMark, earliestDueAt } from "../utils/deliveryDeadline";
 import { transmittalService } from "./transmittalService";
 import { readSection3Signoffs } from "./ipasSection3Signoffs";
 import { finiteNumber } from "../utils/landedCost";
-import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas } from "../utils/ipas";
+import { ipasCurrency, ipasEntity, ipasSupplier, shapeIpas, statusDayOf } from "../utils/ipas";
 import { ipasFigures } from "../utils/ipasFigures";
 import { isLandedCostFinal } from "../utils/ipasSignoffs";
 import { checkResultOf, daysBetweenManila, orderStanding } from "../utils/orderStanding";
@@ -174,8 +174,11 @@ async function loadOrders(today) {
       odooFetchedAt: row.odoo_fetched_at ?? null,
       item: itemOf(shaped.lines),
       buyerTrack: shaped.buyerTrack.map(trackStepOf),
-      status: row.status ?? null,
+      // The IPAS Status the list shows, with the day it was reached (#1157).
+      status: ipasFigures(shaped).status,
       statusSteps: shaped.statusSteps.map(({ step, on }) => ({ step, on })),
+      statusReachedOn: statusDayOf(shaped, ipasFigures(shaped).status),
+      onHold: ipasFigures(shaped).onHold,
       transmittals: transmittalSummary(row.id, slips),
       group: standing.group,
       next: standing.next,
