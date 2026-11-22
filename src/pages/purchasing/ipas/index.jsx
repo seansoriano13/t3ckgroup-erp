@@ -326,7 +326,7 @@ function IpasList() {
             description={
               rows.length === 0
                 ? !mayRead
-                  ? "IPAS is for Purchasing, Finance and the people on its signer lists. Ask a Super Admin if you need it."
+                  ? "IPAS is for Purchasing, Finance, Logistics and the people on its sign-off lists. Ask HR or a Super Admin if you need it."
                   : "An IPAS is raised from an Odoo purchase order. Purchasing raises one when a purchase needs it."
                 : "Nothing in this slice. Try another tab or clear the filters."
             }
