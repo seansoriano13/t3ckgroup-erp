@@ -101,9 +101,7 @@ function IpasSignoffsQueue() {
 
   const approve = useMutation({
     mutationFn: ({ item, confirm }) =>
-      item.source.section === 7 && item.source.role === IPAS_SIGNOFF_ROLE.CHECKED
-        ? ipasService.signCheck(item.source.ipasId)
-        : ipasService.sign(item.source.ipasId, item.source.section, item.source.role, { confirm }),
+      ipasService.sign(item.source.ipasId, item.source.section, item.source.role, { confirm }),
     onSuccess: (result, { item }) => {
       if (result.filed) toast.success(`${item.ref} is filed.`);
       else if (item.source.section === 7) {

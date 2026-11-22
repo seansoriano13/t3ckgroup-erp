@@ -693,3 +693,6 @@ export const IPAS_EVENT_LABELS = {
   on_hold_changed: "On-Hold note changed",
   on_hold_cleared: "On-Hold cleared",
 };
+
+/** What Section 5 / Logistics say when the supplier delivers straight to the client (#1170). */
+export const IPAS_DIRECT_DELIVERY_LABEL = "Direct delivery to client";

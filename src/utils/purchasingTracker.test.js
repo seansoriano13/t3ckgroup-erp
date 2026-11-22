@@ -116,15 +116,21 @@ describe("stages", () => {
   it("keeps a Delivered but unfiled order on the dashboard with its next move and ageing", () => {
     const delivered = order({
       status: "delivered",
-      next: { label: "Delivered — no Transmittal raised", owner: ORDER_OWNER.PURCHASING },
+      next: { label: "Delivered â€” no Transmittal raised", owner: ORDER_OWNER.PURCHASING },
       daysWaiting: 9,
       late: true,
     });
-    const { sors, orders } = buildTracker({ rows: [], orders: [delivered], today: TODAY });
+    const { sors, orders, stages, deliveredUnfiled } = buildTracker({ rows: [], orders: [delivered], today: TODAY });
     expect(sors).toHaveLength(1);
     expect(sors[0].byStage.purchased).toBe(0);
     expect(sors[0].lateCount).toBe(1);
-    expect(sors[0].next.move).toMatchObject({ label: "Delivered — no Transmittal raised", days: 9, late: true });
+    // It does not read 0 everywhere: it is outstanding, just not under Purchased (#1169).
+    expect(sors[0].outstanding).toBe(1);
+    expect(sors[0].awaitingFiling).toBe(1);
+    expect(sorSummary(sors[0])).toBe("1 delivered, not filed");
+    expect(stages.find((st) => st.key === "purchased").count).toBe(0);
+    expect(deliveredUnfiled).toBe(1);
+    expect(sors[0].next.move).toMatchObject({ label: "Delivered â€” no Transmittal raised", days: 9, late: true });
     expect(orders.map((o) => o.id)).toEqual(["ip-1"]);
   });
 

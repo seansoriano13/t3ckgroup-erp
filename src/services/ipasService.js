@@ -32,6 +32,7 @@ import {
   ipasSectionWord,
   ipasSectionName,
   IPAS_SIGNER_LISTS,
+  IPAS_FILING_SECTION,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_SIGNOFF_SECTIONS,
@@ -1164,6 +1165,11 @@ export const ipasService = {
    */
   async sign(id, section, role, { declineSignature = false, confirm = false } = {}) {
     requireSignoffSection(section);
+    // Filing's Checked is the one merged Check (#1173); every caller gets it through here.
+    if (section === IPAS_FILING_SECTION && role === IPAS_SIGNOFF_ROLE.CHECKED) {
+      const { notified } = await ipasService.signCheck(id, { declineSignature });
+      return { signoff: null, notified, filed: false, warnings: [] };
+    }
     if (section === 7) {
       requireOneOf(
         role,

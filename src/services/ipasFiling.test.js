@@ -205,21 +205,16 @@ describe("ipasService: section 7 and Filing", () => {
       expect(out.filed).toBe(true)
     })
 
-    it("keeps Noted and Checked behind Received, and takes them in either order", async () => {
+    it("keeps Noted behind Received, and takes Checked as the one merged Check (#1173)", async () => {
       const ipas = await raise()
       await approveFirstSections(ipas)
 
       as(noter)
       await expect(ipasService.sign(ipas.id, 7, "noted")).rejects.toMatchObject({ code: "55000" })
-      as(checker)
-      await expect(ipasService.sign(ipas.id, 7, "checked")).rejects.toMatchObject({ code: "55000" })
 
-      as(receiver)
-      await ipasService.sign(ipas.id, 7, "received")
+      // Checked goes through signCheck: one Check gives Received, Noted and Checked together.
       as(checker)
       await ipasService.sign(ipas.id, 7, "checked")
-      as(noter)
-      await ipasService.sign(ipas.id, 7, "noted")
 
       expect(live(ipas.id).filter((k) => k.startsWith("7/"))).toEqual(["7/checked", "7/noted", "7/received"])
       const opened = await read(ipas.id)
@@ -662,6 +657,17 @@ describe("ipasService: section 7 and Filing", () => {
       const forApprover = await ipasService.pendingSignoffsFor(approver.id)
       expect(forApprover.map((p) => `${p.section}/${p.role}`)).toEqual(["7/approved"])
       expect(forApprover[0].steps.filter((s) => s.signoff).map((s) => s.role)).toEqual(["received", "noted", "checked"])
+    })
+
+    it("gives a person on only the Noted list, and one on only the Checked list, the single Check item", async () => {
+      const ipas = await raise()
+      await approveFirstSections(ipas)
+
+      for (const person of [noter, checker]) {
+        const rows = await ipasService.pendingSignoffsFor(person.id)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({ id: `${ipas.id}:7:checked`, section: 7, role: "checked" })
+      }
     })
 
     it("gives a person on two section 7 lists one Check row, and drops filed and cancelled IPAS", async () => {
