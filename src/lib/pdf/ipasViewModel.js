@@ -405,7 +405,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
 
   // ── Section 5 ── Item Location and the Transmittals carrying the IPAS (#256)
   const section5 = {
-    itemLocation: text(ipas.itemLocation?.label),
+    itemLocation: ipas.direct_delivery === true ? 'Direct delivery to client' : text(ipas.itemLocation?.label),
     tg03: (ipas.slips ?? []).map((slip) => ({
       number: text(slip.number),
       date: printDate(slip.date) ?? text(slip.date),
