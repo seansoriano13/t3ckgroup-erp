@@ -32,6 +32,7 @@ import {
   ipasSectionWord,
   ipasSectionName,
   IPAS_SIGNER_LISTS,
+  IPAS_FILING_SECTION,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_LABELS,
   IPAS_SIGNOFF_SECTIONS,
@@ -1164,6 +1165,11 @@ export const ipasService = {
    */
   async sign(id, section, role, { declineSignature = false, confirm = false } = {}) {
     requireSignoffSection(section);
+    // Filing's Checked is the one merged Check (#1173); every caller gets it through here.
+    if (section === IPAS_FILING_SECTION && role === IPAS_SIGNOFF_ROLE.CHECKED) {
+      const { notified } = await ipasService.signCheck(id, { declineSignature });
+      return { signoff: null, notified, filed: false, warnings: [] };
+    }
     if (section === 7) {
       requireOneOf(
         role,
@@ -1431,9 +1437,9 @@ export const ipasService = {
    * approve their own). `role` is "approved"; `id` is "<ipas>:<section>".
    *
    * Section 7 (#248): an open IPAS whose sections 1, 2 and 3 are approved and whose
-   * next step is one they are on the list for: Received first; Noted and Checked
-   * once it is given (a person on both lists gets one row for each); Approved
-   * once all three are. `role` is that step and `id` is "<ipas>:7:<role>".
+   * next step is one they are on the list for: the merged Check (role "checked")
+   * for anyone on the Received, Noted or Checked list, then Approved once it is
+   * given. `role` is that step and `id` is "<ipas>:7:<role>".
    * `preparedBy` and `preparedAt` (and `readyAt`, the same moment) are who
    * made it ready and when, which is what the queue's clock runs from; `steps`
    * is section 7's four sign-offs for the review sheet's chain.
@@ -1450,6 +1456,7 @@ export const ipasService = {
     const keys = new Set((memberships || []).map((m) => m.list_key));
     const firstSections = IPAS_PRE_FILING_SECTIONS.filter((section) => keys.has(IPAS_APPROVAL_LIST[section]));
     const sevenRoles = IPAS_SECTION_7_ROLES.filter((role) => keys.has(IPAS_SECTION_7_LIST[role]));
+    const sevenCheckRoles = sevenRoles.filter((role) => role !== IPAS_SIGNOFF_ROLE.APPROVED);
     if (firstSections.length === 0 && sevenRoles.length === 0) return [];
 
     // Section 7 reads sections 1, 3 and 6 too: it opens on their approvals.
@@ -1494,20 +1501,19 @@ export const ipasService = {
           const checked = live.get("7/checked");
           const latest = (...signoffs) =>
             signoffs.reduce((a, b) => (String(a.signed_at) >= String(b.signed_at) ? a : b));
+          // One "Check" (Received, Noted and Checked together, ipas_sign_check): anyone on
+          // any of the three lists is offered it until it is given (#1173); then the
+          // Approved list is asked to approve and file. It rides on the Checked role.
           const ready = [];
-          if (!received) ready.push([IPAS_SIGNOFF_ROLE.RECEIVED, latest(...openers)]);
-          else {
-            if (!noted) ready.push([IPAS_SIGNOFF_ROLE.NOTED, received]);
-            if (!checked) ready.push([IPAS_SIGNOFF_ROLE.CHECKED, received]);
-            if (noted && checked) ready.push([IPAS_SIGNOFF_ROLE.APPROVED, latest(noted, checked)]);
-          }
+          if (!(received && noted && checked)) ready.push([IPAS_SIGNOFF_ROLE.CHECKED, latest(...openers)]);
+          else ready.push([IPAS_SIGNOFF_ROLE.APPROVED, latest(received, noted, checked)]);
           const steps = IPAS_SECTION_7_ROLES.map((role) => ({
             role,
             label: IPAS_SIGNOFF_ROLE_LABELS[role],
             signoff: live.get(`7/${role}`) ? shapeSignoff(live.get(`7/${role}`)) : null,
           }));
           for (const [role, madeReady] of ready) {
-            if (!sevenRoles.includes(role)) continue;
+            if (role === IPAS_SIGNOFF_ROLE.CHECKED ? sevenCheckRoles.length === 0 : !sevenRoles.includes(role)) continue;
             waiting.push({ ipasId, id: `${ipasId}:7:${role}`, section: 7, role, madeReady, steps });
           }
         }

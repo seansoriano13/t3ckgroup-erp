@@ -28,6 +28,16 @@ export function IpasLogisticsSection({ ipas, canChange: granted = false, onPick 
   ];
   const transmittals = ipas.slips ?? [];
 
+  if (ipas.direct_delivery) {
+    return (
+      <IpasSection title={ipasSectionLabel("logistics")}>
+        <p className="text-xs text-muted-foreground" data-testid="ipas-direct-delivery-note">
+          The supplier delivers straight to the client, so no Item Location or Transmittal is asked for. Pick Delivered once the client has the goods.
+        </p>
+      </IpasSection>
+    );
+  }
+
   return (
     <IpasSection title={ipasSectionLabel("logistics")}>
       <DetailGrid

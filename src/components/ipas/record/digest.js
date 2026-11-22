@@ -3,6 +3,7 @@
 // and the decision card all read this, so they say the same thing.
 
 import {
+  IPAS_DIRECT_DELIVERY_LABEL,
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_EVENT_LABELS,
   IPAS_LANDED_COST_STATUS,
@@ -160,7 +161,7 @@ export function digestIpas(ipas, signerLists = null) {
           : "no bank details"
         : null,
     ]),
-    logistics: ipas.itemLocation?.label ?? "Item Location not set",
+    logistics: ipas.direct_delivery ? IPAS_DIRECT_DELIVERY_LABEL : ipas.itemLocation?.label ?? "Item Location not set",
     status: statusText ?? "No status",
     costing: join([
       `Computation status: ${IPAS_COMPUTATION_STATUS_LABELS[ipas.computationStatus] ?? "not set"}`,
@@ -198,8 +199,12 @@ export function digestIpas(ipas, signerLists = null) {
       money.landedPhp === null ? "Landed Cost not worked out yet" : `Landed Cost ${money.landedText}`,
     ]),
     delivery: join([
-      ipas.itemLocation?.label ?? "Item Location not set",
-      (ipas.slips ?? []).length > 0 ? plural(ipas.slips.length, "Transmittal", "Transmittals") : "no Transmittal yet",
+      ...(ipas.direct_delivery
+        ? [IPAS_DIRECT_DELIVERY_LABEL]
+        : [
+            ipas.itemLocation?.label ?? "Item Location not set",
+            (ipas.slips ?? []).length > 0 ? plural(ipas.slips.length, "Transmittal", "Transmittals") : "no Transmittal yet",
+          ]),
       statusNow.label ? `status: ${statusNow.label}` : null,
     ]),
     documents: missingFiles.length > 0

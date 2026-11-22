@@ -27,6 +27,7 @@ import {
   IPAS_LANDED_COST_REASON,
   IPAS_LANDED_COST_SPLIT_LABELS,
   IPAS_LANDED_COST_STATUS,
+  IPAS_DIRECT_DELIVERY_LABEL,
   IPAS_PRIORITY_LABELS,
   IPAS_REQUIRED_BEFORE,
   IPAS_PURPOSE_LABELS,
@@ -405,10 +406,10 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
 
   // ── Section 5 ── Item Location and the Transmittals carrying the IPAS (#256)
   const section5 = {
-    itemLocation: text(ipas.itemLocation?.label),
+    itemLocation: ipas.direct_delivery ? IPAS_DIRECT_DELIVERY_LABEL : text(ipas.itemLocation?.label),
     tg03: (ipas.slips ?? []).map((slip) => ({
       number: text(slip.number),
-      date: text(slip.date),
+      date: printDate(slip.date) ?? text(slip.date),
       priority: text(slip.priority),
       stateLabel: text(slip.stateLabel),
       naCount: slip.naCount ?? 0,
@@ -421,7 +422,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   const status = {
     label: ipas.status ? IPAS_STATUS_LABELS[ipas.status] ?? null : null,
     onHold: ipas.on_hold === true,
-    directDelivery: ipas.direct_delivery === true,
+    directDelivery: Boolean(ipas.direct_delivery),
     steps: statusStepsOf(ipas),
   };
   const reached = IPAS_COMPUTATION_STATUSES.indexOf(ipas.computationStatus);

@@ -237,12 +237,12 @@ export function canSendBackSection7({ state, userId, lists = {}, ipasState }) {
 /**
  * Whether a queue item (`pendingSignoffsFor`'s `{ section, role }`) can be sent
  * back from the Approval Center: section 1 and 3 items always (Prepared is
- * live); a section 7 item once Received is given, which every step after it
- * means. The Received step itself has nothing live to return.
+ * live); a section 7 item only at Approve and file: the merged Check (#1173) is the
+ * first section 7 step, so before it there is nothing live to return.
  */
 export function canSendBackItem({ section, role }) {
   if (!IPAS_SEND_BACK_SECTIONS.includes(section)) return false;
-  return section !== 7 || role !== IPAS_SIGNOFF_ROLE.RECEIVED;
+  return section !== 7 || role === IPAS_SIGNOFF_ROLE.APPROVED;
 }
 
 /** Whether a computation status is LC Odoo Done, the last one (Landed Cost is final from there). */
