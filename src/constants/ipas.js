@@ -470,6 +470,12 @@ export const IPAS_SIGNOFF_ROLE_LABELS = {
   [IPAS_SIGNOFF_ROLE.CHECKED]: "Checked",
 };
 
+/** Section 7 as the queue names it: Received, Noted and Checked are one "Check" (#1173). */
+export const IPAS_QUEUE_STEP_LABELS = {
+  ...IPAS_SIGNOFF_ROLE_LABELS,
+  [IPAS_SIGNOFF_ROLE.CHECKED]: "Check",
+};
+
 /** What the button says for each sign-off a person gives (section 7's Approved files the IPAS). */
 export const IPAS_SIGNOFF_ROLE_ACTIONS = {
   [IPAS_SIGNOFF_ROLE.PREPARED]: "Submit",

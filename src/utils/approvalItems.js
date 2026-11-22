@@ -10,7 +10,7 @@
  */
 
 import { TASK_STATUS } from "../constants/status.js";
-import { IPAS_PRIORITY, IPAS_SIGNOFF_ROLE_LABELS, ipasSectionLabel } from "../constants/ipas.js";
+import { IPAS_PRIORITY, IPAS_QUEUE_STEP_LABELS, ipasSectionLabel } from "../constants/ipas.js";
 import { TRANSMITTAL_ORIGIN_LABELS, TRANSMITTAL_PRIORITY } from "../constants/transmittals.js";
 import { checklistProgressLabel, isChecklistDescription, isStaleSince } from "./approvalQueue.js";
 
@@ -101,7 +101,7 @@ export function ipasToItem(pending, now = Date.now()) {
         queue: "ipas",
         ref: pending.number,
         title: pending.supplier || pending.poNumber,
-        typeLabel: `${pending.poNumber} · Section ${ipasSectionLabel(pending.section)}${pending.section === 7 ? ` · ${IPAS_SIGNOFF_ROLE_LABELS[pending.role] ?? pending.role}` : ""}`,
+        typeLabel: `${pending.poNumber} · Section ${ipasSectionLabel(pending.section)}${pending.section === 7 ? ` · ${IPAS_QUEUE_STEP_LABELS[pending.role] ?? pending.role}` : ""}`,
         person: {
             id: pending.preparedBy?.id,
             name: pending.preparedBy?.name || "Unknown",

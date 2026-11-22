@@ -7,7 +7,7 @@ import {
   IPAS_PURPOSE_LABELS,
   IPAS_SIGNOFF_ROLE,
   IPAS_SIGNOFF_ROLE_ACTIONS,
-  IPAS_SIGNOFF_ROLE_LABELS,
+  IPAS_QUEUE_STEP_LABELS,
   ipasSectionLabel,
 } from "../../../constants/ipas";
 import { formatAmount } from "../../../utils/ipas";
@@ -63,7 +63,7 @@ export function IpasSignoffReview({ item, onApprove, onSendBack, isSubmitting })
             <DetailRow label="Section">
               {ipasSectionLabel(pending.section)}
             </DetailRow>
-            {isFiling && <DetailRow label="Your step">{IPAS_SIGNOFF_ROLE_LABELS[pending.role]}</DetailRow>}
+            {isFiling && <DetailRow label="Your step">{IPAS_QUEUE_STEP_LABELS[pending.role]}</DetailRow>}
             <DetailRow label="Waiting">
               <span className={item.isStale ? "font-semibold text-amber-11" : ""}>{relativeAge(item.clockAt).replace(" ago", "")}</span>
             </DetailRow>
