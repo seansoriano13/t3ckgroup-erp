@@ -375,6 +375,10 @@ describe("the page's content", () => {
     expect(vm()).toMatchObject({ section5: { itemLocation: "BM Office", tg03: [] } })
   })
 
+  it("prints Direct delivery to client in place of the Item Location (#1170)", () => {
+    expect(vm({ row: { direct_delivery: true } }).section5.itemLocation).toBe("Direct delivery to client")
+  })
+
   it("gives Logistics its one sign-off box, waiting until it is signed", () => {
     const [box] = vm().section5.signoffs
     expect(box).toMatchObject({ role: "Signed by", state: "awaiting", title: "Delivery" })
