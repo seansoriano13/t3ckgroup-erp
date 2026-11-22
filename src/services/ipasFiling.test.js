@@ -640,49 +640,41 @@ describe("ipasService: section 7 and Filing", () => {
       const forReceiver = await ipasService.pendingSignoffsFor(receiver.id)
       expect(forReceiver).toHaveLength(1)
       expect(forReceiver[0]).toMatchObject({
-        id: `${ipas.id}:7:received`,
+        id: `${ipas.id}:7:checked`,
         ipasId: ipas.id,
         section: 7,
-        role: "received",
+        role: "checked",
         number: ipas.number,
         preparedBy: { id: approver.id },
       })
       expect(forReceiver[0].steps.map((s) => s.role)).toEqual(["received", "noted", "checked", "approved"])
-      // Noted and Checked wait for Received.
-      expect(await ipasService.pendingSignoffsFor(noter.id)).toEqual([])
-      expect(await ipasService.pendingSignoffsFor(checker.id)).toEqual([])
-
-      as(receiver)
-      await ipasService.sign(ipas.id, 7, "received")
-      expect(await ipasService.pendingSignoffsFor(receiver.id)).toEqual([])
-      expect((await ipasService.pendingSignoffsFor(noter.id)).map((p) => p.role)).toEqual(["noted"])
+      // The merged Check is offered to all three lists at once (#1173).
+      expect((await ipasService.pendingSignoffsFor(noter.id)).map((p) => p.role)).toEqual(["checked"])
       expect((await ipasService.pendingSignoffsFor(checker.id)).map((p) => p.role)).toEqual(["checked"])
-      // The approver isn't asked for Approved until Noted and Checked are given.
+      // The approver isn't asked for Approved until the Check is given.
       expect(await ipasService.pendingSignoffsFor(approver.id)).toEqual([])
 
       as(noter)
-      await ipasService.sign(ipas.id, 7, "noted")
+      await ipasService.signCheck(ipas.id)
+      expect(await ipasService.pendingSignoffsFor(receiver.id)).toEqual([])
       expect(await ipasService.pendingSignoffsFor(noter.id)).toEqual([])
-      as(checker)
-      await ipasService.sign(ipas.id, 7, "checked")
+      expect(await ipasService.pendingSignoffsFor(checker.id)).toEqual([])
       const forApprover = await ipasService.pendingSignoffsFor(approver.id)
       expect(forApprover.map((p) => `${p.section}/${p.role}`)).toEqual(["7/approved"])
       expect(forApprover[0].steps.filter((s) => s.signoff).map((s) => s.role)).toEqual(["received", "noted", "checked"])
     })
 
-    it("gives a person on two section 7 lists a row for each, and drops filed and cancelled IPAS", async () => {
-      db.seed("ipas_signer_lists", { list_key: "s7_checked", employee_id: noter.id })
+    it("gives a person on two section 7 lists one Check row, and drops filed and cancelled IPAS", async () => {
+      db.seed("ipas_signer_lists", { list_key: "s7_checked", employee_id: receiver.id })
       const ipas = await raise()
       await approveFirstSections(ipas)
-      as(receiver)
-      await ipasService.sign(ipas.id, 7, "received")
 
-      const rows = await ipasService.pendingSignoffsFor(noter.id)
-      expect(rows.map((r) => r.id).sort()).toEqual([`${ipas.id}:7:checked`, `${ipas.id}:7:noted`])
+      const rows = await ipasService.pendingSignoffsFor(receiver.id)
+      expect(rows.map((r) => r.id)).toEqual([`${ipas.id}:7:checked`])
 
       // Cancelled and filed ones leave the queue.
       db.internal.rowsOf("ipas").find((r) => r.id === ipas.id).state = "cancelled"
-      expect(await ipasService.pendingSignoffsFor(noter.id)).toEqual([])
+      expect(await ipasService.pendingSignoffsFor(receiver.id)).toEqual([])
     })
 
     it("keeps sections 1 and 3 in the same queue, with section 7 beside them", async () => {
@@ -697,7 +689,7 @@ describe("ipasService: section 7 and Filing", () => {
       db.seed("ipas_signer_lists", { list_key: "s7_received", employee_id: approver.id })
       const both = await ipasService.pendingSignoffsFor(approver.id)
       expect(both.map((r) => `${r.number}/${r.section}/${r.role}`).sort()).toEqual(
-        [`${ipas.number}/1/approved`, `${other.number}/7/received`].sort(),
+        [`${ipas.number}/1/approved`, `${other.number}/7/checked`].sort(),
       )
     })
   })
