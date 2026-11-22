@@ -287,7 +287,9 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
   }
 
   const shaped = [...sors.values()].map((sor) => {
-    const open = sor.orders.filter((order) => order.group !== ORDER_GROUP.FILED && !isReceived(order));
+    // A delivered but unfiled order is still open work (Transmittal, checks, filing): it keeps its next move
+    // and ageing here. It only stays out of the Purchased (not received) count, which byStage handles above.
+    const open = sor.orders.filter((order) => order.group !== ORDER_GROUP.FILED);
     const dueAt = deadlines.get(sor.oppId)?.dueAt ?? null;
     const furthest = Math.max(-1, ...STAGE_KEYS.slice(0, LAST_OPEN + 1).map((key, i) => (holdsStage(sor, key) ? i : -1)));
     const noSor = sor.key === NO_SOR;
@@ -311,7 +313,7 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
 
   const needle = String(search ?? "").trim().toLowerCase();
   const beforeStage = shaped
-    .filter((sor) => showFiled || sor.outstanding > 0 || sor.bidPending)
+    .filter((sor) => showFiled || sor.outstanding > 0 || sor.bidPending || sor.openOrders.length > 0)
     .filter((sor) => !needle || matchesSearch(sor, needle))
     .filter((sor) => {
       if (next === NEXT_FILTER.OURS) return sor.next.band === MOVE_BAND.NOW;
