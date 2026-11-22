@@ -27,3 +27,7 @@ Since spec #595 the IPAS Status (Pending, Requested, Ongoing, Paid, Done) was wo
 - **The Remaining balance no longer reads the status.** "Paid" is gone, so ADR 0036's zero now comes from a full payment being recorded or the IPAS being filed.
 - **The buyer track's back-office ticks (With P.O.P, Received in Odoo, Create Bill, Actual Checking) stay as plain facts** on the record and in Order Monitoring's next thing after Delivered, with no Ageing rules of their own.
 - **Existing IPAS get a starting status worked out once** at switch-over (Shipped Out → Shipped / Picked Up, Onboard → In Transit, Arrived in PH → Customs / Port Hold, Arrived in Whs → Delivered, filed → Done), and their Ageing rules carry over where a step maps (Purchase Order → Ordered, Import Clearance → Customs / Port Hold, Delivered → Delivered).
+
+## Amendment, 2026-11-22: one dropdown, the Chat is the history
+
+The step list in 4 · Delivery is retired. The status is one dropdown on the record's Status pill: a pick saves at once and no day is asked (the database still dates the step, today or the day a step already had when going back, so the ageing rules keep counting). "Edit date" is gone. Every change of the status, however it happens (the dropdown, Filing, Reopen, a source change to Local, a cancel), is posted in the IPAS's Chat as a `status_changed` event line by the database (`20261222100000_ipas_status_change_in_chat`); event lines notify nobody. Facts still only suggest: the suggestion shows under the pills and as a hint in the dropdown.

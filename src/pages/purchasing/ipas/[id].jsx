@@ -15,7 +15,6 @@ import { Textarea } from "../../../components/ui/textarea";
 import { FieldBox } from "../../../components/ui/FieldBox";
 import EditPurposeSorsDialog from "../../../components/ipas/EditPurposeSorsDialog";
 import EditValueDialog from "../../../components/ipas/EditValueDialog";
-import DatesDialog from "../../../components/ipas/DatesDialog";
 import SendBackDialog from "../../../components/ipas/SendBackDialog";
 import ReturnDialog from "../../../components/ipas/ReturnDialog";
 import FilingDialog from "../../../components/ipas/FilingDialog";
@@ -48,13 +47,14 @@ import {
 import IpasListPage from "./index";
 import { ipasService } from "../../../services/ipasService";
 import * as optimistic from "../../../utils/ipasOptimistic";
-import { ipasDateMax } from "../../../utils/ipasDateLimits";
+import { suggestStatus } from "../../../utils/ipasStatusSuggestion";
 import { openPrintWindow, printIpas } from "../../../lib/pdf/ipasPrinter";
 import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage, odooRefreshMoved } from "../../../utils/ipas";
 import IpasStatusControl from "../../../components/ipas/IpasStatusControl";
+import IpasStatusGuideButton from "../../../components/ipas/IpasStatusGuide";
 import { parseAmountInput } from "../../../utils/ipasPayments";
 import {
   canSendBackSection7,
@@ -75,6 +75,8 @@ import {
   IPAS_STATE,
   IPAS_TICK_SIDE,
   IPAS_STATUS_LABELS,
+  IPAS_STATUS,
+  ipasStatusesFor,
   IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionLabel,
   ipasSectionNo,
@@ -193,8 +195,8 @@ function IpasPage({ onClose }) {
   const [overriding, setOverriding] = useState(null);
   const [typing, setTyping] = useState(null);
   const [removingDocument, setRemovingDocument] = useState(null);
-  // The status step whose day is being asked for: { step, mode: "move" | "date" }.
-  const [statusAsk, setStatusAsk] = useState(null);
+  // The IPAS Status guide ("?" beside the Status pill, or the dropdown's last row).
+  const [statusGuide, setStatusGuide] = useState(false);
   // Which section blocks are open (several can be; ?open= names one on arrival), and each block's
   // header, so focus can go back to it.
   const sections = useSectionsOpen();
@@ -671,14 +673,13 @@ function IpasPage({ onClose }) {
   });
 
   // The IPAS Status (#1154): a step picked with its day, or the day of a step already reached.
-  // The step, the mode and the day travel with the variables, so Retry still knows what it was
-  // saving after the dialog has closed. The database says what it refuses (a later day, Done,
-  // a Local IPAS's Import steps); the page re-reads on success.
+  // The Status dropdown's pick (and the suggestion's one click): saves at once, no day asked. The
+  // database dates it (today, or the day a step already had when going back) and posts the change in
+  // the IPAS's Chat. It refuses Done and a Local IPAS's Import steps; the page re-reads on success.
   const saveStatus = useMutation({
-    mutationFn: ({ step, mode, on }) =>
-      mode === "date" ? ipasService.setStatusDate(id, step, on) : ipasService.setStatus(id, step, on),
-    onSuccess: (_, { step, mode }) => {
-      toast.success(mode === "date" ? `${IPAS_STATUS_LABELS[step]} date saved.` : `Status set to ${IPAS_STATUS_LABELS[step]}.`);
+    mutationFn: ({ step }) => ipasService.setStatus(id, step, null),
+    onSuccess: (_, { step }) => {
+      toast.success(`Status set to ${IPAS_STATUS_LABELS[step]}.`);
       changed();
     },
     onError: (error, vars) => {
@@ -841,6 +842,9 @@ function IpasPage({ onClose }) {
   const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
   // The IPAS Status (#1154): Purchasing access, Logistics access or a Super Admin, until Filing.
   const canSetStatusStep = (hasPurchasingFlow || hasLogisticsFlow || isSuperAdmin) && open;
+  // A fact that matches a later step (#1155) is offered, never applied: a quiet line under the pills and a
+  // hint in the dropdown, only for people who may set the status.
+  const statusSuggestion = canSetStatusStep ? suggestStatus(ipas) : null;
   // Finance has it: Finance access alone ticks it, until Filing.
   const canTickFinance = hasFinanceFlow && open;
   const digest = digestIpas(ipas, signerLists);
@@ -885,18 +889,6 @@ function IpasPage({ onClose }) {
     if (role === IPAS_SIGNOFF_ROLE.APPROVED) setFiling({ from });
     else give.mutate({ role, confirm: false, from });
   };
-
-  // What the date dialog edits: the day of the status step being picked. A new step starts at today
-  // (Asia/Manila); a step already reached starts at the day it has.
-  const statusDateFields = statusAsk
-    ? [
-        {
-          key: statusAsk.step,
-          label: IPAS_STATUS_LABELS[statusAsk.step],
-          value: ipas.statusSteps?.find((item) => item.step === statusAsk.step)?.on ?? ipasDateMax(),
-        },
-      ]
-    : [];
 
   // The Return dialog's choices: each section the viewer may return or undo, with what it
   // would clear in section 4 (named, so the signer is mindful).
@@ -961,11 +953,6 @@ function IpasPage({ onClose }) {
     suggestDocuments: () => suggest.mutate(),
     removeDocument: setRemovingDocument,
     pickLocation: (optionId) => locate.mutate(optionId),
-    pickStatus: (step) => setStatusAsk({ step, mode: "move" }),
-    editStatusDate: (step) => setStatusAsk({ step, mode: "date" }),
-    // The suggestion's one click (#1155): moves to the step dated today (the database's default). Nothing else moves it.
-    suggestStatus: (step) => saveStatus.mutate({ step, mode: "move", on: null }),
-    statusSaving: saveStatus.isPending,
     stamp: () => stamp.mutate(true),
     clearStamp: () => stamp.mutate(false),
     setComputationStatus: (computationStatus, from) =>
@@ -1051,7 +1038,44 @@ function IpasPage({ onClose }) {
         <div className="space-y-6 pb-2">
           <div className="space-y-3">
             <RecordHeader reference={ipas.number} name={ipas.supplier} badge={ipasBadge(ipas)} line={ipasLine(ipas)} />
-            <PropertyPills items={ipasPills(ipas, digest.figures)} />
+            <PropertyPills
+              items={ipasPills(ipas, digest.figures, {
+                // The header Status pill is the dropdown, one status per IPAS: a pick saves at once and is
+                // posted in the Chat. Done is shown but greyed: it comes from filing.
+                ...(canSetStatusStep && ipas.status
+                  ? {
+                      options: ipasStatusesFor(ipas.source).map((step) => ({
+                        value: step,
+                        label: IPAS_STATUS_LABELS[step],
+                        disabled: saveStatus.isPending || step === IPAS_STATUS.DONE || step === ipas.status,
+                        hint:
+                          step === IPAS_STATUS.DONE
+                            ? "Comes from filing"
+                            : step === ipas.status
+                              ? "Current"
+                              : step === statusSuggestion?.step
+                                ? `Suggested: ${statusSuggestion.because}`
+                                : undefined,
+                      })),
+                      onChange: (step) => saveStatus.mutate({ step }),
+                      footer: ({ close }) => (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-auto w-full justify-start rounded-lg px-2.5 py-2 text-sm font-normal text-muted-foreground"
+                          onClick={() => {
+                            close();
+                            setStatusGuide(true);
+                          }}
+                        >
+                          What do these mean?
+                        </Button>
+                      ),
+                    }
+                  : {}),
+                after: ipas.status ? <IpasStatusGuideButton open={statusGuide} onOpenChange={setStatusGuide} /> : null,
+              })}
+            />
             {/* The IPAS Status (#597): read from the same IPAS figures as the list, so the two never disagree.
                 Putting it On-Hold is More's item; the dialog it opens lives here. */}
             <div data-testid="ipas-record-status" className="empty:hidden [&:not(:has(:not(:empty)))]:hidden">
@@ -1063,6 +1087,22 @@ function IpasPage({ onClose }) {
                 onAskingChange={setHolding}
                 showPill={false}
               />
+              {statusSuggestion && (
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" data-testid="ipas-status-suggestion">
+                  <span>
+                    {statusSuggestion.because} Move to {statusSuggestion.label}?
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    disabled={saveStatus.isPending}
+                    onClick={() => saveStatus.mutate({ step: statusSuggestion.step })}
+                  >
+                    Move to {statusSuggestion.label}
+                  </Button>
+                </p>
+              )}
               {digest.figures.onHoldNote && (
                 <p className="text-xs text-muted-foreground" data-testid="ipas-record-on-hold-note">
                   {digest.figures.onHoldNote}
@@ -1182,24 +1222,6 @@ function IpasPage({ onClose }) {
         busyLabel="Reopening…"
         inlineError
         onSubmit={(reason) => reopen.mutateAsync(reason)}
-      />
-
-      <DatesDialog
-        open={statusAsk !== null}
-        onOpenChange={(next) => !next && setStatusAsk(null)}
-        title={statusAsk ? (statusAsk.mode === "date" ? `Edit the ${IPAS_STATUS_LABELS[statusAsk.step]} date` : `Set the status to ${IPAS_STATUS_LABELS[statusAsk.step]}`) : "Status"}
-        description={
-          statusAsk?.mode === "date"
-            ? "The day this step was reached. It cannot be later than today. A day before an earlier step only shows a warning."
-            : "The day this step was reached: today, or an earlier day. Steps you skip stay blank; going back clears the steps after."
-        }
-        fields={statusDateFields}
-        limited
-        requireDate
-        onSubmit={(values) => {
-          saveStatus.mutate({ step: statusAsk.step, mode: statusAsk.mode, on: Object.values(values)[0] ?? "" });
-          return Promise.resolve();
-        }}
       />
 
       <ConfirmDialog

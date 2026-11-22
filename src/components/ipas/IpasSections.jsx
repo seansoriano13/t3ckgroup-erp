@@ -33,7 +33,6 @@ import { changeNoteSummary, formatAmount, ipasErrorMessage } from "../../utils/i
 import { ipasService } from "../../services/ipasService";
 import { ipasKey } from "./ipasKeys";
 import { Input } from "../ui/input";
-import IpasStatusSteps from "./IpasStatusSteps";
 import { formatDay } from "../../utils/ipasPayments";
 import { formatPercent, paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { formatDate } from "../../utils/formatDate.js";
@@ -661,33 +660,20 @@ function odooDetail(key, statuses) {
 }
 
 /**
- * Section 4's Status (#1154, ADR 0054): the step picker, then the buyer facts that stay as plain facts
- * (With P.O.P, Received in Odoo, Create Bill, Actual Checking with its hand stamp). Each fact says where it
- * came from: Received in Odoo and Create Bill are stamped from Odoo, With P.O.P is derived from the payments,
- * and Actual Checking is stamped by Purchasing.
+ * Section 4's buyer facts (With P.O.P, Received in Odoo, Create Bill, Actual Checking with its hand stamp).
+ * Each fact says where it came from: Received in Odoo and Create Bill are stamped from Odoo, With P.O.P is
+ * derived from the payments, and Actual Checking is stamped by Purchasing. The IPAS Status itself is one
+ * dropdown on the record's Status pill (ADR 0054, amended 2026-11-22), not a step list here.
  *
- *   canSetStatus  Purchasing access, Logistics access or a Super Admin: picks the step
  *   canChange     Purchasing on an open IPAS: stamps Actual Checking
  */
-export function IpasStatusSection({
-  ipas,
-  canChange: granted = false,
-  canSetStatus: grantedStatus = false,
-  onPickStatus,
-  onEditStatusDate,
-  onSuggestStatus,
-  suggestingStatus = false,
-  onStamp,
-  onClearStamp,
-}) {
+export function IpasStatusSection({ ipas, canChange: granted = false, onStamp, onClearStamp }) {
   const canChange = useEditable(granted);
-  const canSetStatus = useEditable(grantedStatus);
   const track = ipas.buyerFacts ?? [];
 
   return (
-    <IpasSection title={ipasSectionLabel("status")} aside="Pick the step the order is at.">
+    <IpasSection title={ipasSectionLabel("status")} aside="The status is picked from the Status at the top. Each change is posted in the Chat.">
       <div className="space-y-4">
-        <IpasStatusSteps ipas={ipas} canSet={canSetStatus} onPick={onPickStatus} onEditDate={onEditStatusDate} onSuggest={onSuggestStatus} suggesting={suggestingStatus} />
         <div>
           <SectionHeader title="Buyer facts" className="border-b-0 pb-2" />
           <ul className="mt-1 divide-y divide-border">

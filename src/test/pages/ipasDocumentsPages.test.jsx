@@ -8,7 +8,7 @@ import { makeEmployee } from "@/test/factories";
 import { db } from "@/test/db/store";
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server";
 import { seedIpasOptions, stubIpasRpcs } from "@/test/stubs/ipasRpc";
-import { findOtherDialog, queryOtherDialog } from "@/test/support/dialogs"
+import { queryOtherDialog } from "@/test/support/dialogs"
 import { SHOW_HAS_TICKS } from "@/components/ipas/record/MoneyFields";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -345,35 +345,39 @@ describe("IPAS page: documents, the IPAS Status steps and the buyer facts", () =
     });
   });
 
-  describe("the IPAS Status steps", () => {
-    it("lists the Import steps in order on an Import IPAS, picked from a dialog that asks for the day", async () => {
+  describe("the IPAS Status dropdown", () => {
+    it("lists the Import steps on the Status pill and saves a pick at once, with no day asked", async () => {
       const row = ipas({ source: "import", status: "order_draft", created_by: purchaser.id });
       const user = setupUser();
 
       renderDetail(row.id, "delivery");
-      const steps = await screen.findByTestId("ipas-status-steps");
-      for (const key of ["order_draft", "ordered", "customs", "local_hub", "out_for_delivery", "delivered", "done"]) {
-        expect(within(steps).getByTestId(`ipas-step-${key}`)).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: /^Status\b/ }));
+      const list = await screen.findByRole("listbox", { name: "Status" });
+      for (const label of ["Order-Draft", "Ordered", "Customs / Port Hold", "Arrived at Local Hub", "Out for Delivery", "Delivered", "Done"]) {
+        expect(within(list).getByRole("option", { name: new RegExp(`^${label}`) })).toBeInTheDocument();
       }
-      expect(screen.queryByTestId("ipas-supplier-origin")).not.toBeInTheDocument();
+      expect(within(list).getByRole("option", { name: /^Done/ })).toBeDisabled();
+      expect(within(list).getByRole("option", { name: /^Order-Draft/ })).toBeDisabled();
+      expect(screen.queryByTestId("ipas-status-steps")).not.toBeInTheDocument();
 
-      await user.click(within(steps).getByRole("button", { name: "Set the status to Ordered" }));
-      const dialog = await findOtherDialog();
-      await user.click(within(dialog).getByRole("button", { name: "Save" }));
+      await user.click(within(list).getByRole("option", { name: /^Ordered/ }));
 
       await waitFor(() => expect(db.rows("ipas")[0].status).toBe("ordered"));
+      expect(queryOtherDialog()).not.toBeInTheDocument();
     });
 
     it("hides the Import-only steps on a Local IPAS", async () => {
       const row = ipas({ source: "local", status: "order_draft", created_by: purchaser.id });
+      const user = setupUser();
 
       renderDetail(row.id, "delivery");
+      await user.click(await screen.findByRole("button", { name: /^Status\b/ }));
+      const list = await screen.findByRole("listbox", { name: "Status" });
 
-      expect(await screen.findByTestId("ipas-step-ordered")).toBeInTheDocument();
-      expect(screen.queryByTestId("ipas-supplier-origin")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("ipas-step-customs")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("ipas-step-local_hub")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("ipas-step-out_for_delivery")).not.toBeInTheDocument();
+      expect(within(list).getByRole("option", { name: /^Ordered/ })).toBeInTheDocument();
+      expect(within(list).queryByRole("option", { name: /Customs/ })).not.toBeInTheDocument();
+      expect(within(list).queryByRole("option", { name: /Local Hub/ })).not.toBeInTheDocument();
+      expect(within(list).queryByRole("option", { name: /Out for Delivery/ })).not.toBeInTheDocument();
     });
   });
 
@@ -427,8 +431,8 @@ describe("IPAS page: documents, the IPAS Status steps and the buyer facts", () =
 
       renderDetail(row.id, "delivery");
 
-      const steps = await screen.findByTestId("ipas-status-steps");
-      expect(within(steps).queryByRole("button")).not.toBeInTheDocument();
+      expect(await screen.findByTestId("ipas-track-actual_checking")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Status\b/ })).not.toBeInTheDocument();
       expect(within(screen.getByTestId("ipas-track-actual_checking")).queryByRole("button")).not.toBeInTheDocument();
     });
 

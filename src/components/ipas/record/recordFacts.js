@@ -28,14 +28,17 @@ const statusFact = (figures) => {
   return step && figures?.onHold ? `On-Hold · ${step}` : step;
 };
 
-/** The headline pills, in order. A fact with no value is left out by PropertyPills. */
-export function ipasPills(ipas, figures) {
+/**
+ * The headline pills, in order. A fact with no value is left out by PropertyPills. `status` is merged
+ * into the Status pill: the picker's options, onChange, footer and the guide beside it.
+ */
+export function ipasPills(ipas, figures, status = {}) {
   return [
     { key: "entity", label: "Entity", value: ipas.entity },
     { key: "priority", label: "Priority", value: IPAS_PRIORITY_LABELS[ipas.priority] },
     { key: "source", label: "Source", value: IPAS_SOURCE_LABELS[ipas.source] },
     { key: "purpose", label: "Purpose", value: IPAS_PURPOSE_LABELS[ipas.purpose] },
-    { key: "status", label: "Status", value: statusFact(figures) },
+    { key: "status", label: "Status", value: statusFact(figures), ...status },
     { key: "sor", label: "SOR", value: (ipas.sors ?? []).map((sor) => sor.salesReference).join(", ") },
   ];
 }

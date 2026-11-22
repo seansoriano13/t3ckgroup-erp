@@ -696,3 +696,22 @@ export const IPAS_EVENT_LABELS = {
 
 /** What Section 5 / Logistics say when the supplier delivers straight to the client (#1170). */
 export const IPAS_DIRECT_DELIVERY_LABEL = "Direct delivery to client";
+
+/**
+ * What each IPAS Status step means, in the team's own words (CONTEXT.md, "IPAS Status").
+ * A step the team has not described is null: the guide shows its name only, never an invented meaning.
+ */
+export const IPAS_STATUS_MEANINGS = {
+  [IPAS_STATUS.ORDER_DRAFT]: null,
+  [IPAS_STATUS.PAYMENT_APPROVAL]:
+    "Only for an order that must be approved for payment before it is placed. A pay-later order goes from Order-Draft to Ordered.",
+  [IPAS_STATUS.ORDERED]: null,
+  [IPAS_STATUS.PROCESSING]: null,
+  [IPAS_STATUS.SHIPPED]: null,
+  [IPAS_STATUS.IN_TRANSIT]: null,
+  [IPAS_STATUS.CUSTOMS]: "The normal customs step, not trouble.",
+  [IPAS_STATUS.LOCAL_HUB]: "The goods reached the forwarder's or courier's warehouse in the Philippines.",
+  [IPAS_STATUS.OUT_FOR_DELIVERY]: "Leaving the local hub for our warehouse, or for the client on a Direct delivery.",
+  [IPAS_STATUS.DELIVERED]: "Reaching our warehouse, or the client on a Direct delivery.",
+  [IPAS_STATUS.DONE]: "Comes only from Filing, and leaves only on Reopen.",
+};
