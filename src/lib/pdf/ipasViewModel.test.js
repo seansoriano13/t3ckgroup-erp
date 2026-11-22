@@ -375,15 +375,14 @@ describe("the page's content", () => {
     expect(vm()).toMatchObject({ section5: { itemLocation: "BM Office", tg03: [] } })
   })
 
-<<<<<<< HEAD
   it("prints a Transmittal's date as a Manila day, not a raw timestamp", () => {
     const ipas = { ...makePrintableIpas(), slips: [{ number: "TG03-11", date: "2026-11-20T17:10:47.399069+00:00", priority: "low", stateLabel: "Waiting on Warehouse", naCount: 0 }] }
 
     expect(buildIpasViewModel(ipas).section5.tg03[0].date).toBe("Nov 21, 2026")
-=======
+  })
+
   it("prints Direct delivery to client in place of the Item Location (#1170)", () => {
     expect(vm({ row: { direct_delivery: true } }).section5.itemLocation).toBe("Direct delivery to client")
->>>>>>> fix/1170
   })
 
   it("gives Logistics its one sign-off box, waiting until it is signed", () => {
