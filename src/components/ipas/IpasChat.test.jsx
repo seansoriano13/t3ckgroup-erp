@@ -44,6 +44,29 @@ describe("the IPAS chat", () => {
     expect(screen.getByText("Fe Lim")).toBeInTheDocument()
   })
 
+  it("shows a status change as a quiet line under who made it, and System when nobody did", async () => {
+    db.seed("ipas_messages", {
+      ipas_id: ipas.id,
+      author_id: buyer.id,
+      content: "Status set to In Transit (was Ordered).",
+      metadata: { event: "status_changed", from: "ordered", to: "in_transit" },
+      created_at: "2026-11-02T00:00:00Z",
+    })
+    db.seed("ipas_messages", {
+      ipas_id: ipas.id,
+      author_id: null,
+      content: "Status set to Done (was Delivered).",
+      metadata: { event: "status_changed", from: "delivered", to: "done" },
+      created_at: "2026-11-03T00:00:00Z",
+    })
+    renderWithProviders(<IpasChat ipasId={ipas.id} />)
+
+    const line = await screen.findByText("Status set to In Transit (was Ordered).")
+    expect(line.closest("[data-testid=ipas-message]")).toHaveAttribute("data-event", "status_changed")
+    expect(line.closest("[data-testid=ipas-message]")).toHaveTextContent("Ben Cruz")
+    expect(screen.getByText("Status set to Done (was Delivered).").closest("[data-testid=ipas-message]")).toHaveTextContent("System")
+  })
+
   it("posts a message that mentions someone who can open IPAS", async () => {
     const user = setupUser()
     renderWithProviders(<IpasChat ipasId={ipas.id} />)

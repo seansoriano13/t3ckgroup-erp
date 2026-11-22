@@ -179,9 +179,13 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       key: "arrived",
       label: "Set the status to Delivered",
       done: arrived,
-      line: arrived ? "Delivered." : direct ? "Pick Delivered once the client has the goods." : "Pick Delivered once the goods have arrived.",
+      line: arrived
+        ? "Delivered."
+        : direct
+          ? "Pick Delivered from the Status at the top once the client has the goods."
+          : "Pick Delivered from the Status at the top once the goods have arrived.",
       who: buyer,
-      action: can.change && !arrived ? { kind: "edit", section: "delivery", label: "Pick it in 4 · Delivery" } : null,
+      action: null,
     },
     {
       key: "logistics",

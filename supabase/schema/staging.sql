@@ -6317,6 +6317,11 @@ declare
   v_mentioned uuid[] := '{}';
   v_others uuid[] := '{}';
 begin
+  -- A line the database posted (a status change) is a record, not a message.
+  if new.metadata ? 'event' then
+    return null;
+  end if;
+
   select * into v_ipas from public.ipas where id = new.ipas_id;
   if v_ipas.id is null then
     return null;
@@ -6344,7 +6349,8 @@ begin
   from (
     select v_ipas.created_by as x
     union
-    select m.author_id from public.ipas_messages m where m.ipas_id = v_ipas.id and m.id <> new.id
+    select m.author_id from public.ipas_messages m
+     where m.ipas_id = v_ipas.id and m.id <> new.id and not (m.metadata ? 'event')
   ) q
   where x is not null
     and x is distinct from new.author_id
@@ -6895,6 +6901,40 @@ begin
 
   alter table public.ipas enable trigger ipas_updated_at;
   perform set_config('ipas.reopening', 'off', true);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_to_chat()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_text text;
+begin
+  if new.status is not distinct from old.status then
+    return null;
+  end if;
+
+  if new.status is null then
+    v_text := 'Status cleared (was ' || public._ipas_status_label(old.status) || ').';
+  elsif old.status is null then
+    v_text := 'Status set to ' || public._ipas_status_label(new.status) || '.';
+  else
+    v_text := 'Status set to ' || public._ipas_status_label(new.status)
+           || ' (was ' || public._ipas_status_label(old.status) || ').';
+  end if;
+
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata)
+  values (
+    new.id,
+    public.get_employee_id(),
+    v_text,
+    jsonb_build_object('event', 'status_changed', 'from', old.status, 'to', new.status)
+  );
+
+  return null;
 end;
 $function$
 ;
@@ -32592,6 +32632,7 @@ CREATE TRIGGER ipas_seed_blank_charges AFTER INSERT ON public.ipas FOR EACH ROW 
 CREATE CONSTRAINT TRIGGER ipas_sor_rule_on_ipas AFTER INSERT OR UPDATE OF purpose ON public.ipas DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION ipas_enforce_sor_rule();
 CREATE TRIGGER ipas_status_lifecycle BEFORE UPDATE OF state, source ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_status_lifecycle();
 CREATE TRIGGER ipas_status_on_insert AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_status_on_insert();
+CREATE TRIGGER ipas_status_to_chat AFTER UPDATE ON public.ipas FOR EACH ROW WHEN ((old.status IS DISTINCT FROM new.status)) EXECUTE FUNCTION _ipas_status_to_chat();
 CREATE TRIGGER ipas_suggest_documents AFTER INSERT ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_suggest_documents_on_insert();
 CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();

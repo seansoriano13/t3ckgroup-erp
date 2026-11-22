@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-11-22",
+        "title": "IPAS Status is a dropdown",
+        "version": "1.11.12",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "The IPAS Status is now one dropdown on the Status at the top of the record. Pick a step and it saves at once; no date to type.",
+            "The step list in 4 · Delivery is gone. Every status change is posted in the IPAS's Chat, with who made it, so the Chat is the status history.",
+            "A small \"?\" beside the Status, and \"What do these mean?\" at the bottom of the dropdown, open a short guide to each step.",
+            "When the IPAS already knows a later step (the PO is confirmed, the goods are received), it still suggests it under the Status and in the dropdown, but never moves on its own."
+        ]
+    },
+    {
+        "date": "2026-11-22",
         "title": "IPAS and Dashboard fixes",
         "version": "1.11.11",
         "modules": [

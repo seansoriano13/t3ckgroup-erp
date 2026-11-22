@@ -172,7 +172,7 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
           </div>
           {form.directDelivery ? (
             <p className="text-xs text-muted-foreground">
-              The supplier delivers straight to the client, so no Item Location or Transmittal is asked for. Pick Delivered once the client has the goods.
+              The supplier delivers straight to the client, so no Item Location or Transmittal is asked for. Pick Delivered from the Status at the top once the client has the goods.
             </p>
           ) : (
             <div className={GRID}>
@@ -196,11 +196,7 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
       const stampable = actualCheckingStampable(ipas);
       return (
         <div className="space-y-5">
-          <div className="space-y-3">
-            <GroupTitle>IPAS Status</GroupTitle>
-            <p className="text-xs text-muted-foreground">Pick the step the order is at. It saves on its own, with the day it was reached.</p>
-            {blocks.statusSteps}
-          </div>
+          <p className="text-xs text-muted-foreground">The IPAS Status is picked from the Status at the top. Each change is posted in the Chat.</p>
           <div className="space-y-3">
             <GroupTitle>Buyer facts</GroupTitle>
             <p className="text-xs text-muted-foreground">Purchase Order, Received in Odoo and Create Bill come from Odoo, so they are not typed.</p>

@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Clock, MessagesSquare, Paperclip, Send } from "lucide-react";
+import { Clock, MessagesSquare, Paperclip, Send, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -30,18 +30,28 @@ function formatWhen(iso) {
   return formatDateWith(iso, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { time: true });
 }
 
+// An event line is posted by the database (a status change), never typed: it reads like the Purchase
+// Request chat's event lines, quiet and in italics, under whoever made the change.
 const Message = memo(function Message({ message, highlighted = false }) {
+  const isEvent = !!message.metadata?.event;
   return (
     <li
       className={cn("flex gap-2.5 rounded-lg transition-colors duration-700", highlighted && "bg-mauve-3")}
       data-testid="ipas-message"
       data-message-id={message.id}
+      data-event={message.metadata?.event || undefined}
       data-highlighted={highlighted || undefined}
     >
-      <Avatar name={message.author?.name || "?"} src={message.author?.avatar_path} size="sm" />
+      {isEvent ? (
+        <div className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground" aria-hidden="true">
+          <Sparkles size={12} />
+        </div>
+      ) : (
+        <Avatar name={message.author?.name || "?"} src={message.author?.avatar_path} size="sm" />
+      )}
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-semibold text-muted-foreground">
-          {message.author?.name || "Someone"}
+          {message.author?.name || (isEvent ? "System" : "Someone")}
           <span className="font-normal text-muted-foreground/60">
             {" · "}
             {formatWhen(message.created_at)}
@@ -50,7 +60,7 @@ const Message = memo(function Message({ message, highlighted = false }) {
         <NoteText
           content={message.content}
           mentions={message.metadata?.mentions}
-          className="text-sm break-words text-foreground"
+          className={cn("text-sm break-words", isEvent ? "text-muted-foreground italic" : "text-foreground")}
         />
         <AttachmentList attachments={message.metadata?.attachments} className={message.content ? "mt-2" : "mt-1"} />
       </div>
