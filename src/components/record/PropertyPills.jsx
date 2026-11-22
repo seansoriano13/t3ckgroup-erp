@@ -19,34 +19,38 @@ function PickerPill({ label, value, options, onChange, footer }) {
     <Dropdown
       usePortal
       matchTriggerWidth={false}
-      popoverClassName="popover-enter z-[10001] w-max min-w-40 rounded-xl bg-popover p-1.5 shadow-lg ring-1 ring-mauve-6"
+      popoverClassName="popover-enter z-[10001] w-max min-w-40 rounded-xl bg-popover shadow-lg ring-1 ring-mauve-6"
       trigger={
         <PropertyPill isActive>
           <span className="text-muted-foreground">{label}</span> <span className="font-semibold">{value}</span>
         </PropertyPill>
       }
     >
+      {/* The popover caps its height to the room on screen and hides overflow: the options scroll
+          inside it, and the footer stays pinned below them. */}
       {({ close }) => (
-        <div role="listbox" aria-label={label} className="flex flex-col gap-0.5">
-          {options.map((option) => (
-            <Button
-              key={option.value}
-              role="option"
-              aria-selected={option.label === value}
-              aria-disabled={option.disabled || undefined}
-              disabled={option.disabled}
-              variant="ghost"
-              className="h-auto flex-col items-start gap-0 rounded-lg px-2.5 py-2 text-left text-sm font-normal"
-              onClick={() => {
-                close();
-                onChange(option.value);
-              }}
-            >
-              <span>{option.label}</span>
-              {option.hint && <span className="text-xs text-muted-foreground">{option.hint}</span>}
-            </Button>
-          ))}
-          {footer && <div className="mt-1 border-t border-border pt-1">{footer({ close })}</div>}
+        <div className="flex max-h-[inherit] flex-col p-1.5">
+          <div role="listbox" aria-label={label} className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+            {options.map((option) => (
+              <Button
+                key={option.value}
+                role="option"
+                aria-selected={option.label === value}
+                aria-disabled={option.disabled || undefined}
+                disabled={option.disabled}
+                variant="ghost"
+                className="h-auto flex-col items-start gap-0 rounded-lg px-2.5 py-2 text-left text-sm font-normal"
+                onClick={() => {
+                  close();
+                  onChange(option.value);
+                }}
+              >
+                <span>{option.label}</span>
+                {option.hint && <span className="text-xs text-muted-foreground">{option.hint}</span>}
+              </Button>
+            ))}
+          </div>
+          {footer && <div className="mt-1 shrink-0 border-t border-border pt-1">{footer({ close })}</div>}
         </div>
       )}
     </Dropdown>
