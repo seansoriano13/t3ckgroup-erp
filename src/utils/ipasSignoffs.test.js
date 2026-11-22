@@ -134,12 +134,13 @@ describe("sending section 7 back", () => {
     expect(canSendBackSection7({ state: live, userId: "rita", lists: undefined, ipasState: "open" })).toBe(false)
   })
 
-  it("is offered on a queue item for every section 7 step after Received, and for sections 1 and 3", () => {
+  it("is offered on a section 7 queue item only at Approve and file, and for sections 1 and 3", () => {
     expect(canSendBackItem({ section: 1, role: "approved" })).toBe(true)
     expect(canSendBackItem({ section: 3, role: "approved" })).toBe(true)
     expect(canSendBackItem({ section: 7, role: "received" })).toBe(false)
     // Section 3 (stored 6) has its Return since #591.
     expect(canSendBackItem({ section: 6, role: "approved" })).toBe(true)
-    for (const role of ["noted", "checked", "approved"]) expect(canSendBackItem({ section: 7, role }), role).toBe(true)
+    for (const role of ["noted", "checked"]) expect(canSendBackItem({ section: 7, role }), role).toBe(false)
+    expect(canSendBackItem({ section: 7, role: "approved" })).toBe(true)
   })
 })

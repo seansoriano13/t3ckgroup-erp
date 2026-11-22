@@ -495,11 +495,11 @@ describe("IPAS section 7 and Filing", () => {
       expect(screen.queryByRole("button", { name: /^Return/ })).not.toBeInTheDocument();
     });
 
-    it("offers Return on a section 7 step once Received is given, and returns the section", async () => {
+    it("offers Return on section 7's Approve and file, and returns the section", async () => {
       const row = ipas();
       approvedFirstSections(row);
-      signoff(row.id, 7, "received", receiver);
-      signIn(noter);
+      givenThroughChecked(row);
+      signIn(boss);
       const user = setupUser();
 
       renderQueue();
@@ -512,7 +512,7 @@ describe("IPAS section 7 and Filing", () => {
       await waitFor(() => expect(db.rows("ipas_signoffs").filter((s) => s.section === 7 && !s.cleared_at)).toHaveLength(0));
       expect(db.rows("ipas_signoffs").find((s) => s.role === "received")).toMatchObject({
         cleared_reason: "Returned: Wrong supplier",
-        cleared_by: noter.id,
+        cleared_by: boss.id,
       });
     });
 
