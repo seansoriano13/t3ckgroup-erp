@@ -133,6 +133,7 @@ export function sorSummary(sor) {
   const parts = TRACKER_STAGES.slice(0, LAST_OPEN + 1)
     .map((stage) => (sor.byStage[stage.key] > 0 ? `${sor.byStage[stage.key]} ${stage.label.toLowerCase()}` : null))
     .filter(Boolean);
+  if (sor.awaitingFiling > 0) parts.push(`${sor.awaitingFiling} delivered, not filed`);
   if (sor.bidPending) parts.push("Bid Decision pending");
   return parts.join(", ");
 }
@@ -287,7 +288,10 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
   }
 
   const shaped = [...sors.values()].map((sor) => {
-    const open = sor.orders.filter((order) => order.group !== ORDER_GROUP.FILED && !isReceived(order));
+    // A delivered but unfiled order is still open work (Transmittal, checks, filing): it keeps its next move
+    // and ageing here. It only stays out of the Purchased (not received) count, which byStage handles above.
+    const open = sor.orders.filter((order) => order.group !== ORDER_GROUP.FILED);
+    const awaitingFiling = open.filter((order) => isReceived(order)).length;
     const dueAt = deadlines.get(sor.oppId)?.dueAt ?? null;
     const furthest = Math.max(-1, ...STAGE_KEYS.slice(0, LAST_OPEN + 1).map((key, i) => (holdsStage(sor, key) ? i : -1)));
     const noSor = sor.key === NO_SOR;
@@ -304,14 +308,16 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
       deadline: dueAt ? deadlineMark({ dueAt, nearDays, today }) : null,
       furthest,
       lastActivity: lastActivityOf(sor, activity),
-      outstanding: STAGE_KEYS.slice(0, LAST_OPEN + 1).reduce((n, key) => n + sor.byStage[key], 0),
+      // Delivered but unfiled orders sit in no stage, yet they are still work: they count as outstanding.
+      awaitingFiling,
+      outstanding: STAGE_KEYS.slice(0, LAST_OPEN + 1).reduce((n, key) => n + sor.byStage[key], 0) + awaitingFiling,
       next: nextMoveOf(sor.rows, open, { today, labelOf }),
     };
   });
 
   const needle = String(search ?? "").trim().toLowerCase();
   const beforeStage = shaped
-    .filter((sor) => showFiled || sor.outstanding > 0 || sor.bidPending)
+    .filter((sor) => showFiled || sor.outstanding > 0 || sor.bidPending || sor.openOrders.length > 0)
     .filter((sor) => !needle || matchesSearch(sor, needle))
     .filter((sor) => {
       if (next === NEXT_FILTER.OURS) return sor.next.band === MOVE_BAND.NOW;
@@ -332,5 +338,6 @@ export function buildTracker({ rows = [], orders = [], deadlines = new Map(), ne
 
   const result = beforeStage.filter((sor) => !stage || holdsStage(sor, stage)).sort(order === TRACKER_ORDER.RECENT ? byRecent : byUrgency);
   const shownOrders = [...new Map(result.flatMap((sor) => sor.openOrders).map((order) => [order.id, order])).values()];
-  return { sors: result, stages, orders: shownOrders };
+  const deliveredUnfiled = result.reduce((n, sor) => n + sor.awaitingFiling, 0);
+  return { sors: result, stages, orders: shownOrders, deliveredUnfiled };
 }

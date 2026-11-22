@@ -1,5 +1,20 @@
 [
     {
+        "date": "2026-11-22",
+        "title": "IPAS and Dashboard fixes",
+        "version": "1.11.11",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "The Purchasing Dashboard now keeps a SOR whose order is Delivered but not yet filed, with its next move and how long it has waited, instead of dropping it.",
+            "Direct delivery to client now shows on the IPAS summary and the printed IPAS in place of the Item Location.",
+            "The no-access message on IPAS now mentions Logistics access.",
+            "The printed IPAS shows a Transmittal's date as a plain Manila date, not a raw timestamp.",
+            "In the Approval Center, the one Check is now offered to everyone on the Received, Noted or Checked list."
+        ]
+    },
+    {
         "date": "2026-11-20",
         "title": "IPAS Status, Direct delivery and several files per document",
         "version": "1.11.10",

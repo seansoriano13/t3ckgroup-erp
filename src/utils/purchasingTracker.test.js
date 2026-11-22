@@ -109,6 +109,34 @@ describe("stages", () => {
   it("does not count an open order already Delivered as Purchased (not received)", () => {
     const received = order({ status: "delivered" });
     const { sors } = buildTracker({ rows: [], orders: [received], today: TODAY });
+    expect(sors).toHaveLength(1);
+    expect(sors[0].byStage.purchased).toBe(0);
+  });
+
+  it("keeps a Delivered but unfiled order on the dashboard with its next move and ageing", () => {
+    const delivered = order({
+      status: "delivered",
+      next: { label: "Delivered — no Transmittal raised", owner: ORDER_OWNER.PURCHASING },
+      daysWaiting: 9,
+      late: true,
+    });
+    const { sors, orders, stages, deliveredUnfiled } = buildTracker({ rows: [], orders: [delivered], today: TODAY });
+    expect(sors).toHaveLength(1);
+    expect(sors[0].byStage.purchased).toBe(0);
+    expect(sors[0].lateCount).toBe(1);
+    // It does not read 0 everywhere: it is outstanding, just not under Purchased (#1169).
+    expect(sors[0].outstanding).toBe(1);
+    expect(sors[0].awaitingFiling).toBe(1);
+    expect(sorSummary(sors[0])).toBe("1 delivered, not filed");
+    expect(stages.find((st) => st.key === "purchased").count).toBe(0);
+    expect(deliveredUnfiled).toBe(1);
+    expect(sors[0].next.move).toMatchObject({ label: "Delivered — no Transmittal raised", days: 9, late: true });
+    expect(orders.map((o) => o.id)).toEqual(["ip-1"]);
+  });
+
+  it("drops a Delivered order once it is filed", () => {
+    const filed = order({ status: "delivered", group: ORDER_GROUP.FILED });
+    const { sors } = buildTracker({ rows: [], orders: [filed], today: TODAY });
     expect(sors).toHaveLength(0);
   });
 
@@ -117,7 +145,7 @@ describe("stages", () => {
     const openOrder = order({ id: "ip-open" });
     const { sors } = buildTracker({ rows: [], orders: [received, openOrder], today: TODAY });
     expect(sors[0].byStage.purchased).toBe(1);
-    expect(sors[0].openOrders.map((o) => o.id)).toEqual(["ip-open"]);
+    expect(sors[0].openOrders.map((o) => o.id).sort()).toEqual(["ip-open", "ip-rec"]);
   });
 
   it("does not count or display a Received line under Purchased (not received)", () => {
@@ -130,7 +158,6 @@ describe("stages", () => {
       today: TODAY,
     });
     expect(sors[0].byStage.purchased).toBe(0);
-    expect(sors[0].openOrders).toHaveLength(0);
     expect(sors[0].rows.filter((r) => r.grp === "purchased")).toHaveLength(0);
   });
 
