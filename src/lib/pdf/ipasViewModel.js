@@ -408,7 +408,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
     itemLocation: text(ipas.itemLocation?.label),
     tg03: (ipas.slips ?? []).map((slip) => ({
       number: text(slip.number),
-      date: text(slip.date),
+      date: printDate(slip.date) ?? text(slip.date),
       priority: text(slip.priority),
       stateLabel: text(slip.stateLabel),
       naCount: slip.naCount ?? 0,
