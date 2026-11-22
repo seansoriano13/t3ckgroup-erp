@@ -19,7 +19,7 @@ export function whyYouSeeThis(item) {
   if (item.queue === "hr") return "You hold HR verification: graded work needs your sign-off before it counts for payroll.";
   if (item.queue === "ipas") {
     if (item.source?.section === 7) {
-      return `You are on the Section ${ipasSectionLabel(7)} ${(IPAS_SIGNOFF_ROLE_LABELS[item.source?.role] ?? "").toLowerCase()} list, and ${item.source?.role === "approved" ? "everything before it is given. Approving files the IPAS and freezes it" : "it is your turn"}.`;
+      return `You are on the Section ${ipasSectionLabel(7)} ${item.source?.role === "checked" ? "Received, Noted or Checked" : (IPAS_SIGNOFF_ROLE_LABELS[item.source?.role] ?? "").toLowerCase()} list, and ${item.source?.role === "approved" ? "everything before it is given. Approving files the IPAS and freezes it" : "it is your turn"}.`;
     }
     return `You are on the section ${ipasSectionNo(item.source?.section)} approval list, and ${first} prepared it. Whoever prepares a section can't approve it.`;
   }

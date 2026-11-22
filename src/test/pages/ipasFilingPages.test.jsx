@@ -471,17 +471,17 @@ describe("IPAS section 7 and Filing", () => {
         </MemoryRouter>,
       );
 
-    it("lists section 7's Received for its list and gives it from the row", async () => {
+    it("lists section 7's one Check for its list and gives it from the row", async () => {
       const row = ipas();
       approvedFirstSections(row);
       signIn(receiver);
       const user = setupUser();
 
       renderQueue();
-      await user.click(await screen.findByRole("button", { name: `Receive ${row.number} section 6` }));
+      await user.click(await screen.findByRole("button", { name: `Check ${row.number} section 6` }));
 
       await waitFor(() => expect(screen.getByText("Nothing waiting on you right now")).toBeInTheDocument());
-      expect(db.rows("ipas_signoffs").filter((s) => s.section === 7).map((s) => s.role)).toEqual(["received"]);
+      expect(db.rows("ipas_signoffs").filter((s) => s.section === 7).map((s) => s.role).sort()).toEqual(["checked", "noted", "received"]);
     });
 
     it("offers no Return on a section 7 step", async () => {
@@ -491,7 +491,7 @@ describe("IPAS section 7 and Filing", () => {
 
       renderQueue();
 
-      await screen.findByRole("button", { name: `Receive ${row.number} section 6` });
+      await screen.findByRole("button", { name: `Check ${row.number} section 6` });
       expect(screen.queryByRole("button", { name: /^Return/ })).not.toBeInTheDocument();
     });
 
@@ -537,7 +537,7 @@ describe("IPAS section 7 and Filing", () => {
       expect(db.rows("ipas").find((r) => r.id === row.id).state).toBe("filed");
     });
 
-    it("opens a review sheet that names the step and has no Return before Received", async () => {
+    it("opens a review sheet that names the step and has no Return before the Check", async () => {
       const row = ipas();
       approvedFirstSections(row);
       signIn(receiver);
@@ -545,14 +545,14 @@ describe("IPAS section 7 and Filing", () => {
 
       renderQueue();
       // The queue row names the part as the record does (#1130).
-      expect(await screen.findByText(/Section 6 · Sign-offs · Received/)).toBeInTheDocument();
+      expect(await screen.findByText(/Section 6 · Sign-offs · Check/)).toBeInTheDocument();
       await user.click(await screen.findByText("Scorpe Technologies"));
 
       const sheet = await findOtherDialog();
-      expect(within(sheet).getByText("You are on the Section 6 · Sign-offs received list, and it is your turn.")).toBeInTheDocument();
+      expect(within(sheet).getByText("You are on the Section 6 · Sign-offs Received, Noted or Checked list, and it is your turn.")).toBeInTheDocument();
       expect(within(sheet).getByText("Your step")).toBeInTheDocument();
       expect(within(sheet).getByText("Gave the sign-off before yours")).toBeInTheDocument();
-      expect(within(sheet).getByRole("button", { name: "Receive" })).toBeInTheDocument();
+      expect(within(sheet).getByRole("button", { name: "Check" })).toBeInTheDocument();
       expect(within(sheet).queryByRole("button", { name: "Return" })).not.toBeInTheDocument();
     });
   });
