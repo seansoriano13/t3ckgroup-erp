@@ -33,7 +33,7 @@ describe("Activity settings (#1064)", () => {
       [{ activity_type: "EVENT", name: "Party", color: "pink", active: false, who_files: "EVERYONE", needs_hr: true, multi_day: false }],
       { meeting_onsite: true, meeting_online: false, meeting_hybrid: true, earliest_start: "08:00:00", latest_end: "18:00:00", time_step_minutes: 30, default_start: "09:00:00", default_end: "10:00:00", reminder_minutes: 60, max_days: 7, guests_allowed: false },
     )
-    expect(s.types.EVENT).toEqual({ name: "Party", color: "pink", active: false, whoFiles: "EVERYONE", needsHr: true, multiDay: false })
+    expect(s.types.EVENT).toEqual({ name: "Party", color: "pink", active: false, whoFiles: "EVERYONE", needsHr: true, multiDay: false, alsoAllowed: [] })
     expect(s.types.MEETING).toEqual(DEFAULT_ACTIVITY_SETTINGS.types.MEETING)
     expect(s.general).toMatchObject({ earliestStart: "08:00", latestEnd: "18:00", timeStep: 30, reminderMinutes: 60, maxDays: 7, guestsAllowed: false })
     expect(enabledMeetingTypes(s.general)).toEqual(["ONSITE", "HYBRID"])

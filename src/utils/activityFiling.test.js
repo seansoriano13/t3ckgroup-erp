@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { getActivitySettings } from "./activitySettings"
 import { canFileActivityType, fileableActivityTypes, formTypeOptions, newActivityLabel } from "./activityFiling"
 
 const ordinary = { id: "e1" }
@@ -36,5 +37,14 @@ describe("who files each Activity type (#1063)", () => {
   it("names the New button after what the viewer may file", () => {
     expect(newActivityLabel(ordinary)).toBe("New Meeting")
     expect(newActivityLabel(head)).toBe("New Activity")
+  })
+
+  it("lets a person on the Also allowed list file a heads-only type, and only that type", () => {
+    const settings = getActivitySettings()
+    const withList = { ...settings, types: { ...settings.types, OPERATIONS_TASK: { ...settings.types.OPERATIONS_TASK, alsoAllowed: ["e1"] } } }
+    expect(canFileActivityType(ordinary, "OPERATIONS_TASK", withList)).toBe(true)
+    expect(canFileActivityType(ordinary, "ADMIN_TASK", withList)).toBe(false)
+    expect(canFileActivityType({ id: "e2" }, "OPERATIONS_TASK", withList)).toBe(false)
+    expect(fileableActivityTypes(ordinary, withList)).toEqual(["MEETING", "OPERATIONS_TASK"])
   })
 })
