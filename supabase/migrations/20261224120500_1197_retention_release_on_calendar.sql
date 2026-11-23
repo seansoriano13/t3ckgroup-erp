@@ -643,5 +643,6 @@ begin
 
   return json_build_object('flow', row_to_json(v_flow), 'version', v_snapshot.version);
 end;
+$$;
 
 grant execute on function public.restore_flow_snapshot(uuid, uuid) to authenticated;
