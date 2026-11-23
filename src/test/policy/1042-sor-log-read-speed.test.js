@@ -48,6 +48,36 @@ describe("SOR history read as a Sales user (#1042)", () => {
         expect(data).toHaveLength(COUNT * 10)
     })
 
+    it("posts a chat message and reads it back, as the chat does, inside the budget", async () => {
+        // The rule checks a row against its own SOR, not every SOR the caller sees: the read-back
+        // after a post timed out on prod when it worked out ~450 SORs each time.
+        const client = await clientFor("dealOwner")
+        const started = Date.now()
+        const { data, error } = await client
+            .from("sales_opportunity_logs")
+            .insert({ opportunity_id: sorIds[0], author_id: ids.dealOwner, type: "COMMENT", content: `${MARKER} posted` })
+            .select("id, content")
+            .single()
+        const took = Date.now() - started
+        expect(error).toBeNull()
+        expect(data.content).toBe(`${MARKER} posted`)
+        expect(took).toBeLessThan(BUDGET_MS)
+    })
+
+    it("reads one SOR's logs straight from the table", async () => {
+        const client = await clientFor("dealOwner")
+        const { data, error } = await client.from("sales_opportunity_logs").select("id").eq("opportunity_id", sorIds[1])
+        expect(error).toBeNull()
+        expect(data).toHaveLength(10)
+    })
+
+    it("gives someone with no access none of the rows from the table", async () => {
+        const client = await clientFor("outsider")
+        const { data, error } = await client.from("sales_opportunity_logs").select("id").in("opportunity_id", sorIds)
+        expect(error).toBeNull()
+        expect(data).toEqual([])
+    })
+
     it("still gives someone with no access none of the rows through the RPC", async () => {
         const client = await clientFor("outsider")
         const { data, error } = await client.rpc("sor_logs_for_sors", { p_opportunity_ids: sorIds })

@@ -1675,6 +1675,38 @@ describe("opportunityService", () => {
         expect(result[legacyDeal.id]).toBeUndefined()
       })
 
+      // SOR-598 on prod (2026-11-23): the List read every open SOR's notes in
+      // one go, the server returned only the first 1,000 of ~6,000, and an
+      // uploaded file that fell past the cut showed as "Blocked on" it.
+      it("sees an uploaded file even when it sits past the first 1,000 notes", async () => {
+        makeStageCondition({
+          stage_id: lead.id,
+          kind: "attachment",
+          label: "Proof of Quotation",
+          config: { documentType: "QUOTE" },
+        })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+        db.seed(
+          "sales_opportunity_logs",
+          Array.from({ length: 1100 }, (_, i) => ({
+            opportunity_id: created.id,
+            author_id: registrar.id,
+            content: `note ${i}`,
+            type: "COMMENT",
+          })),
+        )
+        await opportunityService.addNote(created.id, registrar.id, "", [
+          { url: "https://cdn.test/quote.pdf", name: "quote.pdf", documentType: "QUOTE" },
+        ])
+
+        const result = await opportunityService.getBlockedDeals([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(result[created.id]).toBeUndefined()
+      })
+
       it("returns nothing for an empty register", async () => {
         expect(await opportunityService.getBlockedDeals([])).toEqual({})
       })
