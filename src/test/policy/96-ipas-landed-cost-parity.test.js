@@ -21,7 +21,7 @@ let method, kind
 
 const line = (id, quantity, price_unit, over = {}) => ({ line_id: id, name: `Item ${id}`, quantity, unit: "Unit", price_unit, brand: null, ...over })
 
-async function makeIpas({ currency = "Php", lines, split = "value", status = "encoding", payments = [], charges = [], filed = false }) {
+async function makeIpas({ currency = "Php", lines, split = "value", status = "encoding", payments = [], charges = [], filed = false, freight = null }) {
     seq += 1
     const po = `P96${RUN}${String(seq).padStart(2, "0")}`
     const copy = { po: { name: po, currency }, supplier: { id: 1, name: "Supplier" }, lines }
@@ -35,6 +35,12 @@ async function makeIpas({ currency = "Php", lines, split = "value", status = "en
             [po, copy, ids.outsider, split, status, filed ? "filed" : "open"],
         )
         const id = rows[0].id
+        if (freight) {
+            await client.query(
+                `update public.ipas set freight_amount = $2, freight_currency = $3, freight_billed_by_supplier = $4 where id = $1`,
+                [id, freight.amount, freight.currency, Boolean(freight.billedBySupplier)],
+            )
+        }
         for (const p of payments) {
             await client.query(
                 `insert into public.ipas_payments (ipas_id, kind, paid_on, amount, php_debited, charge_fee_php, method_id, created_by)
@@ -104,6 +110,15 @@ const FIXTURES = {
     "a peso PO spread by quantity": { split: "quantity", lines: [line(1, 3, 1000), line(2, 1, 333.33), line(3, 7, 12.5)], charges: [1000.01] },
     "a peso PO spread equally": { split: "equal", lines: [line(1, 3, 1000), line(2, 1, 333.33), line(3, 7, 12.5)], charges: [100] },
     "a peso PO with a shipping fee": { lines: [line(1, 2, 500)], payments: [{ kind: "shipping_fee", amount: 450 }] },
+    // #1192: Freight the supplier billed joins the pool once; Freight it did not bill works as before.
+    "a peso PO with supplier-billed Freight": { lines: [line(1, 2, 500)], freight: { amount: 300, currency: "PHP", billedBySupplier: true } },
+    "a peso PO with Freight the supplier did not bill": { lines: [line(1, 2, 500)], freight: { amount: 300, currency: "PHP", billedBySupplier: false } },
+    "a USD PO with supplier-billed Freight in USD": {
+        currency: "USD",
+        lines: [line(1, 4, 25)],
+        payments: [{ kind: "payment", amount: 100, php_debited: 5600 }],
+        freight: { amount: 20, currency: "USD", billedBySupplier: true },
+    },
     "nothing priced falls back to equal": { lines: [line(1, 2, 0), line(2, 3, 0)], charges: [500] },
     "a line that buys nothing is skipped": { lines: [line(1, 0, 100), line(2, 2, 100)], charges: [10] },
     "no lines at all": { lines: [] },
@@ -138,6 +153,7 @@ describe("the database and the fake give the same Landed Cost", () => {
             split: fixture.split ?? "value",
             computationStatus: fixture.status ?? "encoding",
             filed: Boolean(fixture.filed),
+            freight: fixture.freight ?? null,
             referenceRates: REFERENCE_RATES,
         })
         expect(sameOrder(norm(await fromDb(id)))).toEqual(sameOrder(norm(fake)))
