@@ -36,6 +36,8 @@ import SorsTotals from "../../components/sor/SorsTotals";
 import SaleTypeFilter from "../../components/sor/SaleTypeFilter";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
+import { isArchivedSor } from "../../utils/archivedSors";
+import ArchivedOpportunitiesView from "../../components/sor/ArchivedOpportunitiesView";
 import DeletedOpportunitiesView from "../../components/sor/DeletedOpportunitiesView";
 import { useMySorWork } from "../../components/sor/useMySorWork";
 import { canReadSorRegister, getPermissionContext } from "../../utils/permissions";
@@ -472,6 +474,8 @@ export default function OpportunitiesPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return opportunities.filter((o) => {
+      // #1193: an archived SOR is out of the List and the Board. Overview still reads it.
+      if (isArchivedSor(o)) return false;
       // Open Pipeline (CONTEXT.md): the same rule the Open pipeline value
       // adds up, so the filter lists exactly the rows behind the figure.
       if (stageFilter === "OPEN" && !isOpenPipelineOpportunity(o, stageContext)) return false;
@@ -1070,6 +1074,8 @@ export default function OpportunitiesPage() {
       >
         {view === "mine" ? (
           mySorWork.body
+        ) : view === "archived" ? (
+          <ArchivedOpportunitiesView isSuperAdmin={isSuperAdmin} />
         ) : view === "deleted" ? (
           <DeletedOpportunitiesView currentUserId={user?.id} isSuperAdmin={isSuperAdmin} />
         ) : isError ? (
