@@ -10,7 +10,7 @@ import { settingsFromRows } from '../utils/activitySettings';
  */
 
 const NOT_ALLOWED = 'Only HR and Super Admins can change Activity settings.';
-const TYPE_COLUMNS = { name: 'name', color: 'color', active: 'active', whoFiles: 'who_files', needsHr: 'needs_hr', multiDay: 'multi_day' };
+const TYPE_COLUMNS = { name: 'name', color: 'color', active: 'active', whoFiles: 'who_files', needsHr: 'needs_hr', multiDay: 'multi_day', alsoAllowed: 'also_allowed' };
 const GENERAL_COLUMNS = {
   earliestStart: 'earliest_start',
   latestEnd: 'latest_end',
@@ -35,6 +35,12 @@ export function describeTypeChange(field, from, to) {
     case 'active': return `Switched ${onOff(to.active)} Activity type "${name}"`;
     case 'whoFiles': return `"${name}" can now be filed by ${WHO[to.whoFiles]} (was ${WHO[from.whoFiles]})`;
     case 'needsHr': return `"${name}" ${to.needsHr ? 'now waits for HR' : 'no longer waits for HR'}`;
+    case 'alsoAllowed': {
+      const added = to.alsoAllowed.filter((id) => !from.alsoAllowed.includes(id)).length;
+      const removed = from.alsoAllowed.filter((id) => !to.alsoAllowed.includes(id)).length;
+      const parts = [added && `added ${added}`, removed && `removed ${removed}`].filter(Boolean).join(' and ');
+      return `"${name}" Also allowed list: ${parts || 'changed'} (now ${to.alsoAllowed.length} ${to.alsoAllowed.length === 1 ? 'person' : 'people'})`;
+    }
     case 'multiDay': return `"${name}" ${to.multiDay ? 'can now run over several days' : 'now runs on one day only'}`;
     default: return `Changed ${field} of "${name}"`;
   }
@@ -88,7 +94,8 @@ export const activitySettingsService = {
    * Only fields that differ are written, and each one is logged.
    */
   async saveType(typeKey, from, changes, actorId) {
-    const diff = Object.keys(changes).filter((k) => TYPE_COLUMNS[k] && changes[k] !== from[k]);
+    const same = (a, b) => (Array.isArray(a) && Array.isArray(b) ? a.length === b.length && a.every((v, i) => v === b[i]) : a === b);
+    const diff = Object.keys(changes).filter((k) => TYPE_COLUMNS[k] && !same(changes[k], from[k]));
     if (!diff.length) return from;
     const values = Object.fromEntries(diff.map((k) => [k, k === 'name' ? String(changes[k]).trim() : changes[k]]));
     if ('name' in values && !values.name) throw new Error('Give the type a name.');

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { SelectField } from "@/components/ui/SelectField";
+import PeoplePicker from "@/components/ui/PeoplePicker";
+import { SELECTOR_TYPES } from "@/utils/resolvePeople";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -94,6 +96,20 @@ function TypeCard({ typeKey, type, onlyOneOn, save, busy }) {
             className="w-52"
           />
         </Row>
+        {type.whoFiles === "HEADS" && (
+          <div className="px-1 py-2.5" data-testid={`activity-also-allowed-${typeKey}`}>
+            <p className="text-[13px] font-medium text-foreground">Also allowed</p>
+            <p className="text-xs text-muted-foreground">These people can file it too, even though they are not department heads.</p>
+            <PeoplePicker
+              className="mt-2"
+              types={[SELECTOR_TYPES.EMPLOYEE]}
+              placeholder="Add person"
+              disabled={busy}
+              value={(type.alsoAllowed ?? []).map((id) => ({ type: SELECTOR_TYPES.EMPLOYEE, id }))}
+              onChange={(selectors) => change({ alsoAllowed: selectors.map((s) => s.id) })}
+            />
+          </div>
+        )}
         <Row
           label="Waits for HR"
           hint={typeKey === "MEETING" ? "Only a Meeting with a Venue waits. Never when HR or a Super Admin files it." : "Never when HR or a Super Admin files it."}

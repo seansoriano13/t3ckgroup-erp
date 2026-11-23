@@ -11,10 +11,10 @@ export const MEETING_TYPE_KEYS = ['ONSITE', 'ONLINE', 'HYBRID'];
 // on in Settings > Activities (CONTEXT.md, Activity type).
 export const DEFAULT_ACTIVITY_SETTINGS = {
   types: {
-    MEETING: { name: 'Meeting', color: 'teal', active: true, whoFiles: 'EVERYONE', needsHr: true, multiDay: false },
-    ADMIN_TASK: { name: 'Admin Task', color: 'indigo', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true },
-    OPERATIONS_TASK: { name: 'Operations Task', color: 'orange', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true },
-    EVENT: { name: 'Event', color: 'plum', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true },
+    MEETING: { name: 'Meeting', color: 'teal', active: true, whoFiles: 'EVERYONE', needsHr: true, multiDay: false, alsoAllowed: [] },
+    ADMIN_TASK: { name: 'Admin Task', color: 'indigo', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true, alsoAllowed: [] },
+    OPERATIONS_TASK: { name: 'Operations Task', color: 'orange', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true, alsoAllowed: [] },
+    EVENT: { name: 'Event', color: 'plum', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true, alsoAllowed: [] },
   },
   general: {
     meetingTypes: { ONSITE: true, ONLINE: true, HYBRID: true },
@@ -38,7 +38,7 @@ export function settingsFromRows(typeRows = [], generalRow = null) {
   for (const key of ACTIVITY_TYPE_KEYS) {
     const row = (typeRows ?? []).find((r) => r.activity_type === key);
     types[key] = row
-      ? { name: row.name, color: row.color, active: row.active, whoFiles: row.who_files, needsHr: row.needs_hr, multiDay: row.multi_day }
+      ? { name: row.name, color: row.color, active: row.active, whoFiles: row.who_files, needsHr: row.needs_hr, multiDay: row.multi_day, alsoAllowed: row.also_allowed ?? [] }
       : d.types[key];
   }
   const g = generalRow;
