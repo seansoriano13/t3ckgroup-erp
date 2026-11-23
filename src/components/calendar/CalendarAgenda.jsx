@@ -12,7 +12,7 @@ const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 const lineText = (e) => {
   const who = shortName(e.employee?.name);
-  if (e.kind === 'MEETING') return e.title;
+  if (e.kind === 'MEETING' || e.kind === 'SOR_DATE') return e.title;
   if (e.kind === 'UNDERTIME' || e.kind === 'OVERTIME') return `${who} ${e.kind === 'UNDERTIME' ? 'undertime' : 'overtime'}`;
   return `${who} · ${styleOf(e)?.label ?? ''}`;
 };

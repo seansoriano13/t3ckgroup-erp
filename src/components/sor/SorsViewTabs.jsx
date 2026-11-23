@@ -1,4 +1,4 @@
-import { List, Kanban, LayoutDashboard, Trash2, Handshake } from "lucide-react";
+import { List, Kanban, LayoutDashboard, Trash2, Handshake, Archive } from "lucide-react";
 import TabGroup from "../ui/TabGroup";
 
 const MINE_TAB = { value: "mine", label: "My work", icon: Handshake };
@@ -6,6 +6,7 @@ const REGISTER_TABS = [
   { value: "list", label: "List", icon: List },
   { value: "board", label: "Board", icon: Kanban },
   { value: "overview", label: "Overview", icon: LayoutDashboard },
+  { value: "archived", icon: Archive, label: "Archived" },
   { value: "deleted", icon: Trash2, label: "Deleted" },
 ];
 

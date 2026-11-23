@@ -68,6 +68,10 @@ read-only pull, `scripts/db-ledger-check.mjs`'s ledger diff, and
 either database any other way, including an ad hoc query to "just check
 something," is not part of the local workflow.
 
+When Sean asks to check live data, use `pnpm db:query <prod|staging> -e "<sql>"`
+(`--describe <table>` lists columns). It runs read-only and prints short tables;
+write no one-off `pg` script for this.
+
 Schema changes follow the same principle one level up: CI applies
 migrations, never a developer machine or an agent acting as one (see
 "Database migrations" immediately below) — `supabase db reset` against the

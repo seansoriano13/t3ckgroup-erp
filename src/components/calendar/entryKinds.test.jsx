@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIVITY_TYPES, DEFAULT_LAYERS, ENTRY_KINDS, LAYERS, kindOf, layerOf, styleOf, visibleEntries } from './entryKinds.jsx';
+import { ACTIVITY_TYPES, DEFAULT_LAYERS, ENTRY_KINDS, LAYERS, TIME_OFF_OVERTIME_LAYERS, kindOf, layerOf, styleOf, visibleEntries } from './entryKinds.jsx';
 
 describe('entry-kind registry', () => {
   it('maps each kind to its layer', () => {
@@ -20,8 +20,14 @@ describe('entry-kind registry', () => {
     }
   });
 
-  it('has the three layers, Meetings included', () => {
-    expect(LAYERS.map((l) => l.label)).toEqual(['Meetings', 'Time Off', 'Overtime']);
+  it('has the layers, Meetings and SOR dates included', () => {
+    expect(LAYERS.map((l) => l.label)).toEqual(['Meetings', 'Time Off', 'Overtime', 'SOR dates']);
+  });
+
+  it('puts a retention release entry on the SOR dates layer, and keeps it out of the Time Off and Overtime view', () => {
+    expect(layerOf('SOR_DATE')).toBe('sorDates');
+    expect(DEFAULT_LAYERS.sorDates).toBe(true);
+    expect(TIME_OFF_OVERTIME_LAYERS.sorDates).toBe(false);
   });
 
   it('does not know a kind it was not given', () => {

@@ -21,7 +21,7 @@ const LANE = '1.5rem';
 
 const isBar = (e) => TIME_OFF_KINDS.has(e.kind) || isMultiDayActivity(e);
 const lineText = (e) =>
-  e.kind === 'MEETING' ? e.title : `${shortName(e.employee?.name)} ${e.kind === 'UNDERTIME' ? 'undertime' : 'overtime'}`;
+  e.kind === 'MEETING' || e.kind === 'SOR_DATE' ? e.title : `${shortName(e.employee?.name)} ${e.kind === 'UNDERTIME' ? 'undertime' : 'overtime'}`;
 
 function Week({ fill, week, entries, selectedYmd, todayYmd, onSelectDay, onOpenDay, onOpenEntry }) {
   const ymds = week.map((d) => d.ymd);

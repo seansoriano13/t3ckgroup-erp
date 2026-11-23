@@ -1,6 +1,6 @@
 ﻿import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import SideNav from "./SideNav";
 import { renderWithProviders } from "../test/support";
 import * as AuthContext from "../context/AuthContext";
@@ -142,6 +142,29 @@ describe("SideNav Component", () => {
     const linkBadge = screen.getByTestId("link-badge-Task Approvals");
     expect(linkBadge).toBeInTheDocument();
     expect(linkBadge).toHaveTextContent("5");
+  });
+
+  it("opens the IPAS list on the Payment Forecast when the IPAS count is clicked", () => {
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "gm", name: "GM", isSuperAdmin: true },
+      isAuthLoading: false,
+    });
+    vi.spyOn(useNavBadgesModule, "useNavBadges").mockReturnValue({ ipasForPayment: 3 });
+    function Probe() {
+      const location = useLocation();
+      return <div data-testid="where">{location.pathname + location.search}</div>;
+    }
+    renderWithProviders(
+      <MemoryRouter>
+        <SideNav />
+        <Probe />
+      </MemoryRouter>
+    );
+
+    const badge = screen.getByTestId("link-badge-IPAS");
+    expect(badge).toHaveTextContent("3");
+    fireEvent.click(badge);
+    expect(screen.getByTestId("where")).toHaveTextContent("/purchasing/ipas?view=payment_forecast");
   });
 
   it("persists accordion collapse toggle in localStorage", async () => {

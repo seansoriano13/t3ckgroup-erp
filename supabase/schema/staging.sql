@@ -673,7 +673,8 @@ create table if not exists public."flow_stage_fields" (
   "archived_at" timestamp with time zone,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "show_when" jsonb
+  "show_when" jsonb,
+  "show_on_calendar" boolean not null default false
 );
 
 create table if not exists public."flow_stage_follow_ups" (
@@ -883,7 +884,21 @@ create table if not exists public."ipas_options" (
   "used_for" text,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "required_before" smallint
+  "required_before" smallint,
+  "system_key" text
+);
+
+create table if not exists public."ipas_payment_asks" (
+  "id" uuid not null default gen_random_uuid(),
+  "ipas_id" uuid not null,
+  "amount" numeric not null,
+  "purpose" text not null,
+  "note" text,
+  "asked_by" uuid,
+  "asked_at" timestamp with time zone not null default now(),
+  "closed_at" timestamp with time zone,
+  "closed_by" uuid,
+  "closed_reason" text
 );
 
 create table if not exists public."ipas_payments" (
@@ -1540,7 +1555,9 @@ create table if not exists public."sales_opportunities" (
   "lost_from_flow_stage_id" uuid,
   "lost_from_status" text,
   "sales_reference_odoo_state" text,
-  "sales_reference_checked_at" timestamp with time zone
+  "sales_reference_checked_at" timestamp with time zone,
+  "archived_at" timestamp with time zone,
+  "archived_by" uuid
 );
 
 create table if not exists public."sales_opportunity_items" (
@@ -2117,6 +2134,7 @@ alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
 alter table ipas_messages add constraint "ipas_messages_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
+alter table ipas_payment_asks add constraint "ipas_payment_asks_pkey" PRIMARY KEY (id);
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
@@ -2341,6 +2359,7 @@ alter table flow_form_fields add constraint "flow_form_fields_source_chk" CHECK 
 alter table flow_form_fields add constraint "flow_form_fields_type_chk" CHECK (((field_type IS NULL) OR (field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text]))));
 alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text, 'open_purchase_request'::text, 'open_costing_matrix'::text, 'request_packing_list'::text, 'evaluate_specification'::text])));
 alter table flow_stage_fields add constraint "flow_stage_fields_label_not_blank" CHECK ((btrim(label) <> ''::text));
+alter table flow_stage_fields add constraint "flow_stage_fields_show_on_calendar_chk" CHECK (((NOT show_on_calendar) OR ((source = 'custom'::text) AND (field_type = 'date'::text))));
 alter table flow_stage_fields add constraint "flow_stage_fields_show_when_chk" CHECK (((show_when IS NULL) OR ((jsonb_typeof(show_when) = 'object'::text) AND (show_when ? 'field_id'::text) AND (show_when ? 'value'::text))));
 alter table flow_stage_fields add constraint "flow_stage_fields_sor_field_chk" CHECK ((((source = 'sor'::text) AND (sor_field IS NOT NULL)) OR ((source = 'custom'::text) AND (sor_field IS NULL))));
 alter table flow_stage_fields add constraint "flow_stage_fields_source_chk" CHECK ((source = ANY (ARRAY['sor'::text, 'custom'::text])));
@@ -2389,7 +2408,12 @@ alter table ipas_options add constraint "ipas_options_document_kind_marked_chk" 
 alter table ipas_options add constraint "ipas_options_label_chk" CHECK ((length(btrim(label)) > 0));
 alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text, 'transmittal_product'::text, 'transmittal_reference'::text])));
 alter table ipas_options add constraint "ipas_options_required_before_chk" CHECK (((required_before IS NULL) OR ((list = 'document_kind'::text) AND (required_before = ANY (ARRAY[1, 3, 6])))));
+alter table ipas_options add constraint "ipas_options_system_key_list_chk" CHECK (((system_key IS NULL) OR (list = 'document_kind'::text)));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_amount_chk" CHECK ((amount > (0)::numeric));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_chk" CHECK (((closed_at IS NULL) = (closed_reason IS NULL)));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_reason_chk" CHECK (((closed_reason IS NULL) OR (closed_reason = ANY (ARRAY['withdrawn'::text, 'paid'::text]))));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_purpose_chk" CHECK ((purpose = ANY (ARRAY['down_payment'::text, 'balance'::text, 'freight'::text])));
 alter table ipas_payments add constraint "ipas_payments_amount_chk" CHECK ((amount > (0)::numeric));
 alter table ipas_payments add constraint "ipas_payments_charge_fee_chk" CHECK ((charge_fee_php >= (0)::numeric));
 alter table ipas_payments add constraint "ipas_payments_check_no_chk" CHECK (((check_no IS NULL) OR (length(btrim(check_no)) > 0)));
@@ -2637,6 +2661,9 @@ alter table ipas_events add constraint "ipas_events_actor_id_fkey" FOREIGN KEY (
 alter table ipas_events add constraint "ipas_events_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_messages add constraint "ipas_messages_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
 alter table ipas_messages add constraint "ipas_messages_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_payment_asks add constraint "ipas_payment_asks_asked_by_fkey" FOREIGN KEY (asked_by) REFERENCES employees(id);
+alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_by_fkey" FOREIGN KEY (closed_by) REFERENCES employees(id);
+alter table ipas_payment_asks add constraint "ipas_payment_asks_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payments add constraint "ipas_payments_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN KEY (method_id) REFERENCES ipas_options(id);
@@ -2745,6 +2772,7 @@ alter table sales_flows add constraint "sales_flows_contract_stage_id_fkey" FORE
 alter table sales_flows add constraint "sales_flows_locked_by_fkey" FOREIGN KEY (locked_by) REFERENCES employees(id);
 alter table sales_flows add constraint "sales_flows_sale_type_id_fkey" FOREIGN KEY (sale_type_id) REFERENCES sale_types(id) ON DELETE CASCADE;
 alter table sales_flows add constraint "sales_flows_won_stage_fkey" FOREIGN KEY (won_stage_id) REFERENCES flow_stages(id) ON DELETE RESTRICT;
+alter table sales_opportunities add constraint "sales_opportunities_archived_by_fkey" FOREIGN KEY (archived_by) REFERENCES employees(id);
 alter table sales_opportunities add constraint "sales_opportunities_closing_sales_id_fkey" FOREIGN KEY (closing_sales_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sales_opportunities add constraint "sales_opportunities_deal_owner_id_fkey" FOREIGN KEY (deal_owner_id) REFERENCES employees(id);
 alter table sales_opportunities add constraint "sales_opportunities_deleted_by_fkey" FOREIGN KEY (deleted_by) REFERENCES employees(id);
@@ -2957,6 +2985,10 @@ CREATE INDEX ipas_events_ipas_id_idx ON public.ipas_events USING btree (ipas_id,
 CREATE INDEX ipas_messages_ipas_id_idx ON public.ipas_messages USING btree (ipas_id, created_at);
 CREATE UNIQUE INDEX ipas_options_list_label_key ON public.ipas_options USING btree (list, lower(btrim(label)));
 CREATE INDEX ipas_options_list_sort_idx ON public.ipas_options USING btree (list, sort);
+CREATE UNIQUE INDEX ipas_options_system_key_key ON public.ipas_options USING btree (system_key) WHERE (system_key IS NOT NULL);
+CREATE INDEX ipas_payment_asks_asked_by_idx ON public.ipas_payment_asks USING btree (asked_by);
+CREATE INDEX ipas_payment_asks_closed_by_idx ON public.ipas_payment_asks USING btree (closed_by);
+CREATE UNIQUE INDEX ipas_payment_asks_one_open_idx ON public.ipas_payment_asks USING btree (ipas_id) WHERE (closed_at IS NULL);
 CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (created_by);
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
@@ -3158,6 +3190,7 @@ alter table public."ipas_events" enable row level security;
 alter table public."ipas_file_rules" enable row level security;
 alter table public."ipas_messages" enable row level security;
 alter table public."ipas_options" enable row level security;
+alter table public."ipas_payment_asks" enable row level security;
 alter table public."ipas_payments" enable row level security;
 alter table public."ipas_signer_list_log" enable row level security;
 alter table public."ipas_signer_lists" enable row level security;
@@ -4129,6 +4162,11 @@ create policy "ipas_options_update" on public."ipas_options"
   to authenticated
   using ((has_purchasing_access() OR COALESCE(is_super_admin(), false)))
   with check ((has_purchasing_access() OR COALESCE(is_super_admin(), false)));
+create policy "ipas_payment_asks_read" on public."ipas_payment_asks"
+  as permissive
+  for select
+  to authenticated
+  using (ipas_can_read());
 create policy "ipas_payments_read" on public."ipas_payments"
   as permissive
   for select
@@ -5355,6 +5393,15 @@ AS $function$
   select regexp_replace(coalesce(p_account, ''), '[[:space:]-]', '', 'g');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_ask_purpose_label(p_purpose text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select case p_purpose when 'down_payment' then 'Down payment' when 'balance' then 'Balance' when 'freight' then 'Freight' else p_purpose end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_can_sign_section(p_section integer, p_employee_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -6069,8 +6116,7 @@ begin
     v_shipping := v_ship_c;
   end if;
   -- Freight (#709). Its own amount is the freight when one is typed; the older shipping-fee payments
-  -- then no longer count (they would be the same freight twice). Freight the supplier billed is
-  -- already inside the payments, so nothing is added for it. Freight in the PO's currency converts
+  -- then no longer count (they would be the same freight twice). Freight in the PO's currency converts
   -- at the blended rate; a peso freight is taken as it is; any other currency can't be converted.
   if v_ipas.freight_amount is not null then
     v_shipping := 0;
@@ -6078,12 +6124,11 @@ begin
        and (v_php or upper(btrim(v_ipas.freight_currency)) <> upper(btrim(coalesce(v_currency, '')))) then
       return v_base || jsonb_build_object('status', 'unavailable', 'reason', 'freight_currency');
     end if;
-    if not coalesce(v_ipas.freight_billed_by_supplier, false) then
-      if upper(btrim(coalesce(v_ipas.freight_currency, 'PHP'))) = 'PHP' then
-        v_freight := round(v_ipas.freight_amount * 100);
-      else
-        v_freight := round(v_ipas.freight_amount * v_rate * 100);
-      end if;
+    -- #1192: supplier-billed or not, Freight joins the pool once.
+    if upper(btrim(coalesce(v_ipas.freight_currency, 'PHP'))) = 'PHP' then
+      v_freight := round(v_ipas.freight_amount * 100);
+    else
+      v_freight := round(v_ipas.freight_amount * v_rate * 100);
     end if;
   end if;
   v_pool := v_charges + v_freight + v_fees + v_shipping;
@@ -6489,6 +6534,37 @@ AS $function$
        and l.employee_id = p_employee_id
        and not coalesce(e.is_deleted, false)
   );
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_payment_ask_to_chat(p_ipas_id uuid, p_event text, p_text text, p_ask_id uuid)
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata)
+  values (p_ipas_id, public.get_employee_id(), p_text, jsonb_build_object('event', p_event, 'ask_id', p_ask_id));
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_payment_closes_ask()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ask public.ipas_payment_asks;
+begin
+  update public.ipas_payment_asks
+     set closed_at = now(), closed_by = public.get_employee_id(), closed_reason = 'paid'
+   where ipas_id = new.ipas_id and closed_at is null
+  returning * into v_ask;
+
+  if v_ask.id is not null then
+    perform public._ipas_payment_ask_to_chat(new.ipas_id, 'payment_ask_closed', 'Payment recorded; the ask for payment is closed.', v_ask.id);
+  end if;
+  return null;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_payments_missing_pesos(p_ipas_id uuid)
@@ -9059,17 +9135,20 @@ AS $function$
 declare
   v_viewer uuid := public.get_employee_id();
   v_hr boolean := false;
+  v_super boolean := false;
   v_pending boolean;
 begin
   if v_viewer is null then
     return;
   end if;
 
-  select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false) or coalesce(e.can_manage_leaves, false)
-    into v_hr
+  select coalesce(e.is_hr, false) or coalesce(e.is_super_admin, false) or coalesce(e.can_manage_leaves, false),
+         coalesce(e.is_super_admin, false)
+    into v_hr, v_super
     from public.employees e
     where e.id = v_viewer;
   v_hr := coalesce(v_hr, false);
+  v_super := coalesce(v_super, false);
   v_pending := v_hr and coalesce(p_include_pending, false);
 
   return query
@@ -9190,6 +9269,51 @@ begin
         or (m.status = 'CANCELLED' and m.cancelled_at is not null and m.cancelled_at > m.starts_at)
       )
       and (d.starts_at at time zone 'Asia/Manila')::date between p_from and p_to
+
+    union all
+
+    -- ---- SOR_DATE: a date Stage Field marked "Show on Calendar" (#1197) -------
+    -- The SOR's latest value for the field, all day on that date. Only a caller who can see the Stage Visit
+    -- the value sits on (ADR 0021) gets a row; everyone else gets nothing, not a blank slot. Deleted,
+    -- scratch and Lost SORs, archived fields, and a cleared or non-date value give none.
+    select
+      'SOR_DATE'::text,
+      sv.id,
+      sv.opportunity_id,
+      (sv.d::timestamp at time zone 'Asia/Manila'),
+      ((sv.d + 1)::timestamp at time zone 'Asia/Manila') - interval '1 second',
+      true,
+      sv.d,
+      null::jsonb,
+      'APPROVED'::text,
+      null::numeric,
+      null::text,
+      coalesce(nullif(btrim(o.project_title), ''), o.client_name) || ' · ' || sv.label,
+      jsonb_build_object(
+        'opportunity_id', o.id,
+        'field_id', sv.field_id,
+        'field_label', sv.label,
+        'sales_reference', o.sales_reference,
+        'client_name', o.client_name
+      )
+    from (
+      select distinct on (val.opportunity_id, val.field_id)
+             val.id, val.opportunity_id, val.field_id, val.stage_visit_id, f.label,
+             case when (val.value #>> '{}') ~ '^\d{4}-\d{2}-\d{2}$' then (val.value #>> '{}')::date end as d
+        from public.sor_stage_field_values val
+        join public.flow_stage_fields f on f.id = val.field_id and f.show_on_calendar and f.archived_at is null
+        join public.sor_stage_visits vis on vis.id = val.stage_visit_id and vis.undone_at is null
+       order by val.opportunity_id, val.field_id, val.updated_at desc, val.id
+    ) sv
+    join public.sales_opportunities o on o.id = sv.opportunity_id
+    where sv.d between p_from and p_to
+      and not coalesce(o.is_deleted, false)
+      and not coalesce(o.is_scratch, false)
+      and not exists (select 1 from public.crm_pipeline_stages ps where ps.code = o.status and ps.is_lost)
+      and exists (
+        select 1 from public._sor_visible_visit_ids_as(o.id, v_viewer, v_super) as vv(id)
+        where vv.id = sv.stage_visit_id
+      )
   ) q
   order by q.manila_date, q.starts_at, q.id;
 end;
@@ -9367,6 +9491,7 @@ declare
   v_by_applicant boolean;
   v_action text;
   v_left_end timestamptz;
+  v_over boolean;
 begin
   if v_actor is null then
     raise exception 'Sign in to cancel an Activity.' using errcode = '42501';
@@ -9390,13 +9515,16 @@ begin
     raise exception 'A % Activity is final and cannot be cancelled.', lower(v_req.status) using errcode = '22023';
   end if;
 
-  if not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now()) then
+  if not v_by_applicant and not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now()) then
     raise exception 'This Activity has already started, so it can no longer be cancelled.' using errcode = '22023';
   end if;
 
   if not v_by_applicant and v_reason is null then
     raise exception 'Write the reason for cancelling this Activity.' using errcode = '22023';
   end if;
+
+  -- #1194: cancelled once every day is over, it did not happen: nothing stays on the Calendar as held.
+  v_over := not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now());
 
   v_action := case when v_by_applicant then 'CANCELLED' else 'HR_CANCELLED' end;
 
@@ -9412,7 +9540,7 @@ begin
     status = 'CANCELLED',
     cancel_reason = v_reason,
     cancelled_by = v_actor,
-    cancelled_at = case when v_req.status = 'APPROVED' then now() else null end,
+    cancelled_at = case when v_req.status = 'APPROVED' and not v_over then now() else null end,
     ends_at = coalesce(v_left_end, ends_at)
   where id = p_request_id;
 
@@ -9423,6 +9551,7 @@ begin
     'action', v_action,
     'from_status', v_req.status,
     'to_status', 'CANCELLED',
+    'after_day', v_over,
     'head_id', v_req.head_id,
     'applicant_id', v_req.applicant_id,
     'facilitator_id', v_req.facilitator_id,
@@ -14898,6 +15027,7 @@ declare
   v_old_days jsonb;
   v_new_start timestamptz;
   v_new_end timestamptz;
+  v_after boolean;
 begin
   if v_actor is null then
     raise exception 'Sign in to edit an Activity.' using errcode = '42501';
@@ -14916,10 +15046,9 @@ begin
     raise exception 'A % Activity cannot be edited.', lower(v_req.status) using errcode = '22023';
   end if;
 
-  -- Editable while at least one day has not started.
-  if not exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at > now()) then
-    raise exception 'This Activity has already started, so it can no longer be edited.' using errcode = '22023';
-  end if;
+  -- #1194: once its first day has started the Activity is history. Its filer may still change all of it: the
+  -- status stays, nobody is sent back to HR, and the change shows in the Activity's history.
+  v_after := exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at <= now());
 
   v_atype := upper(coalesce(p_activity_type, v_req.activity_type));
   if v_atype = 'MEETING' and v_type is null then
@@ -14932,17 +15061,6 @@ begin
   end if;
   v_days := public.activity_days_normalize(p_days, v_atype, p_starts_at, p_ends_at);
 
-  -- Days that have started stay exactly as they are.
-  if exists (
-    select 1 from public.meeting_request_days d
-    where d.request_id = p_request_id and d.starts_at <= now()
-      and not exists (
-        select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
-        where x.starts_at = d.starts_at and x.ends_at = d.ends_at
-      )
-  ) then
-    raise exception 'A day that has already started cannot be changed or removed.' using errcode = '22023';
-  end if;
   -- #1087: a day that is not already saved is at most one year ahead (Manila dates, the same as the form).
   if exists (
     select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
@@ -14954,8 +15072,8 @@ begin
   ) then
     raise exception 'An Activity cannot be more than one year ahead.' using errcode = '22023';
   end if;
-  -- Any day that is not already saved must be in the future.
-  if exists (
+  -- Before its first day starts, a day that is not already saved must still be in the future.
+  if not v_after and exists (
     select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
     where x.starts_at < now()
       and not exists (
@@ -14997,6 +15115,7 @@ begin
 
   -- The same rule as filing, run again on every edit: an approver's own Activity stays approved.
   v_to := case
+    when v_after then v_req.status
     when not public.activity_needs_hr(v_atype, p_venue_id, v_req.applicant_id) then 'APPROVED'
     when v_req.status = 'RETURNED' then 'RETURNED'
     else 'PENDING_HR'
@@ -15088,11 +15207,13 @@ begin
 
   -- Days: drop the ones not started that are no longer listed, add the ones not saved yet.
   delete from public.meeting_request_days d
-  where d.request_id = p_request_id and d.starts_at > now()
+  where d.request_id = p_request_id
     and not exists (
       select 1 from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
       where x.starts_at = d.starts_at and x.ends_at = d.ends_at
     );
+  -- A day in the past may be saved by this function only (the day guard refuses it otherwise).
+  perform set_config('app.activity_edit_after_day', case when v_after then 'on' else 'off' end, true);
   insert into public.meeting_request_days (request_id, starts_at, ends_at)
   select p_request_id, x.starts_at, x.ends_at
   from jsonb_to_recordset(v_days) as x(starts_at timestamptz, ends_at timestamptz)
@@ -15131,6 +15252,7 @@ begin
   return jsonb_build_object(
     'id', p_request_id,
     'action', 'EDITED',
+    'after_day', v_after,
     'from_status', v_req.status,
     'to_status', v_to,
     'changed_fields', v_changed,
@@ -17193,6 +17315,54 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_ask_for_payment(p_ipas_id uuid, p_amount numeric, p_purpose text, p_note text DEFAULT NULL::text)
+ RETURNS ipas_payment_asks
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_ipas public.ipas;
+  v_note text := nullif(btrim(p_note), '');
+  v_row public.ipas_payment_asks;
+  v_currency text;
+begin
+  if v_actor is null then
+    raise exception 'ipas_ask_for_payment: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_ask_for_payment: only Purchasing asks for a payment' using errcode = '42501';
+  end if;
+
+  v_ipas := public._ipas_lock_open('ipas_ask_for_payment', p_ipas_id);
+
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'ipas_ask_for_payment: the amount must be more than zero' using errcode = '22023';
+  end if;
+  if p_purpose is null or p_purpose not in ('down_payment', 'balance', 'freight') then
+    raise exception 'ipas_ask_for_payment: the purpose must be Down payment, Balance or Freight' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.ipas_payment_asks where ipas_id = v_ipas.id and closed_at is null) then
+    raise exception 'ipas_ask_for_payment: % already has an open ask; withdraw it first', v_ipas.number using errcode = '23505';
+  end if;
+
+  insert into public.ipas_payment_asks (ipas_id, amount, purpose, note, asked_by)
+  values (v_ipas.id, p_amount, p_purpose, v_note, v_actor)
+  returning * into v_row;
+
+  v_currency := coalesce(nullif(v_ipas.odoo_copy->'po'->>'currency', ''), '');
+  perform public._ipas_payment_ask_to_chat(
+    v_ipas.id, 'payment_ask_opened',
+    'Asked for payment: ' || public._ipas_ask_purpose_label(p_purpose) || ' '
+      || btrim(v_currency || ' ' || trim(to_char(p_amount, 'FM999G999G999G990.00')))
+      || coalesce(' (' || v_note || ')', '') || '.',
+    v_row.id
+  );
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_assert_unchanged(p_ipas_id uuid, p_since timestamp with time zone)
  RETURNS void
  LANGUAGE plpgsql
@@ -17988,6 +18158,22 @@ begin
        or (tg_op = 'UPDATE' and new.required_before is distinct from old.required_before)
      ) then
     raise exception 'ipas_options: only a Super Admin sets which files are required' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_options_system_key_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is not null and (
+       (tg_op = 'INSERT' and new.system_key is not null)
+       or (tg_op = 'UPDATE' and new.system_key is distinct from old.system_key)
+     ) then
+    raise exception 'ipas_options: the system key is fixed' using errcode = '42501';
   end if;
   return new;
 end;
@@ -20845,6 +21031,36 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_withdraw_payment_ask(p_ipas_id uuid)
+ RETURNS ipas_payment_asks
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row public.ipas_payment_asks;
+begin
+  if v_actor is null then
+    raise exception 'ipas_withdraw_payment_ask: not signed in' using errcode = '42501';
+  end if;
+  if not public.has_purchasing_access() then
+    raise exception 'ipas_withdraw_payment_ask: only Purchasing withdraws an ask' using errcode = '42501';
+  end if;
+
+  update public.ipas_payment_asks
+     set closed_at = now(), closed_by = v_actor, closed_reason = 'withdrawn'
+   where ipas_id = p_ipas_id and closed_at is null
+  returning * into v_row;
+  if v_row.id is null then
+    raise exception 'ipas_withdraw_payment_ask: there is no open ask to withdraw' using errcode = '22023';
+  end if;
+
+  perform public._ipas_payment_ask_to_chat(p_ipas_id, 'payment_ask_withdrawn', 'Withdrew the ask for payment.', v_row.id);
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_worked_on(p_ipas_ids uuid[])
  RETURNS SETOF uuid
  LANGUAGE sql
@@ -21194,7 +21410,7 @@ CREATE OR REPLACE FUNCTION public.meeting_request_days_guard_insert()
  LANGUAGE plpgsql
 AS $function$
 begin
-  if new.starts_at < now() then
+  if new.starts_at < now() and coalesce(current_setting('app.activity_edit_after_day', true), '') <> 'on' then
     raise exception 'An Activity cannot start in the past.' using errcode = '22023';
   end if;
   return new;
@@ -21511,6 +21727,30 @@ AS $function$
   select ctm.committee_task_id
     from public.committee_task_members ctm
    where ctm.employee_id = public.get_employee_id()
+$function$
+;
+CREATE OR REPLACE FUNCTION public.my_unread_notification_count()
+ RETURNS integer
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  with mine as (
+    select n.type, n.reference_id, n.is_read,
+      case
+        when n.reference_id is null then null
+        when n.type in ('GROUP_TASK_COMMENT', 'GROUP_TASK_REACTION', 'GROUP_TASK_MENTION', 'COMMITTEE_TASK_COMMENT')
+          then 'GROUP_TASK:' || n.reference_id::text
+        when n.type = 'TASK_MENTION' then 'TASK:' || n.reference_id::text
+        else null
+      end as chat_key
+    from public.notifications n
+    where n.recipient_id = public.get_employee_id()
+  )
+  select (
+    (select count(*) from mine where chat_key is null and not coalesce(is_read, false))
+    + (select count(distinct chat_key) from mine where chat_key is not null and not coalesce(is_read, false))
+  )::integer;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.oid_dist(oid, oid)
@@ -25303,7 +25543,7 @@ begin
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stageFields', '[]'::jsonb)) as e
   loop
     insert into flow_stage_fields (
-      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at, show_when
+      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at, show_when, show_on_calendar
     )
     values (
       (v_elem->>'id')::uuid,
@@ -25319,7 +25559,8 @@ begin
       nullif(v_elem->>'archived_at', '')::timestamptz,
       coalesce((v_elem->>'created_at')::timestamptz, now()),
       now(),
-      case when jsonb_typeof(v_elem->'show_when') = 'object' then v_elem->'show_when' end
+      case when jsonb_typeof(v_elem->'show_when') = 'object' then v_elem->'show_when' end,
+      coalesce((v_elem->>'show_on_calendar')::boolean, false)
     )
     on conflict (id) do update set
       stage_id = excluded.stage_id,
@@ -25333,6 +25574,7 @@ begin
       sort_order = excluded.sort_order,
       archived_at = excluded.archived_at,
       show_when = excluded.show_when,
+      show_on_calendar = excluded.show_on_calendar,
       updated_at = now();
   end loop;
 
@@ -26829,6 +27071,21 @@ begin
   get diagnostics v_count = row_count;
   return v_count;
 end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_guard_archive()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if (NEW.archived_at is distinct from OLD.archived_at or NEW.archived_by is distinct from OLD.archived_by)
+     and current_user in ('authenticated', 'anon')
+     and not public.is_super_admin() then
+    raise exception 'Only a Super Admin can archive or un-archive an SOR.' using errcode = '42501', hint = 'forbidden';
+  end if;
+  return NEW;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_guard_non_editor_update()
@@ -29536,6 +29793,45 @@ AS $function$
     )
     else false
   end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_set_archived(p_opportunity_id uuid, p_archived boolean)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_opp public.sales_opportunities%rowtype;
+  v_meta jsonb;
+  v_text text;
+begin
+  if not public.is_super_admin() then
+    raise exception 'Only a Super Admin can archive or un-archive an SOR.' using errcode = '42501', hint = 'forbidden';
+  end if;
+
+  update public.sales_opportunities
+     set archived_at = case when p_archived then now() else null end,
+         archived_by = case when p_archived then v_actor else null end
+   where id = p_opportunity_id
+   returning * into v_opp;
+  if v_opp.id is null then
+    raise exception 'SOR not found.' using errcode = 'P0002';
+  end if;
+
+  v_text := case when p_archived then 'SOR archived.' else 'SOR un-archived.' end;
+  v_meta := jsonb_build_object(
+    'event', case when p_archived then 'OPPORTUNITY_ARCHIVED' else 'OPPORTUNITY_UNARCHIVED' end,
+    'employeeId', v_actor);
+  insert into public.sales_opportunity_logs (opportunity_id, author_id, type, content, metadata)
+  values (v_opp.id, v_actor, 'SYSTEM', v_text, v_meta);
+  insert into public.system_audit_logs (author_id, entity_type, entity_id, content, type, metadata)
+  values (v_actor, 'OPPORTUNITY', v_opp.id::text,
+    'Sales opportunity for ' || v_opp.client_name || ' ' || lower(v_text), 'SYSTEM', v_meta);
+
+  return to_jsonb(v_opp);
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_set_log_stage_visit()
@@ -32711,7 +33007,9 @@ CREATE TRIGGER ipas_messages_notify AFTER INSERT ON public.ipas_messages FOR EAC
 CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_filed_guard();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
+CREATE TRIGGER ipas_options_system_key_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_system_key_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
 CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
@@ -32779,6 +33077,7 @@ CREATE TRIGGER retail_orders_broadcast_change_trigger AFTER INSERT OR DELETE OR 
 CREATE TRIGGER trg_retail_orders_updated_at BEFORE UPDATE ON public.retail_orders FOR EACH ROW EXECUTE FUNCTION set_retail_orders_updated_at();
 CREATE TRIGGER purchase_request_sor_status_notify AFTER UPDATE OF is_deleted, flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION _purchase_request_sor_status_notify();
 CREATE TRIGGER sales_opportunities_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_broadcast_change();
+CREATE TRIGGER sor_guard_archive BEFORE UPDATE OF archived_at, archived_by ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_archive();
 CREATE TRIGGER sor_guard_non_editor_update BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_non_editor_update();
 CREATE TRIGGER sor_guard_stage_move BEFORE UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_stage_move();
 CREATE TRIGGER sor_lock_contract_date BEFORE UPDATE OF contract_date ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_lock_contract_date();

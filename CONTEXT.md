@@ -230,11 +230,11 @@ _Avoid_: Absent, AWOL, Unpaid leave
 ### Meetings & Calendar
 
 **Calendar**:
-The one company-wide calendar every dated record shows on: Activities, Time Off and overtime today, more kinds later. HR's view and an employee's own view are filtered views of it, never separate calendars.
+The one company-wide calendar every dated record shows on: Activities, Time Off and overtime, and the SOR dates a Sales Flow marks "Show on Calendar" (seen only by those who can read the SOR); more kinds later. HR's view and an employee's own view are filtered views of it, never separate calendars.
 _Avoid_: TG Calendar, Central Calendar, Leave Calendar
 
 **Activity**:
-One thing the company does at a set time, filed by an employee: a Meeting, an Admin Task, an Operations Task or an Event. It names its Lead, Participants and purpose. The same record from filing, through approval, to the day itself; it holds its slot from the moment it is filed until it is declined or cancelled. It replaces the old Meeting Request. The code still says `meeting_requests` for the table, its functions and its notification types; only the words on screen changed.
+One thing the company does at a set time, filed by an employee: a Meeting, an Admin Task, an Operations Task or an Event. It names its Lead, Participants and purpose. The same record from filing, through approval, to the day itself; it holds its slot from the moment it is filed until it is declined or cancelled. It stays editable after its day, all of it, by the person who filed it, so it can record what really happened; such a change goes back to no one for approval and notifies nobody, and cancelling it after its day means it did not happen. It replaces the old Meeting Request. The code still says `meeting_requests` for the table, its functions and its notification types; only the words on screen changed.
 _Avoid_: Meeting Request, Booking, Task (alone)
 
 **Activity type**:
@@ -603,6 +603,14 @@ and its reason stay; the deal's current Lost reason clears, so a second loss
 records afresh. On screen: **Reopen**, in the spot Mark as Lost held.
 _Avoid_: Restore (that is bringing back a deleted SOR), Undo Lost
 
+**Archived** (an SOR):
+An SOR put away from the daily lists and the Board, kept as history. It still
+counts in every register, report, dashboard and commission total, and it still
+opens. Unlike Delete, which is for SORs made by mistake and drops them out of
+every total. Unlike Lost, which is an outcome. The first to be archived are the
+Legacy Pipeline's SORs that never got past Qualified.
+_Avoid_: Deleted, Hidden, Closed
+
 **Lost reason**:
 Why a deal was lost: one reason from a fixed list, plus an optional note
 (required for **Other**). In order: No response from client; Price too high;
@@ -904,6 +912,13 @@ released only after the warranty period lapses. Distinct from the **Retention
 stage**, which is the deal waiting out that period.
 _Avoid_: Retention (unqualified — it is ambiguous between the money and the stage)
 
+**Retention release date**:
+The day an SOR's warranty period ends, so its Retention Money can be collected.
+Typed on the SOR while it sits at the Retention stage, as a date Stage Field its
+Sales Flow defines; optional, so it never blocks a move. It shows on the
+Calendar, to those who can read the SOR.
+_Avoid_: Warranty date, Retention date (unqualified)
+
 **Liquidated Damages**:
 A per-day deduction for late delivery, needing no proof of actual loss. At 10%
 of the total contract price the client may rescind the contract.
@@ -946,8 +961,9 @@ supplier's document.
 _Avoid_: Pro-forma, Invoice (unqualified, which is the supplier's final bill)
 
 **Supplier bill check**:
-The comparison of the Odoo purchase order's total with the P.I/QT Amount typed
-on the IPAS, to the centavo, in the PO's currency. It answers matches, differs
+The comparison of the Odoo purchase order's total, plus any Freight billed by the
+supplier, with the P.I/QT Amount typed on the IPAS, to the centavo, in the PO's
+currency. It answers matches, differs
 (by how much, and which side is higher) or cannot be checked (no P.I/QT Amount
 typed yet, or an older Odoo copy that states no total). It only warns: the
 warning shows beside section 1's Approve, in the Approval Center review and in
@@ -972,6 +988,33 @@ first used ("Bank TT + Cash"), worked out from its payments and never typed.
 Empty while nothing is paid. A column of the IPAS list and its Excel export,
 beside the Down Payment and Full Payment totals.
 _Avoid_: Payment terms (what the supplier agreed to, not what was done), Payment mode
+
+**Payment Forecast**:
+The General Manager's (201) list of what is still to be paid on purchases: to
+whom, for which order, how much, and how urgent. One place that answers "what do
+we pay next", replacing the company's Payment Forecast sheet. It is the IPAS list
+showing the IPAS whose Payment status is For payment; a purchase with no IPAS is
+not on it. Kept by the people who already keep the IPAS; the General Manager only
+reads it.
+_Avoid_: Forecast Payment (the sheet's other title), Payables, Payment schedule
+
+**Payment status**:
+Where an IPAS's payment to its supplier stands, shown beside its IPAS Status and
+separate from it: Not due yet, For payment, DP paid, Paid. For payment is the one
+step a person sets: Purchasing asks for a payment, saying how much and what for,
+and recording that payment clears it; it shows while an ask is open, whatever was
+paid before. DP paid (some paid, a balance left) and Paid (nothing left) are
+worked out from the payments recorded, never picked. On-Hold is the IPAS's own.
+_Avoid_: Pending (an old IPAS Status step; here it is Not due yet), Payment
+Approval (an IPAS Status step, before the order is placed)
+
+**Freight** (on an IPAS):
+What it cost to ship an order, kept in the IPAS's Charges in the currency it was
+billed in. Shipping the supplier puts on its own bill is Freight ticked "billed by
+the supplier": it is part of what the supplier is owed, is checked against the
+P.I, and reaches the Landed Cost once. It is never a line on the Odoo purchase
+order and never recorded as a payment.
+_Avoid_: Shipping fee (the old payment kind), Shipping Cost (as an Odoo line)
 
 **Filing**:
 The last sign-off on an IPAS — section 4's Approved, given once Finance has
@@ -1016,7 +1059,9 @@ warehouse, or the client on a Direct delivery. Payment Approval is only for an
 order that must be approved for payment before it is placed; a pay-later order
 goes from Order-Draft to Ordered. Done comes only from Filing and leaves only on
 Reopen. When the IPAS already knows a fact that matches a step (raised, section 1
-sent, the Odoo PO confirmed, the goods received), it suggests that step; it never
+sent or its P.I — a Local order's quotation — attached with the P.I/QT Amount
+typed, the Odoo PO confirmed, the
+goods received), it suggests that step; it never
 moves on its own. Any step may be picked, forward or back, and skipped steps stay
 blank: the status is the step last picked, not the furthest one. Each step keeps
 the date it was reached, today unless changed to an earlier day. One status covers
@@ -1185,7 +1230,7 @@ An item's true unit cost once everything is apportioned onto it —
 `unit price + duties/item + freight/item + other charges/item` — worked out the
 same way for Local and Import purchases. The unit price is the purchase order's,
 before VAT and withholding, turned into PHP at the rate actually paid so far;
-Charges and shipping fees are spread over the order's lines. Provisional until
+Charges and Freight are spread over the order's lines. Provisional until
 the IPAS's Computation status reaches LC Odoo Done, final after. The basis every
 markup and income figure is taken from. Section 3's approval vouches for one
 Landed Cost: when it changes, section 3 is cleared and approved again.

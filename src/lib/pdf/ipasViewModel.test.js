@@ -467,3 +467,15 @@ describe("the page's content", () => {
     expect(() => buildIpasViewModel(null)).toThrow(/IPAS is needed/)
   })
 })
+
+describe("payment share (#1192)", () => {
+  it("prints the real share of what is owed, not the percent typed against an older total", () => {
+    const ipas = makePrintableIpas({});
+    const owed = buildIpasViewModel({ ...ipas, payments: [] }).section1;
+    const stale = { ...ipas, payments: ipas.payments.map((p) => ({ ...p, percent_of_order: 99 })) };
+    const kinds = buildIpasViewModel(stale).section1.payments.map((p) => p.kind);
+    expect(owed).toBeTruthy();
+    expect(kinds.some((k) => k.includes("99%"))).toBe(false);
+    expect(kinds.some((k) => /%/.test(k))).toBe(true);
+  });
+});

@@ -28,6 +28,7 @@ const emptyDraft = () => ({
   label: "",
   help: "",
   isRequired: true,
+  showOnCalendar: false,
   source: "sor",
   sorField: SOR_STAGE_FIELD_KEYS[0],
   fieldType: "text",
@@ -41,6 +42,7 @@ function draftFromField(field) {
     label: field.label,
     help: field.help || "",
     isRequired: field.is_required,
+    showOnCalendar: Boolean(field.show_on_calendar),
     source: field.source,
     sorField: field.sor_field || SOR_STAGE_FIELD_KEYS[0],
     fieldType: field.field_type || "text",
@@ -62,6 +64,8 @@ function payloadFrom(draft) {
         ? cleanChoiceOptions(draft.options)
         : [],
     isRequired: draft.isRequired,
+    // Only a custom date field can sit on the Calendar (#1197).
+    showOnCalendar: draft.source === "custom" && draft.fieldType === "date" && draft.showOnCalendar,
     showWhen: draft.showWhenFieldId ? { field_id: draft.showWhenFieldId, value: draft.showWhenValue } : null,
   };
 }
@@ -135,6 +139,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
           label: payload.label,
           help: payload.help,
           isRequired: payload.isRequired,
+          ...(field.source === "custom" && field.field_type === "date" ? { showOnCalendar: payload.showOnCalendar } : {}),
           showWhen: payload.showWhen,
           // `update` refuses `options` on anything but a custom choice field
           // — only send it when that's what's being edited.
@@ -325,6 +330,22 @@ export default function StageFieldManager({ stageId, disabled = false }) {
           onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
         />
       </FieldBox>
+
+      {draft.source === "custom" && draft.fieldType === "date" && (
+        <FieldBox inline className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-foreground">Show on Calendar</span>
+            <span className="block text-xs leading-snug text-muted-foreground">
+              Puts this date on the Calendar as an all-day entry, for people who can read the SOR.
+            </span>
+          </span>
+          <Switch
+            aria-label="Show on Calendar"
+            checked={draft.showOnCalendar}
+            onCheckedChange={(v) => setDraft((d) => ({ ...d, showOnCalendar: v }))}
+          />
+        </FieldBox>
+      )}
 
       <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3" data-testid="show-when-rule">
         <span className="block text-sm font-semibold text-foreground">Show only when</span>

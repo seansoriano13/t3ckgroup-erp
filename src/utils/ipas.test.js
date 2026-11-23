@@ -117,6 +117,15 @@ describe("filterIpas", () => {
     expect(found("lc_odoo_done")).toEqual(["A", "B"])
   })
 
+  it("slices by Payment status from the row's figures (#1188)", () => {
+    const paying = [
+      { number: "A", state: "open", sors: [], figures: { paymentStatus: "for_payment" } },
+      { number: "B", state: "open", sors: [], figures: { paymentStatus: "paid" } },
+    ]
+    expect(filterIpas(paying, { paymentStatus: "for_payment" }).map((r) => r.number)).toEqual(["A"])
+    expect(filterIpas(paying, { paymentStatus: null })).toHaveLength(2)
+  })
+
   it("searches number, PO, supplier and SORs", () => {
     expect(numbers({ search: "050" })).toEqual(["TGIPAS_050"])
     expect(numbers({ search: "p02554" })).toEqual(["TGIPAS_051"])

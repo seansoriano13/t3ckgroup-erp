@@ -341,14 +341,14 @@ describe("computeLandedCost freight (#709)", () => {
     expect(result.totals.landedPhp).toBe(59320 + 27880.4)
   })
 
-  it("does not add freight the supplier billed again", () => {
+  it("adds freight the supplier billed, once (#1192)", () => {
     const result = computeLandedCost({
       copy: oneLine,
       payments: paid,
       freight: { amount: 470, currency: "USD", billedBySupplier: true },
     })
-    expect(result.totals.freightPhp).toBe(0)
-    expect(result.totals.landedPhp).toBe(59320)
+    expect(result.totals.freightPhp).toBe(27880.4)
+    expect(result.totals.landedPhp).toBe(87200.4)
   })
 
   it("takes a peso freight as it is", () => {
@@ -364,7 +364,7 @@ describe("computeLandedCost freight (#709)", () => {
     expect(typed.totals.shippingFeesPhp).toBe(0)
     expect(typed.totals.freightPhp).toBe(1500)
     const billed = computeLandedCost({ copy: oneLine, payments: withShipping, freight: { amount: 1500, currency: "PHP", billedBySupplier: true } })
-    expect(billed.totals.spreadPhp).toBe(0)
+    expect(billed.totals.spreadPhp).toBe(1500)
   })
 
   it("says Landed Cost is unavailable for freight in a third currency, rather than dropping it", () => {

@@ -32,6 +32,7 @@
         "db:ledger:check": "node scripts/db-ledger-check.mjs",
         "db:policy-diff": "node scripts/policy-diff.mjs",
         "db:function-diff": "node scripts/function-diff.mjs",
+    "db:query": "node scripts/db-query.mjs",
         "local:start": "node scripts/local-start.mjs",
         "db:reset": "supabase db reset && pnpm db:seed:restore",
         "db:refresh": "supabase db reset && pnpm db:seed:fresh",
