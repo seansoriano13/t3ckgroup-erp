@@ -4,6 +4,7 @@
  */
 
 import { IPAS_PAYMENT_STATUS, IPAS_STATE } from "../constants/ipas";
+import { ipasFigures } from "./ipasFigures";
 
 /** The list's built-in views (a view narrows the rows; null is no view). */
 export const IPAS_VIEW = Object.freeze({
@@ -44,3 +45,9 @@ export function inIpasView(row, view, userId) {
       return true;
   }
 }
+
+/** The list rows with their figures worked out: what a view is judged on (the page and the sidebar count share it). */
+export const withIpasFigures = (list) => list.map((row) => ({ ...row, figures: ipasFigures(row) }));
+
+/** How many rows of the list a view holds. */
+export const countIpasView = (list, view, userId) => withIpasFigures(list).filter((row) => inIpasView(row, view, userId)).length;
