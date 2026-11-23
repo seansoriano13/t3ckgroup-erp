@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Building2, Calculator, CircleDot, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
@@ -145,6 +145,9 @@ const PHONE_ROLE = { IPAS: "title", Status: "badge", "Odoo PO": "meta", Purpose:
 const COLUMNS = LIST_HEADINGS.map((heading) => ({ key: slug(heading), label: heading, locked: heading === LOCKED_HEADING }));
 const KNOWN_COLUMN_KEYS = COLUMNS.map((column) => column.key);
 
+// The state tab a view needs: Raised by me and the Payment Forecast span every state, the rest are about open IPAS.
+const viewState = (view) => (view === IPAS_VIEW.MINE || view === IPAS_VIEW.PAYMENT_FORECAST ? IPAS_STATE_FILTER_ALL : IPAS_STATE.OPEN);
+
 function IpasList() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -155,14 +158,19 @@ function IpasList() {
   // The option lists: Purchasing access and Super Admins.
   const canEditSettings = hasPurchasingFlow || isSuperAdmin;
 
-  const [state, setState] = useState(IPAS_STATE.OPEN);
+  // A link from the sidebar count opens a view already picked (?view=payment_forecast).
+  const [searchParams] = useSearchParams();
+  const linkedView = Object.values(IPAS_VIEW).find((value) => value === searchParams.get("view")) ?? null;
+  const initialView = linkedView;
+  const [view, setView] = useState(initialView);
+  const [state, setState] = useState(initialView ? viewState(initialView) : IPAS_STATE.OPEN);
   const [entity, setEntity] = useState(null);
   const [purpose, setPurpose] = useState(null);
   const [costing, setCosting] = useState(null);
   const [status, setStatus] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState(null);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState(null);
+
   const [creating, setCreating] = useState(false);
   // Remembered per employee on this browser.
   const inLaptopBand = useLaptopBand();
@@ -170,6 +178,15 @@ function IpasList() {
     defaults: inLaptopBand ? LAPTOP_HIDDEN_COLUMNS : DEFAULT_HIDDEN_COLUMNS,
     known: KNOWN_COLUMN_KEYS,
   });
+  // Clicking the sidebar count while already here picks the view too.
+  const [seenLink, setSeenLink] = useState(linkedView);
+  if (linkedView !== seenLink) {
+    setSeenLink(linkedView);
+    if (linkedView) {
+      setView(linkedView);
+      setState(viewState(linkedView));
+    }
+  }
   const visibleColumns = shownColumns(COLUMNS, columns.show);
 
   const { data: listed = [], isLoading, isError, refetch } = useQuery({
@@ -209,7 +226,7 @@ function IpasList() {
   // A view sets the state tab it needs: the first three are about open IPAS, Raised by me spans them all.
   const pickView = (next) => {
     setView(next);
-    if (next) setState(next === IPAS_VIEW.MINE ? IPAS_STATE_FILTER_ALL : IPAS_STATE.OPEN);
+    if (next) setState(viewState(next));
   };
 
   const toolbar = (

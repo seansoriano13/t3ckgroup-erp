@@ -8,7 +8,10 @@ import { opportunityService } from "../services/opportunityService";
 import { meetingRequestService } from "../services/meetingRequestService";
 import { useMeetingRealtime } from "./useMeetingRealtime";
 import { ipasService } from "../services/ipasService";
-import { ipasPendingKey } from "../components/ipas/ipasKeys";
+import { ipasPendingKey, ipasListKey } from "../components/ipas/ipasKeys";
+import { ipasFigures } from "../utils/ipasFigures";
+import { IPAS_VIEW, inIpasView } from "../utils/ipasListViews";
+import { canReadIpas, getPermissionContext } from "../utils/permissions";
 
 
 /**
@@ -87,11 +90,29 @@ export function useNavBadges(user) {
   });
   const ipasSignoffs = isIpasApprover ? pendingIpas.length : 0;
 
+  // 5. IPAS For payment (#1190): the Payment Forecast view's rows, counted from the same cached
+  // list and the same view rule, so the number equals the rows on open.
+  const mayReadIpas = canReadIpas(getPermissionContext(user));
+  const { data: ipasList = [] } = useQuery({
+    queryKey: ipasListKey,
+    queryFn: () => ipasService.list(),
+    enabled: !!user?.id && mayReadIpas,
+    staleTime: 30000,
+  });
+  const ipasForPayment = useMemo(
+    () =>
+      mayReadIpas
+        ? ipasList.filter((row) => inIpasView({ ...row, figures: ipasFigures(row) }, IPAS_VIEW.PAYMENT_FORECAST, user?.id)).length
+        : 0,
+    [ipasList, mayReadIpas, user?.id],
+  );
+
   return {
     taskApprovals,
     leaveApprovals,
     meetingApprovals,
     ipasSignoffs,
+    ipasForPayment,
     mySors,
   };
 }
