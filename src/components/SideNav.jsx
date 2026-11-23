@@ -567,6 +567,15 @@ export default function SideNav() {
                               {linkBadge > 0 && (
                                 <span
                                   data-testid={`link-badge-${navLink.label}`}
+                                  onClick={
+                                    navLink.badgeLink
+                                      ? (e) => {
+                                          e.preventDefault();
+                                          setIsMobileOpen(false);
+                                          navigate(navLink.badgeLink);
+                                        }
+                                      : undefined
+                                  }
                                   className={`shrink-0 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary/15 text-sidebar-primary px-1.5 text-[10px] font-bold ${collapsed ? "md:hidden" : ""}`}
                                 >
                                   {linkBadge}

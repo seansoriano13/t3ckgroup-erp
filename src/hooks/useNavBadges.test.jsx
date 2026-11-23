@@ -19,6 +19,7 @@ vi.mock("../services/headApprovalService", () => ({
 vi.mock("../services/ipasService", () => ({
   ipasService: {
     pendingSignoffsFor: vi.fn().mockResolvedValue([]),
+    list: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -54,6 +55,7 @@ describe("useNavBadges", () => {
       leaveApprovals: 0,
       meetingApprovals: 0,
       ipasSignoffs: 0,
+      ipasForPayment: 0,
       mySors: 0,
     });
   });
@@ -73,6 +75,21 @@ describe("useNavBadges", () => {
       expect(other.result.current.ipasSignoffs).toBe(0);
     });
     expect(ipasService.pendingSignoffsFor).not.toHaveBeenCalled();
+  });
+
+  it("counts the IPAS that are For payment, for someone who can read IPAS, and doesn't ask anyone else", async () => {
+    ipasService.list.mockResolvedValue([
+      { id: "a", payment_ask: { amount: 10 } },
+      { id: "b", payment_ask: null },
+      { id: "c", payment_ask: { amount: 5 } },
+    ]);
+    const gm = renderHookWithQuery(() => useNavBadges({ id: "gm", isIpasApprover: true }));
+    await vi.waitFor(() => expect(gm.result.current.ipasForPayment).toBe(2));
+
+    ipasService.list.mockClear();
+    const other = renderHookWithQuery(() => useNavBadges({ id: "plain" }));
+    expect(other.result.current.ipasForPayment).toBe(0);
+    expect(ipasService.list).not.toHaveBeenCalled();
   });
 
   it("counts Task Approvals like the page's My team view for a head", async () => {
