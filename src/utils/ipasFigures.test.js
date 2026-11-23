@@ -311,3 +311,45 @@ describe("ipasTotalsByCurrency", () => {
     ])
   })
 })
+
+describe("ipasFigures: Payment status (ADR 0055)", () => {
+  const ask = { amount: 5600, purpose: "down_payment", note: null }
+
+  it("reads Not due yet with nothing paid and no ask", () => {
+    expect(ipasFigures(ipas()).paymentStatus).toBe("not_due_yet")
+  })
+
+  it("reads For payment while an ask is open, whatever was paid before", () => {
+    expect(ipasFigures(ipas({ payment_ask: ask })).paymentStatus).toBe("for_payment")
+    const part = ipasFigures(ipas({ payment_ask: ask, payments: [pay("down_payment", 5600, "Bank TT")] }))
+    expect(part.paymentStatus).toBe("for_payment")
+    expect(part.paymentAsk).toEqual(ask)
+  })
+
+  it("reads DP paid with some paid and a balance left", () => {
+    expect(ipasFigures(ipas({ payments: [pay("down_payment", 5600, "Bank TT")] })).paymentStatus).toBe("dp_paid")
+  })
+
+  it("reads Paid with nothing left, even on an order still at Order-Draft", () => {
+    const covered = ipas({ status: "order_draft", payments: [pay("down_payment", 6720, "Bank TT"), pay("payment", 4480, "Bank TT")] })
+    expect(ipasFigures(covered).paymentStatus).toBe("paid")
+    expect(ipasFigures(ipas({ payments: [pay("full_payment", 11200, "Bank TT")] })).paymentStatus).toBe("paid")
+  })
+
+  it("reads Paid when overpaid, and For payment over Paid when an ask is open", () => {
+    expect(ipasFigures(ipas({ payments: [pay("payment", 12800, "Bank TT")] })).paymentStatus).toBe("paid")
+    expect(ipasFigures(ipas({ payment_ask: ask, payments: [pay("full_payment", 11200, "Bank TT")] })).paymentStatus).toBe("for_payment")
+  })
+
+  it("finds the open ask among the asks a read brings, and ignores closed ones", () => {
+    const asks = [{ ...ask, closed_at: "2026-11-20T00:00:00Z" }, { ...ask, amount: 900 }]
+    const figures = ipasFigures(ipas({ payment_asks: asks }))
+    expect(figures.paymentStatus).toBe("for_payment")
+    expect(figures.paymentAsk.amount).toBe(900)
+    expect(ipasFigures(ipas({ payment_asks: [asks[0]] })).paymentStatus).toBe("not_due_yet")
+  })
+
+  it("has none on a cancelled IPAS", () => {
+    expect(ipasFigures(ipas({ state: "cancelled", payment_ask: ask })).paymentStatus).toBeNull()
+  })
+})
