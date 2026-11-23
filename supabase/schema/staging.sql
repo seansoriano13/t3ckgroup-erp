@@ -17341,7 +17341,7 @@ begin
     raise exception 'ipas_ask_for_payment: the purpose must be Down payment, Balance or Freight' using errcode = '22023';
   end if;
   if exists (select 1 from public.ipas_payment_asks where ipas_id = v_ipas.id and closed_at is null) then
-    raise exception 'ipas_ask_for_payment: % already has an open ask; withdraw it first', v_ipas.number using errcode = '55000';
+    raise exception 'ipas_ask_for_payment: % already has an open ask; withdraw it first', v_ipas.number using errcode = '23505';
   end if;
 
   insert into public.ipas_payment_asks (ipas_id, amount, purpose, note, asked_by)
@@ -21034,7 +21034,7 @@ begin
    where ipas_id = p_ipas_id and closed_at is null
   returning * into v_row;
   if v_row.id is null then
-    raise exception 'ipas_withdraw_payment_ask: there is no open ask to withdraw' using errcode = 'P0002';
+    raise exception 'ipas_withdraw_payment_ask: there is no open ask to withdraw' using errcode = '22023';
   end if;
 
   perform public._ipas_payment_ask_to_chat(p_ipas_id, 'payment_ask_withdrawn', 'Withdrew the ask for payment.', v_row.id);
