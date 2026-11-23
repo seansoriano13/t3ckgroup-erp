@@ -718,3 +718,34 @@ export const IPAS_STATUS_MEANINGS = {
   [IPAS_STATUS.DELIVERED]: "Reaching our warehouse, or the client on a Direct delivery.",
   [IPAS_STATUS.DONE]: "Comes only from Filing, and leaves only on Reopen.",
 };
+
+/** The Payment status (ADR 0055): worked out from the payments and an open ask, never picked. */
+export const IPAS_PAYMENT_STATUS = Object.freeze({
+  NOT_DUE_YET: "not_due_yet",
+  FOR_PAYMENT: "for_payment",
+  DP_PAID: "dp_paid",
+  PAID: "paid",
+});
+
+export const IPAS_PAYMENT_STATUSES = [
+  IPAS_PAYMENT_STATUS.NOT_DUE_YET,
+  IPAS_PAYMENT_STATUS.FOR_PAYMENT,
+  IPAS_PAYMENT_STATUS.DP_PAID,
+  IPAS_PAYMENT_STATUS.PAID,
+];
+
+export const IPAS_PAYMENT_STATUS_LABELS = {
+  [IPAS_PAYMENT_STATUS.NOT_DUE_YET]: "Not due yet",
+  [IPAS_PAYMENT_STATUS.FOR_PAYMENT]: "For payment",
+  [IPAS_PAYMENT_STATUS.DP_PAID]: "DP paid",
+  [IPAS_PAYMENT_STATUS.PAID]: "Paid",
+};
+
+/** What an ask for payment is for (ipas_payment_asks.purpose). */
+export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "freight"];
+
+export const IPAS_ASK_PURPOSE_LABELS = {
+  down_payment: "Down payment",
+  balance: "Balance",
+  freight: "Freight",
+};

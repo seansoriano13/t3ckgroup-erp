@@ -364,11 +364,11 @@ export function ipasErrorMessage(error, fallback = "Something went wrong.") {
 
 /**
  * The IPAS list's slices over shaped rows. `state` is a lifecycle state or
- * "all"; `entity`, `purpose`, `computationStatus` and `status` (the IPAS Status, from the row's
+ * "all"; `entity`, `purpose`, `computationStatus`, `status` (the IPAS Status) and `paymentStatus` (from the row's
  * `figures`) are exact; `search` matches the number, PO,
  * supplier, SO number, SOR number and project name, case-insensitively.
  */
-export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, status = null, search = "" } = {}) {
+export function filterIpas(rows, { state = "all", entity = null, purpose = null, computationStatus = null, status = null, paymentStatus = null, search = "" } = {}) {
   return rows.filter((row) => {
     if (state !== "all" && row.state !== state) return false;
     if (entity && row.entity !== entity) return false;
@@ -378,6 +378,8 @@ export function filterIpas(rows, { state = "all", entity = null, purpose = null,
     if (status === IPAS_ON_HOLD_FILTER) {
       if (row.figures?.onHold !== true) return false;
     } else if (status && row.figures?.status !== status) return false;
+    // The Payment status is worked out in the figures (ADR 0055), so the filter reads it from there.
+    if (paymentStatus && row.figures?.paymentStatus !== paymentStatus) return false;
     if (computationStatus === IPAS_SECTION_3_APPROVED_FILTER) {
       if (!row.section3Approved) return false;
     } else if (computationStatus && (row.computation_status || IPAS_COMPUTATION_STATUS.ENCODING) !== computationStatus) {

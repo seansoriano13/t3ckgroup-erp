@@ -6,7 +6,7 @@
  * currency's format. The list's views are in ipasListViews.js, its totals in ipasFigures.js.
  */
 
-import { IPAS_STATUS_LABELS } from "../constants/ipas";
+import { IPAS_PAYMENT_STATUS_LABELS, IPAS_STATUS_LABELS } from "../constants/ipas";
 import { formatDate } from "./formatDate.js";
 import { formatDay } from "./ipasPayments";
 import { raisedByParts, sorLineParts, statusDayOf } from "./ipas";
@@ -27,6 +27,7 @@ export const IPAS_EXPORT_HEADER = [
   "Status",
   "Status date",
   "Payments (% of order)",
+  "Payment status",
 ];
 
 /** An Excel number format showing the currency's symbol the way the list does. */
@@ -80,6 +81,7 @@ export function ipasExportRows(rows) {
       f.status ? (f.onHold ? `On-Hold · ${IPAS_STATUS_LABELS[f.status]}` : IPAS_STATUS_LABELS[f.status]) : null,
       statusDayOf(row, f.status) ? formatDay(statusDayOf(row, f.status)) : null,
       f.paymentPercents || null,
+      f.paymentStatus ? IPAS_PAYMENT_STATUS_LABELS[f.paymentStatus] : null,
     ];
   });
 }
