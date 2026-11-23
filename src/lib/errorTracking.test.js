@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest"
-import { scrubEvent, scrubBreadcrumb, scrubString, stripUrl } from "./errorTracking"
+import { scrubEvent, scrubBreadcrumb, scrubString, stripUrl, supabaseTarget } from "./errorTracking"
+
+describe("supabaseTarget", () => {
+    it("names the database function that was called", () => {
+        expect(supabaseTarget("https://db.test/rest/v1/rpc/sor_logs_for_sors?select=*&order=id")).toBe("rest/rpc/sor_logs_for_sors")
+    })
+
+    it("keeps tables and other services to their first two segments", () => {
+        expect(supabaseTarget("https://db.test/rest/v1/employees?email=eq.ana@t3ck.com")).toBe("rest/employees")
+        expect(supabaseTarget("https://db.test/auth/v1/token?grant_type=refresh_token")).toBe("auth/token")
+        expect(supabaseTarget("https://db.test/storage/v1/object/attachments/a/b.pdf")).toBe("storage/object")
+        expect(supabaseTarget("https://db.test/functions/v1/odoo-sync")).toBe("functions/odoo-sync")
+    })
+
+    it("never carries the query string", () => {
+        expect(supabaseTarget("https://db.test/rest/v1/rpc/f?p=ana@t3ck.com")).not.toMatch(/ana|\?/)
+    })
+})
 
 describe("scrubString", () => {
     it("hides money amounts, emails and tokens", () => {
