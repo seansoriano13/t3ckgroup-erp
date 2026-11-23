@@ -106,12 +106,22 @@ export default function NotificationDrawer({ isOpen, onClose }) {
     enabled: !!user?.id && isOpen,
   });
 
+  const refreshBell = () =>
+    queryClient.invalidateQueries({ queryKey: ["notificationUnreadCount", userRef.current?.id] });
+
   // Real-time subscription
   useEffect(() => {
     if (!user?.id) return;
     const subscription = notificationService.subscribeToNotifications(
       user.id,
       (newNotif, eventType) => {
+        refreshBell();
+        if (eventType === "DELETE") {
+          queryClient.setQueryData(["notifications", user.id], (old = []) =>
+            old.filter((n) => n.id !== newNotif?.id),
+          );
+          return;
+        }
         if (eventType === "UPDATE") {
           // Read/unread flips patch in place; a merge (#851) moves it to the top and pops.
           let movedToTop = false;
@@ -150,6 +160,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   const markReadMutation = useMutation({
     mutationFn: (id) => notificationService.markAsRead(id),
     onSuccess: (_, id) => {
+      refreshBell();
       queryClient.setQueryData(["notifications", user?.id], (old = []) =>
         old.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
       );
@@ -159,6 +170,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   const markManyReadMutation = useMutation({
     mutationFn: (ids) => notificationService.markManyAsRead(ids),
     onSuccess: (_, ids) => {
+      refreshBell();
       queryClient.setQueryData(["notifications", user?.id], (old = []) =>
         old.map((n) => (ids.includes(n.id) ? { ...n, is_read: true } : n)),
       );
@@ -168,6 +180,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   const markUnreadMutation = useMutation({
     mutationFn: (id) => notificationService.markAsUnread(id),
     onSuccess: (_, id) => {
+      refreshBell();
       queryClient.setQueryData(["notifications", user?.id], (old = []) =>
         old.map((n) => (n.id === id ? { ...n, is_read: false } : n)),
       );
@@ -179,6 +192,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   const markAllReadMutation = useMutation({
     mutationFn: () => notificationService.markAllAsRead(user?.id),
     onSuccess: () => {
+      refreshBell();
       queryClient.setQueryData(["notifications", user?.id], (old = []) =>
         old.map((n) => ({ ...n, is_read: true })),
       );
@@ -188,6 +202,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   const markAllUnreadMutation = useMutation({
     mutationFn: () => notificationService.markAllAsUnread(user?.id),
     onSuccess: () => {
+      refreshBell();
       queryClient.setQueryData(["notifications", user?.id], (old = []) =>
         old.map((n) => ({ ...n, is_read: false })),
       );
@@ -199,6 +214,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
   const deleteNotifMutation = useMutation({
     mutationFn: (id) => notificationService.deleteNotification(id),
     onSuccess: (_, id) => {
+      refreshBell();
       queryClient.setQueryData(["notifications", user?.id], (old = []) =>
         old.filter((n) => n.id !== id),
       );

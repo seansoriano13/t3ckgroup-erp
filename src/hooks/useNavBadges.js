@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { selectHrPending, selectManagerPending } from "../utils/approvalQueue.js";
+import { dashboardTasksKey } from "../pages/approvals/_components/useApprovalQueues";
 import { taskService } from "../services/taskService";
 import { headApprovalService } from "../services/headApprovalService";
 import { opportunityService } from "../services/opportunityService";
@@ -16,40 +19,32 @@ export function useNavBadges(user) {
   const isHead = !!(user?.is_head || user?.isHead);
   const isHr = !!(user?.is_hr || user?.isHr);
   const userSubDept = user?.subDepartment || user?.sub_department;
-  const isMasterHead = isHead && !userSubDept;
 
   const canSeeTaskApprovals = isSuperAdmin || isHead;
   const canSeeHr = isSuperAdmin || isHr;
 
-  // 1. Pending Tasks Query for Head & HR
+  // 1. Task Approvals: the page's own default view (My team), built from the same
+  // cached task list and the same selectors, so the badge equals All Pending on open.
   const { data: allTasks = [] } = useQuery({
-    queryKey: ["navPendingTasks", user?.id],
+    queryKey: dashboardTasksKey(user?.id),
     queryFn: () => taskService.getAllTasks(),
     enabled: !!user?.id && (canSeeTaskApprovals || canSeeHr),
-    staleTime: 30000,
   });
 
-  // Compute Task Approvals count
-  let taskApprovals = 0;
-  if (canSeeTaskApprovals) {
-    taskApprovals = allTasks.filter((t) => {
-      const isPending = t.status === "PENDING";
-      if (!isPending) return false;
-      if (isSuperAdmin || isMasterHead) return true;
-      const taskSubDept = t.sub_department || t.subDepartment || t.employee?.sub_department;
-      return taskSubDept === userSubDept;
-    }).length;
-  }
-
-  // HR verification shares the Task Approvals page, so its count joins that badge.
-  if (canSeeHr) {
-    taskApprovals += allTasks.filter((t) => {
-      const isPendingVerification =
-        t.status === "VERIFICATION_PENDING" ||
-        (t.status === "COMPLETED" && !t.hr_verified && !t.hrVerified);
-      return isPendingVerification;
-    }).length;
-  }
+  const taskApprovals = useMemo(() => {
+    const ctx = {
+      userId: user?.id,
+      userDept: user?.department,
+      userSubDept,
+      isHead,
+      isSuperAdmin,
+      reportedToMeOnly: true,
+    };
+    const ids = new Set();
+    if (canSeeTaskApprovals) for (const t of selectManagerPending(allTasks, ctx)) ids.add(t.id);
+    if (canSeeHr) for (const t of selectHrPending(allTasks, user?.id)) ids.add(t.id);
+    return ids.size;
+  }, [allTasks, user?.id, user?.department, userSubDept, isHead, isSuperAdmin, canSeeTaskApprovals, canSeeHr]);
 
   // 2. Pending leave/overtime requests routed to this head, awaiting decision.
   const { data: pendingHeadApprovals = [] } = useQuery({
