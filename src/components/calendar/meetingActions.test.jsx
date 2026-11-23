@@ -26,9 +26,17 @@ describe('meetingActions rules', () => {
     expect(meetingActions({ ...base, status: 'RETURNED' }).resend).toBe(true);
     expect(meetingActions({ ...base, status: 'APPROVED' }).resend).toBe(false);
   });
-  it('offers nothing once final or started', () => {
+  it('offers nothing once final', () => {
     for (const status of ['DECLINED', 'CANCELLED']) expect(Object.values(meetingActions({ ...base, status })).some(Boolean)).toBe(false);
-    expect(Object.values(meetingActions({ ...base, startsAt: PAST })).some(Boolean)).toBe(false);
+  });
+  it('still offers the filer Edit and Cancel after the day, but not Send again (#1194)', () => {
+    expect(meetingActions({ ...base, startsAt: PAST })).toEqual({ edit: true, resend: false, cancel: true, hrCancel: false });
+    expect(meetingActions({ ...base, status: 'RETURNED', startsAt: PAST }).resend).toBe(false);
+  });
+  it('gives nobody else any right after the day', () => {
+    for (const who of [{ viewerId: 'bob' }, { viewerId: 'hr', isHr: true }]) {
+      expect(Object.values(meetingActions({ ...base, startsAt: PAST, ...who })).some(Boolean)).toBe(false);
+    }
   });
   it('gives HR only Cancel on someone else’s upcoming request', () => {
     expect(meetingActions({ ...base, viewerId: 'hr', isHr: true })).toEqual({ edit: false, resend: false, cancel: false, hrCancel: true });
@@ -65,14 +73,16 @@ describe('MeetingActions', () => {
     expect(screen.queryByTestId('meeting-actions')).toBeNull();
   });
 
-  it('shows nothing to an ordinary colleague or on a started meeting', () => {
+  it('shows nothing to an ordinary colleague, and the filer still sees Edit and Cancel on a started one', () => {
     mockUser = { id: 'bob' };
     const { unmount } = renderActions(request);
     expect(screen.queryByTestId('meeting-actions')).toBeNull();
     unmount();
     mockUser = { id: 'ana' };
     renderActions({ ...request, startsAt: PAST });
-    expect(screen.queryByTestId('meeting-actions')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send again' })).toBeNull();
   });
 
   it('names the Venue in the cancel question only when the Activity holds one', () => {
