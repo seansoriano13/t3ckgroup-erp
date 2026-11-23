@@ -1,5 +1,6 @@
-import { CalendarClock, CalendarDays, CalendarOff, ClipboardList, Hourglass, PartyPopper, Timer, Users, Wrench } from 'lucide-react';
+import { CalendarCheck, CalendarClock, CalendarDays, CalendarOff, ClipboardList, Hourglass, PartyPopper, Timer, Users, Wrench } from 'lucide-react';
 import MeetingDetail from './MeetingDetail.jsx';
+import SorDateDetail from './SorDateDetail.jsx';
 import { ACTIVITY_COLORS } from '@/constants/activityColors';
 
 /**
@@ -21,15 +22,16 @@ export const LAYERS = [
   { key: 'meetings', label: 'Meetings', icon: Users },
   { key: 'timeOff', label: 'Time Off', icon: CalendarDays },
   { key: 'overtime', label: 'Overtime', icon: Timer },
+  { key: 'sorDates', label: 'SOR dates', icon: CalendarCheck },
 ];
 
 /** The name people read for a layer: the `meetings` layer holds Activities. */
 export const layerLabel = (layer) => (layer.key === 'meetings' ? 'Activities' : layer.label);
 
-export const DEFAULT_LAYERS = { meetings: true, timeOff: true, overtime: true };
+export const DEFAULT_LAYERS = { meetings: true, timeOff: true, overtime: true, sorDates: true };
 
 /** The preset for the filtered views (HR's Time Off & Overtime tab, My Requests): no Meetings. */
-export const TIME_OFF_OVERTIME_LAYERS = { meetings: false, timeOff: true, overtime: true };
+export const TIME_OFF_OVERTIME_LAYERS = { meetings: false, timeOff: true, overtime: true, sorDates: false };
 
 export const ENTRY_KINDS = {
   MEETING: {
@@ -80,6 +82,16 @@ export const ENTRY_KINDS = {
     chip: 'bg-violet-2 text-violet-11 border-violet-6',
     dot: 'bg-violet-9',
     bar: 'bg-violet-5',
+  },
+  // A date Stage Field a Sales Flow marks "Show on Calendar" (#1197), e.g. Retention release date.
+  SOR_DATE: {
+    layer: 'sorDates',
+    label: 'SOR date',
+    icon: CalendarCheck,
+    chip: 'bg-orange-2 text-orange-11 border-orange-6',
+    dot: 'bg-orange-9',
+    bar: 'bg-orange-5',
+    Detail: SorDateDetail,
   },
 };
 
