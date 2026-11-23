@@ -13,6 +13,8 @@ import { db, deleteRows, insertRow, updateRow } from "../db/store"
 import { filterRows, orderRows, paginateRows, projectRows, splitParams } from "../db/query"
 
 const BASE_URL = import.meta.env.VITE_SUPABASE_URL
+/** supabase/config.toml `max_rows`, the same cap hosted Supabase applies. */
+const MAX_ROWS = 1000
 
 /** Stubs for endpoints that are not tables: RPCs and edge functions. */
 export const stubs = {
@@ -125,17 +127,21 @@ export const postgrestHandlers = [
     try {
       const body = await request.json().catch(() => ({}))
       const result = await stub(body)
+      // A set-returning RPC is paged and capped like a table read: the real
+      // server honours `.range()` and never returns more than MAX_ROWS rows,
+      // so a caller that forgets to page loses rows here too.
+      if (!Array.isArray(result)) return HttpResponse.json(result)
+      const url = new URL(request.url)
       const table = stubs.rpcTables.get(params.fn)
-      if (table && Array.isArray(result)) {
-        const url = new URL(request.url)
+      if (table) {
         const select = url.searchParams.get("select")
         const { base, embedded } = splitParams(select, url.searchParams)
         const matched = filterRows(table, result, base)
         const ordered = orderRows(table, matched, url.searchParams.get("order"))
-        const page = paginateRows(ordered, url.searchParams)
+        const page = paginateRows(ordered, url.searchParams).slice(0, MAX_ROWS)
         return HttpResponse.json(projectRows(table, page, select, embedded))
       }
-      return HttpResponse.json(result)
+      return HttpResponse.json(paginateRows(result, url.searchParams).slice(0, MAX_ROWS))
     } catch (error) {
       return errorResponse(error)
     }

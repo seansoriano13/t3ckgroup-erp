@@ -295,6 +295,31 @@ function attachmentsFromLog(log) {
   }));
 }
 
+/**
+ * Every visible log row for a set of SORs, read page by page. The server
+ * caps a reply at a fixed number of rows (1,000 on Supabase), and the
+ * register asks for every open SOR at once — about 6,000 rows on prod — so a
+ * single read silently dropped most of them and the List flagged SORs as
+ * "Blocked on" a file that was already uploaded (SOR-598, 2026-11-23).
+ * `narrow` lets a caller ask only for the rows it reads. Paging stops on an
+ * empty page rather than a short one, so it is right whatever the cap is.
+ */
+async function logsForSors(opportunityIds, narrow = (query) => query) {
+  if (!opportunityIds?.length) return [];
+  const rows = [];
+  for (;;) {
+    const { data, error } = await narrow(
+      supabase.rpc("sor_logs_for_sors", { p_opportunity_ids: opportunityIds }),
+    )
+      .order("id")
+      .range(rows.length, rows.length + LOG_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) return rows;
+    rows.push(...data);
+  }
+}
+const LOG_PAGE_SIZE = 1000;
+
 /** Buckets `rows` by the value of `key` — the one grouping shape every batch read below needs, just on different columns. */
 function groupBy(rows, key) {
   const groups = {};
@@ -1767,10 +1792,8 @@ async function deadlineEvaluations(opportunities) {
   if (conditions.length === 0) return {};
 
   const opportunityIds = opportunities.map((o) => o.id);
-  const { data: logs, error: logsError } = await supabase.rpc("sor_logs_for_sors", {
-    p_opportunity_ids: opportunityIds,
-  });
-  if (logsError) throw logsError;
+  // Only the move notes: `stageEnteredAt` reads nothing else.
+  const logs = await logsForSors(opportunityIds, (query) => query.eq("metadata->>event", "STAGE_CHANGED"));
 
   const logsByOpportunity = groupBy(logs, "opportunity_id");
 
@@ -4742,7 +4765,7 @@ export const opportunityService = {
 
     const [
       { data: statusRows, error: statusError },
-      { data: logs, error: logsError },
+      logs,
       { data: memberRows, error: memberError },
       groups,
     ] = await Promise.all([
@@ -4751,7 +4774,8 @@ export const opportunityService = {
         .select("*")
         .in("opportunity_id", opportunityIds)
         .in("condition_id", conditionIds),
-      supabase.rpc("sor_logs_for_sors", { p_opportunity_ids: opportunityIds }),
+      // Only notes that carry a file: `attachmentsFromLog` reads nothing else.
+      logsForSors(opportunityIds, (query) => query.not("metadata->attachments", "is", null)),
       supabase
         .from("sales_opportunity_members")
         .select(
@@ -4761,7 +4785,6 @@ export const opportunityService = {
       employeeGroupService.list(),
     ]);
     if (statusError) throw statusError;
-    if (logsError) throw logsError;
     if (memberError) throw memberError;
 
     const attachmentsByOpportunity = {};
