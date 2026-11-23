@@ -240,33 +240,43 @@ describe("changing days", () => {
         expect((await row(id)).status).toBe("APPROVED")
     })
 
-    it("keeps a started day as it is, and lets the other days change or go", async () => {
+    it("after a day started, the filer can still change, move and drop every day, and the Event stays approved (#1194)", async () => {
         const b = 3 // days near today, so the started days and the future days stay inside the day limit
-        const { id } = await file("head", { p_activity_type: "EVENT", p_days: [soonAt(b), soonAt(b + 1), soonAt(b + 2), soonAt(b + 3), soonAt(b + 4)] })
+        const { id } = await file("head", { p_activity_type: "EVENT", p_days: [soonAt(b), soonAt(b + 1), soonAt(b + 2)] })
         await svc().from("meeting_requests").update({ status: "APPROVED" }).eq("id", id)
         await startDays(id, 2) // day 1 and day 2 have started
         const rows = await daysOf(id)
         const kept = rows.slice(0, 2).map(({ starts_at, ends_at }) => ({ starts_at, ends_at }))
-        // changing a started day is refused
-        const moved = await edit("head", id, { p_days: [{ ...kept[0], ends_at: new Date(new Date(kept[0].ends_at).getTime() + HOUR).toISOString() }, kept[1], soonAt(b + 2)] })
-        expect(moved.error?.message).toMatch(/already started/i)
-        // dropping a started day is refused
-        const dropped = await edit("head", id, { p_days: [kept[1], soonAt(b + 2)] })
-        expect(dropped.error?.message).toMatch(/already started/i)
-        // days 3 to 5 can change and go, and the Event stays approved
-        const ok = await edit("head", id, { p_days: [...kept, soonAt(b + 2, 10, 12)] })
+        // change a started day, add a day in the past, drop the rest
+        const moved = [{ ...kept[0], ends_at: new Date(new Date(kept[0].ends_at).getTime() + HOUR).toISOString() }, soonAt(-5, 13, 14)]
+        const ok = await edit("head", id, { p_days: moved, p_purpose: "What really happened" })
         expect(ok.error).toBeNull()
-        expect(ok.data.to_status).toBe("APPROVED")
-        const after = await daysOf(id)
-        expect(after).toHaveLength(3)
-        expect(after.slice(0, 2).map((d) => d.id)).toEqual(rows.slice(0, 2).map((d) => d.id))
+        expect(ok.data).toMatchObject({ to_status: "APPROVED", after_day: true })
+        expect((await row(id)).status).toBe("APPROVED")
+        expect((await daysOf(id)).map((d) => new Date(d.ends_at).toISOString()).sort()).toEqual(moved.map((d) => d.ends_at).sort())
+        const { data: events } = await svc().from("meeting_request_events").select("action, changed_fields").eq("request_id", id).order("created_at")
+        expect(events.at(-1)).toMatchObject({ action: "EDITED" })
+        expect(events.at(-1).changed_fields.purpose.to).toBe("What really happened")
     })
 
-    it("refuses an edit once every day has started", async () => {
+    it("after its day, only the filer may edit", async () => {
         const b = nextBlock()
-        const { id } = await file("head", { p_days: [dayAt(b), dayAt(b + 1)] })
-        await startDays(id, 2)
-        expect((await edit("head", id, { p_purpose: "Late" })).error?.message).toMatch(/already started/i)
+        const { id } = await file("head", { p_days: [dayAt(b)] })
+        await startDays(id, 1)
+        for (const who of ["hr", "superAdmin", "outsider"]) {
+            expect((await edit(who, id, { p_purpose: "Not mine" })).error?.message).toMatch(/filed/i)
+        }
+    })
+
+    it("after its day, a change that double-books a Venue is still refused", async () => {
+        const b = nextBlock()
+        const taken = dayAt(b)
+        const first = await file("head", { p_activity_type: "MEETING", p_meeting_type: "ONSITE", p_venue_id: venue, p_days: [taken] })
+        expect(first.error).toBeNull()
+        const { id } = await file("head", { p_days: [dayAt(b + 7)] })
+        await startDays(id, 1)
+        const { error } = await edit("head", id, { p_activity_type: "MEETING", p_meeting_type: "ONSITE", p_venue_id: venue, p_days: [taken] })
+        expect(error).not.toBeNull()
     })
 })
 
@@ -312,11 +322,23 @@ describe("cancelling", () => {
         expect(data.filter((e) => e.group_id === id)).toHaveLength(0)
     })
 
-    it("is refused once every day has started", async () => {
+    it("is allowed to the filer once every day has started, and then it did not happen (#1194)", async () => {
         const b = nextBlock()
         const { id } = await file("head", { p_days: [dayAt(b), dayAt(b + 1)] })
         await startDays(id, 2)
-        expect((await cancel("head", id)).error?.message).toMatch(/already started/i)
+        const held = await daysOf(id)
+        expect((await cancel("head", id)).error).toBeNull()
+        expect((await row(id)).status).toBe("CANCELLED")
+        expect((await row(id)).cancelled_at).toBeNull()
+        const { data } = await (await clientFor("outsider")).rpc("calendar_entries", { p_from: manilaDay(held[0].starts_at), p_to: manilaDay(held[1].starts_at), p_include_pending: false })
+        expect(data.filter((e) => e.group_id === id)).toHaveLength(0)
+    })
+
+    it("is still refused to HR once every day has started", async () => {
+        const b = nextBlock()
+        const { id } = await file("head", { p_days: [dayAt(b)] })
+        await startDays(id, 1)
+        expect((await cancel("hr", id)).error?.message).toMatch(/already started/i)
         expect((await row(id)).status).not.toBe("CANCELLED")
     })
 })
