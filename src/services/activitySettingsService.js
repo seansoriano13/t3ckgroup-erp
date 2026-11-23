@@ -27,7 +27,7 @@ const WHO = { EVERYONE: 'everyone', HEADS: 'department heads only' };
 const onOff = (v) => (v ? 'on' : 'off');
 
 /** One plain sentence per changed type setting. `from` is the type before the change, `to` after. */
-export function describeTypeChange(field, from, to) {
+export function describeTypeChange(field, from, to, names = {}) {
   const name = from.name;
   switch (field) {
     case 'name': return `Renamed Activity type "${from.name}" to "${to.name}"`;
@@ -36,10 +36,11 @@ export function describeTypeChange(field, from, to) {
     case 'whoFiles': return `"${name}" can now be filed by ${WHO[to.whoFiles]} (was ${WHO[from.whoFiles]})`;
     case 'needsHr': return `"${name}" ${to.needsHr ? 'now waits for HR' : 'no longer waits for HR'}`;
     case 'alsoAllowed': {
-      const added = to.alsoAllowed.filter((id) => !from.alsoAllowed.includes(id)).length;
-      const removed = from.alsoAllowed.filter((id) => !to.alsoAllowed.includes(id)).length;
-      const parts = [added && `added ${added}`, removed && `removed ${removed}`].filter(Boolean).join(' and ');
-      return `"${name}" Also allowed list: ${parts || 'changed'} (now ${to.alsoAllowed.length} ${to.alsoAllowed.length === 1 ? 'person' : 'people'})`;
+      const who = (ids) => ids.map((id) => names[id] || 'an unknown person').join(', ');
+      const added = to.alsoAllowed.filter((id) => !from.alsoAllowed.includes(id));
+      const removed = from.alsoAllowed.filter((id) => !to.alsoAllowed.includes(id));
+      const parts = [added.length && `added ${who(added)}`, removed.length && `removed ${who(removed)}`].filter(Boolean).join('; ');
+      return `"${name}" Also allowed: ${parts || 'changed'}`;
     }
     case 'multiDay': return `"${name}" ${to.multiDay ? 'can now run over several days' : 'now runs on one day only'}`;
     default: return `Changed ${field} of "${name}"`;
@@ -73,6 +74,15 @@ function refuse(error) {
   throw new Error(error.message);
 }
 
+/** Employee names by id, for the Activity Log. A failed read leaves the names out rather than failing the save. */
+async function employeeNames(ids) {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return {};
+  const { data, error } = await supabase.from('employees').select('id, name').in('id', unique);
+  if (error) return {};
+  return Object.fromEntries((data ?? []).map((e) => [e.id, e.name]));
+}
+
 async function audit(entityId, content, actorId, metadata) {
   await systemAuditLogService.addSystemEvent('HR_SETTINGS', entityId, content, { event: 'ACTIVITY_SETTINGS_CHANGED', ...metadata }, actorId);
 }
@@ -104,8 +114,9 @@ export const activitySettingsService = {
     if (error) refuse(error);
     if (!data?.length) throw new Error(NOT_ALLOWED);
     const to = { ...from, ...values };
+    const names = diff.includes('alsoAllowed') ? await employeeNames([...(from.alsoAllowed ?? []), ...to.alsoAllowed]) : {};
     for (const field of diff) {
-      await audit(typeKey, describeTypeChange(field, from, to), actorId, { setting: field, activity_type: typeKey, from: from[field], to: to[field] });
+      await audit(typeKey, describeTypeChange(field, from, to, names), actorId, { setting: field, activity_type: typeKey, from: from[field], to: to[field] });
     }
     return to;
   },
