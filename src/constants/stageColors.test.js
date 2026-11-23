@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAGE_COLOR_FILL, stageColorFill } from "./stageColors";
+import { STAGE_COLOR_FILL, stageColorFill, stageColorDot } from "./stageColors";
 import { dealStageAndTone } from "./salesFlow";
 import { getStatusTheme } from "./status";
 import { PIPELINE_STAGE_SEED } from "./sor";
@@ -26,6 +26,17 @@ describe("Stage colors", () => {
     for (const stage of PIPELINE_STAGE_SEED) expect(getStatusTheme(stage.code), stage.code).toBe(stage.theme);
     expect(getStatusTheme("FOR_BIDDING")).toBe("amber");
     expect(getStatusTheme("PAYMENT_VERIFICATION")).toBe("amber");
+  });
+});
+
+describe("stageColorDot (#1195)", () => {
+  it("has a dot for every canvas color, in the stage's own hue", () => {
+    for (const color of CANVAS_COLORS) expect(stageColorDot(color), color).toBe(`bg-${color}-9`);
+  });
+
+  it("draws an unknown color as mauve", () => {
+    expect(stageColorDot("ultraviolet")).toBe("bg-mauve-9");
+    expect(stageColorDot(undefined)).toBe("bg-mauve-9");
   });
 });
 
