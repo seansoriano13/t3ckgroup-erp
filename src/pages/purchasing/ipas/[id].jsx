@@ -43,6 +43,7 @@ import {
   ipasRefreshKey,
   ipasSignerListsKey,
   markIpasListStale,
+  refreshIpasList,
 } from "../../../components/ipas/ipasKeys";
 import IpasListPage from "./index";
 import { ipasService } from "../../../services/ipasService";
@@ -597,6 +598,7 @@ function IpasPage({ onClose }) {
             : "Charge removed.",
       );
       changed();
+      if (type === "payment") refreshIpasList(queryClient);
     },
     onError: (error, vars, context) => {
       if (vars.type === "blank-charges") {
@@ -696,6 +698,7 @@ function IpasPage({ onClose }) {
     onSuccess: () => {
       toast.success("Asked for payment.");
       changed();
+      refreshIpasList(queryClient);
     },
   });
   const withdrawAsk = useMutation({
@@ -703,6 +706,7 @@ function IpasPage({ onClose }) {
     onSuccess: () => {
       toast.success("Ask withdrawn.");
       changed();
+      refreshIpasList(queryClient);
     },
   });
 
@@ -765,7 +769,7 @@ function IpasPage({ onClose }) {
       } finally {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ipasKey(id) }),
-          markIpasListStale(queryClient),
+          plan.payments ? refreshIpasList(queryClient) : markIpasListStale(queryClient),
           plan.done.has("bank") ? queryClient.invalidateQueries({ queryKey: ipasPendingPrefix }) : null,
         ]);
       }

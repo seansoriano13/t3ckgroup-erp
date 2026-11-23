@@ -23,9 +23,9 @@ import { ipasListKey } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
 import { canReadIpas, getPermissionContext } from "../../../utils/permissions";
 import { filterIpas, formatAmount } from "../../../utils/ipas";
-import { ipasFigures, ipasTotalsByCurrency } from "../../../utils/ipasFigures";
+import { ipasTotalsByCurrency } from "../../../utils/ipasFigures";
 import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
-import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasListViews";
+import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView, withIpasFigures } from "../../../utils/ipasListViews";
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
 import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
@@ -194,7 +194,7 @@ function IpasList() {
     queryFn: () => ipasService.list(),
   });
   // Every money figure comes from the IPAS figures, never worked out in the row.
-  const rows = useMemo(() => listed.map((row) => ({ ...row, figures: ipasFigures(row) })), [listed]);
+  const rows = useMemo(() => withIpasFigures(listed), [listed]);
 
   const entityOptions = useMemo(
     () => [

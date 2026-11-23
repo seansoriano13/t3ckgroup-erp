@@ -9,8 +9,7 @@ import { meetingRequestService } from "../services/meetingRequestService";
 import { useMeetingRealtime } from "./useMeetingRealtime";
 import { ipasService } from "../services/ipasService";
 import { ipasPendingKey, ipasListKey } from "../components/ipas/ipasKeys";
-import { ipasFigures } from "../utils/ipasFigures";
-import { IPAS_VIEW, inIpasView } from "../utils/ipasListViews";
+import { IPAS_VIEW, countIpasView } from "../utils/ipasListViews";
 import { canReadIpas, getPermissionContext } from "../utils/permissions";
 
 
@@ -101,9 +100,7 @@ export function useNavBadges(user) {
   });
   const ipasForPayment = useMemo(
     () =>
-      mayReadIpas
-        ? ipasList.filter((row) => inIpasView({ ...row, figures: ipasFigures(row) }, IPAS_VIEW.PAYMENT_FORECAST, user?.id)).length
-        : 0,
+      mayReadIpas ? countIpasView(ipasList, IPAS_VIEW.PAYMENT_FORECAST, user?.id) : 0,
     [ipasList, mayReadIpas, user?.id],
   );
 
