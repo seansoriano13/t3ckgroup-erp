@@ -301,8 +301,11 @@ function attachmentsFromLog(log) {
  * register asks for every open SOR at once — about 6,000 rows on prod — so a
  * single read silently dropped most of them and the List flagged SORs as
  * "Blocked on" a file that was already uploaded (SOR-598, 2026-11-23).
- * `narrow` lets a caller ask only for the rows it reads. Paging stops on an
- * empty page rather than a short one, so it is right whatever the cap is.
+ * `narrow` lets a caller ask only for the rows it reads. Each call is
+ * expensive on prod (seconds per call for a user with hundreds of SORs), so
+ * paging stops on a short page instead of asking once more for an empty one.
+ * LOG_PAGE_SIZE must not exceed the server's cap (supabase/config.toml
+ * `max_rows`, 1,000 on hosted Supabase), or a capped page would read as the last.
  */
 async function logsForSors(opportunityIds, narrow = (query) => query) {
   if (!opportunityIds?.length) return [];
@@ -314,8 +317,8 @@ async function logsForSors(opportunityIds, narrow = (query) => query) {
       .order("id")
       .range(rows.length, rows.length + LOG_PAGE_SIZE - 1);
     if (error) throw error;
-    if (!data?.length) return rows;
-    rows.push(...data);
+    rows.push(...(data || []));
+    if (!data || data.length < LOG_PAGE_SIZE) return rows;
   }
 }
 const LOG_PAGE_SIZE = 1000;
