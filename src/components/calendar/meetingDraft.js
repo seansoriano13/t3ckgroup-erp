@@ -60,7 +60,7 @@ export function latestDate(now = new Date()) {
  * 'days', 'lead', 'purpose' or 'guests'. The first one is the summary line. A new check is one more
  * `add(field, message)` at the place it belongs in the order.
  */
-export function draftProblems({ activityType = 'MEETING', meetingType = 'ONSITE', meetingLink = '', venueId, date, dateTo = '', start, end, days, facilitatorId, purpose, guests = [], multiDay = activityType !== 'MEETING', typeName = activityType === 'MEETING' ? 'Meeting' : 'Activity', maxDays = null }, now = new Date()) {
+export function draftProblems({ activityType = 'MEETING', meetingType = 'ONSITE', meetingLink = '', venueId, date, dateTo = '', start, end, days, facilitatorId, purpose, guests = [], allowPast = false, multiDay = activityType !== 'MEETING', typeName = activityType === 'MEETING' ? 'Meeting' : 'Activity', maxDays = null }, now = new Date()) {
   const problems = [];
   const add = (field, message) => problems.push({ field, message });
   const isMeeting = activityType === 'MEETING';
@@ -95,11 +95,11 @@ export function draftProblems({ activityType = 'MEETING', meetingType = 'ONSITE'
       }
       const reversed = days.find((d) => d.end <= d.start);
       if (reversed) add(where, `${reversed.date}: the Activity must end after it starts.`);
-      const past = days.find((d) => !d.frozen && new Date(manilaInstant(d.date, d.start)) < now);
+      const past = allowPast ? null : days.find((d) => !d.frozen && new Date(manilaInstant(d.date, d.start)) < now);
       if (past) add(where, `${past.date}: the Activity cannot start in the past.`);
     } else {
       if (end <= start) add('time', 'The Activity must end after it starts.');
-      if (new Date(manilaInstant(date, start)) < now) add('time', 'The Activity cannot start in the past.');
+      if (!allowPast && new Date(manilaInstant(date, start)) < now) add('time', 'The Activity cannot start in the past.');
     }
   }
   if (!facilitatorId) add('lead', 'Choose a Lead.');

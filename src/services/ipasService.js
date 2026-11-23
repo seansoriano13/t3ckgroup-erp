@@ -70,7 +70,9 @@ const IPAS_SELECT =
   " delivered_typer:employees!ipas_delivered_typed_by_fkey(id, name)," +
   " actual_checker:employees!ipas_actual_checking_by_fkey(id, name)," +
   // The IPAS Status steps reached, each with the day and who set it (ADR 0054).
-  " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))";
+  " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))," +
+  // The asks for payment (ADR 0055); the open one (no closed_at) makes the Payment status For payment.
+  " payment_asks:ipas_payment_asks(id, amount, purpose, note, asked_by, asked_at, closed_at, asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
@@ -668,6 +670,27 @@ export const ipasService = {
       accountChanged: Boolean(data?.account_changed),
       approvalsCleared: data?.approvals_cleared ?? [],
     };
+  },
+
+  // ── Ask for payment (#1188, ADR 0055) ────────────────────────────────────
+
+  /** Purchasing asks for a payment on an open IPAS: amount in the P0's currency, a purpose, an optional note. */
+  async askForPayment(id, { amount, purpose, note = null }) {
+    const { data, error } = await supabase.rpc("ipas_ask_for_payment", {
+      p_ipas_id: id,
+      p_amount: amount,
+      p_purpose: purpose,
+      p_note: note,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Purchasing withdraws the open ask. */
+  async withdrawPaymentAsk(id) {
+    const { data, error } = await supabase.rpc("ipas_withdraw_payment_ask", { p_ipas_id: id });
+    if (error) throw error;
+    return data;
   },
 
   // ── Payments and charges (#244) ──────────────────────────────────────────

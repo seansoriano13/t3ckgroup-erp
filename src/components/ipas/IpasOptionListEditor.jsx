@@ -45,6 +45,7 @@ const REQUIRED_BEFORE_OPTIONS = [
   ...IPAS_REQUIRED_BEFORE_VALUES.map((value) => ({ value: String(value), label: IPAS_REQUIRED_BEFORE_LABELS[value] })),
 ];
 
+const SYSTEM_KEY_HINT = "Used by the Payment Approval suggestion. Renaming it is fine.";
 const FILED_HINT = "Used on a filed IPAS. Deactivate it and add a new one instead.";
 
 /**
@@ -220,6 +221,7 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
 
               <div className="min-w-0 flex-1">
                 <span
+                  title={option.system_key ? SYSTEM_KEY_HINT : undefined}
                   className={`block truncate text-[13px] font-medium ${
                     option.active ? "text-foreground" : "text-muted-foreground line-through"
                   }`}

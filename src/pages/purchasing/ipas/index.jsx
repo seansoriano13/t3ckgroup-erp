@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Building2, Calculator, CircleDot, Eye, Layers, Plus, ReceiptText, Settings2 } from "lucide-react";
 
 import ProtectedRoute from "../../../components/ProtectedRoute";
@@ -23,9 +23,9 @@ import { ipasListKey } from "../../../components/ipas/ipasKeys";
 import { ipasService } from "../../../services/ipasService";
 import { canReadIpas, getPermissionContext } from "../../../utils/permissions";
 import { filterIpas, formatAmount } from "../../../utils/ipas";
-import { ipasFigures, ipasTotalsByCurrency } from "../../../utils/ipasFigures";
+import { ipasTotalsByCurrency } from "../../../utils/ipasFigures";
 import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
-import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView } from "../../../utils/ipasListViews";
+import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView, withIpasFigures } from "../../../utils/ipasListViews";
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
 import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
@@ -40,6 +40,8 @@ import {
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
   IPAS_ON_HOLD_FILTER,
+  IPAS_PAYMENT_STATUSES,
+  IPAS_PAYMENT_STATUS_LABELS,
   IPAS_STATUSES,
   IPAS_STATUS_LABELS,
   ipasSectionNo,
@@ -83,12 +85,18 @@ const IPAS_SORT = {
   "remaining-balance": (r) => r.figures.remainingBalance,
   // A cancelled IPAS has no IPAS Status (its cell says Cancelled): it sorts after every status.
   status: (r) => (r.figures.status ? IPAS_STATUSES.indexOf(r.figures.status) : IPAS_STATUSES.length),
+  "payment-status": (r) => (r.figures.paymentStatus ? IPAS_PAYMENT_STATUSES.indexOf(r.figures.paymentStatus) : IPAS_PAYMENT_STATUSES.length),
 };
 
 const STATUS_OPTIONS = [
   { value: ALL, label: "Any IPAS Status" },
   ...IPAS_STATUSES.map((value) => ({ value, label: IPAS_STATUS_LABELS[value] })),
   { value: IPAS_ON_HOLD_FILTER, label: "On-Hold" },
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: ALL, label: "Any Payment status" },
+  ...IPAS_PAYMENT_STATUSES.map((value) => ({ value, label: IPAS_PAYMENT_STATUS_LABELS[value] })),
 ];
 
 const COSTING_OPTIONS = [
@@ -117,6 +125,7 @@ const LIST_HEADINGS = [
   "IPAS",
   "Odoo PO",
   "Status",
+  "Payment status",
   "Entity",
   "Purpose",
   "Costing",
@@ -136,6 +145,9 @@ const PHONE_ROLE = { IPAS: "title", Status: "badge", "Odoo PO": "meta", Purpose:
 const COLUMNS = LIST_HEADINGS.map((heading) => ({ key: slug(heading), label: heading, locked: heading === LOCKED_HEADING }));
 const KNOWN_COLUMN_KEYS = COLUMNS.map((column) => column.key);
 
+// The state tab a view needs: Raised by me and the Payment Forecast span every state, the rest are about open IPAS.
+const viewState = (view) => (view === IPAS_VIEW.MINE || view === IPAS_VIEW.PAYMENT_FORECAST ? IPAS_STATE_FILTER_ALL : IPAS_STATE.OPEN);
+
 function IpasList() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -146,13 +158,19 @@ function IpasList() {
   // The option lists: Purchasing access and Super Admins.
   const canEditSettings = hasPurchasingFlow || isSuperAdmin;
 
-  const [state, setState] = useState(IPAS_STATE.OPEN);
+  // A link from the sidebar count opens a view already picked (?view=payment_forecast).
+  const [searchParams] = useSearchParams();
+  const linkedView = Object.values(IPAS_VIEW).find((value) => value === searchParams.get("view")) ?? null;
+  const initialView = linkedView;
+  const [view, setView] = useState(initialView);
+  const [state, setState] = useState(initialView ? viewState(initialView) : IPAS_STATE.OPEN);
   const [entity, setEntity] = useState(null);
   const [purpose, setPurpose] = useState(null);
   const [costing, setCosting] = useState(null);
   const [status, setStatus] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState(null);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState(null);
+
   const [creating, setCreating] = useState(false);
   // Remembered per employee on this browser.
   const inLaptopBand = useLaptopBand();
@@ -160,6 +178,15 @@ function IpasList() {
     defaults: inLaptopBand ? LAPTOP_HIDDEN_COLUMNS : DEFAULT_HIDDEN_COLUMNS,
     known: KNOWN_COLUMN_KEYS,
   });
+  // Clicking the sidebar count while already here picks the view too.
+  const [seenLink, setSeenLink] = useState(linkedView);
+  if (linkedView !== seenLink) {
+    setSeenLink(linkedView);
+    if (linkedView) {
+      setView(linkedView);
+      setState(viewState(linkedView));
+    }
+  }
   const visibleColumns = shownColumns(COLUMNS, columns.show);
 
   const { data: listed = [], isLoading, isError, refetch } = useQuery({
@@ -167,7 +194,7 @@ function IpasList() {
     queryFn: () => ipasService.list(),
   });
   // Every money figure comes from the IPAS figures, never worked out in the row.
-  const rows = useMemo(() => listed.map((row) => ({ ...row, figures: ipasFigures(row) })), [listed]);
+  const rows = useMemo(() => withIpasFigures(listed), [listed]);
 
   const entityOptions = useMemo(
     () => [
@@ -180,15 +207,15 @@ function IpasList() {
   // Search, entity and Purpose narrow first; the state pills count within that.
   const viewed = useMemo(() => (view ? rows.filter((row) => inIpasView(row, view, user?.id)) : rows), [rows, view, user?.id]);
   const scoped = useMemo(
-    () => filterIpas(viewed, { entity, purpose, computationStatus: costing, status, search }),
-    [viewed, entity, purpose, costing, status, search],
+    () => filterIpas(viewed, { entity, purpose, computationStatus: costing, status, paymentStatus, search }),
+    [viewed, entity, purpose, costing, status, paymentStatus, search],
   );
   const filtered = useMemo(() => filterIpas(scoped, { state }), [scoped, state]);
   const { sorted: visible, sort, toggle } = useTableSort(filtered, IPAS_SORT);
   const paging = usePaging(visible);
 
   const count = (s) => filterIpas(scoped, { state: s }).length;
-  const hasActiveFilters = view !== null || search !== "" || entity !== null || purpose !== null || costing !== null || status !== null;
+  const hasActiveFilters = view !== null || search !== "" || entity !== null || purpose !== null || costing !== null || status !== null || paymentStatus !== null;
 
   // Totals of the rows shown (every page), one line per currency: currencies are never added together.
   const totals = useMemo(() => ipasTotalsByCurrency(visible), [visible]);
@@ -199,7 +226,7 @@ function IpasList() {
   // A view sets the state tab it needs: the first three are about open IPAS, Raised by me spans them all.
   const pickView = (next) => {
     setView(next);
-    if (next) setState(next === IPAS_VIEW.MINE ? IPAS_STATE_FILTER_ALL : IPAS_STATE.OPEN);
+    if (next) setState(viewState(next));
   };
 
   const toolbar = (
@@ -219,16 +246,28 @@ function IpasList() {
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO, supplier, SO, SOR or project" }}
         chips={
-          <FilterSelect
-            icon={CircleDot}
-            label="IPAS Status"
-            options={STATUS_OPTIONS}
-            value={status ?? ALL}
-            onChange={(v) => setStatus(v === ALL ? null : v)}
-            allValue={ALL}
-            className={CHIP}
-            wrapperClassName={CHIP_WRAPPER}
-          />
+          <>
+            <FilterSelect
+              icon={CircleDot}
+              label="IPAS Status"
+              options={STATUS_OPTIONS}
+              value={status ?? ALL}
+              onChange={(v) => setStatus(v === ALL ? null : v)}
+              allValue={ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+            <FilterSelect
+              icon={CircleDot}
+              label="Payment status"
+              options={PAYMENT_STATUS_OPTIONS}
+              value={paymentStatus ?? ALL}
+              onChange={(v) => setPaymentStatus(v === ALL ? null : v)}
+              allValue={ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+          </>
         }
         // The rest sit behind one Filters button, so the bar stays on one line.
         filters={
@@ -282,6 +321,7 @@ function IpasList() {
           setPurpose(null);
           setCosting(null);
           setStatus(null);
+          setPaymentStatus(null);
         }}
       />
     </>

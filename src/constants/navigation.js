@@ -220,6 +220,9 @@ export const NAV_MODULES = {
         key: "purchasing.ipas",
         label: "IPAS",
         link: "/purchasing/ipas",
+        // The number is the Payment Forecast's rows (#1190); clicking it opens the list filtered.
+        badgeKey: "ipasForPayment",
+        badgeLink: "/purchasing/ipas?view=payment_forecast",
         icon: ReceiptText,
         isPermitted: (ctx) =>
           ctx.isSuperAdmin || ctx.hasPurchasingFlow || ctx.hasFinanceFlow || ctx.hasLogisticsFlow || ctx.isIpasSigner,

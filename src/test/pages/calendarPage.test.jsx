@@ -68,6 +68,28 @@ beforeEach(() => {
 });
 
 describe("Calendar page", () => {
+  it("shows a Retention release date, all day, named after the SOR and the field, and opens the SOR", async () => {
+    const user = userEvent.setup();
+    mocks.entries = [
+      {
+        ...entry("SOR_DATE", "sor-1", "x", {
+          opportunity_id: "11111111-1111-4111-8111-111111111111",
+          field_label: "Retention release",
+          sales_reference: "S00123",
+        }),
+        employee: null,
+        all_day: true,
+        hours: null,
+        title: "Acme Rescue Depot · Retention release",
+      },
+    ];
+    renderPage();
+    const cell = await screen.findByTestId(`day-${day}`);
+    await user.click(await within(cell.parentElement).findByText("Acme Rescue Depot · Retention release"));
+    const link = await screen.findByRole("link", { name: /open sor/i });
+    expect(link).toHaveAttribute("href", "/sors?open=sor:11111111-1111-4111-8111-111111111111");
+  });
+
   it("shows approved SIL, Offset, Overtime and Undertime entries", async () => {
     renderPage();
     const cell = await screen.findByTestId(`day-${day}`);

@@ -37,7 +37,7 @@ export function LayoutSwitch({ layout, onChange }) {
   );
 }
 
-const LAYER_DOT = { meetings: 'bg-teal-9', timeOff: 'bg-green-9', overtime: 'bg-violet-9' };
+const LAYER_DOT = { meetings: 'bg-teal-9', timeOff: 'bg-green-9', overtime: 'bg-violet-9', sorDates: 'bg-orange-9' };
 
 /** Layer toggles that double as the legend; each shows how many entries it holds in the loaded range. */
 export function LayerToggles({ layers, toggleLayer, all }) {

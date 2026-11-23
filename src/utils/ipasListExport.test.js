@@ -41,3 +41,14 @@ describe("ipasExportRows: the IPAS Status columns (#1157)", () => {
     expect(cell("Status date", values)).toBeNull();
   });
 });
+
+describe("ipasExportRows: the Payment status column (#1188)", () => {
+  it("writes the Payment status in words beside the others, blank for a cancelled IPAS", () => {
+    expect(IPAS_EXPORT_HEADER).toContain("Payment status");
+    const [values] = ipasExportRows([row({}, { paymentStatus: "dp_paid" })]);
+    expect(values).toHaveLength(IPAS_EXPORT_HEADER.length);
+    expect(cell("Payment status", values)).toBe("DP paid");
+    const [cancelled] = ipasExportRows([row({}, { paymentStatus: null })]);
+    expect(cell("Payment status", cancelled)).toBeNull();
+  });
+});
