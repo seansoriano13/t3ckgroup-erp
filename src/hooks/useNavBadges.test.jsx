@@ -75,23 +75,47 @@ describe("useNavBadges", () => {
     expect(ipasService.pendingSignoffsFor).not.toHaveBeenCalled();
   });
 
-  it("computes taskApprovals for department head based on pending tasks", async () => {
-    const user = {
-      id: "head-1",
-      isHead: true,
-      subDepartment: "Engineering",
-    };
-
+  it("counts Task Approvals like the page's My team view for a head", async () => {
+    const user = { id: "head-1", isHead: true, subDepartment: "Engineering" };
     taskService.getAllTasks.mockResolvedValue([
-      { id: "t1", status: "PENDING", sub_department: "Engineering" },
-      { id: "t2", status: "PENDING", sub_department: "Marketing" },
-      { id: "t3", status: "GRADED", sub_department: "Engineering" },
+      { id: "t1", status: "AWAITING APPROVAL", subDepartment: "Engineering", loggedById: "e1" },
+      { id: "t2", status: "AWAITING APPROVAL", subDepartment: "Marketing", loggedById: "e2" },
+      { id: "t3", status: "COMPLETED", subDepartment: "Engineering", loggedById: "e1", evaluatedById: "head-1" },
     ]);
-
     const { result } = renderHookWithQuery(() => useNavBadges(user));
+    await vi.waitFor(() => expect(result.current.taskApprovals).toBe(1));
+  });
 
-    await vi.waitFor(() => {
-      expect(result.current.taskApprovals).toBe(1);
-    });
+  it("gives a Super Admin only My team, not every pending task in the company", async () => {
+    const user = { id: "sa", isSuperAdmin: true };
+    taskService.getAllTasks.mockResolvedValue([
+      { id: "t1", status: "AWAITING APPROVAL", reportedTo: "sa", loggedById: "e1" },
+      { id: "t2", status: "AWAITING APPROVAL", reportedTo: "other", loggedById: "e2" },
+      { id: "t3", status: "INCOMPLETE", reportedTo: "other", loggedById: "e3" },
+    ]);
+    const { result } = renderHookWithQuery(() => useNavBadges(user));
+    await vi.waitFor(() => expect(result.current.taskApprovals).toBe(1));
+  });
+
+  it("counts HR verification as the graded, unverified tasks the HR view lists", async () => {
+    const user = { id: "hr", isHr: true };
+    taskService.getAllTasks.mockResolvedValue([
+      { id: "t1", status: "COMPLETED", hrVerified: false, evaluatedById: "h", loggedById: "e1" },
+      { id: "t2", status: "COMPLETED", hrVerified: true, evaluatedById: "h", loggedById: "e1" },
+      { id: "t3", status: "COMPLETED", hrVerified: false, evaluatedById: null, loggedById: "e1" },
+      { id: "t4", status: "COMPLETED", hrVerified: false, evaluatedById: "h", loggedById: "hr" },
+    ]);
+    const { result } = renderHookWithQuery(() => useNavBadges(user));
+    await vi.waitFor(() => expect(result.current.taskApprovals).toBe(1));
+  });
+
+  it("counts a task once when a Super Admin is both grader and verifier", async () => {
+    const user = { id: "sa", isSuperAdmin: true, isHr: true };
+    taskService.getAllTasks.mockResolvedValue([
+      { id: "t1", status: "COMPLETED", hrVerified: false, evaluatedById: "h", loggedById: "e1" },
+      { id: "t2", status: "AWAITING APPROVAL", reportedTo: "sa", loggedById: "e2" },
+    ]);
+    const { result } = renderHookWithQuery(() => useNavBadges(user));
+    await vi.waitFor(() => expect(result.current.taskApprovals).toBe(2));
   });
 });

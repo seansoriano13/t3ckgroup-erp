@@ -40,6 +40,8 @@ import {
   IPAS_STATE,
   IPAS_STATE_FILTER_ALL,
   IPAS_ON_HOLD_FILTER,
+  IPAS_PAYMENT_STATUSES,
+  IPAS_PAYMENT_STATUS_LABELS,
   IPAS_STATUSES,
   IPAS_STATUS_LABELS,
   ipasSectionNo,
@@ -83,12 +85,18 @@ const IPAS_SORT = {
   "remaining-balance": (r) => r.figures.remainingBalance,
   // A cancelled IPAS has no IPAS Status (its cell says Cancelled): it sorts after every status.
   status: (r) => (r.figures.status ? IPAS_STATUSES.indexOf(r.figures.status) : IPAS_STATUSES.length),
+  "payment-status": (r) => (r.figures.paymentStatus ? IPAS_PAYMENT_STATUSES.indexOf(r.figures.paymentStatus) : IPAS_PAYMENT_STATUSES.length),
 };
 
 const STATUS_OPTIONS = [
   { value: ALL, label: "Any IPAS Status" },
   ...IPAS_STATUSES.map((value) => ({ value, label: IPAS_STATUS_LABELS[value] })),
   { value: IPAS_ON_HOLD_FILTER, label: "On-Hold" },
+];
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: ALL, label: "Any Payment status" },
+  ...IPAS_PAYMENT_STATUSES.map((value) => ({ value, label: IPAS_PAYMENT_STATUS_LABELS[value] })),
 ];
 
 const COSTING_OPTIONS = [
@@ -117,6 +125,7 @@ const LIST_HEADINGS = [
   "IPAS",
   "Odoo PO",
   "Status",
+  "Payment status",
   "Entity",
   "Purpose",
   "Costing",
@@ -151,6 +160,7 @@ function IpasList() {
   const [purpose, setPurpose] = useState(null);
   const [costing, setCosting] = useState(null);
   const [status, setStatus] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState(null);
   const [search, setSearch] = useState("");
   const [view, setView] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -180,15 +190,15 @@ function IpasList() {
   // Search, entity and Purpose narrow first; the state pills count within that.
   const viewed = useMemo(() => (view ? rows.filter((row) => inIpasView(row, view, user?.id)) : rows), [rows, view, user?.id]);
   const scoped = useMemo(
-    () => filterIpas(viewed, { entity, purpose, computationStatus: costing, status, search }),
-    [viewed, entity, purpose, costing, status, search],
+    () => filterIpas(viewed, { entity, purpose, computationStatus: costing, status, paymentStatus, search }),
+    [viewed, entity, purpose, costing, status, paymentStatus, search],
   );
   const filtered = useMemo(() => filterIpas(scoped, { state }), [scoped, state]);
   const { sorted: visible, sort, toggle } = useTableSort(filtered, IPAS_SORT);
   const paging = usePaging(visible);
 
   const count = (s) => filterIpas(scoped, { state: s }).length;
-  const hasActiveFilters = view !== null || search !== "" || entity !== null || purpose !== null || costing !== null || status !== null;
+  const hasActiveFilters = view !== null || search !== "" || entity !== null || purpose !== null || costing !== null || status !== null || paymentStatus !== null;
 
   // Totals of the rows shown (every page), one line per currency: currencies are never added together.
   const totals = useMemo(() => ipasTotalsByCurrency(visible), [visible]);
@@ -219,16 +229,28 @@ function IpasList() {
       <FilterBar
         search={{ value: search, onChange: setSearch, placeholder: "Search IPAS, PO, supplier, SO, SOR or project" }}
         chips={
-          <FilterSelect
-            icon={CircleDot}
-            label="IPAS Status"
-            options={STATUS_OPTIONS}
-            value={status ?? ALL}
-            onChange={(v) => setStatus(v === ALL ? null : v)}
-            allValue={ALL}
-            className={CHIP}
-            wrapperClassName={CHIP_WRAPPER}
-          />
+          <>
+            <FilterSelect
+              icon={CircleDot}
+              label="IPAS Status"
+              options={STATUS_OPTIONS}
+              value={status ?? ALL}
+              onChange={(v) => setStatus(v === ALL ? null : v)}
+              allValue={ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+            <FilterSelect
+              icon={CircleDot}
+              label="Payment status"
+              options={PAYMENT_STATUS_OPTIONS}
+              value={paymentStatus ?? ALL}
+              onChange={(v) => setPaymentStatus(v === ALL ? null : v)}
+              allValue={ALL}
+              className={CHIP}
+              wrapperClassName={CHIP_WRAPPER}
+            />
+          </>
         }
         // The rest sit behind one Filters button, so the bar stays on one line.
         filters={
@@ -282,6 +304,7 @@ function IpasList() {
           setPurpose(null);
           setCosting(null);
           setStatus(null);
+          setPaymentStatus(null);
         }}
       />
     </>

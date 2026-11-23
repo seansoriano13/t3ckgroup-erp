@@ -311,3 +311,78 @@ describe("ipasTotalsByCurrency", () => {
     ])
   })
 })
+
+describe("ipasFigures: Payment status (ADR 0055)", () => {
+  const ask = { amount: 5600, purpose: "down_payment", note: null }
+
+  it("reads Not due yet with nothing paid and no ask", () => {
+    expect(ipasFigures(ipas()).paymentStatus).toBe("not_due_yet")
+  })
+
+  it("reads For payment while an ask is open, whatever was paid before", () => {
+    expect(ipasFigures(ipas({ payment_ask: ask })).paymentStatus).toBe("for_payment")
+    const part = ipasFigures(ipas({ payment_ask: ask, payments: [pay("down_payment", 5600, "Bank TT")] }))
+    expect(part.paymentStatus).toBe("for_payment")
+    expect(part.paymentAsk).toEqual(ask)
+  })
+
+  it("reads DP paid with some paid and a balance left", () => {
+    expect(ipasFigures(ipas({ payments: [pay("down_payment", 5600, "Bank TT")] })).paymentStatus).toBe("dp_paid")
+  })
+
+  it("reads Paid with nothing left, even on an order still at Order-Draft", () => {
+    const covered = ipas({ status: "order_draft", payments: [pay("down_payment", 6720, "Bank TT"), pay("payment", 4480, "Bank TT")] })
+    expect(ipasFigures(covered).paymentStatus).toBe("paid")
+    expect(ipasFigures(ipas({ payments: [pay("full_payment", 11200, "Bank TT")] })).paymentStatus).toBe("paid")
+  })
+
+  it("reads Paid when overpaid, and For payment over Paid when an ask is open", () => {
+    expect(ipasFigures(ipas({ payments: [pay("payment", 12800, "Bank TT")] })).paymentStatus).toBe("paid")
+    expect(ipasFigures(ipas({ payment_ask: ask, payments: [pay("full_payment", 11200, "Bank TT")] })).paymentStatus).toBe("for_payment")
+  })
+
+  it("finds the open ask among the asks a read brings, and ignores closed ones", () => {
+    const asks = [{ ...ask, closed_at: "2026-11-20T00:00:00Z" }, { ...ask, amount: 900 }]
+    const figures = ipasFigures(ipas({ payment_asks: asks }))
+    expect(figures.paymentStatus).toBe("for_payment")
+    expect(figures.paymentAsk.amount).toBe(900)
+    expect(ipasFigures(ipas({ payment_asks: [asks[0]] })).paymentStatus).toBe("not_due_yet")
+  })
+
+  it("has none on a cancelled IPAS", () => {
+    expect(ipasFigures(ipas({ state: "cancelled", payment_ask: ask })).paymentStatus).toBeNull()
+  })
+})
+
+describe("ipasFigures: supplier-billed Freight (#1192)", () => {
+  const billed = { freight_amount: 1600, freight_currency: "Php", freight_billed_by_supplier: true }
+
+  it("owes the P0 total plus supplier-billed Freight when no P.I/QT Amount is typed", () => {
+    const figures = ipasFigures(ipas({ ...billed, payments: [pay("down_payment", 6000, "Bank TT"), pay("payment", 6800, "Bank TT")] }))
+    expect(figures.amount).toBe(12800)
+    expect(figures.overpaidBy).toBe(0)
+    expect(figures.remainingBalance).toBe(0)
+  })
+
+  it("leaves the typed P.I/QT Amount as what is owed", () => {
+    expect(ipasFigures(ipas({ ...billed, pi_qt_amount: 12800 })).amount).toBe(12800)
+    expect(ipasFigures(ipas({ ...billed, pi_qt_amount: 11200 })).amount).toBe(11200)
+  })
+
+  it("ignores Freight the supplier did not bill, and Freight in another currency", () => {
+    expect(ipasFigures(ipas({ ...billed, freight_billed_by_supplier: false })).amount).toBe(11200)
+    expect(ipasFigures(ipas({ ...billed, freight_currency: "EUR" })).amount).toBe(11200)
+  })
+
+  it("matches the bill check when the P.I equals the P0 total plus the Freight", () => {
+    expect(ipasFigures(ipas({ ...billed, pi_qt_amount: 12800 })).billCheck.status).toBe(IPAS_BILL_CHECK.MATCHES)
+    expect(ipasFigures(ipas({ ...billed, pi_qt_amount: 11200 })).billCheck.status).toBe(IPAS_BILL_CHECK.DIFFERS)
+    expect(ipasFigures(ipas({ pi_qt_amount: 12800 })).billCheck.difference).toBe(1600)
+  })
+
+  it("shows each payment's real share of what is owed, not the percent typed", () => {
+    const payments = [pay("down_payment", 7680, "Bank TT", { percent_of_order: 60 }), pay("payment", 5120, "Bank TT", { percent_of_order: 40 })]
+    expect(ipasFigures(ipas({ ...billed, payments })).paymentPercents).toBe("Down payment · 60%; Payment · 40%")
+    expect(ipasFigures(ipas({ payments })).paymentPercents).toBe("Down payment · 68.5714%; Payment · 45.7143%")
+  })
+})

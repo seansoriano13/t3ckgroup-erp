@@ -68,6 +68,16 @@ export const notificationService = {
   },
 
   /**
+   * The bell's number, counted by the server over every notification (not just
+   * the newest page), with the drawer's rules: a chat's messages count once.
+   */
+  async getUnreadCount() {
+    const { data, error } = await supabase.rpc('my_unread_notification_count');
+    if (error) throw new Error(error.message);
+    return Number(data) || 0;
+  },
+
+  /**
    * The next page of older notifications, for the drawer's "Load older" button.
    */
   async getOlderNotifications(userId, beforeCreatedAt) {
@@ -108,6 +118,15 @@ export const notificationService = {
         { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `recipient_id=eq.${userId}` },
         (payload) => {
           onNotification(payload.new, 'UPDATE');
+        }
+      )
+      // A delete in another tab lowers the bell. Delete events carry only the
+      // id and cannot be filtered by recipient; RLS keeps other people's out.
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'notifications' },
+        (payload) => {
+          onNotification(payload.old, 'DELETE');
         }
       )
       .subscribe();

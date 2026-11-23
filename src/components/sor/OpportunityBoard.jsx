@@ -1,3 +1,4 @@
+import { stageColorDot } from "@/constants/stageColors";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Clock, ChevronDown, LayoutGrid, Rows3, GitBranch } from "lucide-react";
@@ -16,15 +17,6 @@ import { SelectField } from "../ui/SelectField";
 import { useIsPhone } from "@/hooks/useScreenBand";
 import { sorCodeOf } from "../../utils/sorCode";
 
-const THEME_DOT = {
-  green: "bg-green-9",
-  amber: "bg-amber-9",
-  blue: "bg-blue-9",
-  red: "bg-red-9",
-  violet: "bg-violet-9",
-  orange: "bg-orange-9",
-  mauve: "bg-mauve-9",
-};
 
 const LEGACY_KEY = "NONE";
 const isLegacyValue = (key) => key === "NONE" || key === "LEGACY";
@@ -517,7 +509,7 @@ function BoardColumn({
   onDrop,
 }) {
   const theme = column.theme || getStatusTheme(column.key);
-  const dotClass = THEME_DOT[theme] || THEME_DOT.mauve;
+  const dotClass = stageColorDot(theme);
   const dimmed = isDragging && !isDragTarget;
 
   return (

@@ -36,3 +36,30 @@ export const STAGE_COLOR_FILL = {
 
 /** The solid fill for a Stage color name; a name not in the map reads as the neutral mauve, never black. */
 export const stageColorFill = (tone) => STAGE_COLOR_FILL[tone] ?? STAGE_COLOR_FILL.mauve;
+
+/** The small column-header dot (Board, employee matrix): every color's -9 step, written whole for Tailwind. */
+export const STAGE_COLOR_DOT = {
+  tomato: "bg-tomato-9",
+  red: "bg-red-9",
+  crimson: "bg-crimson-9",
+  pink: "bg-pink-9",
+  plum: "bg-plum-9",
+  violet: "bg-violet-9",
+  indigo: "bg-indigo-9",
+  blue: "bg-blue-9",
+  sky: "bg-sky-9",
+  cyan: "bg-cyan-9",
+  teal: "bg-teal-9",
+  jade: "bg-jade-9",
+  green: "bg-green-9",
+  lime: "bg-lime-9",
+  yellow: "bg-yellow-9",
+  amber: "bg-amber-9",
+  orange: "bg-orange-9",
+  gold: "bg-gold-9",
+  brown: "bg-brown-9",
+  gray: "bg-gray-9",
+  mauve: "bg-mauve-9",
+};
+
+export const stageColorDot = (tone) => STAGE_COLOR_DOT[tone] ?? STAGE_COLOR_DOT.mauve;

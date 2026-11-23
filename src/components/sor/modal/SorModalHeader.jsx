@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Archive,
   ChevronDown,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
@@ -57,6 +58,8 @@ export default function SorModalHeader({
   handleEditToggle,
   updateMutation,
   deleteMutation,
+  archiveMutation,
+  canArchive = false,
   onClose,
   isFlowDeal,
   flowCanvas,
@@ -486,6 +489,21 @@ export default function SorModalHeader({
                             <span className="text-xs font-normal text-muted-foreground">{NO_LOST_STAGE_REASON}</span>
                           )}
                         </span>
+                      </Button>
+                    )}
+                    {canArchive && archiveMutation && (
+                      <Button
+                        type="button"
+                        role="menuitem"
+                        variant="ghost"
+                        onClick={() => {
+                          close();
+                          archiveMutation.mutate(!opportunity?.archived_at);
+                        }}
+                        className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground"
+                      >
+                        <Archive size={14} className="text-muted-foreground" />
+                        {opportunity?.archived_at ? "Un-archive SOR" : "Archive SOR"}
                       </Button>
                     )}
                     {canEdit && (
