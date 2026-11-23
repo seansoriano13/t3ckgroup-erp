@@ -8,6 +8,7 @@
             "sales.sors"
         ],
         "changes": [
+            "In Purchasing Settings, hover a document kind used by the Payment Approval suggestion to see that renaming it is safe.",
             "An SOR can now be archived and found again under Archived SORs, with its retention date.",
             "Retention release dates now show on the Calendar.",
             "The person who filed an Activity can change it or cancel it even after its day. An Activity cancelled after its day no longer shows on the Calendar as held.",
