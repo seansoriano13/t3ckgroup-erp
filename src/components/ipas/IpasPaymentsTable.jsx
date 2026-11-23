@@ -12,6 +12,7 @@ import { IPAS_PAYMENT_KIND_LABELS } from "../../constants/ipas";
 import { paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "../../utils/ipas";
+import { ipasFigures, realPercent } from "../../utils/ipasFigures";
 import { formatDay } from "../../utils/ipasPayments";
 import { blendedRate, fromCents, isPhpCurrency, paymentPhp, sumPesos, toCents } from "../../utils/landedCost";
 
@@ -37,6 +38,7 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
   const known = rows.filter((row) => row.pesos !== null);
   const sumFee = (key) => sumPesos(payments.map((payment) => payment[key] ?? 0));
   const average = isPhp ? null : blendedRate(payments);
+  const owed = ipasFigures(ipas).amount;
 
   return (
     <div className="space-y-2">
@@ -60,7 +62,7 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
           <TableBody className="divide-y-0">
             {rows.map(({ payment, pesos, total }) => {
               const kindLabel = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
-              const kindWithPercent = paymentKindWithPercent(payment.kind, payment.percent_of_order);
+              const kindWithPercent = paymentKindWithPercent(payment.kind, realPercent(toCents(payment.amount ?? 0), owed) ?? payment.percent_of_order);
               return (
                 <TableRow key={payment.id} data-testid="ipas-payment-row" className="hover:bg-transparent">
                   <TableCell className={td}>

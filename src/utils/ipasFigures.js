@@ -22,7 +22,7 @@
 
 import { IPAS_PAYMENT_KIND, IPAS_STATE } from "../constants/ipas";
 import { finiteNumber, fromCents, toCents } from "./landedCost";
-import { paymentKindWithPercent } from "./ipasPaymentPercent";
+import { paymentKindWithPercent, roundPercent } from "./ipasPaymentPercent";
 
 /** The bill check's three answers. */
 export const IPAS_BILL_CHECK = Object.freeze({
@@ -105,6 +105,12 @@ const methodLabelOf = (payment) => {
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none
  *   paymentPercents     the payments that are a percent of the order, "Down payment · 30%; Payment · 45%"; "" with none
  */
+/** A payment's real share of what is owed, in percent; null with no amount owed. */
+export function realPercent(paymentCents, owed) {
+  const base = finiteNumber(owed);
+  return base === null || base <= 0 ? null : roundPercent((paymentCents / toCents(base)) * 100);
+}
+
 export function ipasFigures(ipas) {
   const copy = ipas?.odoo_copy ?? null;
   const payments = inPaymentOrder(Array.isArray(ipas?.payments) ? ipas.payments : []);
@@ -115,6 +121,17 @@ export function ipasFigures(ipas) {
   const poTotal = po?.total ?? null;
   const poTotalBeforeTax = po?.beforeTax ?? false;
 
+  // #1192: Freight the supplier put on its own bill is part of what it is owed. It only counts in
+  // the P0's currency; any other currency can't be added to the P0 total.
+  const freightAmount = finiteNumber(ipas?.freight_amount);
+  const freightCurrency = String(ipas?.freight_currency ?? "").trim().toUpperCase();
+  const poCurrency = String(currency ?? "").trim().toUpperCase();
+  const billedFreight =
+    ipas?.freight_billed_by_supplier === true && freightAmount !== null && freightAmount > 0 && freightCurrency !== "" && freightCurrency === poCurrency
+      ? freightAmount
+      : 0;
+  const owedByP0 = poTotal === null ? null : fromCents(toCents(poTotal) + toCents(billedFreight));
+
   let amount = null;
   let amountSource = null;
   let amountBeforeTax = false;
@@ -122,14 +139,14 @@ export function ipasFigures(ipas) {
     amount = piAmount;
     amountSource = IPAS_AMOUNT_SOURCE.PI_QT;
   } else if (poTotal !== null) {
-    amount = poTotal;
+    amount = owedByP0;
     amountSource = IPAS_AMOUNT_SOURCE.ODOO_PO;
     amountBeforeTax = poTotalBeforeTax;
   }
 
   const billCheck = { status: IPAS_BILL_CHECK.MISSING, difference: null, poBeforeTax: poTotalBeforeTax };
   if (piAmount !== null && poTotal !== null) {
-    const difference = fromCents(toCents(piAmount) - toCents(poTotal));
+    const difference = fromCents(toCents(piAmount) - toCents(owedByP0));
     billCheck.difference = difference;
     billCheck.status = difference === 0 ? IPAS_BILL_CHECK.MATCHES : IPAS_BILL_CHECK.DIFFERS;
   }
@@ -151,7 +168,8 @@ export function ipasFigures(ipas) {
     const label = methodLabelOf(payment);
     if (label && !methods.includes(label)) methods.push(label);
     // #958: "Payment · 30%" for the payments that are a percent of the order.
-    if (finiteNumber(payment?.percent_of_order) > 0) percentLabels.push(paymentKindWithPercent(payment.kind, payment.percent_of_order));
+    // #1192: the share is worked out from what is owed, never the percent typed against an older total.
+    if (finiteNumber(payment?.percent_of_order) > 0) percentLabels.push(paymentKindWithPercent(payment.kind, realPercent(cents, amount) ?? payment.percent_of_order));
   }
 
   const onHold = ipas?.on_hold === true;
