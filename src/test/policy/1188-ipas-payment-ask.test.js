@@ -28,6 +28,11 @@ async function raise() {
         p_remarks: null,
         p_odoo_copy: {
             po: { id: 971000 + poSeq, name: po, state: "purchase", company: "T3ck Trading", company_id: 1, currency: "EUR", origin: null, partner_ref: null },
+            supplier: { id: 9_971_000 + poSeq, name: "Ask Supplier", contact: null },
+            lines: [
+                { line_id: 971500 + poSeq * 10, product_id: 7700, name: "Item 1", quantity: 10, unit: "Unit", price_unit: 100, price_subtotal: 1000, taxes: [], analytic: [], brand: null },
+            ],
+            receipts: { status: "pending", done: 0, total: 1 },
             bills: { count: 0, draft: 0 },
         },
     })
