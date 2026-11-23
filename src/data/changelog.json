@@ -1,5 +1,34 @@
 [
     {
+        "date": "2026-11-23",
+        "title": "Archived SORs, editable Activities and Calendar updates",
+        "version": "1.11.14",
+        "modules": [
+            "purchasing",
+            "sales.sors"
+        ],
+        "changes": [
+            "An SOR can now be archived and found again under Archived SORs, with its retention date.",
+            "Retention release dates now show on the Calendar.",
+            "The person who filed an Activity can change it or cancel it even after its day. An Activity cancelled after its day no longer shows on the Calendar as held.",
+            "The sidebar and bell counts are now correct, and the Board colors are fixed."
+        ]
+    },
+    {
+        "date": "2026-11-23",
+        "title": "Payment status, Payment Forecast and Freight on the IPAS",
+        "version": "1.11.13",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Each IPAS now shows a Payment status. Purchasing can press \"Ask for payment\" to tell Finance an order is ready to pay, and can withdraw the ask.",
+            "A new Payment Forecast view on the IPAS list shows what is asked for and still to be paid, and its count shows beside IPAS in the sidebar.",
+            "Freight the supplier put on its own bill is now added to what the order owes, so the amount and the share of each payment match the P0 you paid.",
+            "The printed IPAS now shows each payment as the same percent of the order as the screen."
+        ]
+    },
+    {
         "date": "2026-11-22",
         "title": "IPAS Status is a dropdown",
         "version": "1.11.12",
