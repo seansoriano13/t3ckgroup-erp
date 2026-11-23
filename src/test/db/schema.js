@@ -9,7 +9,7 @@
  *
  *   - CREATE TABLE  → columns, types, NOT NULL, DEFAULT, UNIQUE, PRIMARY KEY
  *   - CONSTRAINT    → PRIMARY KEY / FOREIGN KEY / CHECK, by name
- *   - ALTER TABLE   → ADD COLUMN, ADD CONSTRAINT, DROP CONSTRAINT, ALTER COLUMN SET DEFAULT / DROP NOT NULL
+ *   - ALTER TABLE   → ADD / DROP COLUMN, ADD / DROP CONSTRAINT, ALTER COLUMN SET DEFAULT / DROP NOT NULL
  *
  * Foreign keys are indexed by constraint name because that is exactly how
  * PostgREST disambiguates embedded selects
@@ -398,6 +398,27 @@ function applyDropTable(sql, registry) {
 }
 
 /**
+ * Postgres drops every constraint and index that uses a dropped column, so the
+ * fake does too: otherwise a stale CHECK or UNIQUE would reject valid writes.
+ */
+function dropColumn(table, name, registry) {
+  delete table.columns[name]
+  table.primaryKey = table.primaryKey.filter((c) => c !== name)
+  table.identity = table.identity.filter((c) => c !== name)
+  table.checks = table.checks.filter((c) => c.column !== name)
+  table.unique = table.unique.filter((cols) => !cols.includes(name))
+  table.uniqueIndexes = table.uniqueIndexes.filter((index) => !index.columns?.includes(name))
+  for (const [constraint, cols] of Object.entries(table.uniqueByName ?? {})) {
+    if (cols.includes(name)) delete table.uniqueByName[constraint]
+  }
+  for (const [constraint, relation] of Object.entries(table.foreignKeys)) {
+    if (relation.fromColumn !== name) continue
+    delete table.foreignKeys[constraint]
+    delete registry.relationsByConstraint[constraint]
+  }
+}
+
+/**
  * ALTER statements must be replayed in source order: 0007 drops a constraint
  * and re-adds it under the same name, so applying every drop after every add
  * would silently erase it.
@@ -418,6 +439,11 @@ function applyAlterTable(sql, registry) {
       kind: "dropConstraint",
       regex:
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+drop\s+constraint\s+(?:if\s+exists\s+)?"?([a-z_0-9]+)"?/gi,
+    },
+    {
+      kind: "dropColumn",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+(drop\s+column\s+[\s\S]*?);/gi,
     },
     {
       kind: "setDefault",
@@ -467,6 +493,12 @@ function applyAlterTable(sql, registry) {
         if (i > 0 && !addColumn.test(clause)) return
         parseColumn(table, clause.replace(addColumn, "").trim(), registry)
       })
+    } else if (statement.kind === "dropColumn") {
+      // `drop column a, drop column b` is one statement, like add column above.
+      for (const clause of splitTopLevel(statement.payload)) {
+        const name = clause.match(/^drop\s+column\s+(?:if\s+exists\s+)?"?([a-z_0-9]+)"?/i)?.[1]
+        if (name) dropColumn(table, name, registry)
+      }
     } else if (statement.kind === "addConstraint") {
       parseConstraint(table, statement.payload.trim(), registry)
     } else if (statement.kind === "dropConstraint") {

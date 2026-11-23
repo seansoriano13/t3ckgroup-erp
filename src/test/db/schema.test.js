@@ -108,6 +108,31 @@ describe("schema registry", () => {
     expect(names).not.toContain("sales_opportunities_lead_source_chk")
   })
 
+  it("forgets a column a later migration drops", () => {
+    // 20260909100000_drop_unused_app_settings_columns.sql drops three in one
+    // statement; 20261104130000_requested_item_follows_s0.sql drops one alone.
+    const settings = getTable("app_settings").columns
+    expect(settings.require_revenue_verification).toBeUndefined()
+    expect(settings.sales_self_approve_expenses).toBeUndefined()
+    expect(getTable("purchase_request_items").columns.sor_change_seen).toBeUndefined()
+    expect(getTable("purchase_request_items").columns.request_id).toBeDefined()
+  })
+
+  it("drops the retired Approval Rules switches but keeps the storefront list (#1145)", () => {
+    const settings = getTable("app_settings").columns
+    for (const retired of [
+      "universal_task_submission",
+      "marketing_approval_by_ops_manager",
+      "enable_self_verification",
+      "enable_bulk_approval",
+      "enable_visual_shaming",
+    ]) {
+      expect(settings[retired], retired).toBeUndefined()
+    }
+    // The odoo-sor-sync edge function still reads retail_storefronts.
+    expect(settings.retail_storefronts).toBeDefined()
+  })
+
   it("parses volatile and literal column defaults", () => {
     expect(getColumn("tasks", "id").default).toEqual({ kind: "uuid" })
     expect(getColumn("tasks", "created_at").default).toEqual({ kind: "now" })
