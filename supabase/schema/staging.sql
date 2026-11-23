@@ -884,7 +884,8 @@ create table if not exists public."ipas_options" (
   "used_for" text,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "required_before" smallint
+  "required_before" smallint,
+  "system_key" text
 );
 
 create table if not exists public."ipas_payment_asks" (
@@ -2407,6 +2408,7 @@ alter table ipas_options add constraint "ipas_options_document_kind_marked_chk" 
 alter table ipas_options add constraint "ipas_options_label_chk" CHECK ((length(btrim(label)) > 0));
 alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text, 'transmittal_product'::text, 'transmittal_reference'::text])));
 alter table ipas_options add constraint "ipas_options_required_before_chk" CHECK (((required_before IS NULL) OR ((list = 'document_kind'::text) AND (required_before = ANY (ARRAY[1, 3, 6])))));
+alter table ipas_options add constraint "ipas_options_system_key_list_chk" CHECK (((system_key IS NULL) OR (list = 'document_kind'::text)));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_amount_chk" CHECK ((amount > (0)::numeric));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_chk" CHECK (((closed_at IS NULL) = (closed_reason IS NULL)));
@@ -2983,6 +2985,7 @@ CREATE INDEX ipas_events_ipas_id_idx ON public.ipas_events USING btree (ipas_id,
 CREATE INDEX ipas_messages_ipas_id_idx ON public.ipas_messages USING btree (ipas_id, created_at);
 CREATE UNIQUE INDEX ipas_options_list_label_key ON public.ipas_options USING btree (list, lower(btrim(label)));
 CREATE INDEX ipas_options_list_sort_idx ON public.ipas_options USING btree (list, sort);
+CREATE UNIQUE INDEX ipas_options_system_key_key ON public.ipas_options USING btree (system_key) WHERE (system_key IS NOT NULL);
 CREATE INDEX ipas_payment_asks_asked_by_idx ON public.ipas_payment_asks USING btree (asked_by);
 CREATE INDEX ipas_payment_asks_closed_by_idx ON public.ipas_payment_asks USING btree (closed_by);
 CREATE UNIQUE INDEX ipas_payment_asks_one_open_idx ON public.ipas_payment_asks USING btree (ipas_id) WHERE (closed_at IS NULL);
@@ -18160,6 +18163,22 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_options_system_key_guard()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+begin
+  if auth.uid() is not null and (
+       (tg_op = 'INSERT' and new.system_key is not null)
+       or (tg_op = 'UPDATE' and new.system_key is distinct from old.system_key)
+     ) then
+    raise exception 'ipas_options: the system key is fixed' using errcode = '42501';
+  end if;
+  return new;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_override_field(p_ipas_id uuid, p_field text, p_value text)
  RETURNS ipas
  LANGUAGE plpgsql
@@ -32988,6 +33007,7 @@ CREATE TRIGGER ipas_messages_notify AFTER INSERT ON public.ipas_messages FOR EAC
 CREATE TRIGGER ipas_options_filed_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_filed_guard();
 CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_guard();
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
+CREATE TRIGGER ipas_options_system_key_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_system_key_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
 CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');

@@ -5,7 +5,7 @@
  * `outsider` holds Purchasing access (the settings writer); `superAdmin` is a Super Admin.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { clientFor, ensureCastLoaded } from "./support/cast.js"
+import { clientFor, ensureCastLoaded, ids } from "./support/cast.js"
 import { serviceClient, sql } from "./support/stack.js"
 
 const svc = () => serviceClient()
@@ -13,9 +13,12 @@ const made = []
 
 beforeAll(async () => {
     await ensureCastLoaded()
+    const flag = await svc().from("employees").update({ has_purchasing_flow: true }).eq("id", ids.outsider)
+    if (flag.error) throw flag.error
 })
 
 afterAll(async () => {
+    await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
     if (made.length) await sql().query(`delete from public.ipas_options where id = any($1::uuid[])`, [made])
 })
 

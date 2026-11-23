@@ -64,6 +64,8 @@ begin
 end;
 $$;
 
+revoke all on function public.ipas_options_system_key_guard() from public, anon, authenticated;
+
 drop trigger if exists ipas_options_system_key_guard on public.ipas_options;
 create trigger ipas_options_system_key_guard
   before insert or update on public.ipas_options
