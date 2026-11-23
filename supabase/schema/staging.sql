@@ -8088,6 +8088,73 @@ AS $function$
   end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._sor_access_level_as(p_opportunity_id uuid, p_employee_id uuid, p_is_super_admin boolean, p_costing_lister boolean DEFAULT NULL::boolean)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when not exists (select 1 from public.sales_opportunities where id = p_opportunity_id) then 'none'
+    when p_is_super_admin then 'full'
+    when exists (
+      select 1 from public.sales_opportunities o
+      where o.id = p_opportunity_id
+        and (
+          public.sor_is_deal_team(o, p_employee_id)
+          or public.sor_always_sees(o, p_employee_id)
+        )
+    ) then 'full'
+    -- #545: the Final Acquire list or the Evaluation list, on an SOR that has a Costing Matrix.
+    -- Independent of stage, mention and Stage Participants. Null = not worked out yet: work it out here,
+    -- only when this arm is reached (as before).
+    when coalesce(p_costing_lister, public.costing_on_list('final_acquire') or public.costing_on_list('evaluation'))
+      and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
+    then 'participant'
+    when exists (
+      select 1 from public.sor_stage_participants p
+      where p.opportunity_id = p_opportunity_id
+        and p.employee_id = p_employee_id
+        and p.closed_at is null
+    ) then 'participant'
+    -- #883: the Buyer and the SOR's Purchasing Incharge, while a Purchase Request has an open line.
+    -- _purchase_request_buyer_access needs a Purchase Request on this SOR; skip the call when there is none.
+    when exists (select 1 from public.purchase_requests r where r.opportunity_id = p_opportunity_id)
+      and public._purchase_request_buyer_access(p_opportunity_id, p_employee_id) then 'participant'
+    -- An open Mention Window, or the header grant on an SOR that still has no visit.
+    when exists (
+      select 1 from public.sor_mention_viewers m
+      left join public.sor_stage_visits v on v.id = m.stage_visit_id
+      where m.opportunity_id = p_opportunity_id
+        and m.employee_id = p_employee_id
+        and (
+          (m.stage_visit_id is null
+            and not exists (select 1 from public.sor_stage_visits sv where sv.opportunity_id = p_opportunity_id))
+          -- v.id, not just v.left_at: a null grant left-joins to all-null v.
+          or (v.id is not null and v.left_at is null and v.undone_at is null)
+        )
+    ) then 'participant'
+    when exists (
+      select 1 from public.sor_stage_participants p
+      where p.opportunity_id = p_opportunity_id
+        and p.employee_id = p_employee_id
+    ) then 'locked'
+    -- A Mention Window the SOR has since left, or a header grant it outgrew.
+    when exists (
+      select 1 from public.sor_mention_viewers m
+      where m.opportunity_id = p_opportunity_id
+        and m.employee_id = p_employee_id
+    ) then 'locked'
+    when exists (
+      select 1 from public.purchase_request_members m
+      join public.purchase_requests r on r.id = m.request_id
+      where r.opportunity_id = p_opportunity_id
+        and m.employee_id = p_employee_id
+    ) then 'locked'
+    else 'none'
+  end
+$function$
+;
 CREATE OR REPLACE FUNCTION public._sor_action_run_saved_action(p_run_id uuid)
  RETURNS jsonb
  LANGUAGE sql
@@ -8192,6 +8259,95 @@ AS $function$
         and coalesce(s.terminal_outcome, 'lost') = 'lost'
     ) then 'lost'
   end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._sor_visible_visit_ids_as(p_opportunity_id uuid, p_employee_id uuid, p_is_super_admin boolean)
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select v.id
+  from public.sor_stage_visits v
+  where v.opportunity_id = p_opportunity_id
+    and v.undone_at is null
+    and p_is_super_admin
+
+  union
+
+  select v.id
+  from public.sor_stage_visits v
+  join public.sales_opportunities o on o.id = v.opportunity_id
+  where v.opportunity_id = p_opportunity_id
+    and v.undone_at is null
+    and not p_is_super_admin
+    and (
+      public.sor_is_deal_team(o, p_employee_id)
+      or public.sor_always_sees(o, p_employee_id)
+    )
+    -- sor_is_stage_shut_out starts with "this stage has a flow_stage_access row"; skip the call when it has none.
+    and (
+      not exists (select 1 from public.flow_stage_access fsa where fsa.stage_id = v.flow_stage_id)
+      or not public.sor_is_stage_shut_out(o, p_employee_id, v.flow_stage_id)
+    )
+
+  union
+
+  select v.id
+  from public.sor_stage_participants p
+  join public.sor_stage_visits opened on opened.id = p.opened_visit_id
+  join public.sor_stage_visits v on v.opportunity_id = p.opportunity_id
+  where p.opportunity_id = p_opportunity_id
+    and p.employee_id = p_employee_id
+    and not p_is_super_admin
+    and opened.undone_at is null
+    and v.undone_at is null
+    and (
+      (p.closed_at is null and v.sequence >= opened.sequence)
+      or (
+        p.closed_at is not null
+        and v.sequence >= opened.sequence
+        and v.sequence <= (
+          select max(closing.sequence)
+          from public.sor_stage_visits closing
+          where closing.opportunity_id = p.opportunity_id
+            and closing.sequence >= opened.sequence
+            and closing.left_at is not null
+            and closing.left_at <= p.closed_at
+        )
+      )
+    )
+
+  union
+
+  -- #883: the Buyer and the SOR's Purchasing Incharge, while a Purchase Request has an open line,
+  -- see the Stage Visit the SOR is in now (and nothing before it).
+  select v.id
+  from public.sor_stage_visits v
+  where v.opportunity_id = p_opportunity_id
+    and v.undone_at is null
+    and v.left_at is null
+    and not p_is_super_admin
+    and exists (select 1 from public.purchase_requests r where r.opportunity_id = p_opportunity_id)
+    and public._purchase_request_buyer_access(p_opportunity_id, p_employee_id)
+
+  union
+
+  -- Mention Windows: exactly the visit each Mention was made on, open or since
+  -- left (a left one is the locked view's read-only look).
+  select v.id
+  from public.sor_mention_viewers m
+  join public.sor_stage_visits v on v.id = m.stage_visit_id
+  where m.opportunity_id = p_opportunity_id
+    and m.employee_id = p_employee_id
+    and not p_is_super_admin
+    and v.undone_at is null
+    -- TIGHTEN(mention): a Restricted Stage stays shut to a Mention. Uncomment:
+    -- and not exists (
+    --   select 1 from public.sales_opportunities o
+    --   where o.id = v.opportunity_id
+    --     and public.sor_is_stage_shut_out(o, p_employee_id, v.flow_stage_id)
+    -- )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._sor_window_over(p_opportunity_id uuid, p_visit_id uuid, p_until text, p_until_stage_id uuid)
@@ -25959,62 +26115,7 @@ CREATE OR REPLACE FUNCTION public.sor_access_level(p_opportunity_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select case
-    when not exists (select 1 from public.sales_opportunities where id = p_opportunity_id) then 'none'
-    when public.is_super_admin() then 'full'
-    when exists (
-      select 1 from public.sales_opportunities o
-      where o.id = p_opportunity_id
-        and (
-          public.sor_is_deal_team(o, public.get_employee_id())
-          or public.sor_always_sees(o, public.get_employee_id())
-        )
-    ) then 'full'
-    -- #545: the Final Acquire list or the Evaluation list, on an SOR that has a Costing Matrix.
-    -- Independent of stage, mention and Stage Participants.
-    when (public.costing_on_list('final_acquire') or public.costing_on_list('evaluation'))
-      and exists (select 1 from public.costing_matrices m where m.opportunity_id = p_opportunity_id)
-    then 'participant'
-    when exists (
-      select 1 from public.sor_stage_participants p
-      where p.opportunity_id = p_opportunity_id
-        and p.employee_id = public.get_employee_id()
-        and p.closed_at is null
-    ) then 'participant'
-    -- #883: the Buyer and the SOR's Purchasing Incharge, while a Purchase Request has an open line.
-    when public._purchase_request_buyer_access(p_opportunity_id, public.get_employee_id()) then 'participant'
-    -- An open Mention Window, or the header grant on an SOR that still has no visit.
-    when exists (
-      select 1 from public.sor_mention_viewers m
-      left join public.sor_stage_visits v on v.id = m.stage_visit_id
-      where m.opportunity_id = p_opportunity_id
-        and m.employee_id = public.get_employee_id()
-        and (
-          (m.stage_visit_id is null
-            and not exists (select 1 from public.sor_stage_visits sv where sv.opportunity_id = p_opportunity_id))
-          -- v.id, not just v.left_at: a null grant left-joins to all-null v.
-          or (v.id is not null and v.left_at is null and v.undone_at is null)
-        )
-    ) then 'participant'
-    when exists (
-      select 1 from public.sor_stage_participants p
-      where p.opportunity_id = p_opportunity_id
-        and p.employee_id = public.get_employee_id()
-    ) then 'locked'
-    -- A Mention Window the SOR has since left, or a header grant it outgrew.
-    when exists (
-      select 1 from public.sor_mention_viewers m
-      where m.opportunity_id = p_opportunity_id
-        and m.employee_id = public.get_employee_id()
-    ) then 'locked'
-    when exists (
-      select 1 from public.purchase_request_members m
-      join public.purchase_requests r on r.id = m.request_id
-      where r.opportunity_id = p_opportunity_id
-        and m.employee_id = public.get_employee_id()
-    ) then 'locked'
-    else 'none'
-  end
+  select public._sor_access_level_as(p_opportunity_id, public.get_employee_id(), public.is_super_admin(), null)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_always_edits(p_opp sales_opportunities, p_employee_id uuid)
@@ -27574,18 +27675,37 @@ CREATE OR REPLACE FUNCTION public.sor_logs_for_sors(p_opportunity_ids uuid[])
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
+  with me as materialized (
+    select
+      public.get_employee_id() as employee_id,
+      public.is_super_admin() as is_super_admin,
+      public.costing_on_list('final_acquire') or public.costing_on_list('evaluation') as costing_lister
+  ),
+  asked as materialized (
+    select distinct x as id from unnest(p_opportunity_ids) as x
+  ),
+  visible_visits as materialized (
+    select v.id
+    from me, asked
+    cross join lateral public._sor_visible_visit_ids_as(asked.id, me.employee_id, me.is_super_admin) as v(id)
+    where not coalesce(me.is_super_admin, false)
+  ),
+  readable_sors as materialized (
+    select asked.id
+    from me, asked
+    where not coalesce(me.is_super_admin, false)
+      and public._sor_access_level_as(asked.id, me.employee_id, me.is_super_admin, me.costing_lister)
+          = any (array['full', 'participant'])
+  )
   select l.*
   from public.sales_opportunity_logs l
   where l.opportunity_id = any (p_opportunity_ids)
     and (
-      (select public.is_super_admin())
+      (select is_super_admin from me)
       or (l.stage_visit_id is not null
-          and l.stage_visit_id in (
-            select public.sor_visible_visit_ids(x) from unnest(p_opportunity_ids) as x))
+          and l.stage_visit_id in (select id from visible_visits))
       or (l.stage_visit_id is null
-          and l.opportunity_id in (
-            select x from unnest(p_opportunity_ids) as x
-            where public.sor_access_level(x) = any (array['full', 'participant'])))
+          and l.opportunity_id in (select id from readable_sors))
     )
 $function$
 ;
@@ -28276,8 +28396,15 @@ CREATE OR REPLACE FUNCTION public.sor_readable_log_sor_ids()
  SET search_path TO 'public'
 AS $function$
   select o.id
-  from public.sales_opportunities o
-  where public.sor_access_level(o.id) = any (array['full', 'participant'])
+  from (
+    select
+      public.get_employee_id() as employee_id,
+      public.is_super_admin() as is_super_admin,
+      public.costing_on_list('final_acquire') or public.costing_on_list('evaluation') as costing_lister
+  ) me
+  cross join public.sales_opportunities o
+  where public._sor_access_level_as(o.id, me.employee_id, me.is_super_admin, me.costing_lister)
+        = any (array['full', 'participant'])
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_readable_visit_ids()
@@ -28287,8 +28414,9 @@ CREATE OR REPLACE FUNCTION public.sor_readable_visit_ids()
  SET search_path TO 'public'
 AS $function$
   select vis.id
-  from public.sales_opportunities o
-  cross join lateral public.sor_visible_visit_ids(o.id) as vis(id)
+  from (select public.get_employee_id() as employee_id, public.is_super_admin() as is_super_admin) me
+  cross join public.sales_opportunities o
+  cross join lateral public._sor_visible_visit_ids_as(o.id, me.employee_id, me.is_super_admin) as vis(id)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_recalc_expected_value()
@@ -29488,82 +29616,9 @@ CREATE OR REPLACE FUNCTION public.sor_visible_visit_ids(p_opportunity_id uuid)
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  select v.id
-  from public.sor_stage_visits v
-  where v.opportunity_id = p_opportunity_id
-    and v.undone_at is null
-    and public.is_super_admin()
-
-  union
-
-  select v.id
-  from public.sor_stage_visits v
-  join public.sales_opportunities o on o.id = v.opportunity_id
-  where v.opportunity_id = p_opportunity_id
-    and v.undone_at is null
-    and not public.is_super_admin()
-    and (
-      public.sor_is_deal_team(o, public.get_employee_id())
-      or public.sor_always_sees(o, public.get_employee_id())
-    )
-    and not public.sor_is_stage_shut_out(o, public.get_employee_id(), v.flow_stage_id)
-
-  union
-
-  select v.id
-  from public.sor_stage_participants p
-  join public.sor_stage_visits opened on opened.id = p.opened_visit_id
-  join public.sor_stage_visits v on v.opportunity_id = p.opportunity_id
-  where p.opportunity_id = p_opportunity_id
-    and p.employee_id = public.get_employee_id()
-    and not public.is_super_admin()
-    and opened.undone_at is null
-    and v.undone_at is null
-    and (
-      (p.closed_at is null and v.sequence >= opened.sequence)
-      or (
-        p.closed_at is not null
-        and v.sequence >= opened.sequence
-        and v.sequence <= (
-          select max(closing.sequence)
-          from public.sor_stage_visits closing
-          where closing.opportunity_id = p.opportunity_id
-            and closing.sequence >= opened.sequence
-            and closing.left_at is not null
-            and closing.left_at <= p.closed_at
-        )
-      )
-    )
-
-  union
-
-  -- #883: the Buyer and the SOR's Purchasing Incharge, while a Purchase Request has an open line,
-  -- see the Stage Visit the SOR is in now (and nothing before it).
-  select v.id
-  from public.sor_stage_visits v
-  where v.opportunity_id = p_opportunity_id
-    and v.undone_at is null
-    and v.left_at is null
-    and not public.is_super_admin()
-    and public._purchase_request_buyer_access(p_opportunity_id, public.get_employee_id())
-
-  union
-
-  -- Mention Windows: exactly the visit each Mention was made on, open or since
-  -- left (a left one is the locked view's read-only look).
-  select v.id
-  from public.sor_mention_viewers m
-  join public.sor_stage_visits v on v.id = m.stage_visit_id
-  where m.opportunity_id = p_opportunity_id
-    and m.employee_id = public.get_employee_id()
-    and not public.is_super_admin()
-    and v.undone_at is null
-    -- TIGHTEN(mention): a Restricted Stage stays shut to a Mention. Uncomment:
-    -- and not exists (
-    --   select 1 from public.sales_opportunities o
-    --   where o.id = v.opportunity_id
-    --     and public.sor_is_stage_shut_out(o, public.get_employee_id(), v.flow_stage_id)
-    -- )
+  select id
+  from (select public.get_employee_id() as employee_id, public.is_super_admin() as is_super_admin) me
+  cross join lateral public._sor_visible_visit_ids_as(p_opportunity_id, me.employee_id, me.is_super_admin) as v(id)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_visit_audience(p_opportunity_id uuid, p_visit_id uuid)

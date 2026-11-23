@@ -160,17 +160,27 @@ export function reportRenderError(error, info) {
 // (the table / rpc / function name) and PostgREST's error `code` are sent —
 // never the query string, the request body or the error `details`, which can
 // quote row values.
-export async function reportSupabaseFailure({ url, method, response }) {
-    if (!enabled) return
-    // 401 is an expired session the client refreshes on its own.
-    if (response.status === 401) return
+//
+// The target names what failed: "rest/<table>", "auth/<endpoint>", and so on.
+// A database function sits one segment deeper ("/rest/v1/rpc/<name>"), so it
+// keeps that name too; cut at "rest/rpc", every function in the app would land
+// in one issue and nobody could tell which one broke (#1179).
+export function supabaseTarget(url) {
     let path = ""
     try {
         path = new URL(url).pathname
     } catch {
         path = stripUrl(String(url))
     }
-    const target = path.replace(/^\/(rest|auth|functions|storage)\/v1\//, "$1/").split("/").slice(0, 2).join("/")
+    const parts = path.replace(/^\/(rest|auth|functions|storage)\/v1\//, "$1/").split("/")
+    return parts.slice(0, parts[0] === "rest" && parts[1] === "rpc" ? 3 : 2).join("/")
+}
+
+export async function reportSupabaseFailure({ url, method, response }) {
+    if (!enabled) return
+    // 401 is an expired session the client refreshes on its own.
+    if (response.status === 401) return
+    const target = supabaseTarget(url)
     let code
     let message
     try {
