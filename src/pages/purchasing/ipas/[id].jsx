@@ -43,6 +43,7 @@ import {
   ipasRefreshKey,
   ipasSignerListsKey,
   markIpasListStale,
+  refreshIpasList,
 } from "../../../components/ipas/ipasKeys";
 import IpasListPage from "./index";
 import { ipasService } from "../../../services/ipasService";
@@ -54,6 +55,8 @@ import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage, odooRefreshMoved } from "../../../utils/ipas";
 import IpasStatusControl from "../../../components/ipas/IpasStatusControl";
+import IpasPaymentStatusPill from "../../../components/ipas/IpasPaymentStatusPill";
+import AskForPaymentDialog from "../../../components/ipas/AskForPaymentDialog";
 import IpasStatusGuideButton from "../../../components/ipas/IpasStatusGuide";
 import { parseAmountInput } from "../../../utils/ipasPayments";
 import {
@@ -178,6 +181,7 @@ function IpasPage({ onClose }) {
   const [filing, setFiling] = useState(null);
   const [reopening, setReopening] = useState(false);
   const [holding, setHolding] = useState(false);
+  const [askingPayment, setAskingPayment] = useState(false);
   // A failed move, shown at the place it was started (card or drawer footer), with Retry.
   const [failure, setFailure] = useState(null);
   // The IPAS this viewer just signed, so the card can point at the next one waiting for them.
@@ -594,6 +598,7 @@ function IpasPage({ onClose }) {
             : "Charge removed.",
       );
       changed();
+      if (type === "payment") refreshIpasList(queryClient);
     },
     onError: (error, vars, context) => {
       if (vars.type === "blank-charges") {
@@ -687,6 +692,24 @@ function IpasPage({ onClose }) {
     },
   });
 
+  // Ask for payment and withdraw it (ADR 0055): the dialog shows a failure itself, so these only rethrow.
+  const askPayment = useMutation({
+    mutationFn: (ask) => ipasService.askForPayment(id, ask),
+    onSuccess: () => {
+      toast.success("Asked for payment.");
+      changed();
+      refreshIpasList(queryClient);
+    },
+  });
+  const withdrawAsk = useMutation({
+    mutationFn: () => ipasService.withdrawPaymentAsk(id),
+    onSuccess: () => {
+      toast.success("Ask withdrawn.");
+      changed();
+      refreshIpasList(queryClient);
+    },
+  });
+
   // The long edit form's one Save (#581): every typed change goes in together, in order (the
   // header and statuses, then payments, charges, documents, bank details and, last, the
   // computation status), and the page re-reads once at the end. The first failure stops the
@@ -746,7 +769,7 @@ function IpasPage({ onClose }) {
       } finally {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ipasKey(id) }),
-          markIpasListStale(queryClient),
+          plan.payments ? refreshIpasList(queryClient) : markIpasListStale(queryClient),
           plan.done.has("bank") ? queryClient.invalidateQueries({ queryKey: ipasPendingPrefix }) : null,
         ]);
       }
@@ -840,6 +863,8 @@ function IpasPage({ onClose }) {
   // Payments and charges: Purchasing or Finance, until Filing.
   const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
   const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
+  // The ask for payment (ADR 0055): Purchasing access, on an open IPAS. The database decides in the end.
+  const canAskPayment = hasPurchasingFlow && open;
   // The IPAS Status (#1154): Purchasing access, Logistics access or a Super Admin, until Filing.
   const canSetStatusStep = (hasPurchasingFlow || hasLogisticsFlow || isSuperAdmin) && open;
   // A fact that matches a later step (#1155) is offered, never applied: a quiet line under the pills and a
@@ -935,6 +960,7 @@ function IpasPage({ onClose }) {
     edit: () => openEdit("order"),
     editPurpose: () => setEditing(true),
     hold: () => setHolding(true),
+    askPayment: () => setAskingPayment(true),
     cancel: () => setCancelling(true),
     reopen: () => setReopening(true),
     editOverride: setOverriding,
@@ -987,6 +1013,7 @@ function IpasPage({ onClose }) {
       printFiling: filed && ipas.canReadBankDetails,
       // On-Hold (#597), from the More menu: Purchasing access or Finance access, on an open IPAS.
       hold: canHold,
+      askPayment: canAskPayment,
       markup: canSetMarkup,
     },
     onHold: Boolean(digest.figures?.onHold),
@@ -1036,6 +1063,14 @@ function IpasPage({ onClose }) {
         headerActions={<HeaderActions ctx={ctx} />}
       >
         <div className="space-y-6 pb-2">
+          <AskForPaymentDialog
+            open={askingPayment}
+            onOpenChange={setAskingPayment}
+            number={ipas.number}
+            figures={digest.figures}
+            onAsk={(ask) => askPayment.mutateAsync(ask)}
+            onWithdraw={() => withdrawAsk.mutateAsync()}
+          />
           <div className="space-y-3">
             <RecordHeader reference={ipas.number} name={ipas.supplier} badge={ipasBadge(ipas)} line={ipasLine(ipas)} />
             <PropertyPills
@@ -1076,6 +1111,13 @@ function IpasPage({ onClose }) {
                 after: ipas.status ? <IpasStatusGuideButton open={statusGuide} onOpenChange={setStatusGuide} /> : null,
               })}
             />
+            {/* The Payment status (ADR 0055), beside the IPAS Status and separate from it. */}
+            {digest.figures.paymentStatus && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="ipas-record-payment-status">
+                <span>Payment</span>
+                <IpasPaymentStatusPill figures={digest.figures} />
+              </div>
+            )}
             {/* The IPAS Status (#597): read from the same IPAS figures as the list, so the two never disagree.
                 Putting it On-Hold is More's item; the dialog it opens lives here. */}
             <div data-testid="ipas-record-status" className="empty:hidden [&:not(:has(:not(:empty)))]:hidden">

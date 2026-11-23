@@ -4056,6 +4056,11 @@ export const opportunityService = {
     }
     const dealTeam = new Set(dealTeamIds);
 
+    // #1193: an archived SOR is put away from My work (it still opens from a link).
+    for (const archivedId of await opportunityService.getArchivedAmong([...byOpportunity.keys()])) {
+      byOpportunity.delete(archivedId);
+    }
+
     // #478: the SOR code, client, Sales Flow and last activity the filters need.
     const facets = await opportunityService.getMySorsFacets([...byOpportunity.keys()]);
     const stageColors = await opportunityService.getMySorsStageColors([...byOpportunity.keys()]);
@@ -4291,7 +4296,44 @@ export const opportunityService = {
   async countMyOpenSors(employeeId) {
     if (!employeeId) return 0;
     const moves = await opportunityService.getMySorMoves(employeeId);
-    return Object.keys(moves).length;
+    const ids = Object.keys(moves);
+    const archived = new Set(await opportunityService.getArchivedAmong(ids));
+    return ids.filter((id) => !archived.has(id)).length;
+  },
+
+  /** #1193: which of these SORs are archived. Archived SORs leave My work, the List and the Board. */
+  async getArchivedAmong(opportunityIds) {
+    if (!opportunityIds?.length) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select("id")
+      .in("id", opportunityIds)
+      .not("archived_at", "is", null);
+    if (error) throw error;
+    return (data || []).map((r) => r.id);
+  },
+
+  /** #1193: archives or un-archives an SOR. Super Admin only; the database refuses anyone else. */
+  async setArchived(id, archived) {
+    const { data, error } = await supabase.rpc("sor_set_archived", {
+      p_opportunity_id: id,
+      p_archived: Boolean(archived),
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** #1193: the Archived tab. Live (not deleted, not scratch) archived SORs, newest archive first. */
+  async getArchivedOpportunities() {
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select(`${PARTICIPANT_SELECT}, archived_by_employee:employees!sales_opportunities_archived_by_fkey(id, name, avatar_path)`)
+      .not("archived_at", "is", null)
+      .neq("is_deleted", true)
+      .eq("is_scratch", false)
+      .order("archived_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
   },
 
   /**

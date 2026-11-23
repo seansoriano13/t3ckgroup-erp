@@ -17,6 +17,8 @@ const CHILDREN = [
     ["transmittal_ipas", "ipas_id"],
     ["ipas_events", "ipas_id"],
     ["ipas_signoffs", "ipas_id"],
+    ["ipas_payment_asks", "ipas_id"],
+    ["ipas_messages", "ipas_id"],
     ["ipas_payments", "ipas_id"],
     ["ipas_charges", "ipas_id"],
     ["ipas_bank_details", "ipas_id"],

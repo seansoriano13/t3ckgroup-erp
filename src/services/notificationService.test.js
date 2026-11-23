@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { notificationService } from "./notificationService"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeHrEmployee, makeNotification, makeSuperAdmin } from "@/test/factories"
-import { stubEdgeFunction } from "@/test/msw/server"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 
 /**
  * Notifications decide who finds out that something needs their attention.
@@ -45,6 +45,28 @@ describe("notificationService", () => {
       for (let i = 0; i < 55; i += 1) makeNotification({ recipient_id: recipient.id })
 
       expect(await notificationService.getMyNotifications(recipient.id)).toHaveLength(50)
+    })
+  })
+
+  describe("unread count", () => {
+    it("asks the server, so it counts past the fifty the drawer loads", async () => {
+      stubRpc("my_unread_notification_count", () => 73)
+
+      expect(await notificationService.getUnreadCount()).toBe(73)
+    })
+
+    it("is zero when the server says nothing", async () => {
+      stubRpc("my_unread_notification_count", () => null)
+
+      expect(await notificationService.getUnreadCount()).toBe(0)
+    })
+
+    it("fails loudly when the server errors", async () => {
+      stubRpc("my_unread_notification_count", () => {
+        throw new Error("boom")
+      })
+
+      await expect(notificationService.getUnreadCount()).rejects.toThrow()
     })
   })
 

@@ -543,6 +543,16 @@ export default function SorModal({
     onError: (err) => toast.error(err.message),
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: (archived) => opportunityService.setArchived(id, archived),
+    onSuccess: (_data, archived) => {
+      queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+      queryClient.invalidateQueries({ queryKey: ["archivedOpportunities"] });
+      toast.success(archived ? "SOR archived." : "SOR un-archived.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   useEffect(() => {
     setShareUrl(null);
   }, [opportunity?.id, opportunity?.sales_reference]);
@@ -897,6 +907,8 @@ export default function SorModal({
     handleEditToggle,
     updateMutation,
     deleteMutation,
+    archiveMutation,
+    canArchive: Boolean(user?.is_super_admin || user?.isSuperAdmin),
     onClose,
     isFlowDeal,
     flowCanvas,

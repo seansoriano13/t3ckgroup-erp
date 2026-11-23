@@ -30,8 +30,6 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { notificationService } from "../services/notificationService";
-import { groupChatNotifications } from "../utils/groupChatNotifications";
-import { mayHaveMore } from "../utils/notificationPaging";
 import { activeChatService } from "../services/tasks/activeChatService";
 import NotificationDrawer from "./NotificationDrawer";
 import { usePushNotificationClick } from "../hooks/usePushNotificationClick";
@@ -210,14 +208,13 @@ export default function SideNav() {
 
   // Notification State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications", user?.id],
-    queryFn: () => notificationService.getMyNotifications(user?.id),
+  // Counted by the server over every notification, with the drawer's rules
+  // (a chat's messages are one row). Refreshed by the drawer after each change.
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ["notificationUnreadCount", user?.id],
+    queryFn: () => notificationService.getUnreadCount(),
     enabled: !!user?.id,
   });
-  // One per row the drawer shows: a chat's messages are one row there, so
-  // counting every message made the badge say 3 over a list of 1.
-  const unreadCount = groupChatNotifications(notifications).filter((n) => !n.is_read).length;
 
   // Active Chats State
   const [isChatsOpen, setIsChatsOpen] = useState(false);
@@ -436,7 +433,6 @@ export default function SideNav() {
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[9px] font-bold text-primary-foreground shadow-sm ring-2 ring-sidebar">
                   {unreadCount}
-                  {mayHaveMore(notifications) ? "+" : ""}
                 </span>
               )}
             </Button>
@@ -571,6 +567,15 @@ export default function SideNav() {
                               {linkBadge > 0 && (
                                 <span
                                   data-testid={`link-badge-${navLink.label}`}
+                                  onClick={
+                                    navLink.badgeLink
+                                      ? (e) => {
+                                          e.preventDefault();
+                                          setIsMobileOpen(false);
+                                          navigate(navLink.badgeLink);
+                                        }
+                                      : undefined
+                                  }
                                   className={`shrink-0 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary/15 text-sidebar-primary px-1.5 text-[10px] font-bold ${collapsed ? "md:hidden" : ""}`}
                                 >
                                   {linkBadge}

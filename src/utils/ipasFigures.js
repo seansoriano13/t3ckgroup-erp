@@ -17,12 +17,12 @@
  *   state          open / filed / cancelled
  *   on_hold        the On-Hold flag (`ipas.on_hold`), and on_hold_note its note
  *   status         the stored IPAS Status key (`ipas.status`)
- * Everything is in the PO's currency; currencies are never converted.
+ * Everything is in the P0's currency; currencies are never converted.
  */
 
-import { IPAS_PAYMENT_KIND, IPAS_STATE } from "../constants/ipas";
+import { IPAS_PAYMENT_KIND, IPAS_PAYMENT_STATUS, IPAS_STATE } from "../constants/ipas";
 import { finiteNumber, fromCents, toCents } from "./landedCost";
-import { paymentKindWithPercent } from "./ipasPaymentPercent";
+import { paymentKindWithPercent, roundPercent } from "./ipasPaymentPercent";
 
 /** The bill check's three answers. */
 export const IPAS_BILL_CHECK = Object.freeze({
@@ -31,7 +31,7 @@ export const IPAS_BILL_CHECK = Object.freeze({
   DIFFERS: "differs",
 });
 
-/** Where Amount came from: the typed P.I/QT Amount, or the Odoo PO. */
+/** Where Amount came from: the typed P.I/QT Amount, or the Odoo P0. */
 export const IPAS_AMOUNT_SOURCE = Object.freeze({
   PI_QT: "pi_qt",
   ODOO_PO: "odoo_po",
@@ -41,7 +41,7 @@ export const IPAS_AMOUNT_SOURCE = Object.freeze({
 export const PAYMENT_SCHEME_SEPARATOR = " + ";
 
 /**
- * The Odoo PO's total as the copy states it, or, for an older copy without
+ * The Odoo P0's total as the copy states it, or, for an older copy without
  * totals, the sum of its line subtotals. `beforeTax` is true for the fallback:
  * line subtotals leave tax out, so a bill check against it must say so instead
  * of calling the gap a mismatch. `null` when the copy has neither.
@@ -78,18 +78,18 @@ const methodLabelOf = (payment) => {
 /**
  * Everything money-related about one IPAS:
  *
- *   currency            the PO's currency, or null
+ *   currency            the P0's currency, or null
  *   piAmount            the typed P.I/QT Amount, or null
- *   poTotal             the Odoo PO total (tax included), or the line subtotals
+ *   poTotal             the Odoo P0 total (tax included), or the line subtotals
  *                       for an older copy, or null
  *   poTotalBeforeTax    true when poTotal is that older-copy fallback
  *   amount              piAmount when typed, else poTotal, else null
  *   amountSource        "pi_qt" | "odoo_po" | null
  *   amountBeforeTax     true when amount is the before-tax fallback
  *   billCheck           { status: "missing" | "matches" | "differs", difference,
- *                         poBeforeTax }. `difference` is P.I minus Odoo PO, signed,
+ *                         poBeforeTax }. `difference` is P.I minus Odoo P0, signed,
  *                         to the cent; null when missing. Compared exactly, in the
- *                         PO's currency.
+ *                         P0's currency.
  *   downPayment         sum of the Down payment rows
  *   fullPayment         sum of the Full payment rows
  *   hasFullPayment      a Full payment row is recorded
@@ -97,6 +97,10 @@ const methodLabelOf = (payment) => {
  *   status              the stored IPAS Status key (constants/ipas IPAS_STATUS), or null for a
  *                       cancelled IPAS
  *   onHold, onHoldNote  the On-Hold flag and its note (the note only while on hold)
+ *   paymentStatus       the Payment status (ADR 0055): for_payment while `payment_ask` (the open ask) is set,
+ *                       else paid at a balance of 0 or less, else dp_paid with anything paid, else not_due_yet;
+ *                       null for a cancelled IPAS
+ *   paymentAsk          the open ask {amount, purpose, note, ...} or null
  *   remainingBalance    amount - paid; 0 once a full payment is recorded or the IPAS is filed (ADR 0036:
  *                       withholding never leaves a settled order owing); null when
  *                       there is no Amount
@@ -105,6 +109,12 @@ const methodLabelOf = (payment) => {
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none
  *   paymentPercents     the payments that are a percent of the order, "Down payment · 30%; Payment · 45%"; "" with none
  */
+/** A payment's real share of what is owed, in percent; null with no amount owed. */
+export function realPercent(paymentCents, owed) {
+  const base = finiteNumber(owed);
+  return base === null || base <= 0 ? null : roundPercent((paymentCents / toCents(base)) * 100);
+}
+
 export function ipasFigures(ipas) {
   const copy = ipas?.odoo_copy ?? null;
   const payments = inPaymentOrder(Array.isArray(ipas?.payments) ? ipas.payments : []);
@@ -115,6 +125,17 @@ export function ipasFigures(ipas) {
   const poTotal = po?.total ?? null;
   const poTotalBeforeTax = po?.beforeTax ?? false;
 
+  // #1192: Freight the supplier put on its own bill is part of what it is owed. It only counts in
+  // the P0's currency; any other currency can't be added to the P0 total.
+  const freightAmount = finiteNumber(ipas?.freight_amount);
+  const freightCurrency = String(ipas?.freight_currency ?? "").trim().toUpperCase();
+  const poCurrency = String(currency ?? "").trim().toUpperCase();
+  const billedFreight =
+    ipas?.freight_billed_by_supplier === true && freightAmount !== null && freightAmount > 0 && freightCurrency !== "" && freightCurrency === poCurrency
+      ? freightAmount
+      : 0;
+  const owedByP0 = poTotal === null ? null : fromCents(toCents(poTotal) + toCents(billedFreight));
+
   let amount = null;
   let amountSource = null;
   let amountBeforeTax = false;
@@ -122,14 +143,14 @@ export function ipasFigures(ipas) {
     amount = piAmount;
     amountSource = IPAS_AMOUNT_SOURCE.PI_QT;
   } else if (poTotal !== null) {
-    amount = poTotal;
+    amount = owedByP0;
     amountSource = IPAS_AMOUNT_SOURCE.ODOO_PO;
     amountBeforeTax = poTotalBeforeTax;
   }
 
   const billCheck = { status: IPAS_BILL_CHECK.MISSING, difference: null, poBeforeTax: poTotalBeforeTax };
   if (piAmount !== null && poTotal !== null) {
-    const difference = fromCents(toCents(piAmount) - toCents(poTotal));
+    const difference = fromCents(toCents(piAmount) - toCents(owedByP0));
     billCheck.difference = difference;
     billCheck.status = difference === 0 ? IPAS_BILL_CHECK.MATCHES : IPAS_BILL_CHECK.DIFFERS;
   }
@@ -151,7 +172,8 @@ export function ipasFigures(ipas) {
     const label = methodLabelOf(payment);
     if (label && !methods.includes(label)) methods.push(label);
     // #958: "Payment · 30%" for the payments that are a percent of the order.
-    if (finiteNumber(payment?.percent_of_order) > 0) percentLabels.push(paymentKindWithPercent(payment.kind, payment.percent_of_order));
+    // #1192: the share is worked out from what is owed, never the percent typed against an older total.
+    if (finiteNumber(payment?.percent_of_order) > 0) percentLabels.push(paymentKindWithPercent(payment.kind, realPercent(cents, amount) ?? payment.percent_of_order));
   }
 
   const onHold = ipas?.on_hold === true;
@@ -168,7 +190,20 @@ export function ipasFigures(ipas) {
 
   const overpaidBy = amount !== null && paidCents > toCents(amount) ? fromCents(paidCents - toCents(amount)) : 0;
 
+  // ADR 0055, first match wins: an open ask, a settled balance, anything paid, else not due yet.
+  // A cancelled IPAS has none. Overpaid still reads Paid (a balance below zero is a balance of none).
+  let paymentStatus = null;
+  const paymentAsk = ipas?.payment_ask ?? (ipas?.payment_asks ?? []).find((ask) => !ask?.closed_at) ?? null;
+  if (ipas && ipas.state !== IPAS_STATE.CANCELLED) {
+    if (paymentAsk) paymentStatus = IPAS_PAYMENT_STATUS.FOR_PAYMENT;
+    else if (remainingBalance !== null && remainingBalance <= 0) paymentStatus = IPAS_PAYMENT_STATUS.PAID;
+    else if (paidCents > 0) paymentStatus = IPAS_PAYMENT_STATUS.DP_PAID;
+    else paymentStatus = IPAS_PAYMENT_STATUS.NOT_DUE_YET;
+  }
+
   return {
+    paymentStatus,
+    paymentAsk: ipas && ipas.state !== IPAS_STATE.CANCELLED ? paymentAsk : null,
     currency,
     piAmount,
     poTotal,
@@ -196,7 +231,7 @@ export function ipasFigures(ipas) {
  * Amount and Remaining balance totals for the rows shown (each carrying `figures`), one entry
  * per currency, in the order each currency first appears:
  * [{ currency, amount, remainingBalance, count }]. Currencies are never added together. A row
- * with no figure adds nothing to that total. `currency` is null for a PO whose currency is unknown.
+ * with no figure adds nothing to that total. `currency` is null for a P0 whose currency is unknown.
  */
 export function ipasTotalsByCurrency(rows) {
   const byCurrency = new Map();

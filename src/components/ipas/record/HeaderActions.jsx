@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ban, CirclePause, CirclePlay, Eye, FileLock2, Pencil, Printer } from "lucide-react";
+import { Ban, CirclePause, CirclePlay, Eye, FileLock2, HandCoins, Pencil, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import RecordMoreMenu from "@/components/record/RecordMoreMenu";
@@ -28,6 +28,14 @@ export default function HeaderActions({ ctx }) {
         ? { key: "hold", label: "Clear On-Hold", icon: CirclePlay, onSelect: on.hold }
         : { key: "hold", label: "Put On-Hold", icon: CirclePause, onSelect: on.hold },
     );
+  }
+  if (can.askPayment) {
+    items.push({
+      key: "ask-payment",
+      label: ctx.ipas?.payment_asks?.some((ask) => !ask.closed_at) ? "Payment ask…" : "Ask for payment",
+      icon: HandCoins,
+      onSelect: on.askPayment,
+    });
   }
   if (can.change) {
     // A Project's SORs are fixed when it is raised, so its Purpose has nowhere to go (#551).

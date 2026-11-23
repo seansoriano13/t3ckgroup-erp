@@ -3,7 +3,8 @@
  * figures each row carries (utils/ipasFigures.js) and by the signed-in employee.
  */
 
-import { IPAS_STATE } from "../constants/ipas";
+import { IPAS_PAYMENT_STATUS, IPAS_STATE } from "../constants/ipas";
+import { ipasFigures } from "./ipasFigures";
 
 /** The list's built-in views (a view narrows the rows; null is no view). */
 export const IPAS_VIEW = Object.freeze({
@@ -11,6 +12,7 @@ export const IPAS_VIEW = Object.freeze({
   ON_HOLD: "on_hold",
   ONGOING: "ongoing",
   MINE: "mine",
+  PAYMENT_FORECAST: "payment_forecast",
 });
 
 export const IPAS_VIEW_LABELS = {
@@ -18,12 +20,14 @@ export const IPAS_VIEW_LABELS = {
   [IPAS_VIEW.ON_HOLD]: "On-Hold",
   [IPAS_VIEW.ONGOING]: "Ongoing",
   [IPAS_VIEW.MINE]: "Raised by me",
+  [IPAS_VIEW.PAYMENT_FORECAST]: "Payment Forecast",
 };
 
 /**
  * Whether a row belongs to a view. Unpaid is the open IPAS with no full payment
  * recorded; On-Hold is the On-Hold flag; Ongoing is an open IPAS with some money
- * paid and no full payment; Raised by me is the IPAS the signed-in employee raised.
+ * paid and no full payment; Payment Forecast is every IPAS whose Payment status is For payment (#1190);
+ * Raised by me is the IPAS the signed-in employee raised.
  */
 export function inIpasView(row, view, userId) {
   switch (view) {
@@ -35,7 +39,15 @@ export function inIpasView(row, view, userId) {
       return row.state === IPAS_STATE.OPEN && Number(row.figures?.paid) > 0 && !row.figures?.hasFullPayment;
     case IPAS_VIEW.MINE:
       return Boolean(userId) && row.created_by === userId;
+    case IPAS_VIEW.PAYMENT_FORECAST:
+      return row.figures?.paymentStatus === IPAS_PAYMENT_STATUS.FOR_PAYMENT;
     default:
       return true;
   }
 }
+
+/** The list rows with their figures worked out: what a view is judged on (the page and the sidebar count share it). */
+export const withIpasFigures = (list) => list.map((row) => ({ ...row, figures: ipasFigures(row) }));
+
+/** How many rows of the list a view holds. */
+export const countIpasView = (list, view, userId) => withIpasFigures(list).filter((row) => inIpasView(row, view, userId)).length;

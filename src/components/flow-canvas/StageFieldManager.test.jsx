@@ -66,6 +66,27 @@ describe("StageFieldManager", () => {
     expect(screen.getByText("Expected Award Date")).toBeInTheDocument();
   });
 
+  it("offers Show on Calendar on a date field only, and remembers it", async () => {
+    const stage = makeFlowStage();
+
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageFieldManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Add$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Award amount/i), { target: { value: "Retention release date" } });
+    fireEvent.click(screen.getByRole("button", { name: "Custom" }));
+    expect(screen.queryByRole("switch", { name: /Show on Calendar/i })).not.toBeInTheDocument();
+    await chooseOption(setupUser(), screen.getByLabelText("Field type"), "Date");
+    fireEvent.click(screen.getByRole("switch", { name: /Show on Calendar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Save field/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Retention release date" }));
+    expect(screen.getByRole("switch", { name: /Show on Calendar/i })).toBeChecked();
+  });
+
   it("shows a live preview of how the field looks on the SOR", async () => {
     const stage = makeFlowStage();
 

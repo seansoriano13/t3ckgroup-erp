@@ -6,6 +6,11 @@ export const ipasListKey = ["ipas", "list"];
  * which reads again once it is shown on its own.
  */
 export const markIpasListStale = (queryClient) => queryClient.invalidateQueries({ queryKey: ipasListKey, refetchType: "none" });
+/**
+ * Marks the IPAS list out of date and reads it again now (#1190). Only for a change that moves the
+ * Payment Forecast count in the sidebar (Ask for payment, withdrawing it, a payment recorded).
+ */
+export const refreshIpasList = (queryClient) => queryClient.invalidateQueries({ queryKey: ipasListKey });
 export const ipasKey = (id) => ["ipas", "one", id];
 /** Every open IPAS record, whatever its id (a setting changed under them, #959). */
 export const ipasAllRecordsKey = ["ipas", "one"];

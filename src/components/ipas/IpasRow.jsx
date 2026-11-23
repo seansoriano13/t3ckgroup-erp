@@ -14,6 +14,7 @@ import { matchesSorCode } from "../../utils/sorSearch";
 import { IPAS_AMOUNT_SOURCE } from "../../utils/ipasFigures";
 import IpasStateBadge from "./IpasStateBadge";
 import IpasStatusControl from "./IpasStatusControl";
+import IpasPaymentStatusPill from "./IpasPaymentStatusPill";
 
 const AMOUNT_SOURCE_NOTE = {
   [IPAS_AMOUNT_SOURCE.PI_QT]: "P.I/QT",
@@ -126,6 +127,10 @@ export default function IpasRow({ row, onOpen, columns, search = "" }) {
               <IpasStatusControl ipas={row} figures={row.figures} />
             )}
           </TableCell>
+        ),
+        // The Payment status (ADR 0055), read from the same figures as the record's pill and the export.
+        "payment-status": () => (
+          <TableCell>{row.figures?.paymentStatus ? <IpasPaymentStatusPill figures={row.figures} /> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
         ),
         entity: () => (
           <TableCell className="hidden md:table-cell">
