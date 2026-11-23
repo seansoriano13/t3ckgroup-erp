@@ -345,7 +345,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       const method = text(payment.methodLabel);
       const checkNo = text(payment.check_no);
       return {
-        kind: paymentKindWithPercent(payment.kind, realPercent(toCents(payment.amount ?? 0), owed) ?? payment.percent_of_order) || text(payment.kind) || BLANK,
+        kind: paymentKindWithPercent(payment.kind, Number(payment.percent_of_order) > 0 ? (realPercent(toCents(payment.amount ?? 0), owed) ?? payment.percent_of_order) : payment.percent_of_order) || text(payment.kind) || BLANK,
         date: payment.paid_on ? formatDay(payment.paid_on) : BLANK,
         amount: printAmount(payment.amount, currency),
         // A PHP PO is paid in pesos: the amount is what was debited.
