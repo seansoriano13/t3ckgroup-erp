@@ -4765,7 +4765,7 @@ create policy "sor_log_read" on public."sales_opportunity_logs"
   as permissive
   for select
   to authenticated
-  using ((( SELECT is_super_admin() AS is_super_admin) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_readable_visit_ids() AS sor_readable_visit_ids))) OR ((stage_visit_id IS NULL) AND (opportunity_id IN ( SELECT sor_readable_log_sor_ids() AS sor_readable_log_sor_ids)))));
+  using ((( SELECT is_super_admin() AS is_super_admin) OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(sales_opportunity_logs.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))));
 create policy "sales_opportunity_members_insert" on public."sales_opportunity_members"
   as permissive
   for insert
