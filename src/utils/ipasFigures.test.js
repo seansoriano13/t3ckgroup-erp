@@ -351,6 +351,8 @@ describe("ipasFigures: Payment status (ADR 0055)", () => {
 
   it("has none on a cancelled IPAS", () => {
     expect(ipasFigures(ipas({ state: "cancelled", payment_ask: ask })).paymentStatus).toBeNull()
+  })
+})
 
 describe("ipasFigures: supplier-billed Freight (#1192)", () => {
   const billed = { freight_amount: 1600, freight_currency: "Php", freight_billed_by_supplier: true }
