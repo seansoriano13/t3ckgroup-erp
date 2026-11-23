@@ -107,7 +107,9 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const [dayEdits, setDayEdits] = useState(() => saved?.edits ?? {});
   const [start, setStart] = useState(saved?.start ?? initial.start ?? slot.start);
   const [end, setEnd] = useState(saved?.end ?? initial.end ?? slot.end);
-  const frozenDates = saved?.frozen ?? NO_DATES;
+  // #1194: once its day has started the filer may still change all of it, so no day is frozen and a past day is allowed.
+  const afterDay = (saved?.frozen.size ?? 0) > 0;
+  const frozenDates = NO_DATES;
   const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');  // the Lead
   const [participants, setParticipants] = useState(() =>
     (editing?.participants ?? []).map((p) => ({ type: SELECTOR_TYPES.EMPLOYEE, id: p.employee_id })),
@@ -172,14 +174,14 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const warnings = dateOk
     ? rangeWarnings(rangeEntries, {
         people: employees.filter((e) => pickedIds.includes(e.id)).map((e) => ({ id: e.id, name: e.name })),
-        days: days.filter((d) => !d.frozen && d.end > d.start),
+        days: days.filter((d) => !saved?.frozen.has(d.date) && d.end > d.start),
         nameDays: days.length > 1,
       })
     : [];
 
   // Each problem shows under its own box (`problemAt`), and the first one again just above the buttons.
   const now = clock();
-  const problems = draftProblems({ activityType, meetingType, meetingLink, venueId, date, dateTo, start, end, days, facilitatorId, purpose, guests, multiDay, typeName: settings.types[activityType]?.name, maxDays: rules.maxDays }, now);
+  const problems = draftProblems({ activityType, meetingType, meetingLink, venueId, date, dateTo, start, end, days, facilitatorId, purpose, guests, allowPast: afterDay, multiDay, typeName: settings.types[activityType]?.name, maxDays: rules.maxDays }, now);
   if (clash) problems.unshift({ field: 'time', message: clashMessage(clash) });
   const problem = problems[0]?.message ?? null;
   const purposeLength = [...purpose.trim()].length;
@@ -325,9 +327,8 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
           <Input
             type="date"
             value={date}
-            min={manilaToday(now)}
+            min={afterDay ? undefined : manilaToday(now)}
             max={latestDate(now)}
-            disabled={frozenDates.size > 0}
             onChange={(e) => setDate(e.target.value)}
             containerClassName="w-full"
             className="font-semibold"

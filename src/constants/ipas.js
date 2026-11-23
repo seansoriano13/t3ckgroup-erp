@@ -184,6 +184,9 @@ export const IPAS_PAYMENT_KINDS = [
   IPAS_PAYMENT_KIND.SHIPPING_FEE,
 ];
 
+/** What the payment picker offers (#1192): "Shipping fee" is Freight now; old rows still read. */
+export const IPAS_PAYMENT_KINDS_OFFERED = IPAS_PAYMENT_KINDS.filter((kind) => kind !== IPAS_PAYMENT_KIND.SHIPPING_FEE);
+
 export const IPAS_PAYMENT_KIND_LABELS = {
   [IPAS_PAYMENT_KIND.DOWN_PAYMENT]: "Down payment",
   [IPAS_PAYMENT_KIND.PAYMENT]: "Payment",

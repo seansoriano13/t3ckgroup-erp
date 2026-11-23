@@ -29,7 +29,7 @@ import {
   IPAS_COMPUTATION_STATUSES,
   IPAS_DOCUMENT_APPLIES_TO_LABELS,
   IPAS_OPTION_LIST,
-  IPAS_PAYMENT_KINDS,
+  IPAS_PAYMENT_KINDS_OFFERED,
   IPAS_PAYMENT_KIND_LABELS,
   IPAS_TICK_SIDE_LABELS,
   IPAS_TICK_SIDE,
@@ -50,7 +50,7 @@ import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./ed
 
 export const SHOW_HAS_TICKS = false;
 
-const KIND_OPTIONS =IPAS_PAYMENT_KINDS.map((value) => ({ value, label: IPAS_PAYMENT_KIND_LABELS[value] }));
+const KIND_OPTIONS = IPAS_PAYMENT_KINDS_OFFERED.map((value) => ({ value, label: IPAS_PAYMENT_KIND_LABELS[value] }));
 
 const asOption = (option) => ({ value: option.id, label: option.active ? option.label : `${option.label} (deactivated)` });
 
@@ -335,7 +335,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
       }
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
+        <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS.some((o) => o.value === row.kind) || !row.kind ? KIND_OPTIONS : [...KIND_OPTIONS, { value: row.kind, label: IPAS_PAYMENT_KIND_LABELS[row.kind] ?? row.kind }]} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
         <Field id={id("paidOn")} label="Date" kind="date" required min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.paidOn, "The payment date") ?? undefined} value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
         {showPercent && (
           <div className="min-w-0">

@@ -225,8 +225,7 @@ export function computeLandedCost({
   // A foreign shipping fee counts at its pesos, or its estimated pesos while those are blank.
   if (!isPhp) shippingC = shippingForeignC;
   // Freight (#709): a typed freight amount is the freight, and the older shipping-fee payments stop
-  // counting (they would be the same freight twice). Freight the supplier billed is inside the
-  // payments already, so it adds nothing. In the PO's currency it converts at the blended rate; a
+  // counting (they would be the same freight twice). In the PO's currency it converts at the blended rate; a
   // peso freight is taken as it is; any other currency can't be converted, so there is no figure.
   let freightC = 0;
   const freightAmount = finiteNumber(freight?.amount);
@@ -236,9 +235,8 @@ export function computeLandedCost({
     if (!isPhpCurrency(freightCurrency) && (isPhp || freightCurrency !== String(currency).toUpperCase())) {
       return unavailable(IPAS_LANDED_COST_REASON.FREIGHT_CURRENCY);
     }
-    if (!freight?.billedBySupplier) {
-      freightC = isPhpCurrency(freightCurrency) ? centavos(freightAmount) : Math.round(freightAmount * rate * 100);
-    }
+    // #1192: supplier-billed or not, Freight joins the pool once.
+    freightC = isPhpCurrency(freightCurrency) ? centavos(freightAmount) : Math.round(freightAmount * rate * 100);
   }
   const poolC = chargesC + freightC + feesC + shippingC;
 

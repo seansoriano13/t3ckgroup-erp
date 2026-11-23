@@ -156,12 +156,14 @@ describe("edit", () => {
         expect((await row(id)).purpose).toBe(`${MARKER} edit`)
     })
 
-    it("refuses an edit at or after the start time", async () => {
+    it("lets the filer edit after the start time, and the status stays (#1194)", async () => {
         const id = await seed("APPROVED")
         await startNow(id)
-        const { error } = await edit("ordinary", id, { p_purpose: "Too late", p_starts_at: iso(900), p_ends_at: iso(901) })
-        expect(error?.message).toMatch(/already started/i)
-        expect((await row(id)).purpose).toBe(`${MARKER} edit`)
+        const r = await row(id)
+        const { data, error } = await edit("ordinary", id, { p_purpose: "What happened", p_starts_at: r.starts_at, p_ends_at: r.ends_at })
+        expect(error).toBeNull()
+        expect(data).toMatchObject({ to_status: "APPROVED", after_day: true })
+        expect((await row(id)).purpose).toBe("What happened")
     })
 
     it("refuses moving the meeting into the past", async () => {
@@ -259,12 +261,13 @@ describe("cancel", () => {
         expect((await row(id)).status).toBe("PENDING_HR")
     })
 
-    it("refuses everyone at or after the start time, HR included", async () => {
+    it("after the start time the filer may cancel, HR may not (#1194)", async () => {
         const id = await seed("APPROVED")
         await startNow(id)
-        expect((await cancel("ordinary", id)).error?.message).toMatch(/already started/i)
         expect((await cancel("hr", id, "Late")).error?.message).toMatch(/already started/i)
         expect((await row(id)).status).toBe("APPROVED")
+        expect((await cancel("ordinary", id)).error).toBeNull()
+        expect((await row(id)).status).toBe("CANCELLED")
     })
 
     it("refuses a declined or cancelled request: both are final", async () => {
