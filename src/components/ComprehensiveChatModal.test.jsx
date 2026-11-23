@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router";
 import { renderWithProviders, setupUser } from "../test/support";
 import { stubRpc } from "../test/msw/server";
 import ComprehensiveChatModal from "./ComprehensiveChatModal";
+import { groupTaskService } from "../services/groupTaskService";
 
 vi.mock("../context/AuthContext", () => ({
   useAuth: () => ({ user: { id: "user-1", name: "Alice" } }),
@@ -71,7 +72,17 @@ describe("ComprehensiveChatModal — group task thread", () => {
 });
 
 describe("ComprehensiveChatModal — address", () => {
-  beforeEach(() => stubRpc("get_user_active_chats", [RPC_GROUP_ROW]));
+  // A chat named by the address is checked against the record itself; one the
+  // reader may not see clears the address. The group task must exist here, or
+  // that check fails and clears the address whenever it lands before the
+  // assertion — which made the first test below fail at random.
+  let lookup;
+  beforeEach(() => {
+    stubRpc("get_user_active_chats", [RPC_GROUP_ROW]);
+    lookup = vi
+      .spyOn(groupTaskService, "getGroupTaskById")
+      .mockResolvedValue({ id: "gt-1", title: "Site survey kickoff", status: "CANCELLED" });
+  });
 
   const Where = () => <output data-testid="where">{useLocation().search}</output>;
   const renderAt = (entry, isOpen = false) =>
@@ -83,9 +94,16 @@ describe("ComprehensiveChatModal — address", () => {
     );
 
   it("opens the window on the chat the address names, and keeps the address", async () => {
+    // The list arrives after the record check: the order that used to fail at random.
+    stubRpc("get_user_active_chats", () => new Promise((resolve) => setTimeout(() => resolve([RPC_GROUP_ROW]), 300)));
     renderAt("/group-tasks?chat=group-task:gt-1");
 
     expect((await screen.findAllByText(/Site survey kickoff/)).length).toBeGreaterThan(0);
+    // Read the address only once the record check has answered, so a check
+    // that clears it cannot slip in after the assertion.
+    await waitFor(() => expect(lookup).toHaveBeenCalledWith("gt-1"));
+    await lookup.mock.results[0].value;
+    await waitFor(() => expect(screen.queryByText(/Group Thread/)).toBeNull());
     expect(screen.getByTestId("where").textContent).toBe("?chat=group-task:gt-1");
   });
 

@@ -12,7 +12,7 @@ export function canFileActivityType(user, activityType, settings = getActivitySe
   if (!user?.id) return false;
   const rule = settings.types[activityType];
   if (!rule?.active) return false;
-  return rule.whoFiles === 'EVERYONE' || isHead(user);
+  return rule.whoFiles === 'EVERYONE' || isHead(user) || (rule.alsoAllowed ?? []).includes(user.id);
 }
 
 /** The types the viewer may file, in the usual order. */

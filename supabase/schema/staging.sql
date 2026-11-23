@@ -52,7 +52,8 @@ create table if not exists public."activity_type_settings" (
   "who_files" text not null default 'HEADS'::text,
   "needs_hr" boolean not null default false,
   "multi_day" boolean not null default false,
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "also_allowed" uuid[] not null default '{}'::uuid[]
 );
 
 create table if not exists public."app_settings" (
@@ -8722,7 +8723,8 @@ AS $function$
     else coalesce((
       select case t.who_files
                when 'EVERYONE' then true
-               else coalesce((select coalesce(e.is_head, false) from public.employees e where e.id = p_employee_id), false)
+               else p_employee_id = any(t.also_allowed)
+                 or coalesce((select coalesce(e.is_head, false) from public.employees e where e.id = p_employee_id), false)
              end
         from public.activity_type_settings t
        where t.activity_type = p_activity_type

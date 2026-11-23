@@ -128,4 +128,18 @@ describe("Activities in Settings (#1064)", () => {
     await waitFor(() => expect(db.rows("activity_general_settings")[0].guests_allowed).toBe(false));
     expect(db.rows("system_audit_logs").map((r) => r.content)).toContain("Guests are now not allowed on Activities");
   });
+
+  it("shows Also allowed only on heads-only types, and saves and logs the list", async () => {
+    mocks.user = makeHrEmployee({ name: "Boss" });
+    renderSettings();
+    await screen.findByTestId("activity-type-OPERATIONS_TASK");
+    expect(screen.getByTestId("activity-also-allowed-OPERATIONS_TASK")).toBeInTheDocument();
+    expect(screen.queryByTestId("activity-also-allowed-MEETING")).not.toBeInTheDocument();
+
+    const from = { name: "Operations Task", color: "orange", active: true, whoFiles: "HEADS", needsHr: false, multiDay: true, alsoAllowed: [] };
+    const ana = "00000000-0000-0000-0000-0000000000aa";
+    await activitySettingsService.saveType("OPERATIONS_TASK", from, { alsoAllowed: [ana] }, null);
+    expect(db.rows("activity_type_settings").find((r) => r.activity_type === "OPERATIONS_TASK").also_allowed).toEqual([ana]);
+    expect(db.rows("system_audit_logs").map((r) => r.content)).toContain('"Operations Task" Also allowed list: added 1 (now 1 person)');
+  });
 });
