@@ -59,11 +59,6 @@ create table if not exists public."activity_type_settings" (
 create table if not exists public."app_settings" (
   "id" boolean not null default true,
   "updated_at" timestamp with time zone not null default now(),
-  "universal_task_submission" boolean not null default false,
-  "marketing_approval_by_ops_manager" boolean default false,
-  "enable_self_verification" boolean not null default false,
-  "enable_bulk_approval" boolean not null default false,
-  "enable_visual_shaming" boolean not null default false,
   "retail_storefronts" text[] not null default '{Shopee,Lazada}'::text[]
 );
 
