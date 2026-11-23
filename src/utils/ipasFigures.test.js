@@ -36,8 +36,8 @@ describe("ipasFigures: overpaid (spec #1123, A2)", () => {
 describe("ipasFigures: Amount", () => {
   it.each([
     ["the P.I/QT Amount when it is typed", { pi_qt_amount: 10800 }, 10800, IPAS_AMOUNT_SOURCE.PI_QT],
-    ["the Odoo PO total (tax included) when it is not", {}, 11200, IPAS_AMOUNT_SOURCE.ODOO_PO],
-    ["the Odoo PO total when the typed amount is blank text", { pi_qt_amount: "" }, 11200, IPAS_AMOUNT_SOURCE.ODOO_PO],
+    ["the Odoo P0 total (tax included) when it is not", {}, 11200, IPAS_AMOUNT_SOURCE.ODOO_PO],
+    ["the Odoo P0 total when the typed amount is blank text", { pi_qt_amount: "" }, 11200, IPAS_AMOUNT_SOURCE.ODOO_PO],
     ["the typed amount even when it is 0", { pi_qt_amount: 0 }, 0, IPAS_AMOUNT_SOURCE.PI_QT],
     ["a typed amount that arrives as a string from the database", { pi_qt_amount: "10800.00" }, 10800, IPAS_AMOUNT_SOURCE.PI_QT],
   ])("is %s", (_name, over, amount, source) => {
@@ -70,7 +70,7 @@ describe("ipasFigures: Amount", () => {
     expect(ipasFigures(null).paymentMethods).toEqual([])
   })
 
-  it("reads the PO's stated total before its lines", () => {
+  it("reads the P0's stated total before its lines", () => {
     expect(odooPoTotal({ po: { amount_total: 5600 }, lines: [line(1)] })).toEqual({ total: 5600, beforeTax: false })
     expect(odooPoTotal({ po: {}, lines: [line(1), line(2)] })).toEqual({ total: 3, beforeTax: true })
     expect(odooPoTotal({ po: {}, lines: [] })).toBeNull()
@@ -96,7 +96,7 @@ describe("ipasFigures: bill check", () => {
     expect(check.status).toBe(IPAS_BILL_CHECK.MATCHES)
   })
 
-  it("says the Odoo side is before tax for an old copy instead of reporting it as the PO total", () => {
+  it("says the Odoo side is before tax for an old copy instead of reporting it as the P0 total", () => {
     const check = ipasFigures(
       ipas({ pi_qt_amount: 11200, copyOver: { po: { name: "P02552" }, lines: [line(10000)] } }),
     ).billCheck
@@ -216,7 +216,7 @@ describe("ipasFigures: Remaining balance", () => {
 })
 
 describe("ipasFigures: currencies", () => {
-  it("reports each IPAS in its own PO's currency and never converts", () => {
+  it("reports each IPAS in its own P0's currency and never converts", () => {
     const usd = ipasFigures(
       ipas({ currency: "USD", pi_qt_amount: 1500, payments: [pay("down_payment", 500, "Bank TT")], copyOver: { po: { currency: "USD", amount_total: 1500 } } }),
     )

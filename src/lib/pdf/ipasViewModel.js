@@ -42,6 +42,8 @@ import {
 } from '../../constants/ipas';
 import { filingChecklist } from '../../utils/ipasDocuments';
 import { paymentKindWithPercent } from '../../utils/ipasPaymentPercent';
+import { ipasFigures, realPercent } from '../../utils/ipasFigures';
+import { toCents } from '../../utils/landedCost';
 import { landedTable } from '../../utils/ipasLandedTable';
 import { formatDay } from '../../utils/ipasPayments';
 import { isLandedCostFinal } from '../../utils/ipasSignoffs';
@@ -302,6 +304,8 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
   const charges = Array.isArray(ipas.charges) ? ipas.charges : [];
   const documents = Array.isArray(ipas.documents) ? ipas.documents : [];
   const summary = ipas.paymentSummary ?? {};
+  // #1192: a payment's share is worked out from what is owed, as on the screen.
+  const owed = ipasFigures(ipas).amount;
   const state7 = ipas.signoffSections?.[7] ?? {};
 
   const field = (key) => {
@@ -341,7 +345,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       const method = text(payment.methodLabel);
       const checkNo = text(payment.check_no);
       return {
-        kind: paymentKindWithPercent(payment.kind, payment.percent_of_order) || text(payment.kind) || BLANK,
+        kind: paymentKindWithPercent(payment.kind, realPercent(toCents(payment.amount ?? 0), owed) ?? payment.percent_of_order) || text(payment.kind) || BLANK,
         date: payment.paid_on ? formatDay(payment.paid_on) : BLANK,
         amount: printAmount(payment.amount, currency),
         // A PHP PO is paid in pesos: the amount is what was debited.

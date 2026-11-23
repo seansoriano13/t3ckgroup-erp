@@ -17,7 +17,7 @@
  *   state          open / filed / cancelled
  *   on_hold        the On-Hold flag (`ipas.on_hold`), and on_hold_note its note
  *   status         the stored IPAS Status key (`ipas.status`)
- * Everything is in the PO's currency; currencies are never converted.
+ * Everything is in the P0's currency; currencies are never converted.
  */
 
 import { IPAS_PAYMENT_KIND, IPAS_PAYMENT_STATUS, IPAS_STATE } from "../constants/ipas";
@@ -31,7 +31,7 @@ export const IPAS_BILL_CHECK = Object.freeze({
   DIFFERS: "differs",
 });
 
-/** Where Amount came from: the typed P.I/QT Amount, or the Odoo PO. */
+/** Where Amount came from: the typed P.I/QT Amount, or the Odoo P0. */
 export const IPAS_AMOUNT_SOURCE = Object.freeze({
   PI_QT: "pi_qt",
   ODOO_PO: "odoo_po",
@@ -41,7 +41,7 @@ export const IPAS_AMOUNT_SOURCE = Object.freeze({
 export const PAYMENT_SCHEME_SEPARATOR = " + ";
 
 /**
- * The Odoo PO's total as the copy states it, or, for an older copy without
+ * The Odoo P0's total as the copy states it, or, for an older copy without
  * totals, the sum of its line subtotals. `beforeTax` is true for the fallback:
  * line subtotals leave tax out, so a bill check against it must say so instead
  * of calling the gap a mismatch. `null` when the copy has neither.
@@ -78,18 +78,18 @@ const methodLabelOf = (payment) => {
 /**
  * Everything money-related about one IPAS:
  *
- *   currency            the PO's currency, or null
+ *   currency            the P0's currency, or null
  *   piAmount            the typed P.I/QT Amount, or null
- *   poTotal             the Odoo PO total (tax included), or the line subtotals
+ *   poTotal             the Odoo P0 total (tax included), or the line subtotals
  *                       for an older copy, or null
  *   poTotalBeforeTax    true when poTotal is that older-copy fallback
  *   amount              piAmount when typed, else poTotal, else null
  *   amountSource        "pi_qt" | "odoo_po" | null
  *   amountBeforeTax     true when amount is the before-tax fallback
  *   billCheck           { status: "missing" | "matches" | "differs", difference,
- *                         poBeforeTax }. `difference` is P.I minus Odoo PO, signed,
+ *                         poBeforeTax }. `difference` is P.I minus Odoo P0, signed,
  *                         to the cent; null when missing. Compared exactly, in the
- *                         PO's currency.
+ *                         P0's currency.
  *   downPayment         sum of the Down payment rows
  *   fullPayment         sum of the Full payment rows
  *   hasFullPayment      a Full payment row is recorded
@@ -231,7 +231,7 @@ export function ipasFigures(ipas) {
  * Amount and Remaining balance totals for the rows shown (each carrying `figures`), one entry
  * per currency, in the order each currency first appears:
  * [{ currency, amount, remainingBalance, count }]. Currencies are never added together. A row
- * with no figure adds nothing to that total. `currency` is null for a PO whose currency is unknown.
+ * with no figure adds nothing to that total. `currency` is null for a P0 whose currency is unknown.
  */
 export function ipasTotalsByCurrency(rows) {
   const byCurrency = new Map();
