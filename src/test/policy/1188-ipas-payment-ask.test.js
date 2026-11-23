@@ -136,9 +136,18 @@ describe("withdrawing and closing the ask", () => {
         await ask("outsider", ipas.id)
         await withdraw("outsider", ipas.id)
         await ask("outsider", ipas.id, { p_purpose: "balance" })
-        await svc().from("ipas_payments").insert({
-            ipas_id: ipas.id, kind: "payment", paid_on: "2026-11-20", amount: 100, created_by: ids.outsider,
+        const paid = await rpc("outsider", "ipas_add_payment", {
+            p_ipas_id: ipas.id,
+            p_kind: "payment",
+            p_paid_on: "2026-11-20",
+            p_amount: 100,
+            p_php_debited: 6000,
+            p_charge_fee_php: 0,
+            p_method_id: (await svc().from("ipas_options").select("id").eq("list", "payment_method").limit(1).single()).data.id,
+            p_check_no: null,
+            p_proof_url: null,
         })
+        expect(paid.error).toBeNull()
 
         const lines = await eventLines(ipas.id)
         expect(lines.map((l) => l.metadata.event)).toEqual([
