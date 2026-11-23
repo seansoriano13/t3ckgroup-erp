@@ -1,3 +1,4 @@
+import { stageColorDot } from "@/constants/stageColors";
 import { sorsHref } from "@/utils/listLinks";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -35,15 +36,6 @@ const THEME_BAR = {
   mauve: "bg-mauve-a7",
 };
 
-const THEME_DOT = {
-  green: "bg-green-9",
-  amber: "bg-amber-9",
-  blue: "bg-blue-9",
-  red: "bg-red-9",
-  violet: "bg-violet-9",
-  orange: "bg-orange-9",
-  mauve: "bg-mauve-9",
-};
 
 /**
  * Per-employee opportunity breakdown — the SOR equivalent of
@@ -362,7 +354,7 @@ export default function EmployeeOpportunityMatrix({
                             }}
                           >
                             <span
-                              className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
+                              className={`w-1.5 h-1.5 rounded-full inline-block ${stageColorDot(theme)}`}
                             />
                             {emp.stageCounts[stage.key]} {stage.label}
                           </span>
@@ -584,7 +576,7 @@ export default function EmployeeOpportunityMatrix({
                           }}
                         >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
+                            className={`w-1.5 h-1.5 rounded-full inline-block ${stageColorDot(theme)}`}
                           />
                           {emp.stageCounts[stage.key]} {stage.label}
                         </span>
