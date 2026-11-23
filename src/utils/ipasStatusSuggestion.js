@@ -18,15 +18,15 @@ import { IPAS_REQUEST_SECTION, IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipas
  *   ipas  the shaped IPAS: `state`, `source`, `status`, `statuses` (Odoo), `signoffSections`, `slips`,
  *         `direct_delivery` (#1158; absent reads as false)
  */
-const piLabel = (label) => /proforma|^p\.?i(\s|$)/i.test(String(label ?? "").trim());
-const quotationLabel = (label) => /quotation/i.test(String(label ?? ""));
+/** The fixed keys on ipas_options.system_key (#1191), not the labels, which Purchasing Settings may rename. */
+const KIND_KEY = { import: "proforma_invoice", local: "quotation" };
 
 /** Whether the P.I (Import) or the Quotation (Local) holds a file and the P.I/QT Amount is typed. */
 function piIsIn(ipas) {
   const amount = ipas.pi_qt_amount ?? ipas.piQtAmount;
   if (amount === null || amount === undefined || amount === "" || !Number.isFinite(Number(amount))) return false;
-  const isLabel = ipas.source === "local" ? quotationLabel : piLabel;
-  return (ipas.documents ?? []).some((doc) => doc?.hasFile && isLabel(doc.label));
+  const key = ipas.source === "local" ? KIND_KEY.local : KIND_KEY.import;
+  return (ipas.documents ?? []).some((doc) => doc?.hasFile && doc.kind?.system_key === key);
 }
 
 export function suggestStatus(ipas) {
