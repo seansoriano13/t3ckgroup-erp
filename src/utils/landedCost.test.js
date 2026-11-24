@@ -80,6 +80,11 @@ describe("forexRate (#1212)", () => {
     const blank = [two[0], { amount: 700, forex_rate: null, php_debited: null }]
     expect(forexRate(blank, "USD")).toMatchObject({ estimate: true, text: "50.00 (estimate)" })
   })
+  it("marks an estimate when a rate is typed but the bank pesos are still blank", () => {
+    const typed = [two[0], { amount: 700, forex_rate: 51, php_debited: null }]
+    expect(forexRate(typed, "USD")).toMatchObject({ estimate: true, text: "50.70 (estimate)" })
+    expect(forexRate([{ amount: 700, forex_rate: 51, php_debited: "" }], "USD")).toMatchObject({ estimate: true })
+  })
   it("shows none for a PHP IPAS or without a rate", () => {
     expect(forexRate(two, "PHP")).toBeNull()
     expect(forexRate([], "USD")).toBeNull()

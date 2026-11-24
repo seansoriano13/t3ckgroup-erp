@@ -110,7 +110,12 @@ export const IPAS_STATUS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key }) =>
 /** In order: the order the list's filter and sort use. */
 export const IPAS_STATUSES = IPAS_STATUS_STEPS.map(({ key }) => key);
 
-export const IPAS_STATUS_LABELS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label]));
+// A status-history entry from before #1206 can still name `processing`; it reads as In Production (the
+// database label function does the same). It is not a step: it is not in IPAS_STATUSES or the dropdown.
+export const IPAS_STATUS_LABELS = {
+  ...Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label])),
+  processing: "In Production",
+};
 
 /** The list filter's value for an IPAS that is On-Hold (a flag over its step, not a step). */
 export const IPAS_ON_HOLD_FILTER = "on_hold";

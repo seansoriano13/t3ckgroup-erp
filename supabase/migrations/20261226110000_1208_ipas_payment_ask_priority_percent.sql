@@ -82,7 +82,7 @@ begin
     raise exception 'ipas_ask_for_payment: the priority must be Very High, High or Medium' using errcode = '22023';
   end if;
   if p_percent is not null and (p_percent <= 0 or p_percent > 1000) then
-    raise exception 'ipas_ask_for_payment: the % of order must be more than zero' using errcode = '22023';
+    raise exception 'ipas_ask_for_payment: the %% of order must be more than zero and at most 1000' using errcode = '22023';
   end if;
   if exists (select 1 from public.ipas_payment_asks where ipas_id = v_ipas.id and closed_at is null) then
     raise exception 'ipas_ask_for_payment: % already has an open ask; withdraw it first', v_ipas.number using errcode = '23505';

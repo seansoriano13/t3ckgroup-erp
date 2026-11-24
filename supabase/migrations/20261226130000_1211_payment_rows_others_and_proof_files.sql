@@ -174,7 +174,7 @@ begin
     end if;
     if not exists (select 1 from public.ipas_payment_files where payment_id = v_row.id and url = v_url) then
       insert into public.ipas_payment_files (payment_id, url, file_name, created_by)
-      values (v_row.id, v_url, public._ipas_file_name_from_url(v_url), auth.uid());
+      values (v_row.id, v_url, public._ipas_file_name_from_url(v_url), public.get_employee_id());
     end if;
   end loop;
 

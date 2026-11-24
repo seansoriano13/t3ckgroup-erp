@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { IPAS_STATUS, IPAS_STATUSES, IPAS_STATUS_LABELS } from "./ipas";
 import { IPAS_STATUS_THEME } from "./status";
 
+describe("a stored 'processing' (#1206)", () => {
+  it("reads as In Production on the screen, but is not a step to pick", () => {
+    expect(IPAS_STATUS_LABELS.processing).toBe("In Production");
+    expect(IPAS_STATUSES).not.toContain("processing");
+  });
+});
+
 describe("the IPAS Status steps are listed once (#1151)", () => {
   it("keeps the team's words and order, with one constant, one label and one colour per step", () => {
     expect(IPAS_STATUSES.map((key) => IPAS_STATUS_LABELS[key])).toEqual([
