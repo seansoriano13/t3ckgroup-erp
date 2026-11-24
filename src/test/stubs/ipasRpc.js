@@ -1459,12 +1459,12 @@ export function stubIpasRpcs({
   stubRpc("ipas_set_typed_status", () => refuse("42501", "permission denied for function ipas_set_typed_status"))
 
   const STATUS_ORDER = [
-    "order_draft", "payment_approval", "ordered", "processing", "shipped", "in_transit",
+    "order_draft", "payment_approval", "for_payment", "ordered", "in_production", "ready_for_shipment", "shipped", "in_transit",
     "customs", "local_hub", "out_for_delivery", "delivered", "done",
   ]
   const STATUS_LABELS = {
-    order_draft: "Order-Draft", payment_approval: "Payment Approval", ordered: "Ordered",
-    processing: "Processing / Preparing Shipment", shipped: "Shipped / Picked Up", in_transit: "In Transit",
+    order_draft: "Order-Draft", payment_approval: "Payment Approval", for_payment: "For Payment", ordered: "Ordered",
+    in_production: "In Production", ready_for_shipment: "Ready for Shipment", shipped: "Shipped / Picked Up", in_transit: "In Transit",
     customs: "Customs / Port Hold", local_hub: "Arrived at Local Hub", out_for_delivery: "Out for Delivery",
     delivered: "Delivered", done: "Done",
   }

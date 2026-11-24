@@ -81,8 +81,10 @@ export const IPAS_STATE_FILTER_ALL = "all";
 const IPAS_STATUS_STEPS = [
   { key: "order_draft", label: "Order-Draft" },
   { key: "payment_approval", label: "Payment Approval" },
+  { key: "for_payment", label: "For Payment" },
   { key: "ordered", label: "Ordered" },
-  { key: "processing", label: "Processing / Preparing Shipment" },
+  { key: "in_production", label: "In Production" },
+  { key: "ready_for_shipment", label: "Ready for Shipment" },
   { key: "shipped", label: "Shipped / Picked Up" },
   { key: "in_transit", label: "In Transit" },
   { key: "customs", label: "Customs / Port Hold" },
@@ -708,8 +710,10 @@ export const IPAS_STATUS_MEANINGS = {
   [IPAS_STATUS.ORDER_DRAFT]: null,
   [IPAS_STATUS.PAYMENT_APPROVAL]:
     "Only for an order that must be approved for payment before it is placed. A pay-later order goes from Order-Draft to Ordered.",
+  [IPAS_STATUS.FOR_PAYMENT]: null,
   [IPAS_STATUS.ORDERED]: null,
-  [IPAS_STATUS.PROCESSING]: null,
+  [IPAS_STATUS.IN_PRODUCTION]: null,
+  [IPAS_STATUS.READY_FOR_SHIPMENT]: null,
   [IPAS_STATUS.SHIPPED]: null,
   [IPAS_STATUS.IN_TRANSIT]: null,
   [IPAS_STATUS.CUSTOMS]: "The normal customs step, not trouble.",

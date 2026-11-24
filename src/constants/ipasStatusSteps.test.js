@@ -7,8 +7,10 @@ describe("the IPAS Status steps are listed once (#1151)", () => {
     expect(IPAS_STATUSES.map((key) => IPAS_STATUS_LABELS[key])).toEqual([
       "Order-Draft",
       "Payment Approval",
+      "For Payment",
       "Ordered",
-      "Processing / Preparing Shipment",
+      "In Production",
+      "Ready for Shipment",
       "Shipped / Picked Up",
       "In Transit",
       "Customs / Port Hold",
