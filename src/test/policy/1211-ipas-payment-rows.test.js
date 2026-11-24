@@ -48,6 +48,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+    // Give the flag back: other files rely on the outsider having no Purchasing access.
+    await svc().from("employees").update({ has_purchasing_flow: false }).eq("id", ids.outsider)
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
 })
 
