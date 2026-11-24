@@ -7,17 +7,25 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SelectField } from "@/components/ui/SelectField";
 import InlineError from "@/components/record/InlineError";
-import { IPAS_ASK_PURPOSES, IPAS_ASK_PURPOSE_LABELS } from "@/constants/ipas";
+import {
+  IPAS_ASK_DEFAULT_PRIORITY,
+  IPAS_ASK_PRIORITIES,
+  IPAS_ASK_PRIORITY_LABELS,
+  IPAS_ASK_PURPOSES,
+  IPAS_ASK_PURPOSE_LABELS,
+} from "@/constants/ipas";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { parseAmountInput } from "@/utils/ipasPayments";
 import { paymentAskHover } from "@/utils/ipasPaymentAsk";
+import { amountFromPercent, parsePercentInput, percentBase, PERCENT_ERROR } from "@/utils/ipasPaymentPercent";
 
 const PURPOSE_OPTIONS = IPAS_ASK_PURPOSES.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
+const PRIORITY_OPTIONS = IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPAS_ASK_PRIORITY_LABELS[value] }));
 
 /**
  * "Ask for payment" (ADR 0055): Purchasing says how much, in the P0's currency, and what for, so the General Manager
  * sees the IPAS as For payment. While an ask is open the dialog shows it and offers to withdraw it instead (an IPAS
- * has one open ask at a time; recording a payment closes it). `onAsk({ amount, purpose, note })` and `onWithdraw()`
+ * has one open ask at a time; recording a payment closes it). `onAsk({ amount, purpose, note, priority, percent })` and `onWithdraw()`
  * return promises; the dialog closes when they resolve and says why in itself when they fail. Mounted only while open.
  */
 export default function AskForPaymentDialog({ open, onOpenChange, ...body }) {
@@ -29,12 +37,33 @@ function Body({ number, figures, onAsk, onWithdraw, onClose }) {
   const [amount, setAmount] = useState("");
   const [purpose, setPurpose] = useState("down_payment");
   const [note, setNote] = useState("");
+  const [priority, setPriority] = useState(IPAS_ASK_DEFAULT_PRIORITY);
+  const [percent, setPercent] = useState("");
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState(null);
 
   const parsed = parseAmountInput(amount);
-  const valid = parsed.ok && parsed.value !== null && parsed.value > 0;
+  const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && percentRead.ok && Boolean(priority);
   const currency = figures?.currency ? ` (${figures.currency})` : "";
+  // The same base as a payment's percent: the P.I/QT Amount, else the P0 total.
+  const base = percentBase({ piQtAmount: figures?.piAmount, poTotal: figures?.poTotal });
+  const percentRead = parsePercentInput(percent);
+
+  // Typing a percent fills the amount; typing the amount by hand clears the percent (it would be a wrong label).
+  const typePercent = (text) => {
+    setPercent(text);
+    const read = parsePercentInput(text);
+    if (read.ok && read.value !== null) {
+      const filled = amountFromPercent(read.value, base);
+      if (filled !== null) setAmount(String(filled));
+    }
+  };
+  const typeAmount = (text) => {
+    setAmount(text);
+    const filled = percentRead.ok && percentRead.value !== null ? amountFromPercent(percentRead.value, base) : null;
+    const typed = parseAmountInput(text);
+    if (!(typed.ok && filled !== null && typed.value === filled)) setPercent("");
+  };
 
   const run = async (action) => {
     setSaving(true);
@@ -62,7 +91,7 @@ function Body({ number, figures, onAsk, onWithdraw, onClose }) {
             {saving ? "Saving…" : "Withdraw ask"}
           </Button>
         ) : (
-          <Button disabled={saving || !valid} onClick={() => run(() => onAsk({ amount: parsed.value, purpose, note: note.trim() || null }))}>
+          <Button disabled={saving || !valid} onClick={() => run(() => onAsk({ amount: parsed.value, purpose, note: note.trim() || null, priority, percent: percentRead.value }))}>
             {saving ? "Saving…" : "Ask for payment"}
           </Button>
         )
@@ -77,8 +106,19 @@ function Body({ number, figures, onAsk, onWithdraw, onClose }) {
           <p className="text-sm text-muted-foreground">
             The General Manager sees this IPAS as For payment until the payment is recorded or you withdraw the ask.
           </p>
+          <FieldBox label={base ? `% of order (optional, of the ${base.label})` : "% of order (optional)"} htmlFor="ask-percent" bare>
+            <Input id="ask-percent" inputMode="decimal" value={percent} onChange={(e) => typePercent(e.target.value)} placeholder="e.g. 40" />
+          </FieldBox>
+          {!percentRead.ok && (
+            <p role="alert" className="text-xs text-red-11">
+              {PERCENT_ERROR}
+            </p>
+          )}
           <FieldBox label={`Amount${currency}`} htmlFor="ask-amount" bare>
-            <Input id="ask-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+            <Input id="ask-amount" inputMode="decimal" value={amount} onChange={(e) => typeAmount(e.target.value)} autoFocus />
+          </FieldBox>
+          <FieldBox label="Priority" htmlFor="ask-priority" required bare>
+            <SelectField id="ask-priority" size="sm" options={PRIORITY_OPTIONS} value={priority} onChange={setPriority} className="h-10 w-full" />
           </FieldBox>
           <FieldBox label="What for" htmlFor="ask-purpose" bare>
             <SelectField id="ask-purpose" size="sm" options={PURPOSE_OPTIONS} value={purpose} onChange={setPurpose} className="h-10 w-full" />

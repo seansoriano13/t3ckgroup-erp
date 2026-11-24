@@ -745,6 +745,16 @@ export const IPAS_PAYMENT_STATUS_LABELS = {
   [IPAS_PAYMENT_STATUS.PAID]: "Fully paid",
 };
 
+/** How soon the General Manager should pay an ask (ipas_payment_asks.priority), most urgent first. */
+export const IPAS_ASK_PRIORITIES = ["very_high", "high", "medium"];
+export const IPAS_ASK_DEFAULT_PRIORITY = "high";
+
+export const IPAS_ASK_PRIORITY_LABELS = {
+  very_high: "Very High",
+  high: "High",
+  medium: "Medium",
+};
+
 /** What an ask for payment is for (ipas_payment_asks.purpose). */
 export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "freight"];
 
