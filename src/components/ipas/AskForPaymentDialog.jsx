@@ -25,17 +25,18 @@ const PRIORITY_OPTIONS = IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPA
 /**
  * "Ask for payment" (ADR 0055): Purchasing says how much, in the P0's currency, and what for, so the General Manager
  * sees the IPAS as For payment. While an ask is open the dialog shows it and offers to withdraw it instead (an IPAS
- * has one open ask at a time; recording a payment closes it). `onAsk({ amount, purpose, note, priority, percent })` and `onWithdraw()`
+ * has one open ask at a time; recording a payment closes it). `initial` ({ purpose, amount }) pre-fills a new ask (#1209). `onAsk({ amount, purpose, note, priority, percent })` and `onWithdraw()`
  * return promises; the dialog closes when they resolve and says why in itself when they fail. Mounted only while open.
  */
 export default function AskForPaymentDialog({ open, onOpenChange, ...body }) {
   return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
-function Body({ number, figures, onAsk, onWithdraw, onClose }) {
+function Body({ number, figures, initial, onAsk, onWithdraw, onClose }) {
   const openAsk = figures?.paymentAsk ?? null;
-  const [amount, setAmount] = useState("");
-  const [purpose, setPurpose] = useState("down_payment");
+  const owed = Number(initial?.amount);
+  const [amount, setAmount] = useState(Number.isFinite(owed) && owed > 0 ? String(owed) : "");
+  const [purpose, setPurpose] = useState(initial?.purpose ?? "down_payment");
   const [note, setNote] = useState("");
   const [priority, setPriority] = useState(IPAS_ASK_DEFAULT_PRIORITY);
   const [percent, setPercent] = useState("");
@@ -43,11 +44,11 @@ function Body({ number, figures, onAsk, onWithdraw, onClose }) {
   const [failure, setFailure] = useState(null);
 
   const parsed = parseAmountInput(amount);
+  const percentRead = parsePercentInput(percent);
   const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && percentRead.ok && Boolean(priority);
   const currency = figures?.currency ? ` (${figures.currency})` : "";
   // The same base as a payment's percent: the P.I/QT Amount, else the P0 total.
   const base = percentBase({ piQtAmount: figures?.piAmount, poTotal: figures?.poTotal });
-  const percentRead = parsePercentInput(percent);
 
   // Typing a percent fills the amount; typing the amount by hand clears the percent (it would be a wrong label).
   const typePercent = (text) => {
