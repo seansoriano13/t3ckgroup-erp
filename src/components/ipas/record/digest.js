@@ -23,7 +23,7 @@ import { ipasFigures } from "@/utils/ipasFigures";
 import { filingChecklist, fileRulesOf, missingDocumentsByPart } from "@/utils/ipasDocuments";
 import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { formatDay } from "@/utils/ipasPayments";
-import { isLandedCostEstimate } from "@/utils/landedCost";
+import { forexRate, isLandedCostEstimate } from "@/utils/landedCost";
 import { formatDate } from "@/utils/formatDate.js";
 import { filingWaitsOn, gatesFor } from "./gates";
 import { orderProgress, paymentsProgress } from "./sectionRules";
@@ -84,6 +84,7 @@ export function digestIpas(ipas, signerLists = null) {
     // An estimate (a payment's pesos still blank) is said so wherever the figure shows (#604).
     landedFigureText: lc.totals ? pesos(lc.totals.landedPhp) : "Not available yet",
     landedText: lc.totals ? `${pesos(lc.totals.landedPhp)}${isLandedCostEstimate(lc) ? " (estimate)" : ""}` : "Not available yet",
+    forex: forexRate(ipas.payments ?? [], ipas.currency),
     rateText: lc.rate ? `${lc.rate.rate.toFixed(4)} PHP per ${lc.currency}` : null,
   };
 

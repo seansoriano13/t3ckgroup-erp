@@ -43,7 +43,7 @@ import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocume
 import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
 import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
-import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
+import { formatRateDay, formatRateNumber, rateDivergence, rateSourceLabel } from "@/utils/referenceRate";
 import { Field, GroupTitle, PickField, ReadValue, RequiredMark } from "./FormFields";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
@@ -227,7 +227,7 @@ function RateNote({ ipas, row }) {
         "The Reference Rate couldn't be loaded."
       ) : referenceRate ? (
         <>
-          reference: ₱{formatRateNumber(referenceRate.php_per_unit)} on {formatRateDay(referenceRate.rate_date)}
+          reference: ₱{formatRateNumber(referenceRate.php_per_unit)} on {formatRateDay(referenceRate.rate_date)}{rateSourceLabel(referenceRate.source) && <> ({rateSourceLabel(referenceRate.source)})</>}
           {referenceRate.rate_date < row.paidOn && " (the latest before this date)"}
           {typedRate !== null && <> — you typed ₱{formatRateNumber(typedRate)}</>}
         </>
