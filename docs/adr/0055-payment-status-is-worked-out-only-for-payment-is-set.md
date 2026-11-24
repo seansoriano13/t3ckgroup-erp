@@ -26,3 +26,13 @@ The General Manager (201) releases supplier payments but cannot tell from an IPA
 - A purchase that needs paying must have an IPAS to reach the GM.
 - The sheet's "Pending" becomes Not due yet, because Pending was an old IPAS Status step.
 - Odoo's own bill status is not read. Paid means paid as recorded on the IPAS.
+
+## Amendment, 2026-11-24: kept as two statuses, linked at For Payment
+
+Re-asked whether the Payment status should fold into the IPAS Status. Kept apart: Purchasing's own notes keep a Payment Status (D.P Paid, Fully paid) in the payments section and an order list beside it, and the Payment Forecast sheet already records a row as "For payment" while its note says "Ready to ship". Changes:
+
+- **Paid is renamed Fully paid**, the team's word.
+- **The IPAS Status gains a For Payment step** (ADR 0054 amendment). Picking it opens the ask for the down payment; a balance asked later still uses the ask alone.
+- **The ask carries a priority** (Very High, High, Medium), as the sheet's colours did, and may be typed as a percent of the order. The GM's list sorts by it.
+- **The pill shows the split**, "DP paid · 70% paid, 30% left", so a gap in the percents is seen. No rule forces the percents to 100: the amounts are the truth.
+- **Withholding (2307) is picked once on a Local IPAS** (1%, 2%, Not applicable) and shown on the Forecast, which lifts this ADR's earlier "withholding is out of scope".
