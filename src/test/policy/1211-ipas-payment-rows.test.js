@@ -3,7 +3,7 @@
  * `outsider` holds Purchasing access. Needs the local database stack.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { CAST_KEYS, FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
+import { FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { purgeFixtureIpas, raiseAsPurchaser } from "./support/ipas.js"
 
@@ -48,7 +48,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-    await purgeFixtureIpas(svc(), FIXTURE_DOMAIN, CAST_KEYS.map((k) => ids[k]))
+    await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
 })
 
 describe("the Others method", () => {
