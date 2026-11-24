@@ -1,6 +1,7 @@
 import StatusBadge from "../StatusBadge";
 import { IPAS_PAYMENT_STATUS, IPAS_PAYMENT_STATUS_LABELS } from "../../constants/ipas";
 import { paymentAskHover } from "../../utils/ipasPaymentAsk";
+import { paidLeftText } from "../../utils/ipasFigures";
 
 /**
  * The Payment status pill (ADR 0055), beside the IPAS Status and separate from it. Read from the IPAS figures
@@ -17,7 +18,9 @@ const THEME = {
 export default function IpasPaymentStatusPill({ figures, className = "" }) {
   const status = figures?.paymentStatus;
   if (!status) return null;
-  const label = IPAS_PAYMENT_STATUS_LABELS[status] ?? status;
+  const name = IPAS_PAYMENT_STATUS_LABELS[status] ?? status;
+  // #1207: "DP paid · 70% paid, 30% left", from the amounts.
+  const label = status === IPAS_PAYMENT_STATUS.DP_PAID ? `${name}${paidLeftText(figures) ? ` · ${paidLeftText(figures)}` : ""}` : name;
   const hover = paymentAskHover(figures);
   return (
     <span data-testid="ipas-payment-status-pill" data-payment-status={status} className="inline-flex max-w-full">

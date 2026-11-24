@@ -738,7 +738,7 @@ export const IPAS_PAYMENT_STATUS_LABELS = {
   [IPAS_PAYMENT_STATUS.NOT_DUE_YET]: "Not due yet",
   [IPAS_PAYMENT_STATUS.FOR_PAYMENT]: "For payment",
   [IPAS_PAYMENT_STATUS.DP_PAID]: "DP paid",
-  [IPAS_PAYMENT_STATUS.PAID]: "Paid",
+  [IPAS_PAYMENT_STATUS.PAID]: "Fully paid",
 };
 
 /** What an ask for payment is for (ipas_payment_asks.purpose). */

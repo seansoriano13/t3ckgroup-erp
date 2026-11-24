@@ -16,8 +16,8 @@ const pay = (kind, amount) => ({ kind, amount, methodLabel: "Bank TT" })
 describe("IpasPaymentStatusPill", () => {
   it.each([
     ["Not due yet", {}],
-    ["DP paid", { payments: [pay("down_payment", 3000)] }],
-    ["Paid", { payments: [pay("down_payment", 6000), pay("payment", 4000)] }],
+    ["DP paid · 30% paid, 70% left", { payments: [pay("down_payment", 3000)] }],
+    ["Fully paid", { payments: [pay("down_payment", 6000), pay("payment", 4000)] }],
   ])("reads %s from the figures", (label, over) => {
     render(<IpasPaymentStatusPill figures={ipasFigures(ipas(over))} />)
     expect(screen.getByTestId("ipas-payment-status-pill")).toHaveTextContent(label)
