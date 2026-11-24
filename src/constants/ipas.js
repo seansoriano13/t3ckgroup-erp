@@ -25,6 +25,15 @@ export const IPAS_SOURCE = {
   LOCAL: "local",
 };
 
+/** Withholding (2307) on a Local IPAS (ipas.withholding; CONTEXT.md). Not set is null. */
+export const IPAS_WITHHOLDING = { ONE: "1", TWO: "2", NOT_APPLICABLE: "not_applicable" };
+export const IPAS_WITHHOLDINGS = [IPAS_WITHHOLDING.ONE, IPAS_WITHHOLDING.TWO, IPAS_WITHHOLDING.NOT_APPLICABLE];
+export const IPAS_WITHHOLDING_LABELS = {
+  [IPAS_WITHHOLDING.ONE]: "1%",
+  [IPAS_WITHHOLDING.TWO]: "2%",
+  [IPAS_WITHHOLDING.NOT_APPLICABLE]: "Not applicable",
+};
+
 export const IPAS_SOURCES = [IPAS_SOURCE.IMPORT, IPAS_SOURCE.LOCAL];
 
 export const IPAS_SOURCE_LABELS = {

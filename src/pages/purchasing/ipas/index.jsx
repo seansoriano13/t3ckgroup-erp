@@ -88,6 +88,7 @@ const IPAS_SORT = {
   status: (r) => (r.figures.status ? IPAS_STATUSES.indexOf(r.figures.status) : IPAS_STATUSES.length),
   // The open ask's priority, Very High first; an IPAS with no open ask sorts last.
   priority: (r) => (r.figures.paymentAsk ? askPriorityRank(r.figures.paymentAsk.priority) : null),
+  withholding: (r) => (r.source === "local" ? (r.withholding ?? "") : null),
   "payment-status": (r) => (r.figures.paymentStatus ? IPAS_PAYMENT_STATUSES.indexOf(r.figures.paymentStatus) : IPAS_PAYMENT_STATUSES.length),
 };
 
@@ -130,6 +131,7 @@ const LIST_HEADINGS = [
   "Status",
   "Payment status",
   "Priority",
+  "Withholding",
   "Entity",
   "Purpose",
   "Costing",

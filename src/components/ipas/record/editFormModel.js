@@ -79,7 +79,7 @@ const OVERRIDE_KEYS = {
 /** Which form keys each section owns, for its changed count. The row lists are counted by `changeCount`. */
 export const OWNS = {
   header: ["entity", "remarks"],
-  purchasing: ["contact", "piNumber", "piQtAmount", "freight", "freightAmount", "freightCurrency", "freightBilled", "freightUrl"],
+  purchasing: ["contact", "piNumber", "piQtAmount", "freight", "freightAmount", "freightCurrency", "freightBilled", "freightUrl", "withholding"],
   finance: ["bankName", "accountName", "accountNumber"],
   costing: ["split", "computationStatus"],
   filing: [],
@@ -202,6 +202,7 @@ export function formFromIpas(ipas) {
     freightCurrency: ipas.freight_currency ?? "",
     freightBilled: Boolean(ipas.freight_billed_by_supplier),
     freightUrl: ipas.freight_attachment_url ?? "",
+    withholding: ipas.withholding ?? "",
     split: ipas.landedCostSplit ?? "value",
     computationStatus: ipas.computationStatus ?? "",
     bankName: bank?.bankName ?? "",
@@ -476,6 +477,7 @@ export function planSave(form, base) {
       attachmentUrl: form.freightUrl,
     };
   }
+  if (changed.has("withholding")) plan.withholding = form.withholding;
   if (changed.has("split")) plan.header.landedCostSplit = form.split;
   if (
     changed.has("piQtAmount") &&
@@ -584,6 +586,7 @@ export function planIsEmpty(plan) {
     plan.location === undefined &&
     plan.directDelivery === undefined &&
     plan.freight === undefined &&
+    plan.withholding === undefined &&
     plan.stamp === undefined &&
     plan.payments.add.length + plan.payments.update.length === 0 &&
     plan.charges.add.length + plan.charges.update.length === 0 &&

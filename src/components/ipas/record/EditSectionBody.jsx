@@ -9,13 +9,14 @@ import {
   IPAS_OVERRIDE,
   IPAS_PRIORITY_LABELS,
   IPAS_PURPOSE_LABELS,
+  IPAS_SOURCE,
   IPAS_SOURCE_LABELS,
 } from "@/constants/ipas";
 import { optionsForPicker } from "@/utils/ipasPayments";
 import { formatDate } from "@/utils/formatDate.js";
 import { Embedded, Field, GroupTitle, PickField, ReadValue, Tick } from "./FormFields";
 import { GRID } from "./formHelpers";
-import { BankFields, ChargesFields, CostingFields, DocumentsFields, FreightField, PaymentsFields } from "./MoneyFields";
+import { BankFields, ChargesFields, CostingFields, DocumentsFields, FreightField, PaymentsFields, WithholdingField } from "./MoneyFields";
 import { actualCheckingStampable } from "./editFormModel";
 
 /** The sections that type in place while editing. Filing and History are read-only here. */
@@ -69,6 +70,7 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
                 onChange={(v) => set("piQtAmount", v)}
               />
               <FreightField ipas={ipas} form={form} set={set} disabled={disabled} />
+              {ipas.source === IPAS_SOURCE.LOCAL && <WithholdingField form={form} set={set} disabled={disabled} />}
             </div>
           </div>
         </div>

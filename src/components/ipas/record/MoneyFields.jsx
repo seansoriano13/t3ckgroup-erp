@@ -33,6 +33,8 @@ import {
   IPAS_PAYMENT_KIND_LABELS,
   IPAS_TICK_SIDE_LABELS,
   IPAS_TICK_SIDE,
+  IPAS_WITHHOLDINGS,
+  IPAS_WITHHOLDING_LABELS,
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
@@ -208,6 +210,12 @@ export function FreightField({ ipas, form, set, disabled }) {
       <AttachFile label="Freight file" url={form.freightUrl} disabled={disabled} onChange={(v) => set("freightUrl", v)} />
     </>
   );
+}
+
+/** Withholding (2307) on a Local IPAS: what the GM leaves out of the payment for the BIR. Changes no amount. */
+export function WithholdingField({ form, set, disabled }) {
+  const options = IPAS_WITHHOLDINGS.map((value) => ({ value, label: IPAS_WITHHOLDING_LABELS[value] }));
+  return <PickField id="f-withholding" label="Withholding (2307)" emptyLabel="Not set" options={options} value={form.withholding} disabled={disabled} onChange={(v) => set("withholding", v)} />;
 }
 
 /** The one-line explanation under "Forex rate paid" (#708). */
