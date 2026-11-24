@@ -9,13 +9,14 @@ import { IPAS_REQUEST_SECTION, IPAS_STATE, IPAS_STATUS, IPAS_STATUS_LABELS, ipas
  *   the P.I document holds a file and the P.I/QT Amount is typed -> Payment Approval
  *     (a Local order's Quotation document plays the P.I; #1191)
  *   the Odoo copy's PO is purchase or done   -> Ordered
+ *   a payment was recorded that closed an ask for payment (#1209) -> Ordered
  *   Odoo reports the goods received, or a submitted Transmittal names the IPAS -> Delivered
  *     (on a Direct delivery only the Odoo receipt counts)
  *
  * Only the furthest matching step is returned, and only when it comes after the current step. Returns
  * `{ step, label, because }` or null. `because` is the plain sentence that leads the question.
  *
- *   ipas  the shaped IPAS: `state`, `source`, `status`, `statuses` (Odoo), `signoffSections`, `slips`,
+ *   ipas  the shaped IPAS: `payment_asks`, `state`, `source`, `status`, `statuses` (Odoo), `signoffSections`, `slips`,
  *         `direct_delivery` (#1158; absent reads as false)
  */
 /** The fixed keys on ipas_options.system_key (#1191), not the labels, which Purchasing Settings may rename. */
@@ -46,6 +47,10 @@ export function suggestStatus(ipas) {
   }
   if (odoo.purchaseOrder?.ticked) {
     matches.push({ step: IPAS_STATUS.ORDERED, because: "Odoo says this PO is confirmed." });
+  }
+  // #1209: a recorded payment closed an ask (closed_reason 'paid') -> Ordered. A withdrawn ask says nothing.
+  if ((ipas.payment_asks ?? []).some((ask) => ask?.closed_at && ask.closed_reason === "paid")) {
+    matches.push({ step: IPAS_STATUS.ORDERED, because: "A payment was recorded against the ask." });
   }
   if (odoo.receivedInOdoo?.ticked) {
     matches.push({ step: IPAS_STATUS.DELIVERED, because: "Odoo says the goods are received." });

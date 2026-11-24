@@ -1,5 +1,21 @@
 [
     {
+        "date": "2026-11-24",
+        "title": "For Payment step, payment priority and Withholding on the IPAS",
+        "version": "1.11.15",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "The IPAS Status has a new For Payment step. Picking it opens \"Ask for payment\", already filled with Down payment and the amount still owed.",
+            "Processing / Preparing Shipment is now two steps: In Production and Ready for Shipment.",
+            "An ask for payment now has a priority (Very High, High or Medium) and an optional percent of the order. The Payment Forecast lists Very High first, then the oldest ask.",
+            "A Local IPAS has a Withholding (2307) pick that tells the General Manager what to leave out of the payment.",
+            "A payment can use the method Others with the method typed in, and can hold several proof files.",
+            "The Forex rate on a foreign IPAS is worked out from its payments, and shows as an estimate until every payment has its pesos taken from the bank. US dollar Reference Rates now come from the BSP."
+        ]
+    },
+    {
         "date": "2026-11-23",
         "title": "Archived SORs, editable Activities and Calendar updates",
         "version": "1.11.14",

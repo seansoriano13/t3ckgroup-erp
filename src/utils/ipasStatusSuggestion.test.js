@@ -27,6 +27,16 @@ describe("suggestStatus (#1155)", () => {
     expect(hit).toMatchObject({ step: "ordered", label: "Ordered", because: "Odoo says this PO is confirmed." })
   })
 
+  it("suggests Ordered when a payment closed an ask, not when it was withdrawn (#1209)", () => {
+    const base = { status: "for_payment" }
+    const paid = { closed_at: "2026-11-24T01:00:00Z", closed_reason: "paid" }
+    const withdrawn = { closed_at: "2026-11-24T01:00:00Z", closed_reason: "withdrawn" }
+    expect(suggestStatus(ipasOf({ ...base, payment_asks: [paid] }))).toMatchObject({ step: "ordered", label: "Ordered" })
+    expect(suggestStatus(ipasOf({ ...base, payment_asks: [withdrawn] }))).toBeNull()
+    expect(suggestStatus(ipasOf({ ...base, payment_asks: [{ closed_at: null, closed_reason: null }] }))).toBeNull()
+    expect(suggestStatus(ipasOf({ status: "ordered", payment_asks: [paid] }))).toBeNull()
+  })
+
   it("suggests nothing once the status has reached or passed the step", () => {
     expect(suggestStatus(ipasOf({ status: "ordered", statuses: poConfirmed }))).toBeNull()
     expect(suggestStatus(ipasOf({ status: "in_transit", statuses: poConfirmed }))).toBeNull()

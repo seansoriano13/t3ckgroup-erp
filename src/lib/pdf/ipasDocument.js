@@ -169,7 +169,7 @@ function paymentsTable(vm) {
         <th style="width:17%">Method</th><th class="center" style="width:8%">Proof</th>
       </tr></thead><tbody>${s.payments
         .map(
-          (p) => `<tr><td style="font-weight:600">${esc(p.kind)}</td><td class="m">${esc(p.date)}</td>
+          (p) => `<tr><td style="font-weight:600">${esc(p.number)} · ${esc(p.kind)}</td><td class="m">${esc(p.date)}</td>
             <td class="num">${esc(p.amount)}</td><td class="num">${esc(p.phpDebited)}</td><td class="num">${esc(p.chargeFee)}</td>
             <td>${esc(p.method)}</td><td class="center">${tick(p.proofOfPayment)}</td></tr>`,
         )
@@ -359,13 +359,32 @@ export function buildIpasPagesHtml(vm) {
   </div>`;
 }
 
+/** One part of a file name: spaces become "-", characters a file name can't hold are dropped. */
+const fileNamePart = (value) =>
+  String(value ?? '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+
+/**
+ * The name the browser suggests for the saved PDF: `{Supplier}_{S0 + S0}_{IPAS number}`, ending in
+ * `_filing-copy` on the filing copy. An IPAS with no SOR leaves the S0 part out (spec #1205).
+ */
+export function ipasFileName(vm) {
+  const s0s = (vm.section2?.sors ?? []).map((sor) => fileNamePart(sor.reference)).filter((ref) => ref && ref !== '—');
+  const supplier = vm.supplier === '—' ? '' : fileNamePart(vm.supplier);
+  const parts = [supplier, s0s.join('+'), fileNamePart(vm.number)].filter(Boolean);
+  if (vm.filingCopy) parts.push('filing-copy');
+  return parts.join('_');
+}
+
 /** The full printable document: the same HTML the browser prints and "Save as PDF" converts. */
 export function buildIpasDocument(vm) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>${esc(vm.number)} · ${esc(vm.poNumber)}${vm.filingCopy ? ' · filing copy' : ''}</title>
+<title>${esc(ipasFileName(vm))}</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap">
 <style>${CSS}</style>

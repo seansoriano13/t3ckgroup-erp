@@ -9,7 +9,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import { isAuthorizedCaller } from "../_shared/cronAuth.ts";
-import { FEED_SOURCE, feedUrl, readFeedRate } from "../_shared/referenceRateFeed.ts";
+import { feedSource, feedUrl, readFeedRate } from "../_shared/referenceRateFeed.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
         p_currency: rate.currency,
         p_rate_date: rate.rateDate,
         p_php_per_unit: rate.phpPerUnit,
-        p_source: FEED_SOURCE,
+        p_source: feedSource(currency),
       });
       if (writeError) throw new Error(writeError.message);
       written.push(rate);

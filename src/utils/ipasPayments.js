@@ -47,6 +47,45 @@ export function formatDay(value) {
   return `${MONTHS[month - 1]} ${day}, ${year}`;
 }
 
+/** 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11 -> "11th", 21 -> "21st". */
+export function ordinal(n) {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
+}
+
+/**
+ * The payments in display order with their numbers (#1211): by payment date, then the order the rows were
+ * created in. Worked out each time, never stored. `[{ payment, number: "1st" }, ...]`.
+ */
+export function numberPayments(payments = []) {
+  return payments
+    .map((payment, index) => ({ payment, index }))
+    .sort((a, b) => {
+      const byDay = String(a.payment?.paid_on ?? "").localeCompare(String(b.payment?.paid_on ?? ""));
+      if (byDay) return byDay;
+      const byTime = String(a.payment?.created_at ?? "").localeCompare(String(b.payment?.created_at ?? ""));
+      return byTime || a.index - b.index;
+    })
+    .map(({ payment }, position) => ({ payment, number: ordinal(position + 1) }));
+}
+
+/** True for the "Others" payment method (its label, as the list shows it). */
+export const isOthersMethod = (label) => /^others?$/i.test(String(label ?? "").trim());
+
+/** A payment's proof files, oldest first. A proof that was only a link (no file rows yet) reads as one file. */
+export function paymentProofFiles(row) {
+  const rows = [...(row?.ipas_payment_files ?? row?.proofFiles ?? [])].sort((a, b) =>
+    String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+  );
+  const files = rows.map((file) => ({ id: file.id ?? file.url, url: file.url, fileName: file.file_name ?? file.fileName ?? "Proof of payment" }));
+  if (files.length === 0 && row?.proof_url) return [{ id: row.proof_url, url: row.proof_url, fileName: "Proof of payment" }];
+  return files;
+}
+
+/** True when the payment has at least one proof file: what a required proof asks for. */
+export const paymentHasProof = (payment) => paymentProofFiles(payment).length > 0;
+
 /**
  * A payment row with its method and who recorded it. `options` is a Map of
  * ipas_options id -> row; a method the list no longer shows still resolves,
@@ -54,6 +93,10 @@ export function formatDay(value) {
  */
 export function shapePayment(row, options = new Map()) {
   const method = options.get(row.method_id) ?? null;
+  const proofFiles = paymentProofFiles(row);
+  // "Others" reads as what was typed, on screen, in the print and in the Payment scheme (#1211).
+  const typed = typeof row.method_other === "string" ? row.method_other.trim() : "";
+  const methodLabel = method && isOthersMethod(method.label) && typed ? typed : (method?.label ?? null);
   return {
     ...row,
     amount: finiteNumber(row.amount),
@@ -67,8 +110,9 @@ export function shapePayment(row, options = new Map()) {
     bank_charge_php: Math.max(0, fromCents(toCents(finiteNumber(row.charge_fee_php) ?? 0) - toCents(finiteNumber(row.doc_stamp_php) ?? 0) - toCents(finiteNumber(row.misc_fee_php) ?? 0))),
     rate: paymentRate(row),
     method,
-    methodLabel: method?.label ?? null,
-    hasProof: Boolean(row.proof_url),
+    methodLabel,
+    proofFiles,
+    hasProof: proofFiles.length > 0,
   };
 }
 
@@ -117,7 +161,7 @@ export function summarizePayments(payments = [], charges = [], currency = null) 
     if (php === null) missingPhp += 1;
     else phpDebited += php;
     chargeFeesPhp += finiteNumber(payment?.charge_fee_php) ?? 0;
-    if (payment?.proof_url) hasProof = true;
+    if (paymentHasProof(payment)) hasProof = true;
   }
 
   const chargesPhp = charges.reduce((sum, charge) => sum + (finiteNumber(charge?.amount_php) ?? 0), 0);

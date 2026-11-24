@@ -52,3 +52,21 @@ describe("ipasExportRows: the Payment status column (#1188)", () => {
     expect(cell("Payment status", cancelled)).toBeNull();
   });
 });
+
+describe("ipasExportRows: the Withholding (2307) column (#1210)", () => {
+  it("writes the pick in words for a Local IPAS, and nothing when it is not set", () => {
+    expect(IPAS_EXPORT_HEADER).toContain("Withholding (2307)");
+    const [two] = ipasExportRows([row({ source: "local", withholding: "2" })]);
+    expect(two).toHaveLength(IPAS_EXPORT_HEADER.length);
+    expect(cell("Withholding (2307)", two)).toBe("2%");
+    const [na] = ipasExportRows([row({ source: "local", withholding: "not_applicable" })]);
+    expect(cell("Withholding (2307)", na)).toBe("Not applicable");
+    const [unset] = ipasExportRows([row({ source: "local", withholding: null })]);
+    expect(cell("Withholding (2307)", unset)).toBeNull();
+  });
+
+  it("never writes one for an Import IPAS", () => {
+    const [values] = ipasExportRows([row({ source: "import", withholding: "1" })]);
+    expect(cell("Withholding (2307)", values)).toBeNull();
+  });
+});

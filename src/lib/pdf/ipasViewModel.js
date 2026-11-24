@@ -45,7 +45,7 @@ import { paymentKindWithPercent } from '../../utils/ipasPaymentPercent';
 import { ipasFigures, realPercent } from '../../utils/ipasFigures';
 import { toCents } from '../../utils/landedCost';
 import { landedTable } from '../../utils/ipasLandedTable';
-import { formatDay } from '../../utils/ipasPayments';
+import { formatDay, numberPayments } from '../../utils/ipasPayments';
 import { isLandedCostFinal } from '../../utils/ipasSignoffs';
 import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote, landedCostMarkLabel } from '../../utils/landedCost';
 
@@ -341,10 +341,11 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
       amount: printAmount(line.price_subtotal, currency),
     })),
     itemsTotal: printAmount(itemsTotal, currency),
-    payments: payments.map((payment) => {
+    payments: numberPayments(payments).map(({ payment, number }) => {
       const method = text(payment.methodLabel);
       const checkNo = text(payment.check_no);
       return {
+        number,
         kind: paymentKindWithPercent(payment.kind, Number(payment.percent_of_order) > 0 ? (realPercent(toCents(payment.amount ?? 0), owed) ?? payment.percent_of_order) : payment.percent_of_order) || text(payment.kind) || BLANK,
         date: payment.paid_on ? formatDay(payment.paid_on) : BLANK,
         amount: printAmount(payment.amount, currency),
@@ -352,7 +353,7 @@ export function buildIpasViewModel(ipas, { filingCopy = false, printedAt = null,
         phpDebited: isPhp ? peso(payment.amount) : peso(payment.php_debited),
         chargeFee: Number(payment.charge_fee_php) > 0 ? peso(payment.charge_fee_php) : BLANK,
         method: method ? `${method}${checkNo ? ` · ${checkNo}` : ''}` : BLANK,
-        proofOfPayment: Boolean(payment.hasProof ?? payment.proof_url),
+        proofOfPayment: Boolean(payment.hasProof ?? payment.proof_url ?? payment.proofFiles?.length),
       };
     }),
     totalDebited: peso(summary.totalDebitedPhp ?? 0),
