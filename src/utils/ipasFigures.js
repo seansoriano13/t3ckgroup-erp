@@ -121,7 +121,9 @@ export function realPercent(paymentCents, owed) {
 export function paidLeftText(figures) {
   const { paidPercent, leftPercent } = figures ?? {};
   if (paidPercent === null || paidPercent === undefined || leftPercent === null || leftPercent === undefined) return "";
-  return `${paidPercent}% paid, ${leftPercent}% left`;
+  // At most one decimal on screen: "37.1% paid, 62.9% left", not the four the figures keep.
+  const show = (value) => Number(Number(value).toFixed(1));
+  return `${show(paidPercent)}% paid, ${show(leftPercent)}% left`;
 }
 
 export function ipasFigures(ipas) {

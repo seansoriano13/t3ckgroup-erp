@@ -338,6 +338,8 @@ describe("ipasFigures: Payment status (ADR 0055)", () => {
     // 30% + 60% typed, but the amounts leave 10% owed
     const gap = ipasFigures(ipas({ pi_qt_amount: 10000, payments: [{ ...pay("down_payment", 3000, "Bank TT"), percent_of_order: 30 }, { ...pay("payment", 6000, "Bank TT"), percent_of_order: 60 }] }))
     expect(paidLeftText(gap)).toBe("90% paid, 10% left")
+    // An uneven split shows at most one decimal (found on staging: "37.1033% paid")
+    expect(paidLeftText({ paidPercent: 37.1033, leftPercent: 62.8967 })).toBe("37.1% paid, 62.9% left")
   })
 
   it("reads Paid with nothing left, even on an order still at Order-Draft", () => {

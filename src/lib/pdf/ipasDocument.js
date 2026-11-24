@@ -372,7 +372,9 @@ const fileNamePart = (value) =>
  */
 export function ipasFileName(vm) {
   const s0s = (vm.section2?.sors ?? []).map((sor) => fileNamePart(sor.reference)).filter((ref) => ref && ref !== '—');
-  const supplier = vm.supplier === '—' ? '' : fileNamePart(vm.supplier);
+  // The supplier sits in section 1 of the view model (the Odoo partner, never the typed contact).
+  const name = vm.section1?.supplier;
+  const supplier = name === '—' ? '' : fileNamePart(name);
   const parts = [supplier, s0s.join('+'), fileNamePart(vm.number)].filter(Boolean);
   if (vm.filingCopy) parts.push('filing-copy');
   return parts.join('_');

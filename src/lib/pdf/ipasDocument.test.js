@@ -104,7 +104,7 @@ describe("the one A4 page of flow rows", () => {
 
   it("names the saved file Supplier_S0_IpasNumber", () => {
     const vm = (supplier, refs, extra = {}) => ({
-      supplier,
+      section1: { supplier },
       number: "TGIPAS_081",
       filingCopy: false,
       section2: { sors: refs.map((reference) => ({ reference })) },
@@ -116,7 +116,9 @@ describe("the one A4 page of flow rows", () => {
     expect(ipasFileName(vm("Supplier", []))).toBe("Supplier_TGIPAS_081")
     expect(ipasFileName(vm('A/B: "Co"?', ["S01"]))).toBe("AB-Co_S01_TGIPAS_081")
     expect(ipasFileName(vm("Supplier", ["S01"], { filingCopy: true }))).toBe("Supplier_S01_TGIPAS_081_filing-copy")
-    expect(doc({}, {}, (m) => { m.supplier = "Acme Ltd" })).toMatch(/<title>Acme-Ltd_.*TGIPAS_050<\/title>/)
+    expect(ipasFileName(vm("—", ["S01"]))).toBe("S01_TGIPAS_081")
+    // Built from a real view model, so the supplier is read from where the print keeps it.
+    expect(doc()).toMatch(/<title>Redleaf-Medical-Supplies_S07983_TGIPAS_050<\/title>/)
   })
 
   it("has no Transmittals list", () => {
