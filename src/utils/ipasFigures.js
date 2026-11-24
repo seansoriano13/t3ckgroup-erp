@@ -106,7 +106,6 @@ const methodLabelOf = (payment) => {
  *                       there is no Amount
  *   paidPercent, leftPercent  the split worked out from the amounts: paid and still owed as a percent of the order
  *                       (the percent typed on a row is only a label); null with no Amount
- *   paidPercent, leftPercent  the split worked out from the amounts (the percent typed on a row is only a label); null with no Amount
  *   overpaidBy          paid - amount when the payments pass the order amount (spec #1123, A2); 0 otherwise
  *   paymentMethods      distinct method labels, first used first
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none

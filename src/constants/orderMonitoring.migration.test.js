@@ -6,9 +6,10 @@ import { ORDER_AGEING_STEPS } from "./orderMonitoring";
 /** The step list lives in the constants and in the migration's CHECK and seed; this keeps them equal. */
 describe("order ageing steps", () => {
   it("match the steps the migration allows and seeds", () => {
-    // The latest migration to touch the CHECK (#590 added section_3_approval) and the seeds of both.
-    const latest = readFileSync("supabase/migrations/20261221150000_1156_order_ageing_status_steps.sql", "utf8");
-    const sql = latest;
+    // The latest migration to touch the CHECK (#1206 added for_payment, in_production, ready_for_shipment) and the
+    // seeds of #1156 and #1206 together.
+    const first = readFileSync("supabase/migrations/20261221150000_1156_order_ageing_status_steps.sql", "utf8");
+    const latest = readFileSync("supabase/migrations/20261226100000_1206_ipas_status_for_payment_production.sql", "utf8");
     const keys = ORDER_AGEING_STEPS.map((step) => step.key);
     const quoted = (text) => [...text.matchAll(/'([a-z0-9_]+)'/g)].map((match) => match[1]);
 
@@ -17,9 +18,9 @@ describe("order ageing steps", () => {
     expect(quoted(check[1]).sort()).toEqual([...keys].sort());
 
     // The rules that carry over keep their days: renamed in place, never re-seeded blank.
-    const seed = sql.match(/insert into[^;]*order_ageing_rules[^;]*;/i);
-    expect(seed, "the migration seeds every new step").not.toBeNull();
-    const seeded = quoted(seed[0]).filter((key) => keys.includes(key));
+    const seeds = [first, latest].flatMap((sql) => sql.match(/insert into[^;]*order_ageing_rules[^;]*;/gi) ?? []);
+    expect(seeds.length, "the migrations seed every new step").toBeGreaterThan(0);
+    const seeded = [...new Set(seeds.flatMap(quoted).filter((key) => keys.includes(key)))];
     expect(seeded.sort()).toEqual([...keys].sort());
   });
 
