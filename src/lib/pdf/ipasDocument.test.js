@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildIpasDocument, buildIpasPagesHtml } from "./ipasDocument"
+import { buildIpasDocument, buildIpasPagesHtml, ipasFileName } from "./ipasDocument"
 import { buildIpasViewModel } from "./ipasViewModel"
 import { BAUTISTA, RAMOS, makePrintableIpas, signoffRow } from "@/test/ipasPrint"
 
@@ -98,7 +98,25 @@ describe("the one A4 page of flow rows", () => {
 
     expect(ordinary).not.toContain("Filing copy")
     expect(filing.match(/copy-mark">Filing copy/g)).toHaveLength(1)
-    expect(filing).toContain("<title>TGIPAS_050 · P02445 · filing copy</title>")
+    expect(filing).toMatch(/<title>[^<]*_filing-copy<\/title>/)
+    expect(ordinary).not.toContain("filing-copy")
+  })
+
+  it("names the saved file Supplier_S0_IpasNumber", () => {
+    const vm = (supplier, refs, extra = {}) => ({
+      supplier,
+      number: "TGIPAS_081",
+      filingCopy: false,
+      section2: { sors: refs.map((reference) => ({ reference })) },
+      ...extra,
+    })
+
+    expect(ipasFileName(vm("Supplier Name", ["S07362"]))).toBe("Supplier-Name_S07362_TGIPAS_081")
+    expect(ipasFileName(vm("Supplier", ["S01", "S02"]))).toBe("Supplier_S01+S02_TGIPAS_081")
+    expect(ipasFileName(vm("Supplier", []))).toBe("Supplier_TGIPAS_081")
+    expect(ipasFileName(vm('A/B: "Co"?', ["S01"]))).toBe("AB-Co_S01_TGIPAS_081")
+    expect(ipasFileName(vm("Supplier", ["S01"], { filingCopy: true }))).toBe("Supplier_S01_TGIPAS_081_filing-copy")
+    expect(doc({}, {}, (m) => { m.supplier = "Acme Ltd" })).toMatch(/<title>Acme-Ltd_.*TGIPAS_050<\/title>/)
   })
 
   it("has no Transmittals list", () => {
