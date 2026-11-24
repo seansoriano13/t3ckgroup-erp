@@ -23,7 +23,7 @@
 
 export const RELEASE = {
   title: "What's new: October–November",
-  window: "Everything that changed in the ERP from 1 October to 16 November 2026.",
+  window: "Everything that changed in the ERP from 1 October to 24 November 2026.",
 }
 
 export const SECTIONS = [
@@ -73,6 +73,30 @@ export const SECTIONS = [
         body: "In Activity & Log Notes, a change to an SOR shows as a label with the old and new value. Products that were added, removed, changed or renamed are grouped, and each group opens to show the details.",
         who: ["Sales", "Deal Team"],
         sample: "change-notes",
+      },
+      {
+        id: "archived-sors",
+        title: "Archived SORs",
+        body: "A Super Admin can archive an SOR from its menu. An archived SOR leaves My work, the List and the Board, and waits under the new Archived tab, where a Super Admin can Un-archive it. It still opens, and it still counts in every register, report, dashboard and commission total. Archive is not Delete, which is for SORs made by mistake and takes them out of every total, and it is not Lost, which is how a deal ended.",
+        who: ["Super Admin", "Sales", "Management"],
+        highlights: [
+          {
+            title: "Put away, not gone",
+            text: "An archived SOR leaves My work, the List and the Board, but still opens.",
+          },
+          {
+            title: "Still counted",
+            text: "It counts in every register, report, dashboard and commission total.",
+          },
+          {
+            title: "The Archived tab",
+            text: "It lists the archived SORs. A Super Admin can Un-archive one from there.",
+          },
+          {
+            title: "Not Delete, not Lost",
+            text: "Delete is for SORs made by mistake and takes them out of every total. Lost is how a deal ended.",
+          },
+        ],
       },
       {
         id: "contract-date",
@@ -309,6 +333,38 @@ export const SECTIONS = [
       {
         text: "The register shows a page at a time, and you pick 10, 25 or 50 rows a page.",
       },
+      {
+        text: "In the List, Status is now the third column, right after the SOR and SO numbers.",
+      },
+      {
+        text: "The List's Stage filter finds every SOR on that Stage.",
+        before: "SORs on a Sales Flow Stage, such as Qualified, were left out.",
+      },
+      {
+        text: "The List's Blocked on reads every note, so a file you already uploaded is no longer called missing.",
+      },
+      {
+        text: "SOR notes load for people let in on one Stage, and the note about what you can see folds away.",
+        before: "The notes came back empty for them.",
+      },
+      {
+        text: "SORs, their notes and their chat open faster.",
+      },
+      {
+        text: "The Board and the employee matrix show every Stage in its own colour.",
+      },
+      {
+        text: "On the Commission Pool page, the Projected pool no longer counts deals that are Awarded or later but have no Contract Date.",
+      },
+      {
+        text: "Commission percentages below 0 or above 100 are refused when you save a rate, a department, a position or a split.",
+      },
+      {
+        text: "The Sales fund on the Commission Pool page is hidden from anyone who cannot see Sales amounts. If you can see it and it is zero, it shows ₱0.00.",
+      },
+      {
+        text: "Opening a deal on the Commission Pool page shows its receipt, with the Stage it is at.",
+      },
     ],
   },
   {
@@ -448,6 +504,16 @@ export const SECTIONS = [
       {
         text: "Group Tasks show a page at a time, with 10, 25 or 50 rows a page.",
       },
+      {
+        text: "The Group Tasks list loads again.",
+        before: "It could stop with a timeout.",
+      },
+      {
+        text: "Adding or editing a Group Task member works again.",
+      },
+      {
+        text: "The Task Approvals count in the side menu matches the Task Approvals page.",
+      },
     ],
   },
   {
@@ -542,6 +608,46 @@ export const SECTIONS = [
         body: "HR and Super Admins add, rename, reorder, hide or delete the Venues people can book, in Settings under Venues.",
         who: ["HR", "Super Admin"],
         sample: "venues",
+      },
+      {
+        id: "retention-dates",
+        title: "Retention release dates on the Calendar",
+        body: "The Retention release date, the day an SOR's warranty ends so its Retention Money can be collected, now shows on the Calendar. It is typed on the SOR while it sits at the Retention Stage. On the Calendar it is an all-day entry named after the SOR and the date, and clicking it opens the SOR. Only people who can read that part of the SOR see it. Deleted and Lost SORs show none.",
+        who: ["Sales", "Management"],
+        flow: [
+          {
+            title: "Type the date on the SOR",
+            text: "At the Retention Stage, type the Retention release date. It is optional, so it never stops a move.",
+          },
+          {
+            title: "It shows on the Calendar",
+            text: "As an all-day entry named after the SOR and the date.",
+          },
+          {
+            title: "Click it to open the SOR",
+            text: "Only people who can read that part of the SOR see it. Deleted and Lost SORs show none.",
+          },
+        ],
+      },
+      {
+        id: "activity-also-allowed",
+        title: "Let a few more people file heads-only Activities",
+        body: "When an Activity type is set to Department heads only, HR and Super Admins can now name extra people under Also allowed who may file it too, without making them heads or opening the type to everyone. The list shows on the type's card in Settings, under Activities, only while the type is heads-only. Every change, with who was added or removed, is written to the Activity Log.",
+        who: ["HR", "Super Admin", "Department heads"],
+        highlights: [
+          {
+            title: "Also allowed",
+            text: "Name extra people who may file a heads-only Activity type.",
+          },
+          {
+            title: "Only for heads-only types",
+            text: "The list shows on the type's card in Settings, under Activities, while the type is set to Department heads only.",
+          },
+          {
+            title: "Written down",
+            text: "The Activity Log names who was added or removed.",
+          },
+        ],
       },
       {
         id: "time-off-page",
@@ -671,6 +777,94 @@ export const SECTIONS = [
         ],
       },
       {
+        id: "activity-after-day",
+        kind: "change",
+        title: "An Activity can be changed after its day",
+        body: "The person who filed an Activity can change all of it, or cancel it, even after its day, so it records what really happened. Such a change does not go back to HR and sends no notes. Cancelling an Activity once all its days are over means it did not happen, and the Calendar no longer shows it as held.",
+        who: ["Everyone"],
+        flow: [
+          {
+            title: "The day has passed",
+            text: "The person who filed the Activity can still open it.",
+          },
+          {
+            title: "Change what really happened",
+            text: "Every field can change, past days included. It does not go back to HR, and no one gets a note.",
+          },
+          {
+            title: "Or cancel it",
+            text: "Cancelling after its days are over means it did not happen. The Calendar no longer shows it as held.",
+          },
+        ],
+      },
+      {
+        id: "activity-form",
+        kind: "change",
+        title: "The Activity form helps you file",
+        body: "The New Activity form opens ready to file, at the next free time today, or tomorrow when today has no time left. Each reason it cannot be filed yet shows right under its own box, and closing it after you typed something asks Discard this Activity? first.",
+        who: ["Everyone"],
+        highlights: [
+          {
+            title: "Opens ready to file",
+            text: "At the next free time today, or tomorrow when today has no time left.",
+          },
+          {
+            title: "Reasons under each box",
+            text: "Each reason the form cannot be filed yet shows under its own box, not only at the bottom.",
+          },
+          {
+            title: "Clear limits",
+            text: "A meeting link starts with http:// or https:// and has no spaces. A purpose is up to 500 characters, and a date up to one year ahead.",
+          },
+          {
+            title: "Asks before it throws away",
+            text: "Closing the form after typing asks Discard this Activity? first.",
+          },
+        ],
+      },
+      {
+        id: "hr-activities-history",
+        kind: "change",
+        title: "HR's Activities queue has a History tab",
+        body: "In Approvals, the Activities queue now has a History tab of what was decided. You get one message after you decide, not two. Waiting counts from the last time the Activity was filed, not from the first.",
+        who: ["HR"],
+        highlights: [
+          {
+            title: "History tab",
+            text: "See the Activities already decided.",
+          },
+          {
+            title: "One message",
+            text: "One message after you decide, not two.",
+          },
+          {
+            title: "Waiting from the last filing",
+            text: "Waiting counts from the last time the Activity was filed.",
+          },
+        ],
+      },
+      {
+        id: "my-profile-own-fields",
+        kind: "change",
+        title: "On your own record, you change your photo, banner, quote and signature",
+        body: "On your own employee record you can now change only your photo, banner, quote and signature. The other fields are locked. Your dashboard quote can be up to 100 characters, and a banner web address must start with https://. My Profile says so, and the server refuses anything else.",
+        who: ["Everyone"],
+        highlights: [
+          {
+            title: "Yours to change",
+            text: "Your photo, banner, quote and signature.",
+          },
+          {
+            title: "The rest is locked",
+            text: "Every other field on your record is locked.",
+          },
+          {
+            title: "Limits",
+            text: "A quote is up to 100 characters. A banner web address starts with https://.",
+          },
+        ],
+      },
+      {
         id: "file-time-off",
         kind: "fix",
         title: "The File Time Off form tells you what is missing",
@@ -759,7 +953,47 @@ export const SECTIONS = [
       {
         text: "On a phone, the Calendar shows an agenda list, and on a laptop more weeks fit.",
       },
-
+      {
+        text: "Editing an Activity and saving without a change keeps it approved.",
+        before: "It went back to waiting for HR.",
+      },
+      {
+        text: "Deleting a Venue asks you first. Venue names are the same whatever the capitals, so Room A and room a cannot both exist, and clearing a name while renaming puts the old name back.",
+      },
+      {
+        text: "The wording says Activity everywhere, including the Cancel text, the Status row and the Activity Log.",
+      },
+      {
+        text: "Long words in an Activity's purpose wrap instead of running off the page.",
+      },
+      {
+        text: "The Activity form no longer warns about a clash while it is sending, and shows the end time in 12-hour style.",
+      },
+      {
+        text: "In Full screen, the Calendar fills the window, and Show pending and the profile menu work.",
+      },
+      {
+        text: "The Calendar's Full screen button works again, and long titles no longer stretch a Gantt day.",
+      },
+      {
+        text: "HR Logs shows every type of HR entry.",
+      },
+      {
+        text: "HR's numbers on My Profile match the Approval Center.",
+      },
+      {
+        text: "Choosing a file that is not a picture for your photo closes the window and tells you.",
+      },
+      {
+        text: "Opening a Reset password link while signed in tells you so and points you to My Profile.",
+      },
+      {
+        text: "The record check page, opened from a printed form's QR code, says when you checked too many records in a short time.",
+        before: "It said Record Not Found.",
+      },
+      {
+        text: "The record check page's headline follows the signature checks, and signed-in HR and Super Admins are no longer slowed down there.",
+      },
     ],
   },
   {
@@ -1086,6 +1320,21 @@ export const SECTIONS = [
       {
         text: "Signing in shows what is wrong next to the field, the sign-in page reads well in dark mode, and Tab goes from email straight to password.",
       },
+      {
+        text: "The bell counts every unread notification you have, not only the ones loaded on the page.",
+      },
+      {
+        text: "The sign-in and Reset password pages use plain words, and the intro video no longer loads on phones.",
+      },
+      {
+        text: "An inactive account is signed out quietly, with one clear message on the sign-in page.",
+      },
+      {
+        text: "The emoji reaction pop-up in chats opens right next to its button and is never cut off.",
+      },
+      {
+        text: "A long list of choices in a record's picker scrolls inside its pop-up, and the buttons at its bottom stay in view.",
+      },
     ],
   },
   {
@@ -1235,6 +1484,34 @@ export const SECTIONS = [
         body: "Sale Type is required when registering an SOR, and the Legacy Pipeline flow is view only. Existing legacy SORs keep working.",
         who: ["Admins", "Sales"],
       },
+      {
+        id: "show-on-calendar",
+        kind: "change",
+        title: "A date Stage Field can show on the Calendar",
+        body: "In the Flow Canvas, a date Stage Field you made has a Show on Calendar switch. Turn it on and the date shows on the Calendar as an all-day entry that opens the SOR, seen only by people who can read that part of the SOR. The Retention release date uses it.",
+        who: ["Admins"],
+        flow: [
+          {
+            title: "Open the date field in the Flow Canvas",
+            text: "A date Stage Field you made for a Stage.",
+          },
+          {
+            title: "Turn on Show on Calendar",
+            text: "The switch sits on the field.",
+          },
+          {
+            title: "The date shows on the Calendar",
+            text: "As an all-day entry that opens the SOR, seen only by people who can read that part of the SOR.",
+          },
+        ],
+      },
+      {
+        id: "approval-rules",
+        kind: "removed",
+        title: "The Approval Rules tab is gone",
+        body: "Its five switches had not changed since March, so each one now always does what it was set to, and the tab is gone from Settings. Every task owner still gets Submit for Review, managers can still approve tasks in bulk, and a task still shows DELAYED to its owner after 48 hours. The Self-Verify button, which was switched off, is removed.",
+        who: ["Super Admin"],
+      },
     ],
     alsoFixed: [
       {
@@ -1260,6 +1537,21 @@ export const SECTIONS = [
       },
       {
         text: "Outdated SORs: updating to a newer version starts the new Stage's actions, and anything that could not be planned is shown.",
+      },
+      {
+        text: "The employee form has a Logistics access switch. See Purchasing.",
+      },
+      {
+        text: "Only a Super Admin can change Lead Sources and post System Announcements.",
+      },
+      {
+        text: "The Activity Log filters work: Task status, Department and Sub-department narrow the list.",
+      },
+      {
+        text: "Searching the Activity Log works with commas and special characters.",
+      },
+      {
+        text: "Task Logs no longer shows a LIVE badge it cannot back up, and its rows show the Status on a phone.",
       },
     ],
   },
@@ -1499,6 +1791,12 @@ export const SECTIONS = [
       {
         text: "The Other costs table keeps the Description readable on narrow screens, and scrolls sideways instead.",
       },
+      {
+        text: "Purchasers no longer see the Bid Decision on a sheet. They keep the Closed Book.",
+      },
+      {
+        text: "Opening the Bid Decisions page without access takes you back to the home page.",
+      },
     ],
   },
   {
@@ -1537,6 +1835,26 @@ export const SECTIONS = [
         body: "An SOR has one Purchase Request, opened by a Stage or with New Purchase Request. Requests are numbered, such as PR_0042. The Deal Team adds products, or uses Ask for a product for one that is not on the S0. Purchasing checks the stock and sets each product's status: Available, To purchase, Still canvassing, Purchased, Received, Cannot source or Cancelled. Tick several lines to change them in one go, and Undo a change for a few seconds after. Replace a product swaps it for another, with a reason. Each request has its own chat. It replaces the old procurement requests and the Procurement Queue.",
         who: ["Sales", "Purchasing"],
         sample: "purchase-requests",
+      },
+      {
+        id: "delete-purchase-request",
+        title: "Delete a Purchase Request, and restore it",
+        body: "The person who asked for a Purchase Request, Purchasing or a Super Admin can delete it, with a reason. It is refused once a line is purchased, received or on an IPAS. A deleted request is hidden everywhere, and its members get a notification. Purchasing and Super Admins can bring it back from the Deleted view.",
+        who: ["Sales", "Purchasing"],
+        flow: [
+          {
+            title: "Delete, with a reason",
+            text: "The person who asked for it, Purchasing or a Super Admin. Not once a line is purchased, received or on an IPAS.",
+          },
+          {
+            title: "Hidden everywhere",
+            text: "Its members get a notification, and the request's Chat says so.",
+          },
+          {
+            title: "Restore it",
+            text: "Purchasing and Super Admins bring it back from the Deleted view.",
+          },
+        ],
       },
       {
         id: "direct-requests",
@@ -1611,6 +1929,151 @@ export const SECTIONS = [
         sample: "ipas",
       },
       {
+        id: "ipas-status",
+        title: "The IPAS Status, in the team's own words",
+        body: "Every IPAS has one Status, picked from a dropdown at the top of the record. It saves at once, with no date to type, and every change is posted in the IPAS's Chat with who made it, so the Chat is its history. A small ? beside the Status, and What do these mean? at the bottom of the dropdown, open a short guide to each step. Done comes only from Filing.",
+        points: [
+          "The steps: Order-Draft, Payment Approval, For Payment, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit, Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered and Done. A Local purchase skips Customs / Port Hold, Arrived at Local Hub and Out for Delivery.",
+          "When the IPAS already knows a later step, such as the P.I file and amount being in, the PO being confirmed, a payment being recorded or the goods being received, it suggests that step under the Status. It never moves on its own.",
+          "Purchasing, Super Admins and people with the new Logistics access set the Status until the IPAS is filed. Logistics access also lets them read every IPAS.",
+          "The Status shows on the IPAS list, right after the Odoo PO, and in the Excel export, the SOR, the Purchasing Dashboard and the printed IPAS. The State column is gone: the Open, Filed and Cancelled tabs already say it.",
+          "The ageing rules for late orders follow the Status steps.",
+        ],
+        who: ["Purchasing", "Logistics", "Finance"],
+        flow: [
+          {
+            title: "Pick the step",
+            text: "From the dropdown at the top of the IPAS. It saves at once.",
+          },
+          {
+            title: "It is posted in the Chat",
+            text: "With who changed it, so the Chat is the Status history.",
+          },
+          {
+            title: "Suggested, never automatic",
+            text: "When the IPAS already knows a later step, it suggests it. You decide.",
+          },
+          {
+            title: "Done when filed",
+            text: "Done comes only from Filing.",
+          },
+        ],
+      },
+      {
+        id: "direct-delivery",
+        title: "Direct delivery to the client",
+        body: "When the supplier delivers the whole order straight to the client, tick Direct delivery to client on the IPAS. It then asks for no Item Location and expects no Transmittal, and the IPAS summary and the printed IPAS say Direct delivery in place of the Item Location. The Logistics sign-off is still given before Filing.",
+        who: ["Purchasing", "Logistics"],
+        flow: [
+          {
+            title: "The supplier delivers to the client",
+            text: "The whole order goes straight to the client and never reaches our warehouse.",
+          },
+          {
+            title: "Tick Direct delivery to client",
+            text: "Purchasing or Logistics ticks it on the IPAS, until it is filed.",
+          },
+          {
+            title: "Nothing to chase",
+            text: "No Item Location and no Transmittal are asked for. The Logistics sign-off is still given before Filing.",
+          },
+        ],
+      },
+      {
+        id: "payment-status",
+        title: "Payment status and Ask for payment",
+        body: "Each IPAS shows a Payment status beside its IPAS Status: Not due yet, For payment, DP paid or Fully paid. Purchasing presses Ask for payment to tell Finance an order is ready to pay, with how much, what for and how urgent. Recording that payment clears the ask. DP paid and Fully paid are worked out from the payments, never picked, and DP paid says how much is paid and how much is left.",
+        points: [
+          "An ask has a priority, Very High, High or Medium, and can give a percent of the order.",
+          "Picking For Payment as the IPAS Status opens Ask for payment, already filled with Down payment and the amount still owed.",
+          "An ask can be withdrawn. Each ask, withdrawal and payment is posted in the IPAS's Chat.",
+          "The Payment status is a column and a filter on the IPAS list, and a column in the Excel export.",
+        ],
+        who: ["Purchasing", "Finance"],
+        flow: [
+          {
+            title: "Ask for payment",
+            text: "Purchasing says how much, what for and how urgent: Very High, High or Medium.",
+          },
+          {
+            title: "For payment",
+            text: "The IPAS shows For payment while the ask is open, and it joins the Payment Forecast.",
+          },
+          {
+            title: "Record the payment",
+            text: "Recording it clears the ask.",
+          },
+          {
+            title: "DP paid or Fully paid",
+            text: "Worked out from the payments. DP paid says, for example, 70% paid, 30% left.",
+          },
+        ],
+      },
+      {
+        id: "payment-forecast",
+        title: "The Payment Forecast",
+        body: "A new Payment Forecast view on the IPAS list shows every IPAS asked for payment and still to be paid: to whom, for which order, how much and how urgent. It lists Very High first, then the oldest ask. Its count shows beside IPAS in the side menu, and clicking it opens the view. It takes the place of the Payment Forecast sheet, so the General Manager can see what to pay next.",
+        who: ["Management", "Finance", "Purchasing"],
+        highlights: [
+          {
+            title: "What to pay next",
+            text: "Every IPAS asked for payment and not yet paid: to whom, for which order, how much and how urgent.",
+          },
+          {
+            title: "Most urgent first",
+            text: "Very High first, then the oldest ask, until you sort by a column.",
+          },
+          {
+            title: "A count in the menu",
+            text: "The number beside IPAS opens the view.",
+          },
+          {
+            title: "Withholding (2307)",
+            text: "A column says what to leave out of a Local supplier's payment.",
+          },
+        ],
+      },
+      {
+        id: "withholding",
+        title: "Withholding (2307) on a Local IPAS",
+        body: "A Local IPAS has a Withholding (2307) pick: 1%, 2% or Not applicable. It shows on the Payment Forecast and in the Excel export, so the General Manager knows to pay that much less. An Import IPAS has none.",
+        who: ["Purchasing", "Finance", "Management"],
+        highlights: [
+          {
+            title: "Pick it once",
+            text: "1%, 2% or Not applicable, on a Local IPAS.",
+          },
+          {
+            title: "Seen where you pay",
+            text: "On the Payment Forecast and in the Excel export.",
+          },
+          {
+            title: "Import IPAS",
+            text: "Has none.",
+          },
+        ],
+      },
+      {
+        id: "ipas-chat",
+        title: "Every IPAS has its own Chat",
+        body: "Every IPAS has a Chat under its sections. Anyone who can open the IPAS can read and post, attach files and type @ to mention someone. The person you mention gets a notification, and so do the person who raised the IPAS and everyone who posted before. Clicking the notification opens the IPAS at its Chat.",
+        who: ["Purchasing", "Finance", "Logistics"],
+        highlights: [
+          {
+            title: "Read and post",
+            text: "Anyone who can open the IPAS, with files and @ mentions.",
+          },
+          {
+            title: "Who is told",
+            text: "The person you mention, the person who raised the IPAS, and everyone who posted before.",
+          },
+          {
+            title: "Straight to the Chat",
+            text: "Clicking the notification opens the IPAS at its Chat.",
+          },
+        ],
+      },
+      {
         id: "transmittals",
         title: "Transmittals and Packing Lists",
         body: "A Transmittal (TG03) hands goods over: the Warehouse and Technical rate each line GC or NA and sign, and two Check by signatures close it. A slip waiting for your Check by shows in Approvals under Transmittal Check by. A Packing List records what is in each box packed for an SOR. Both print on their paper layouts.",
@@ -1657,12 +2120,12 @@ export const SECTIONS = [
       {
         id: "reference-rate",
         title: "A daily exchange rate",
-        body: "The Reference Rate is what one US dollar or euro is worth in pesos, taken once a day from the European Central Bank, and it always shows the day it is for. Canvasses fill it in for dollar and euro offers, and an IPAS shows it beside the rate you paid. A Super Admin can correct a day's rate in Settings.",
+        body: "The Reference Rate is what one US dollar or euro is worth in pesos, taken once a day: from the BSP for US dollars, and from the European Central Bank for euros. It always shows the day it is for and where it came from. Canvasses fill it in for dollar and euro offers, and an IPAS shows it beside the rate you paid. A Super Admin can correct a day's rate in Settings.",
         who: ["Purchasing", "Finance"],
         flow: [
           {
             title: "Once a day",
-            text: "The Reference Rate, what one US dollar or euro is worth in pesos, comes from the European Central Bank, and always shows the day it is for.",
+            text: "The Reference Rate, what one US dollar or euro is worth in pesos, comes from the BSP for US dollars and from the European Central Bank for euros. It always shows the day it is for and where it came from.",
           },
           {
             title: "Canvasses and IPAS use it",
@@ -1768,12 +2231,16 @@ export const SECTIONS = [
         id: "purchasing-settings",
         kind: "change",
         title: "Purchasing and S0 Evaluation settings",
-        body: "Settings has a Purchasing tab: the IPAS option lists and sign-off lists, the next IPAS number, the files each IPAS needs, ageing rules for late orders, and the Reference Rates. The S0 Evaluation tab holds the markup presets, the rates and the evaluation list.",
+        body: "Settings has a Purchasing tab: the IPAS option lists and sign-off lists, the next IPAS number, the files each IPAS needs, ageing rules for late orders, the Reference Rates and the Request units. The S0 Evaluation tab holds the markup presets, the rates and the evaluation list.",
         who: ["Purchasing", "Super Admin"],
         highlights: [
           {
             title: "Purchasing tab",
             text: "The IPAS option lists and sign-off lists, the next IPAS number, the files each IPAS needs, ageing rules for late orders, and the Reference Rates.",
+          },
+          {
+            title: "Request units",
+            text: "The choices in a Purchase Request's Unit dropdown. Add, rename, reorder or switch one off; a unit is never deleted, so lines keep theirs.",
           },
           {
             title: "S0 Evaluation tab",
@@ -1802,6 +2269,115 @@ export const SECTIONS = [
           },
         ],
       },
+      {
+        id: "forex-rate",
+        kind: "change",
+        title: "One Forex rate for a foreign IPAS",
+        body: "A foreign-currency IPAS now shows one Forex rate, worked out from its payments and never typed: the pesos taken from the bank, divided by what those payments paid. A bigger payment weighs more, so 300 at 50 and 700 at 51 gives 50.70, not 50.50. The Landed Cost uses it. It takes the place of copying the 1st payment's rate down the sheet. A peso IPAS has none.",
+        who: ["Purchasing", "Finance"],
+        flow: [
+          {
+            title: "Record each payment",
+            text: "With the pesos the bank took for it.",
+          },
+          {
+            title: "The Forex rate is worked out",
+            text: "All the pesos, divided by what the payments paid. A bigger payment weighs more.",
+          },
+          {
+            title: "An estimate until every payment has its pesos",
+            text: "A payment with blank pesos counts at its day's Reference Rate, and the rate is marked as an estimate.",
+          },
+          {
+            title: "The Landed Cost uses it",
+            text: "It shows in the money summary and beside the Landed Cost.",
+          },
+        ],
+      },
+      {
+        id: "supplier-freight",
+        kind: "change",
+        title: "Freight on the supplier's bill counts toward what is owed",
+        body: "In an IPAS's Charges, Freight can be ticked as billed by the supplier. It is then added to what the order owes, counted when the Odoo PO is checked against the P.I, and reaches the Landed Cost once. The amount, and the share of each payment, now match the P0 you paid. The printed IPAS shows each payment as the same percent of the order as the screen.",
+        who: ["Purchasing", "Finance"],
+        highlights: [
+          {
+            title: "Billed by the supplier",
+            text: "Tick it on the Freight in the IPAS's Charges.",
+          },
+          {
+            title: "Part of what is owed",
+            text: "It is added to the order's amount and checked against the P.I.",
+          },
+          {
+            title: "Counted once",
+            text: "It reaches the Landed Cost once, and each payment's share matches what you paid.",
+          },
+        ],
+      },
+      {
+        id: "ipas-payments-files",
+        kind: "change",
+        title: "Numbered payments and several files",
+        body: "Payments now read 1st, 2nd, 3rd and so on, on the screen and in the print, in the order they were paid. Picking Others as a payment method asks you to type the method. A payment can hold several proof files, and a document can hold several files, removed one at a time.",
+        who: ["Purchasing", "Finance"],
+        highlights: [
+          {
+            title: "1st, 2nd, 3rd",
+            text: "Payments are numbered in the order they were paid, on screen and in the print.",
+          },
+          {
+            title: "Others",
+            text: "Type the method, and it shows wherever the method's name shows.",
+          },
+          {
+            title: "Several files",
+            text: "A payment can hold several proof files, and a document several files. Remove them one at a time.",
+          },
+        ],
+      },
+      {
+        id: "ipas-filing",
+        kind: "change",
+        title: "Filing waits for the pesos, and an estimate says so",
+        body: "Approve and file now waits until every foreign payment has its pesos, and names the payments still waiting. While the Landed Cost still uses an estimate, it reads Estimate, not Final.",
+        who: ["Purchasing", "Finance"],
+        flow: [
+          {
+            title: "A foreign payment has no pesos yet",
+            text: "The Landed Cost reads Estimate, not Final.",
+          },
+          {
+            title: "Approve and file waits",
+            text: "It names the payments still waiting for their pesos.",
+          },
+          {
+            title: "Every payment has its pesos",
+            text: "The IPAS can be filed.",
+          },
+        ],
+      },
+      {
+        id: "transmittal-lines",
+        kind: "change",
+        title: "Transmittals show what is left, and drafts can be cancelled",
+        body: "Each Transmittal line shows what is left of its P0 line. A slip that hands over more than that asks for a remark. A draft Transmittal or a draft Packing List can now be cancelled, with a reason.",
+        who: ["Warehouse", "Logistics", "Purchasing"],
+        highlights: [
+          {
+            title: "What is left",
+            text: "Each line shows what is left of its P0 line.",
+          },
+          {
+            title: "More than is left",
+            text: "The slip asks for a remark.",
+          },
+          {
+            title: "Cancel a draft",
+            text: "A draft Transmittal or Packing List can be cancelled, with a reason.",
+          },
+        ],
+      },
     ],
     alsoFixed: [
       {
@@ -1809,6 +2385,41 @@ export const SECTIONS = [
       },
       {
         text: "The Purchase Request window keeps its address, including the Chat or Items tab you are on.",
+      },
+      {
+        text: "An IPAS paid more than it owes says Overpaid by, on the record and the list.",
+        before: "It showed 0 Settled or a minus figure.",
+      },
+      {
+        text: "Payment, charge and other IPAS dates must fall between 2015 and today, and IPAS mistakes are said in plain words as you type.",
+      },
+      {
+        text: "IPAS and TG03 numbers no longer skip a number when a save is refused.",
+      },
+      {
+        text: "The printed IPAS file is named after the supplier, the S0 and the IPAS number.",
+      },
+      {
+        text: "The printed IPAS shows a Transmittal's date as a plain date.",
+      },
+      {
+        text: "The Purchasing Dashboard keeps an SOR whose order is Delivered but not yet filed, with its next move and how long it has waited.",
+        before: "It dropped it.",
+      },
+      {
+        text: "In the Approval Center, the one Check is offered to everyone on the Received, Noted or Checked list.",
+      },
+      {
+        text: "Raise an IPAS marks Priority, Source and Purpose as required, and the sign-off steps are called Return and Section 6 · Sign-offs everywhere.",
+      },
+      {
+        text: "Esc asks Discard this ...? on Raise an IPAS, Raise a Transmittal and New Packing List when you have typed something.",
+      },
+      {
+        text: "The IPAS list and the Transmittal Check by page tell you when you have no access, and which list or access you need, Logistics included.",
+      },
+      {
+        text: "In Purchasing Settings, hovering a document kind that the Payment Approval suggestion uses tells you renaming it is safe.",
       },
     ],
   },
