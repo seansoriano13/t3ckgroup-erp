@@ -406,8 +406,10 @@ describe("the page's content", () => {
     expect(status.steps.map((step) => [step.label, step.date, step.current])).toEqual([
       ["Order-Draft", "Sep 2, 2026", false],
       ["Payment Approval", null, false],
+      ["For Payment", null, false],
       ["Ordered", "Sep 3, 2026", false],
-      ["Processing / Preparing Shipment", null, false],
+      ["In Production", null, false],
+      ["Ready for Shipment", null, false],
       ["Shipped / Picked Up", "Sep 5, 2026", false],
       ["In Transit", "Sep 6, 2026", true],
       ["Customs / Port Hold", null, false],
