@@ -92,9 +92,9 @@ const LIST_SELECT =
   LIST_COLUMNS +
   ", odoo_copy:ipas_list_copy" +
   IPAS_SELECT.slice(1) +
-  ", ipas_payments(kind, amount, method_id, paid_on, created_at)";
+  ", ipas_payments(kind, amount, method_id, method_other, paid_on, created_at)";
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
-const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
+const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name), ipas_payment_files(id, url, file_name, created_at)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
 const SIGNOFF_SELECT =
   "*, signer:employees!ipas_signoffs_signed_by_fkey(id, name, avatar_path, call_sign)," +
@@ -1921,7 +1921,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, checkNo, proofUrl } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1950,6 +1950,10 @@ function paymentArgs(payment, isPhpPo) {
     return read.value ?? 0;
   });
   if (!methodId) throw new IpasError(IPAS_ERROR.INVALID, "Pick the payment method.");
+  // "Others" needs what the method was (#1211); the database checks it again.
+  const typedMethod = (methodOther || "").trim();
+  if (methodIsOthers && !typedMethod) throw new IpasError(IPAS_ERROR.INVALID, "Type the payment method when it is Others.");
+  const proofList = (Array.isArray(proofUrls) ? proofUrls : proofUrl ? [proofUrl] : []).map((url) => String(url).trim()).filter(Boolean);
 
   // One RPC writes the payment, its pesos (amount x rate, worked out in the database) and the fees
   // together, so a failure can't leave a half-saved payment.
@@ -1965,7 +1969,9 @@ function paymentArgs(payment, isPhpPo) {
     p_charge_fee_php: sumPesos(fees),
     p_method_id: methodId,
     p_check_no: (checkNo || "").trim() || null,
-    p_proof_url: (proofUrl || "").trim() || null,
+    p_proof_url: proofList[0] ?? null,
+    p_method_other: methodIsOthers ? typedMethod : null,
+    p_proof_urls: proofList,
   };
 }
 

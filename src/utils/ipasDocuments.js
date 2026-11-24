@@ -11,6 +11,7 @@ import {
   IPAS_REQUIRED_BEFORE_PARTS,
   IPAS_STATUS_SOURCE,
 } from "../constants/ipas";
+import { paymentHasProof } from "./ipasPayments";
 
 const clean = (value) => {
   const text = typeof value === "string" ? value.trim() : "";
@@ -195,7 +196,7 @@ const dateText = (iso) => {
 
 /** The payments with no proof of payment attached: the one rule behind the rail, the edit bar and the 2 · Payments row. */
 export function paymentsLackingProof(payments = []) {
-  return payments.filter((payment) => !payment.proof_url);
+  return payments.filter((payment) => !paymentHasProof(payment));
 }
 
 /** A charge with no amount yet (0 counts as filled). The database's Landed Cost final check mirrors this (#919). */
