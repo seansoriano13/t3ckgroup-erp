@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "@/utils/ipas";
 import { BILL_CHECK_KIND } from "@/utils/ipasBillCheck";
-import { IPAS_AMOUNT_SOURCE } from "@/utils/ipasFigures";
+import { IPAS_AMOUNT_SOURCE, paidLeftText } from "@/utils/ipasFigures";
 
 const SOURCE_WORDS = {
   [IPAS_AMOUNT_SOURCE.PI_QT]: "P.I/QT Amount",
@@ -158,7 +158,7 @@ export default function MoneySummary({ digest, onOpen }) {
                 ? `Paid ${formatAmount(figures.paid, currency)} on an order of ${formatAmount(figures.amount, currency)}`
                 : settled
                 ? "Settled"
-                : `of ${formatAmount(figures.amount, currency)} (${SOURCE_WORDS[figures.amountSource]}${figures.amountBeforeTax ? ", before tax" : ""})`
+                : `${paidLeftText(figures) ? `${paidLeftText(figures)} · ` : ""}of ${formatAmount(figures.amount, currency)} (${SOURCE_WORDS[figures.amountSource]}${figures.amountBeforeTax ? ", before tax" : ""})`
           }
           onOpen={() => onOpen("purchasing")}
         />
