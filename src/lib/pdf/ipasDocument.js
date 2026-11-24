@@ -169,7 +169,7 @@ function paymentsTable(vm) {
         <th style="width:17%">Method</th><th class="center" style="width:8%">Proof</th>
       </tr></thead><tbody>${s.payments
         .map(
-          (p) => `<tr><td style="font-weight:600">${esc(p.kind)}</td><td class="m">${esc(p.date)}</td>
+          (p) => `<tr><td style="font-weight:600">${esc(p.number)} · ${esc(p.kind)}</td><td class="m">${esc(p.date)}</td>
             <td class="num">${esc(p.amount)}</td><td class="num">${esc(p.phpDebited)}</td><td class="num">${esc(p.chargeFee)}</td>
             <td>${esc(p.method)}</td><td class="center">${tick(p.proofOfPayment)}</td></tr>`,
         )

@@ -1161,6 +1161,13 @@ export function stubIpasRpcs({
     if (!ipas) refuse("22023", "ipas_save_payment: payment not found")
     const rate = isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
     if (rate !== null && !(rate > 0)) refuse("22023", "ipas_save_payment: the forex rate must be more than zero")
+    // Others needs what the method was; any other method keeps no typed text (#1211).
+    const methodLabel = String(optionOf(args.p_method_id)?.label ?? "").trim().toLowerCase()
+    const isOthers = methodLabel === "others" || methodLabel === "other"
+    const methodOther = String(args.p_method_other ?? "").trim() || null
+    if (isOthers && !methodOther) refuse("22023", "ipas_save_payment: type the payment method when it is Others")
+    // The proof files are the whole list, or the one p_proof_url when no list is sent.
+    const urls = [...new Set((args.p_proof_urls ?? (args.p_proof_url ? [args.p_proof_url] : [])).map((u) => String(u ?? "").trim()).filter(Boolean))]
     const base = {
       p_kind: args.p_kind,
       p_paid_on: args.p_paid_on,
@@ -1169,13 +1176,23 @@ export function stubIpasRpcs({
       p_charge_fee_php: args.p_charge_fee_php,
       p_method_id: args.p_method_id,
       p_check_no: args.p_check_no,
-      p_proof_url: args.p_proof_url,
+      p_proof_url: urls[0] ?? null,
       p_percent_of_order: args.p_percent_of_order ?? null,
     }
     const money = (row) => ({ p_payment_id: row.id, p_forex_rate: rate, p_doc_stamp_php: args.p_doc_stamp_php, p_misc_fee_php: args.p_misc_fee_php })
     const saved = args.p_payment_id
       ? callStub("ipas_update_payment", { p_payment_id: args.p_payment_id, ...base })
       : callStub("ipas_add_payment", { p_ipas_id: args.p_ipas_id, ...base })
+    const files = rowsOf("ipas_payment_files")
+    for (let i = files.length - 1; i >= 0; i -= 1) {
+      if (files[i].payment_id === saved.id && !urls.includes(files[i].url)) files.splice(i, 1)
+    }
+    for (const url of urls) {
+      if (!files.some((f) => f.payment_id === saved.id && f.url === url)) {
+        insertRow("ipas_payment_files", { payment_id: saved.id, url, file_name: url.split("?")[0].split("/").pop() || "File" })
+      }
+    }
+    updateRow("ipas_payments", findRow("ipas_payments", saved.id), { method_other: isOthers ? methodOther : null })
     return callStub("ipas_set_payment_money", money(saved))
   })
 

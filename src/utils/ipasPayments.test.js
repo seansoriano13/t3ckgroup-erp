@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest"
 import {
   formatDay,
   isIsoDate,
+  isOthersMethod,
+  numberPayments,
   optionsForPicker,
+  ordinal,
+  paymentHasProof,
   parseAmountInput,
   shapeCharge,
   shapePayment,
@@ -119,5 +123,44 @@ describe("rows and pickers", () => {
     ]
     expect(optionsForPicker(all, "payment_method").map((o) => o.label)).toEqual(["Alipay", "Cash"])
     expect(optionsForPicker(all, "payment_method", "c").map((o) => o.label)).toEqual(["Alipay", "Old", "Cash"])
+  })
+})
+
+describe("payment rows (#1211)", () => {
+  it("numbers payments 1st, 2nd, 3rd... by date, then by the order they were created", () => {
+    const rows = [
+      { id: "c", paid_on: "2026-11-20", created_at: "2026-11-21T00:00:00Z" },
+      { id: "a", paid_on: "2026-11-10", created_at: "2026-11-22T00:00:00Z" },
+      { id: "b", paid_on: "2026-11-20", created_at: "2026-11-20T00:00:00Z" },
+    ]
+    expect(numberPayments(rows).map(({ payment, number }) => [payment.id, number])).toEqual([["a", "1st"], ["b", "2nd"], ["c", "3rd"]])
+    expect([4, 11, 12, 13, 21, 22, 23, 101, 111].map(ordinal)).toEqual(["4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th"])
+  })
+
+  it("shows what was typed instead of the word Others, and nothing typed on other methods", () => {
+    const options = new Map([
+      ["o", { id: "o", list: "payment_method", label: "Others", active: true, sort: 110 }],
+      ["t", { id: "t", list: "payment_method", label: "Bank TT", active: true, sort: 30 }],
+    ])
+    expect(isOthersMethod(" Others ")).toBe(true)
+    expect(isOthersMethod("Bank TT")).toBe(false)
+    expect(shapePayment({ id: "p", method_id: "o", method_other: "GCash" }, options).methodLabel).toBe("GCash")
+    expect(shapePayment({ id: "p", method_id: "o", method_other: null }, options).methodLabel).toBe("Others")
+    expect(shapePayment({ id: "p", method_id: "t", method_other: "GCash" }, options).methodLabel).toBe("Bank TT")
+  })
+
+  it("reads a payment's proof as a list of files, and an old single proof as one file", () => {
+    const two = shapePayment({
+      id: "p",
+      ipas_payment_files: [
+        { id: "2", url: "https://x/slip.pdf", file_name: "slip.pdf", created_at: "2026-11-02" },
+        { id: "1", url: "https://x/tt.pdf", file_name: "tt.pdf", created_at: "2026-11-01" },
+      ],
+    })
+    expect(two.proofFiles.map((f) => f.fileName)).toEqual(["tt.pdf", "slip.pdf"])
+    expect(two.hasProof).toBe(true)
+    expect(paymentHasProof({ proof_url: "https://x/old.pdf" })).toBe(true)
+    expect(paymentHasProof({ proof_url: null })).toBe(false)
+    expect(summarizePayments([two, { amount: 1 }]).hasProof).toBe(true)
   })
 })

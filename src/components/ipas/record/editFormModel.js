@@ -14,7 +14,7 @@ import {
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
-import { isIsoDate, parseAmountInput } from "@/utils/ipasPayments";
+import { isIsoDate, isOthersMethod, paymentProofFiles, parseAmountInput } from "@/utils/ipasPayments";
 import { ipasDateIssue } from "@/utils/ipasDateLimits";
 import { IPAS_LIMITS, amountSizeIssue, textLengthIssue } from "@/utils/ipasLimits";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
@@ -123,8 +123,10 @@ export const paymentDraft = (payment) => ({
   docStampPhp: payment.doc_stamp_php ? text(payment.doc_stamp_php) : "",
   miscFeePhp: payment.misc_fee_php ? text(payment.misc_fee_php) : "",
   methodId: payment.method_id ?? "",
+  methodIsOthers: isOthersMethod(payment.method?.label),
+  methodOther: payment.method_other ?? "",
   checkNo: payment.check_no ?? "",
-  proofUrl: payment.proof_url ?? "",
+  proofUrls: paymentProofFiles(payment).map((file) => file.url),
 });
 
 /** A new, empty payment row: today's date and the kind "Payment". */
@@ -140,8 +142,10 @@ export const newPaymentDraft = () => ({
   docStampPhp: "",
   miscFeePhp: "",
   methodId: "",
+  methodIsOthers: false,
+  methodOther: "",
   checkNo: "",
-  proofUrl: "",
+  proofUrls: [],
 });
 
 export const chargeDraft = (charge) => ({
@@ -275,6 +279,7 @@ export function requiredFields(form) {
     need("payments", `pay-${p.key}-amount`, `${n} amount`, p.amount);
     // "Pesos taken from the bank" is optional (#604): not a required field.
     need("payments", `pay-${p.key}-methodId`, `${n} method`, p.methodId);
+    if (p.methodIsOthers === true) need("payments", `pay-${p.key}-methodOther`, `${n} method (typed)`, p.methodOther);
   });
   form.charges.forEach((c, i) => {
     const n = `Charge ${i + 1}`;
@@ -376,6 +381,7 @@ function paymentProblem(p, isPhp) {
   if (!parseAmountInput(p.miscFeePhp).ok)
     return "Misc fee must be a number.";
   if (!p.methodId) return "Pick the payment method.";
+  if (p.methodIsOthers === true && blank(p.methodOther)) return "Type the payment method when it is Others.";
   return null;
 }
 
@@ -415,8 +421,10 @@ const paymentValues = (p) => ({
   docStampPhp: p.docStampPhp,
   miscFeePhp: p.miscFeePhp,
   methodId: p.methodId,
+  methodIsOthers: p.methodIsOthers === true,
+  methodOther: p.methodIsOthers === true ? p.methodOther : "",
   checkNo: p.checkNo,
-  proofUrl: p.proofUrl,
+  proofUrls: p.proofUrls,
 });
 
 /**

@@ -13,7 +13,7 @@ import { paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "../../utils/ipas";
 import { ipasFigures, realPercent } from "../../utils/ipasFigures";
-import { formatDay } from "../../utils/ipasPayments";
+import { formatDay, numberPayments, paymentProofFiles } from "../../utils/ipasPayments";
 import { blendedRate, fromCents, isPhpCurrency, paymentPhp, sumPesos, toCents } from "../../utils/landedCost";
 
 const th = "border-b border-r border-mauve-5 bg-mauve-2 px-3 py-2 text-left text-label uppercase tracking-wider text-mauve-11 whitespace-nowrap last:border-r-0";
@@ -28,10 +28,10 @@ const rateText = (rate) => `₱${rate.toFixed(2)}`;
 export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayment, onRemovePayment }) {
   const { payments, currency } = ipas;
   const isPhp = isPhpCurrency(currency);
-  const rows = payments.map((payment) => {
+  const rows = numberPayments(payments).map(({ payment, number }) => {
     const pesos = paymentPhp(payment, isPhp);
     const total = pesos === null ? null : sumPesos([pesos, payment.charge_fee_php ?? 0]);
-    return { payment, pesos, total };
+    return { payment, number, pesos, total };
   });
   const paid = fromCents(rows.reduce((sum, { payment }) => sum + toCents(payment.amount ?? 0), 0));
   const pesosPaid = sumPesos(rows.map((row) => row.pesos ?? 0));
@@ -60,13 +60,13 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y-0">
-            {rows.map(({ payment, pesos, total }) => {
+            {rows.map(({ payment, number, pesos, total }) => {
               const kindLabel = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
               const kindWithPercent = paymentKindWithPercent(payment.kind, realPercent(toCents(payment.amount ?? 0), owed) ?? payment.percent_of_order);
               return (
                 <TableRow key={payment.id} data-testid="ipas-payment-row" className="hover:bg-transparent">
                   <TableCell className={td}>
-                    <div className="font-semibold">{kindWithPercent}</div>
+                    <div className="font-semibold"><span data-testid="ipas-payment-number">{number}</span> · {kindWithPercent}</div>
                     <div className="text-xs text-mauve-11">{formatDay(payment.paid_on)}</div>
                     {payment.check_no && <div className="text-xs text-mauve-11">Check No. {payment.check_no}</div>}
                     {payment.paid_before_approval && <StatusBadge theme="amber" label="Paid before approval" />}
@@ -82,14 +82,19 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
                   <TableCell className={cn(td, num)}>{fee(payment.misc_fee_php)}</TableCell>
                   <TableCell className={cn(td, num, "font-semibold")}>{php(total)}</TableCell>
                   <TableCell className={td}>
-                    {payment.proof_url ? (
-                      <ExternalLink
-                        href={payment.proof_url}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline underline-offset-2"
-                      >
-                        <Paperclip size={12} aria-hidden="true" />
-                        View
-                      </ExternalLink>
+                    {paymentProofFiles(payment).length > 0 ? (
+                      <span className="flex flex-col gap-1">
+                        {paymentProofFiles(payment).map((file, index) => (
+                          <ExternalLink
+                            key={file.id}
+                            href={file.url}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline underline-offset-2"
+                          >
+                            <Paperclip size={12} aria-hidden="true" />
+                            {paymentProofFiles(payment).length > 1 ? `View ${index + 1}` : "View"}
+                          </ExternalLink>
+                        ))}
+                      </span>
                     ) : (
                       <StatusBadge theme="amber" label="Missing" />
                     )}
