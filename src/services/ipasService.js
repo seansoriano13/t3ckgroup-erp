@@ -13,6 +13,7 @@ import {
   IPAS_REQUIRED_BEFORE_VALUES,
   IPAS_ERROR,
   IPAS_LANDED_COST_SPLITS,
+  IPAS_WITHHOLDINGS,
   IPAS_NOTIFICATION,
   IPAS_OPTION_LIST,
   IPAS_OPTION_LIST_NOUNS,
@@ -86,7 +87,7 @@ const LIST_COLUMNS = [
   "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id", "direct_delivery",
   "google_sheet", "gantt_chart", "on_hold", "on_hold_note", "sor_warning_checked", "freight_amount",
   "freight_currency", "freight_billed_by_supplier", "freight_attachment_url", "retail_multiplier",
-  "wholesale_discount_pct",
+  "wholesale_discount_pct", "withholding",
 ].join(", ");
 const LIST_SELECT =
   LIST_COLUMNS +
@@ -783,6 +784,15 @@ export const ipasService = {
       p_billed_by_supplier: Boolean(billedBySupplier),
       p_attachment_url: attachmentUrl || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Withholding (2307) on a Local IPAS: "1", "2", "not_applicable", or blank to clear. An Import IPAS is refused by the database. */
+  async setWithholding(id, withholding) {
+    const value = withholding === undefined || withholding === null || withholding === "" ? null : withholding;
+    if (value !== null) requireOneOf(value, IPAS_WITHHOLDINGS, "Withholding is 1%, 2% or Not applicable.");
+    const { data, error } = await supabase.rpc("ipas_set_withholding", { p_ipas_id: id, p_withholding: value });
     if (error) throw error;
     return data;
   },

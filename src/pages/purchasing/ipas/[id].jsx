@@ -738,6 +738,7 @@ function IpasPage({ onClose }) {
         }
         if (Object.keys(plan.header).length > 0) await ipasService.setHeader(id, plan.header);
         if (plan.freight !== undefined) await once("freight", () => ipasService.setFreight(id, plan.freight));
+        if (plan.withholding !== undefined) await once("withholding", () => ipasService.setWithholding(id, plan.withholding));
         if (plan.directDelivery !== undefined) await ipasService.setDirectDelivery(id, plan.directDelivery);
         if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
         if (plan.stamp !== undefined) await ipasService.stampActualChecking(id, { stamped: plan.stamp });
