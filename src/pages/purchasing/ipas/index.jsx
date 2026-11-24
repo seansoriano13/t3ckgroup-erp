@@ -26,6 +26,7 @@ import { filterIpas, formatAmount } from "../../../utils/ipas";
 import { ipasTotalsByCurrency } from "../../../utils/ipasFigures";
 import { IPAS_EXPORT_HEADER, ipasExportRows } from "../../../utils/ipasListExport";
 import { IPAS_VIEW, IPAS_VIEW_LABELS, inIpasView, withIpasFigures } from "../../../utils/ipasListViews";
+import { askPriorityRank, comparePaymentForecast } from "../../../utils/ipasPaymentAsk";
 import ExportButton from "../../../components/purchasing/list/ExportButton";
 import ColumnsMenu from "../../../components/purchasing/list/ColumnsMenu";
 import { useHiddenColumns } from "../../../hooks/useHiddenColumns";
@@ -85,6 +86,8 @@ const IPAS_SORT = {
   "remaining-balance": (r) => r.figures.remainingBalance,
   // A cancelled IPAS has no IPAS Status (its cell says Cancelled): it sorts after every status.
   status: (r) => (r.figures.status ? IPAS_STATUSES.indexOf(r.figures.status) : IPAS_STATUSES.length),
+  // The open ask's priority, Very High first; an IPAS with no open ask sorts last.
+  priority: (r) => (r.figures.paymentAsk ? askPriorityRank(r.figures.paymentAsk.priority) : null),
   "payment-status": (r) => (r.figures.paymentStatus ? IPAS_PAYMENT_STATUSES.indexOf(r.figures.paymentStatus) : IPAS_PAYMENT_STATUSES.length),
 };
 
@@ -126,6 +129,7 @@ const LIST_HEADINGS = [
   "Odoo PO",
   "Status",
   "Payment status",
+  "Priority",
   "Entity",
   "Purpose",
   "Costing",
@@ -211,7 +215,12 @@ function IpasList() {
     [viewed, entity, purpose, costing, status, paymentStatus, search],
   );
   const filtered = useMemo(() => filterIpas(scoped, { state }), [scoped, state]);
-  const { sorted: visible, sort, toggle } = useTableSort(filtered, IPAS_SORT);
+  // The Payment Forecast reads Very High first, then the oldest ask, until a column header is clicked.
+  const forecastOrdered = useMemo(
+    () => (view === IPAS_VIEW.PAYMENT_FORECAST ? [...filtered].sort(comparePaymentForecast) : filtered),
+    [filtered, view],
+  );
+  const { sorted: visible, sort, toggle } = useTableSort(forecastOrdered, IPAS_SORT);
   const paging = usePaging(visible);
 
   const count = (s) => filterIpas(scoped, { state: s }).length;

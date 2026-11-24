@@ -4,6 +4,7 @@ import { cellsInOrder } from "../../utils/columnOrder";
 import { IdentityText } from "../purchasing/list/IdentityCell";
 import {
   IPAS_COMPUTATION_STATUS,
+  IPAS_ASK_PRIORITY_LABELS,
   IPAS_COMPUTATION_STATUS_LABELS,
   IPAS_PURPOSE_LABELS,
   IPAS_STATE,
@@ -131,6 +132,18 @@ export default function IpasRow({ row, onOpen, columns, search = "" }) {
         // The Payment status (ADR 0055), read from the same figures as the record's pill and the export.
         "payment-status": () => (
           <TableCell>{row.figures?.paymentStatus ? <IpasPaymentStatusPill figures={row.figures} /> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+        ),
+        // How soon the GM should pay the open ask (#1208); blank when nothing is asked.
+        priority: () => (
+          <TableCell>
+            {row.figures?.paymentAsk?.priority ? (
+              <span className="whitespace-nowrap text-xs text-foreground" data-testid="ipas-ask-priority">
+                {IPAS_ASK_PRIORITY_LABELS[row.figures.paymentAsk.priority] ?? row.figures.paymentAsk.priority}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </TableCell>
         ),
         entity: () => (
           <TableCell className="hidden md:table-cell">
