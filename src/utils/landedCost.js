@@ -72,6 +72,18 @@ export function blendedRate(payments = []) {
   return amount > 0 ? pesos / amount : null;
 }
 
+/**
+ * The one Forex rate of a foreign IPAS: the blended rate of its payments, worked out and never typed.
+ * It is an estimate while any payment still has blank pesos. Null for a PHP IPAS or with no rate yet.
+ */
+export function forexRate(payments = [], currency) {
+  if (isPhpCurrency(currency)) return null;
+  const rate = blendedRate(payments);
+  if (rate === null) return null;
+  const estimate = payments.some((payment) => paymentPesos(payment) === null);
+  return { rate, estimate, text: `${rate.toFixed(2)}${estimate ? " (estimate)" : ""}` };
+}
+
 /** Whether the PO's currency is the peso. Anything else, or none, is foreign. */
 export function isPhpCurrency(currency) {
   return String(currency ?? "").trim().toUpperCase() === "PHP";

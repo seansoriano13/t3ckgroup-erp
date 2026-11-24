@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { blendedRate, isLandedCostEstimate, landedCostEstimateNote, landedCostMarkLabel, paymentRate, pesosFromRate } from "./landedCost"
+import { blendedRate, forexRate, isLandedCostEstimate, landedCostEstimateNote, landedCostMarkLabel, paymentRate, pesosFromRate } from "./landedCost"
 
 // What `ipas_landed_cost` returns, trimmed to what the marks read (#604).
 const provisional = { status: "provisional", estimate: false, estimates: [] }
@@ -65,5 +65,23 @@ describe("the rate of a payment, and the blend of several (#708)", () => {
   it("works pesos out as amount x rate, to the centavo", () => {
     expect(pesosFromRate(11038.3, 58.73)).toBe(648279.36)
     expect(pesosFromRate(100, null)).toBeNull()
+  })
+})
+
+describe("forexRate (#1212)", () => {
+  const two = [
+    { amount: 300, forex_rate: 50, php_debited: 15000 },
+    { amount: 700, forex_rate: 51, php_debited: 35700 },
+  ]
+  it("shows the blended rate: 300 at 50 and 700 at 51 is 50.70", () => {
+    expect(forexRate(two, "USD")).toMatchObject({ text: "50.70", estimate: false })
+  })
+  it("marks an estimate while a payment has blank pesos", () => {
+    const blank = [two[0], { amount: 700, forex_rate: null, php_debited: null }]
+    expect(forexRate(blank, "USD")).toMatchObject({ estimate: true, text: "50.00 (estimate)" })
+  })
+  it("shows none for a PHP IPAS or without a rate", () => {
+    expect(forexRate(two, "PHP")).toBeNull()
+    expect(forexRate([], "USD")).toBeNull()
   })
 })

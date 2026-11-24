@@ -162,7 +162,12 @@ export default function MoneySummary({ digest, onOpen }) {
           }
           onOpen={() => onOpen("purchasing")}
         />
-        <Stat label="Landed Cost" value={money.landedText} onOpen={() => onOpen("costing")} />
+        <Stat
+          label="Landed Cost"
+          value={money.landedText}
+          sub={money.forex ? `Forex rate ${money.forex.text}` : null}
+          onOpen={() => onOpen("costing")}
+        />
       </ul>
     </div>
   );
