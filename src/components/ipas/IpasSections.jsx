@@ -11,6 +11,7 @@ import SectionHeader from "../ui/SectionHeader";
 import StatusBadge from "../StatusBadge";
 import {
   IPAS_COMPUTATION_STATUS_LABELS,
+  IPAS_WITHHOLDING_LABELS,
   IPAS_ERROR,
   IPAS_EVENT_LABELS,
   IPAS_HEADER_FIELD,
@@ -749,6 +750,7 @@ function headerChangeText(field, change) {
   if (field === "landed_cost_split") {
     return `${HEADER_FIELD_NAMES[field]}: ${IPAS_LANDED_COST_SPLIT_LABELS[to] ?? to}`;
   }
+  if (field === "withholding") return `Withholding (2307): ${IPAS_WITHHOLDING_LABELS[to] ?? to}`;
   if (field === "computation_status") {
     return `${HEADER_FIELD_NAMES[field]}: ${IPAS_COMPUTATION_STATUS_LABELS[to] ?? to}`;
   }

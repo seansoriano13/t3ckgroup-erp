@@ -139,6 +139,7 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
       "Status date",
       "Payments (% of order)",
       "Payment status",
+      "Withholding (2307)",
     ]);
     expect(sheet.rows).toHaveLength(1);
     const [number, , createdBy, project, supplier, po, amount, scheme, down, full, remaining, status, statusDate] = sheet.rows[0];
@@ -156,7 +157,7 @@ describe("IPAS list: views, columns, totals and export (#599)", () => {
     expect(status).toBe("Order-Draft");
     expect(statusDate).toContain("2026");
     // Nothing but the sheet's thirteen columns, the % column and the Payment status column.
-    expect(sheet.rows[0]).toHaveLength(15);
+    expect(sheet.rows[0]).toHaveLength(16);
   });
 
   it("exports only the rows the filters leave, each amount in its own currency's format", async () => {

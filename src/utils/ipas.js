@@ -5,7 +5,7 @@
 import { REFUSAL } from "../constants/refusal";
 import { finiteNumber, isPhpCurrency } from "./landedCost";
 import { matchesSearch, sorSearchFields } from "./sorSearch";
-import { shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
+import { paymentHasProof, shapeCharge, shapePayment, summarizePayments } from "./ipasPayments";
 import { deriveTransmittalTrack } from "./ipasTransmittals";
 import {
   buildBuyerFacts,
@@ -481,7 +481,7 @@ function shapeMoney(row, { payments = [], charges = [], options = [], landedCost
  */
 function shapeDocumentsAndTrack(row, { documents = [], options = [], payments = [], slips = [] }, statuses, paymentSummary) {
   const shapedDocuments = shapeDocuments(documents, options);
-  const proofCount = payments.filter((payment) => Boolean(payment?.proof_url)).length;
+  const proofCount = payments.filter((payment) => paymentHasProof(payment)).length;
   // Section 5 and the derived track (#256): the typed columns win where they
   // are set; the Transmittals fill what they don't.
   const derived = deriveTransmittalTrack(slips, {

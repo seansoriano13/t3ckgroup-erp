@@ -104,6 +104,8 @@ const methodLabelOf = (payment) => {
  *   remainingBalance    amount - paid; 0 once a full payment is recorded or the IPAS is filed (ADR 0036:
  *                       withholding never leaves a settled order owing); null when
  *                       there is no Amount
+ *   paidPercent, leftPercent  the split worked out from the amounts: paid and still owed as a percent of the order
+ *                       (the percent typed on a row is only a label); null with no Amount
  *   overpaidBy          paid - amount when the payments pass the order amount (spec #1123, A2); 0 otherwise
  *   paymentMethods      distinct method labels, first used first
  *   paymentScheme       those joined, "Bank TT + Cash"; "" with none
@@ -113,6 +115,13 @@ const methodLabelOf = (payment) => {
 export function realPercent(paymentCents, owed) {
   const base = finiteNumber(owed);
   return base === null || base <= 0 ? null : roundPercent((paymentCents / toCents(base)) * 100);
+}
+
+/** "70% paid, 30% left" from the figures, or "" with no split to show (#1207). */
+export function paidLeftText(figures) {
+  const { paidPercent, leftPercent } = figures ?? {};
+  if (paidPercent === null || paidPercent === undefined || leftPercent === null || leftPercent === undefined) return "";
+  return `${paidPercent}% paid, ${leftPercent}% left`;
 }
 
 export function ipasFigures(ipas) {
@@ -221,6 +230,9 @@ export function ipasFigures(ipas) {
     onHoldNote: onHold ? (ipas?.on_hold_note ?? null) : null,
     remainingBalance,
     overpaidBy,
+    // #1207: the split, worked out from the amounts (a percent typed on a row is only a label). They need not add to 100.
+    paidPercent: amount !== null && amount > 0 ? realPercent(paidCents, amount) : null,
+    leftPercent: remainingBalance !== null && amount !== null && amount > 0 ? realPercent(Math.max(0, toCents(remainingBalance)), amount) : null,
     paymentMethods: methods,
     paymentScheme: methods.join(PAYMENT_SCHEME_SEPARATOR),
     paymentPercents: percentLabels.join("; "),

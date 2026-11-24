@@ -190,6 +190,14 @@ async function giveWhatTheSignoffAsks(ipasId, section, role) {
         await attachDocument(ipasId, source === "import" ? "Proforma Invoice" : "Quotation (Local)")
     } else if (section === 3) {
         await sql().query(`update public.ipas_payments set proof_url = $2 where ipas_id = $1 and proof_url is null`, [ipasId, FIXTURE_FILE])
+        // A payment's proof is its list of files (#1211); one file is enough to count as present.
+        await sql().query(
+            `insert into public.ipas_payment_files (payment_id, url, file_name)
+             select p.id, $2, 'policy-tier.pdf' from public.ipas_payments p
+              where p.ipas_id = $1
+                and not exists (select 1 from public.ipas_payment_files f where f.payment_id = p.id)`,
+            [ipasId, FIXTURE_FILE],
+        )
         await sql().query(`delete from public.ipas_charges where ipas_id = $1 and amount_php is null`, [ipasId])
     } else if (section === 6) {
         if (source === "import") {

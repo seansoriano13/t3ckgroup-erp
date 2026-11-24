@@ -13,6 +13,7 @@ import {
   IPAS_REQUIRED_BEFORE_VALUES,
   IPAS_ERROR,
   IPAS_LANDED_COST_SPLITS,
+  IPAS_WITHHOLDINGS,
   IPAS_NOTIFICATION,
   IPAS_OPTION_LIST,
   IPAS_OPTION_LIST_NOUNS,
@@ -72,7 +73,7 @@ const IPAS_SELECT =
   // The IPAS Status steps reached, each with the day and who set it (ADR 0054).
   " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))," +
   // The asks for payment (ADR 0055); the open one (no closed_at) makes the Payment status For payment.
-  " payment_asks:ipas_payment_asks(id, amount, purpose, note, asked_by, asked_at, closed_at, asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
+  " payment_asks:ipas_payment_asks(id, amount, purpose, note, priority, percent_of_order, asked_by, asked_at, closed_at, closed_reason, asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
@@ -86,15 +87,15 @@ const LIST_COLUMNS = [
   "delivered_typed_by", "delivered_typed_at", "actual_checking_by", "actual_checking_at", "item_location_id", "direct_delivery",
   "google_sheet", "gantt_chart", "on_hold", "on_hold_note", "sor_warning_checked", "freight_amount",
   "freight_currency", "freight_billed_by_supplier", "freight_attachment_url", "retail_multiplier",
-  "wholesale_discount_pct",
+  "wholesale_discount_pct", "withholding",
 ].join(", ");
 const LIST_SELECT =
   LIST_COLUMNS +
   ", odoo_copy:ipas_list_copy" +
   IPAS_SELECT.slice(1) +
-  ", ipas_payments(kind, amount, method_id, paid_on, created_at)";
+  ", ipas_payments(kind, amount, method_id, method_other, paid_on, created_at)";
 const EVENT_SELECT = "*, actor:employees!ipas_events_actor_id_fkey(id, name, avatar_path)";
-const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name)";
+const PAYMENT_SELECT = "*, creator:employees!ipas_payments_created_by_fkey(id, name), ipas_payment_files(id, url, file_name, created_at)";
 const CHARGE_SELECT = "*, creator:employees!ipas_charges_created_by_fkey(id, name)";
 const SIGNOFF_SELECT =
   "*, signer:employees!ipas_signoffs_signed_by_fkey(id, name, avatar_path, call_sign)," +
@@ -675,12 +676,14 @@ export const ipasService = {
   // ── Ask for payment (#1188, ADR 0055) ────────────────────────────────────
 
   /** Purchasing asks for a payment on an open IPAS: amount in the P0's currency, a purpose, an optional note. */
-  async askForPayment(id, { amount, purpose, note = null }) {
+  async askForPayment(id, { amount, purpose, note = null, priority = "high", percent = null }) {
     const { data, error } = await supabase.rpc("ipas_ask_for_payment", {
       p_ipas_id: id,
       p_amount: amount,
       p_purpose: purpose,
       p_note: note,
+      p_priority: priority,
+      p_percent: percent,
     });
     if (error) throw error;
     return data;
@@ -781,6 +784,15 @@ export const ipasService = {
       p_billed_by_supplier: Boolean(billedBySupplier),
       p_attachment_url: attachmentUrl || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Withholding (2307) on a Local IPAS: "1", "2", "not_applicable", or blank to clear. An Import IPAS is refused by the database. */
+  async setWithholding(id, withholding) {
+    const value = withholding === undefined || withholding === null || withholding === "" ? null : withholding;
+    if (value !== null) requireOneOf(value, IPAS_WITHHOLDINGS, "Withholding is 1%, 2% or Not applicable.");
+    const { data, error } = await supabase.rpc("ipas_set_withholding", { p_ipas_id: id, p_withholding: value });
     if (error) throw error;
     return data;
   },
@@ -1921,7 +1933,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, checkNo, proofUrl } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1950,6 +1962,10 @@ function paymentArgs(payment, isPhpPo) {
     return read.value ?? 0;
   });
   if (!methodId) throw new IpasError(IPAS_ERROR.INVALID, "Pick the payment method.");
+  // "Others" needs what the method was (#1211); the database checks it again.
+  const typedMethod = (methodOther || "").trim();
+  if (methodIsOthers && !typedMethod) throw new IpasError(IPAS_ERROR.INVALID, "Type the payment method when it is Others.");
+  const proofList = (Array.isArray(proofUrls) ? proofUrls : proofUrl ? [proofUrl] : []).map((url) => String(url).trim()).filter(Boolean);
 
   // One RPC writes the payment, its pesos (amount x rate, worked out in the database) and the fees
   // together, so a failure can't leave a half-saved payment.
@@ -1965,7 +1981,9 @@ function paymentArgs(payment, isPhpPo) {
     p_charge_fee_php: sumPesos(fees),
     p_method_id: methodId,
     p_check_no: (checkNo || "").trim() || null,
-    p_proof_url: (proofUrl || "").trim() || null,
+    p_proof_url: proofList[0] ?? null,
+    p_method_other: methodIsOthers ? typedMethod : null,
+    p_proof_urls: proofList,
   };
 }
 

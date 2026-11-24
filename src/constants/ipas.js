@@ -25,6 +25,15 @@ export const IPAS_SOURCE = {
   LOCAL: "local",
 };
 
+/** Withholding (2307) on a Local IPAS (ipas.withholding; CONTEXT.md). Not set is null. */
+export const IPAS_WITHHOLDING = { ONE: "1", TWO: "2", NOT_APPLICABLE: "not_applicable" };
+export const IPAS_WITHHOLDINGS = [IPAS_WITHHOLDING.ONE, IPAS_WITHHOLDING.TWO, IPAS_WITHHOLDING.NOT_APPLICABLE];
+export const IPAS_WITHHOLDING_LABELS = {
+  [IPAS_WITHHOLDING.ONE]: "1%",
+  [IPAS_WITHHOLDING.TWO]: "2%",
+  [IPAS_WITHHOLDING.NOT_APPLICABLE]: "Not applicable",
+};
+
 export const IPAS_SOURCES = [IPAS_SOURCE.IMPORT, IPAS_SOURCE.LOCAL];
 
 export const IPAS_SOURCE_LABELS = {
@@ -81,8 +90,10 @@ export const IPAS_STATE_FILTER_ALL = "all";
 const IPAS_STATUS_STEPS = [
   { key: "order_draft", label: "Order-Draft" },
   { key: "payment_approval", label: "Payment Approval" },
+  { key: "for_payment", label: "For Payment" },
   { key: "ordered", label: "Ordered" },
-  { key: "processing", label: "Processing / Preparing Shipment" },
+  { key: "in_production", label: "In Production" },
+  { key: "ready_for_shipment", label: "Ready for Shipment" },
   { key: "shipped", label: "Shipped / Picked Up" },
   { key: "in_transit", label: "In Transit" },
   { key: "customs", label: "Customs / Port Hold" },
@@ -99,7 +110,12 @@ export const IPAS_STATUS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key }) =>
 /** In order: the order the list's filter and sort use. */
 export const IPAS_STATUSES = IPAS_STATUS_STEPS.map(({ key }) => key);
 
-export const IPAS_STATUS_LABELS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label]));
+// A status-history entry from before #1206 can still name `processing`; it reads as In Production (the
+// database label function does the same). It is not a step: it is not in IPAS_STATUSES or the dropdown.
+export const IPAS_STATUS_LABELS = {
+  ...Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label])),
+  processing: "In Production",
+};
 
 /** The list filter's value for an IPAS that is On-Hold (a flag over its step, not a step). */
 export const IPAS_ON_HOLD_FILTER = "on_hold";
@@ -708,8 +724,10 @@ export const IPAS_STATUS_MEANINGS = {
   [IPAS_STATUS.ORDER_DRAFT]: null,
   [IPAS_STATUS.PAYMENT_APPROVAL]:
     "Only for an order that must be approved for payment before it is placed. A pay-later order goes from Order-Draft to Ordered.",
+  [IPAS_STATUS.FOR_PAYMENT]: null,
   [IPAS_STATUS.ORDERED]: null,
-  [IPAS_STATUS.PROCESSING]: null,
+  [IPAS_STATUS.IN_PRODUCTION]: null,
+  [IPAS_STATUS.READY_FOR_SHIPMENT]: null,
   [IPAS_STATUS.SHIPPED]: null,
   [IPAS_STATUS.IN_TRANSIT]: null,
   [IPAS_STATUS.CUSTOMS]: "The normal customs step, not trouble.",
@@ -738,7 +756,17 @@ export const IPAS_PAYMENT_STATUS_LABELS = {
   [IPAS_PAYMENT_STATUS.NOT_DUE_YET]: "Not due yet",
   [IPAS_PAYMENT_STATUS.FOR_PAYMENT]: "For payment",
   [IPAS_PAYMENT_STATUS.DP_PAID]: "DP paid",
-  [IPAS_PAYMENT_STATUS.PAID]: "Paid",
+  [IPAS_PAYMENT_STATUS.PAID]: "Fully paid",
+};
+
+/** How soon the General Manager should pay an ask (ipas_payment_asks.priority), most urgent first. */
+export const IPAS_ASK_PRIORITIES = ["very_high", "high", "medium"];
+export const IPAS_ASK_DEFAULT_PRIORITY = "high";
+
+export const IPAS_ASK_PRIORITY_LABELS = {
+  very_high: "Very High",
+  high: "High",
+  medium: "Medium",
 };
 
 /** What an ask for payment is for (ipas_payment_asks.purpose). */

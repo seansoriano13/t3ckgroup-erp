@@ -85,6 +85,7 @@ function paymentColumns(values, isPhpPo) {
   const bank = parseAmountInput(values.chargeFeePhp).value ?? 0;
   const stamp = parseAmountInput(values.docStampPhp).value ?? 0;
   const misc = parseAmountInput(values.miscFeePhp).value ?? 0;
+  const proofUrls = (values.proofUrls ?? (values.proofUrl ? [values.proofUrl] : [])).map((url) => String(url).trim()).filter(Boolean);
   return {
     kind: values.kind,
     paid_on: values.paidOn,
@@ -99,7 +100,9 @@ function paymentColumns(values, isPhpPo) {
     rate: isPhpPo ? null : rate,
     method_id: values.methodId,
     check_no: (values.checkNo || "").trim() || null,
-    proof_url: (values.proofUrl || "").trim() || null,
+    method_other: values.methodIsOthers ? (values.methodOther || "").trim() || null : null,
+    proof_url: proofUrls[0] ?? null,
+    ipas_payment_files: proofUrls.map((url) => ({ id: url, url, file_name: url.split("?")[0].split("/").pop() || "Proof of payment" })),
   };
 }
 

@@ -26,7 +26,7 @@ import {
 import { formatAmount } from "../../utils/ipas";
 import { isBlankCharge } from "../../utils/ipasDocuments";
 import { optionsForPicker } from "../../utils/ipasPayments";
-import { isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
+import { forexRate, isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
 const SPLIT_OPTIONS = IPAS_LANDED_COST_SPLITS.map((value) => ({
   value,
@@ -215,6 +215,7 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
   const unavailable = lc.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE;
   const foreign = lc.isForeign;
   const estimate = isLandedCostEstimate(lc);
+  const forex = forexRate(ipas.payments ?? [], ipas.currency);
   const mayStep = (status, index) =>
     index !== currentIndex && (canSetStatus ? canSetStatus(ipas.computationStatus, status) : granted);
   const anyStep = IPAS_COMPUTATION_STATUSES.some((status, index) => mayStep(status, index));
@@ -326,6 +327,13 @@ export function IpasCostingSection({ ipas, canChange: granted = false, canSetSta
                 >
                   <CircleAlert size={14} className="mt-px shrink-0" aria-hidden="true" />
                   <span>{landedCostEstimateNote(lc)}</span>
+                </p>
+              )}
+              {foreign && forex && (
+                <p className="text-xs text-muted-foreground" data-testid="ipas-forex-rate">
+                  Forex rate{" "}
+                  <span className="font-semibold text-foreground tabular-nums">{forex.text}</span>
+                  {forex.estimate && ", an estimate until every payment has its pesos taken from the bank"}.
                 </p>
               )}
               {foreign && lc.rate && (

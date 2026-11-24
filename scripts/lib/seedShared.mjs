@@ -119,6 +119,8 @@ export const SEED_TABLES = [
   // runs with triggers off, so the marks are copied with the history they come from.
   "ipas_work_marks",
   "ipas_payments",
+  // The proof files of each payment (#1211): point at ipas_payments above and employees.
+  "ipas_payment_files",
   // Asks for payment (#1188): point at ipas and employees above.
   "ipas_payment_asks",
   "ipas_charges",

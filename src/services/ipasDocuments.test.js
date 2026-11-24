@@ -388,7 +388,7 @@ describe("ipasService: documents, Supplier Origin and the buyer track", () => {
       await ipasService.setStatusDate(ipas.id, "ordered", day(-1))
       expect((await stepsOf(ipas.id)).find(([step]) => step === "ordered")[1]).toBe(day(-1))
       // A step not reached yet has no day to change.
-      await expect(ipasService.setStatusDate(ipas.id, "processing", day(-4))).rejects.toMatchObject({ code: "22023" })
+      await expect(ipasService.setStatusDate(ipas.id, "in_production", day(-4))).rejects.toMatchObject({ code: "22023" })
     })
 
     it("refuses Finance alone, lets Logistics access set it", async () => {

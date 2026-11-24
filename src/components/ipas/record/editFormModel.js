@@ -14,7 +14,7 @@ import {
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
-import { isIsoDate, parseAmountInput } from "@/utils/ipasPayments";
+import { isIsoDate, isOthersMethod, paymentProofFiles, parseAmountInput } from "@/utils/ipasPayments";
 import { ipasDateIssue } from "@/utils/ipasDateLimits";
 import { IPAS_LIMITS, amountSizeIssue, textLengthIssue } from "@/utils/ipasLimits";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
@@ -79,7 +79,7 @@ const OVERRIDE_KEYS = {
 /** Which form keys each section owns, for its changed count. The row lists are counted by `changeCount`. */
 export const OWNS = {
   header: ["entity", "remarks"],
-  purchasing: ["contact", "piNumber", "piQtAmount", "freight", "freightAmount", "freightCurrency", "freightBilled", "freightUrl"],
+  purchasing: ["contact", "piNumber", "piQtAmount", "freight", "freightAmount", "freightCurrency", "freightBilled", "freightUrl", "withholding"],
   finance: ["bankName", "accountName", "accountNumber"],
   costing: ["split", "computationStatus"],
   filing: [],
@@ -123,8 +123,10 @@ export const paymentDraft = (payment) => ({
   docStampPhp: payment.doc_stamp_php ? text(payment.doc_stamp_php) : "",
   miscFeePhp: payment.misc_fee_php ? text(payment.misc_fee_php) : "",
   methodId: payment.method_id ?? "",
+  methodIsOthers: isOthersMethod(payment.method?.label),
+  methodOther: payment.method_other ?? "",
   checkNo: payment.check_no ?? "",
-  proofUrl: payment.proof_url ?? "",
+  proofUrls: paymentProofFiles(payment).map((file) => file.url),
 });
 
 /** A new, empty payment row: today's date and the kind "Payment". */
@@ -140,8 +142,10 @@ export const newPaymentDraft = () => ({
   docStampPhp: "",
   miscFeePhp: "",
   methodId: "",
+  methodIsOthers: false,
+  methodOther: "",
   checkNo: "",
-  proofUrl: "",
+  proofUrls: [],
 });
 
 export const chargeDraft = (charge) => ({
@@ -202,6 +206,7 @@ export function formFromIpas(ipas) {
     freightCurrency: ipas.freight_currency ?? "",
     freightBilled: Boolean(ipas.freight_billed_by_supplier),
     freightUrl: ipas.freight_attachment_url ?? "",
+    withholding: ipas.withholding ?? "",
     split: ipas.landedCostSplit ?? "value",
     computationStatus: ipas.computationStatus ?? "",
     bankName: bank?.bankName ?? "",
@@ -275,6 +280,7 @@ export function requiredFields(form) {
     need("payments", `pay-${p.key}-amount`, `${n} amount`, p.amount);
     // "Pesos taken from the bank" is optional (#604): not a required field.
     need("payments", `pay-${p.key}-methodId`, `${n} method`, p.methodId);
+    if (p.methodIsOthers === true) need("payments", `pay-${p.key}-methodOther`, `${n} method (typed)`, p.methodOther);
   });
   form.charges.forEach((c, i) => {
     const n = `Charge ${i + 1}`;
@@ -376,6 +382,7 @@ function paymentProblem(p, isPhp) {
   if (!parseAmountInput(p.miscFeePhp).ok)
     return "Misc fee must be a number.";
   if (!p.methodId) return "Pick the payment method.";
+  if (p.methodIsOthers === true && blank(p.methodOther)) return "Type the payment method when it is Others.";
   return null;
 }
 
@@ -415,8 +422,10 @@ const paymentValues = (p) => ({
   docStampPhp: p.docStampPhp,
   miscFeePhp: p.miscFeePhp,
   methodId: p.methodId,
+  methodIsOthers: p.methodIsOthers === true,
+  methodOther: p.methodIsOthers === true ? p.methodOther : "",
   checkNo: p.checkNo,
-  proofUrl: p.proofUrl,
+  proofUrls: p.proofUrls,
 });
 
 /**
@@ -476,6 +485,7 @@ export function planSave(form, base) {
       attachmentUrl: form.freightUrl,
     };
   }
+  if (changed.has("withholding")) plan.withholding = form.withholding;
   if (changed.has("split")) plan.header.landedCostSplit = form.split;
   if (
     changed.has("piQtAmount") &&
@@ -584,6 +594,7 @@ export function planIsEmpty(plan) {
     plan.location === undefined &&
     plan.directDelivery === undefined &&
     plan.freight === undefined &&
+    plan.withholding === undefined &&
     plan.stamp === undefined &&
     plan.payments.add.length + plan.payments.update.length === 0 &&
     plan.charges.add.length + plan.charges.update.length === 0 &&

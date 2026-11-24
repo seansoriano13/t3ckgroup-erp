@@ -31,3 +31,11 @@ Since spec #595 the IPAS Status (Pending, Requested, Ongoing, Paid, Done) was wo
 ## Amendment, 2026-11-22: one dropdown, the Chat is the history
 
 The step list in 4 · Delivery is retired. The status is one dropdown on the record's Status pill: a pick saves at once and no day is asked (the database still dates the step, today or the day a step already had when going back, so the ageing rules keep counting). "Edit date" is gone. Every change of the status, however it happens (the dropdown, Filing, Reopen, a source change to Local, a cancel), is posted in the IPAS's Chat as a `status_changed` event line by the database (`20261222100000_ipas_status_change_in_chat`); event lines notify nobody. Facts still only suggest: the suggestion shows under the pills and as a hint in the dropdown.
+
+## Amendment, 2026-11-24: For Payment, In Production, Ready for Shipment
+
+Purchasing's notes listed the order's early life as For Payment, In Production, Ready for Shipment, Shipped, In transit, as an addition to the list, not a replacement. The list becomes: Order-Draft, Payment Approval, **For Payment**, Ordered, **In Production**, **Ready for Shipment**, Shipped / Picked Up, In Transit, Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done.
+
+- **For Payment** follows Payment Approval: the approvers have said yes, and the money now waits for the GM to release it. Different people, so two steps.
+- **Processing / Preparing Shipment is split** into In Production and Ready for Shipment. IPAS on it move to In Production, and its Ageing rule carries over to In Production.
+- **Picking For Payment opens "Ask for payment"** (ADR 0055) filled in for the down payment. It is the one place the two statuses touch: the step is still picked by a person, and recording the payment only suggests the next step, never moves it.

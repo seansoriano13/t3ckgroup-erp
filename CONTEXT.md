@@ -845,13 +845,15 @@ _Avoid_: Quote, Bid, Supplier Response
 
 **Reference Rate**:
 The PHP value of one unit of a foreign currency on a given day, fetched once a
-day from one source and always shown with the day it is for. It pre-fills an
+day and always shown with the day it is for and its source: the BSP's
+reference rate for US dollars, the European Central Bank's for every other currency. It pre-fills an
 Offer's comparison rate, and nowhere else does it fill anything: on an IPAS
 payment it is shown beside the typed rate as context and flags a wide
 divergence, so a fat-fingered rate is caught without an estimate ever being
 saved as the fact. The rate that reaches a final Landed Cost is always the one
-actually paid; until a foreign-currency payment's pesos are recorded, its Landed
-Cost may be shown at the Reference Rate, marked as an estimate and never stored.
+actually paid (the IPAS's Forex rate); until a foreign-currency payment's pesos are
+recorded, its Landed Cost may be shown at the Reference Rate, marked as an estimate
+and never stored.
 Never presented as live — a bid that revalued itself overnight could not
 be signed — so it is a fact with a date on it, the way Stock Availability is,
 and a failed fetch keeps the last good rate under its own stale date rather than
@@ -989,6 +991,13 @@ Empty while nothing is paid. A column of the IPAS list and its Excel export,
 beside the Down Payment and Full Payment totals.
 _Avoid_: Payment terms (what the supplier agreed to, not what was done), Payment mode
 
+**Withholding (2307)** (on an IPAS):
+Whether the company withholds 1% or 2% of a Local supplier's payment for the BIR,
+picked once on the IPAS (1%, 2% or Not applicable) and shown on the Payment
+Forecast so the GM knows to pay less. An Import IPAS has none. The BIR 2307 form
+itself is a filing document, attached later.
+_Avoid_: EWT, W/ Less (the sheet's column title)
+
 **Payment Forecast**:
 The General Manager's (201) list of what is still to be paid on purchases: to
 whom, for which order, how much, and how urgent. One place that answers "what do
@@ -1000,13 +1009,13 @@ _Avoid_: Forecast Payment (the sheet's other title), Payables, Payment schedule
 
 **Payment status**:
 Where an IPAS's payment to its supplier stands, shown beside its IPAS Status and
-separate from it: Not due yet, For payment, DP paid, Paid. For payment is the one
+separate from it: Not due yet, For payment, DP paid, Fully paid. For payment is the one
 step a person sets: Purchasing asks for a payment, saying how much and what for,
 and recording that payment clears it; it shows while an ask is open, whatever was
-paid before. DP paid (some paid, a balance left) and Paid (nothing left) are
+paid before. DP paid (some paid, a balance left) and Fully paid (nothing left) are
 worked out from the payments recorded, never picked. On-Hold is the IPAS's own.
-_Avoid_: Pending (an old IPAS Status step; here it is Not due yet), Payment
-Approval (an IPAS Status step, before the order is placed)
+_Avoid_: Pending (an old IPAS Status step; here it is Not due yet), Paid (the
+team says Fully paid), Payment Approval (an IPAS Status step, before the order is placed)
 
 **Freight** (on an IPAS):
 What it cost to ship an order, kept in the IPAS's Charges in the currency it was
@@ -1048,16 +1057,17 @@ _Avoid_: Unapprove, Revert
 
 **IPAS Status**:
 Where an IPAS's order stands, set by hand by anyone with Purchasing access or
-Logistics access, in the team's own words: Order-Draft, Payment Approval, Ordered,
-Processing / Preparing Shipment, Shipped / Picked Up, In Transit, Customs / Port
-Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done. A Local purchase has
+Logistics access, in the team's own words: Order-Draft, Payment Approval, For Payment,
+Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit,
+Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done. A Local purchase has
 no Customs / Port Hold, Arrived at Local Hub or Out for Delivery. Customs / Port
 Hold is the normal customs step, not trouble. The local hub is the forwarder's or
 courier's warehouse in the Philippines; Out for Delivery is leaving it for our
 warehouse, or for the client on a Direct delivery; Delivered is reaching our
 warehouse, or the client on a Direct delivery. Payment Approval is only for an
-order that must be approved for payment before it is placed; a pay-later order
-goes from Order-Draft to Ordered. Done comes only from Filing and leaves only on
+order that must be approved for payment before it is placed; For Payment is
+that approved payment waiting to be released, and picking it opens an ask for
+payment (see Payment status); a pay-later order goes from Order-Draft to Ordered. Done comes only from Filing and leaves only on
 Reopen. When the IPAS already knows a fact that matches a step (raised, section 1
 sent or its P.I — a Local order's quotation — attached with the P.I/QT Amount
 typed, the Odoo PO confirmed, the
@@ -1072,7 +1082,8 @@ an SOR reads it on its IPAS summary. Replaces the old six-step status, the buyer
 track and the Supplier Origin dates. Separate from the IPAS's state (open, filed,
 cancelled) and from its Computation status.
 _Avoid_: Shipping status, Buyer track, Supplier Origin (the old dates), Pending,
-Requested, Ongoing or Paid (the old steps), Payment status, Progress, PMS status
+Requested, Ongoing or Paid (the old steps), Processing / Preparing Shipment (now
+In Production and Ready for Shipment), Payment status, Progress, PMS status
 (the sheet put "PMS" before each step; screens do not)
 
 **Direct delivery**:
@@ -1225,11 +1236,23 @@ the "Prepare the packing list each boxes" checklist line in the NTP "PMS" group
 task.
 _Avoid_: Packing task, Pack request
 
+**Forex rate** (on an IPAS):
+The one PHP rate shown for a whole foreign-currency IPAS, worked out and never
+typed: the pesos taken from the bank for its payments divided by what those
+payments paid, so a bigger payment weighs more (300 at 50 and 700 at 51 is
+50.70, not 50.50). The Landed Cost uses it. It moves as payments are recorded;
+a payment whose pesos are still blank counts at its day's Reference Rate, and the
+rate is marked as an estimate until every payment has its pesos. Replaces the
+team's old sheet habit of copying the 1st payment's rate down. A PHP IPAS has
+none.
+_Avoid_: Exchange rate (unqualified), Fixed rate, Average rate, Reference Rate
+(the daily figure used only for a payment with no pesos yet)
+
 **Landed Cost**:
 An item's true unit cost once everything is apportioned onto it —
 `unit price + duties/item + freight/item + other charges/item` — worked out the
 same way for Local and Import purchases. The unit price is the purchase order's,
-before VAT and withholding, turned into PHP at the rate actually paid so far;
+before VAT and withholding, turned into PHP at the IPAS's Forex rate;
 Charges and Freight are spread over the order's lines. Provisional until
 the IPAS's Computation status reaches LC Odoo Done, final after. The basis every
 markup and income figure is taken from. Section 3's approval vouches for one

@@ -97,7 +97,7 @@ describe("who sets the status", () => {
 })
 
 describe("forward, skip and back", () => {
-    it("jumps Ordered to In Transit leaving Processing and Shipped blank, and going back deletes In Transit with both moves in history", async () => {
+    it("jumps Ordered to In Transit leaving In Production and Shipped blank, and going back deletes In Transit with both moves in history", async () => {
         const ipas = await raise()
         await setStep("outsider", ipas.id, "ordered", manilaDay(-7))
         await setStep("outsider", ipas.id, "in_transit", manilaDay(-2))
@@ -162,7 +162,7 @@ describe("the date", () => {
         expect((await stepsOf(ipas.id)).find(([step]) => step === "ordered")[1]).toBe(manilaDay(-5))
         expect((await events(ipas.id, "status_date_changed")).at(-1).detail).toMatchObject({ step: "ordered", to: manilaDay(-5) })
         expect((await rpc("outsider", "ipas_set_status_date", { p_ipas_id: ipas.id, p_step: "ordered", p_on: manilaDay(-1) })).error).toBeNull()
-        expect((await rpc("outsider", "ipas_set_status_date", { p_ipas_id: ipas.id, p_step: "processing", p_on: manilaDay(-4) })).error?.code).toBe("22023")
+        expect((await rpc("outsider", "ipas_set_status_date", { p_ipas_id: ipas.id, p_step: "in_production", p_on: manilaDay(-4) })).error?.code).toBe("22023")
     })
 })
 

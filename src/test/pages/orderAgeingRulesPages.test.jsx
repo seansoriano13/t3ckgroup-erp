@@ -55,8 +55,10 @@ describe("Settings > Purchasing: Ageing rules", () => {
     for (const label of [
       "Order-Draft",
       "Payment Approval",
+      "For Payment",
       "Ordered",
-      "Processing / Preparing Shipment",
+      "In Production",
+      "Ready for Shipment",
       "Shipped / Picked Up",
       "In Transit",
       "Customs / Port Hold",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { IPAS_AMOUNT_SOURCE, IPAS_BILL_CHECK, ipasFigures, ipasTotalsByCurrency, odooPoTotal } from "./ipasFigures"
+import { IPAS_AMOUNT_SOURCE, IPAS_BILL_CHECK, ipasFigures, ipasTotalsByCurrency, odooPoTotal, paidLeftText } from "./ipasFigures"
+import { IPAS_PAYMENT_STATUS_LABELS } from "../constants/ipas"
 
 const line = (subtotal) => ({ line_id: 1, name: "Item", quantity: 1, price_unit: subtotal, price_subtotal: subtotal })
 
@@ -328,6 +329,15 @@ describe("ipasFigures: Payment status (ADR 0055)", () => {
 
   it("reads DP paid with some paid and a balance left", () => {
     expect(ipasFigures(ipas({ payments: [pay("down_payment", 5600, "Bank TT")] })).paymentStatus).toBe("dp_paid")
+  })
+
+  it("labels the paid state Fully paid and works the split from the amounts (#1207)", () => {
+    expect(IPAS_PAYMENT_STATUS_LABELS.paid).toBe("Fully paid")
+    const part = ipasFigures(ipas({ pi_qt_amount: 10000, payments: [pay("down_payment", 3000, "Bank TT")] }))
+    expect(paidLeftText(part)).toBe("30% paid, 70% left")
+    // 30% + 60% typed, but the amounts leave 10% owed
+    const gap = ipasFigures(ipas({ pi_qt_amount: 10000, payments: [{ ...pay("down_payment", 3000, "Bank TT"), percent_of_order: 30 }, { ...pay("payment", 6000, "Bank TT"), percent_of_order: 60 }] }))
+    expect(paidLeftText(gap)).toBe("90% paid, 10% left")
   })
 
   it("reads Paid with nothing left, even on an order still at Order-Draft", () => {

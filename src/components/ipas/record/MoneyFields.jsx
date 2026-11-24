@@ -33,6 +33,8 @@ import {
   IPAS_PAYMENT_KIND_LABELS,
   IPAS_TICK_SIDE_LABELS,
   IPAS_TICK_SIDE,
+  IPAS_WITHHOLDINGS,
+  IPAS_WITHHOLDING_LABELS,
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
@@ -41,9 +43,9 @@ import { odooPoTotal } from "@/utils/ipasFigures";
 import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
-import { formatDay, isIsoDate, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
+import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
-import { formatRateDay, formatRateNumber, rateDivergence } from "@/utils/referenceRate";
+import { formatRateDay, formatRateNumber, rateDivergence, rateSourceLabel } from "@/utils/referenceRate";
 import { Field, GroupTitle, PickField, ReadValue, RequiredMark } from "./FormFields";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
@@ -210,6 +212,12 @@ export function FreightField({ ipas, form, set, disabled }) {
   );
 }
 
+/** Withholding (2307) on a Local IPAS: what the GM leaves out of the payment for the BIR. Changes no amount. */
+export function WithholdingField({ form, set, disabled }) {
+  const options = IPAS_WITHHOLDINGS.map((value) => ({ value, label: IPAS_WITHHOLDING_LABELS[value] }));
+  return <PickField id="f-withholding" label="Withholding (2307)" emptyLabel="Not set" options={options} value={form.withholding} disabled={disabled} onChange={(v) => set("withholding", v)} />;
+}
+
 /** The one-line explanation under "Forex rate paid" (#708). */
 const RATE_HINT = "Pre-filled with the Reference Rate of the payment date. Change it to the rate you actually paid; a payment from a dollar account takes the rate those dollars were bought at.";
 
@@ -227,7 +235,7 @@ function RateNote({ ipas, row }) {
         "The Reference Rate couldn't be loaded."
       ) : referenceRate ? (
         <>
-          reference: ₱{formatRateNumber(referenceRate.php_per_unit)} on {formatRateDay(referenceRate.rate_date)}
+          reference: ₱{formatRateNumber(referenceRate.php_per_unit)} on {formatRateDay(referenceRate.rate_date)}{rateSourceLabel(referenceRate.source) && <> ({rateSourceLabel(referenceRate.source)})</>}
           {referenceRate.rate_date < row.paidOn && " (the latest before this date)"}
           {typedRate !== null && <> — you typed ₱{formatRateNumber(typedRate)}</>}
         </>
@@ -245,53 +253,60 @@ function RateNote({ ipas, row }) {
 
 function ProofField({ row, disabled, required, onPatch }) {
   const [uploading, setUploading] = useState(false);
-  const attach = async ([file]) => {
-    if (!file) return;
-    if (!isAllowedAttachment(file)) {
-      toast.error(`${file.name} is not a supported file type.`);
-      return;
-    }
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.error(`${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`);
-      return;
-    }
+  const urls = row.proofUrls ?? [];
+  // Any number of files (#1211): the TT copy and the bank slip stay together on one payment.
+  const attach = async (picked) => {
     setUploading(true);
     try {
-      const uploaded = await storageService.uploadFileToCloudinary(file);
-      onPatch({ proofUrl: uploaded.url });
-    } catch (error) {
-      toast.error(error?.message || "The proof of payment couldn't be uploaded.");
+      const added = [];
+      for (const file of picked) {
+        if (!isAllowedAttachment(file)) {
+          toast.error(`${file.name} is not a supported file type.`);
+          continue;
+        }
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          toast.error(`${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`);
+          continue;
+        }
+        try {
+          const uploaded = await storageService.uploadFileToCloudinary(file);
+          if (uploaded?.url && !urls.includes(uploaded.url) && !added.includes(uploaded.url)) added.push(uploaded.url);
+        } catch (error) {
+          toast.error(error?.message || "The proof of payment couldn't be uploaded.");
+        }
+      }
+      if (added.length > 0) onPatch({ proofUrls: [...urls, ...added] });
     } finally {
       setUploading(false);
     }
   };
   return (
-    <div className="min-w-0" data-missing-file={!row.proofUrl && !disabled ? "payments" : undefined}>
+    <div className="min-w-0" data-missing-file={urls.length === 0 && !disabled ? "payments" : undefined}>
       <FieldBox label={<>Proof of payment{required && <RequiredMark />}</>} />
-      <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        {row.proofUrl ? (
-          <>
-            <ExternalLink href={row.proofUrl} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground underline underline-offset-2">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="payment-proof-files">
+        {urls.map((url, i) => (
+          <span key={url} className="inline-flex items-center gap-1" data-testid="payment-proof-file">
+            <ExternalLink href={url} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground underline underline-offset-2">
               <Paperclip size={13} aria-hidden="true" />
-              Proof of payment
+              {urls.length > 1 ? `Proof of payment ${i + 1}` : "Proof of payment"}
             </ExternalLink>
             {!disabled && (
-              <Button type="button" variant="ghost" size="xs" className="gap-1 text-muted-foreground" onClick={() => onPatch({ proofUrl: "" })}>
+              <Button type="button" variant="ghost" size="xs" className="gap-1 text-muted-foreground" onClick={() => onPatch({ proofUrls: urls.filter((u) => u !== url) })}>
                 <X size={12} />
                 Remove
               </Button>
             )}
-          </>
-        ) : disabled ? (
-          <span className="text-sm text-muted-foreground">—</span>
-        ) : (
-          <FileInput accept={ALLOWED_EXTENSIONS_STRING} disabled={uploading} onFiles={attach} size="sm" className="gap-1.5">
+          </span>
+        ))}
+        {urls.length === 0 && disabled && <span className="text-sm text-muted-foreground">—</span>}
+        {!disabled && (
+          <FileInput accept={ALLOWED_EXTENSIONS_STRING} multiple disabled={uploading} onFiles={attach} size="sm" className="gap-1.5">
             {uploading ? <Spinner size="sm" /> : <Paperclip size={13} aria-hidden="true" />}
-            {uploading ? "Uploading…" : "Attach proof"}
+            {uploading ? "Uploading…" : urls.length > 0 ? "Add another" : "Attach proof"}
           </FileInput>
         )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">Finance needs proof on every payment before it signs off. With P.O.P shows on the IPAS while any payment has one.</p>
+      <p className="mt-1 text-xs text-muted-foreground">Finance needs at least one proof file on every payment before it signs off. With P.O.P shows on the IPAS while any payment has one.</p>
     </div>
   );
 }
@@ -415,7 +430,10 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
           error={row.miscFeePhp !== "" && !misc.ok ? "Not a number" : undefined}
           onChange={(v) => onPatch({ miscFeePhp: v })}
         />
-        <PickField id={id("methodId")} label="Method" required placeholder="Pick a method" options={methods} value={row.methodId} disabled={disabled} onChange={(v) => onPatch({ methodId: v })} />
+        <PickField id={id("methodId")} label="Method" required placeholder="Pick a method" options={methods} value={row.methodId} disabled={disabled} onChange={(v) => onPatch({ methodId: v, methodIsOthers: isOthersMethod((ipas.options ?? []).find((o) => o.id === v)?.label) })} />
+        {row.methodIsOthers && (
+          <Field id={id("methodOther")} label="What was the method?" required placeholder="Type the payment method" value={row.methodOther} disabled={disabled} onChange={(v) => onPatch({ methodOther: v })} />
+        )}
         <Field id={id("checkNo")} label="Check No." placeholder="When paid by check" value={row.checkNo} disabled={disabled} onChange={(v) => onPatch({ checkNo: v })} />
       </div>
       <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />

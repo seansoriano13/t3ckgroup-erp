@@ -19,6 +19,13 @@ export function formatRateNumber(value) {
   return Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
+/** The short name of where a rate came from: "BSP", "ECB" or "Override". Blank when unknown. */
+export function rateSourceLabel(source) {
+  const word = String(source ?? "").trim().split(/\s+/)[0] ?? "";
+  if (word.toLowerCase() === "override") return "Override";
+  return /^[A-Z]{2,5}$/.test(word) ? word : "";
+}
+
 /** "USD 1 = ₱58.20 · 17 Sep". Blank when there is no rate. */
 export function formatReferenceRate(rate, today) {
   if (!rate) return "";
