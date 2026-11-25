@@ -5430,6 +5430,26 @@ AS $function$
   select regexp_replace(coalesce(p_account, ''), '[[:space:]-]', '', 'g');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_ask_meta(p_ask ipas_payment_asks)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+           'ask_id', p_ask.id,
+           'purpose', p_ask.purpose,
+           'purpose_label', public._ipas_ask_purpose_label(p_ask.purpose),
+           'amount', p_ask.amount,
+           'currency', coalesce(nullif(to_jsonb(p_ask) ->> 'currency', ''), nullif(i.odoo_copy -> 'po' ->> 'currency', ''), ''),
+           'kind', (select o.label from public.ipas_options o where o.id = nullif(to_jsonb(p_ask) ->> 'charge_kind_id', '')::uuid),
+           'priority', public._ipas_ask_priority_label(p_ask.priority),
+           'percent_of_order', p_ask.percent_of_order,
+           'note', p_ask.note)
+    from public.ipas i
+   where i.id = p_ask.ipas_id;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_ask_priority_label(p_priority text)
  RETURNS text
  LANGUAGE sql
@@ -5534,6 +5554,52 @@ begin
     'total_to', v_total_to
   );
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_changes_text(p_changes jsonb)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select string_agg(
+           case c.key
+             when 'kind' then 'Kind'
+             when 'paid_on' then 'Paid on'
+             when 'charged_on' then 'Date'
+             when 'amount' then 'Amount'
+             when 'percent_of_order' then '% of order'
+             when 'forex_rate' then 'Forex rate'
+             when 'php_debited' then 'Pesos debited'
+             when 'charge_fee_php' then 'Bank charge'
+             when 'doc_stamp_php' then 'Doc stamp'
+             when 'misc_fee_php' then 'Misc fee'
+             when 'method' then 'Method'
+             when 'method_other' then 'Method (other)'
+             when 'check_no' then 'Check no.'
+             when 'proof_files' then 'Proof files'
+             when 'attachment' then 'Attachment'
+             when 'priority' then 'Priority'
+             when 'note' then 'Note'
+             else initcap(replace(c.key, '_', ' '))
+           end
+           || ' ' || case
+             when c.value -> 'from' is null or jsonb_typeof(c.value -> 'from') = 'null' then 'none'
+             when jsonb_typeof(c.value -> 'from') = 'number' and c.key in ('amount', 'php_debited', 'charge_fee_php', 'doc_stamp_php', 'misc_fee_php')
+               then trim(to_char((c.value ->> 'from')::numeric, 'FM999G999G999G990.00'))
+             when jsonb_typeof(c.value -> 'from') = 'number' and c.key = 'percent_of_order'
+               then trim(trailing '.' from trim(trailing '0' from to_char((c.value ->> 'from')::numeric, 'FM9990.0000'))) || '%'
+             else c.value ->> 'from'
+           end || ' → ' || case
+             when c.value -> 'to' is null or jsonb_typeof(c.value -> 'to') = 'null' then 'none'
+             when jsonb_typeof(c.value -> 'to') = 'number' and c.key in ('amount', 'php_debited', 'charge_fee_php', 'doc_stamp_php', 'misc_fee_php')
+               then trim(to_char((c.value ->> 'to')::numeric, 'FM999G999G999G990.00'))
+             when jsonb_typeof(c.value -> 'to') = 'number' and c.key = 'percent_of_order'
+               then trim(trailing '.' from trim(trailing '0' from to_char((c.value ->> 'to')::numeric, 'FM9990.0000'))) || '%'
+             else c.value ->> 'to'
+           end,
+           '; ' order by c.key)
+    from jsonb_each(coalesce(p_changes, '{}'::jsonb)) as c(key, value);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_check_date(p_fn text, p_date date, p_what text)
@@ -5917,6 +5983,17 @@ AS $function$
   from jsonb_array_elements(
     case when jsonb_typeof(p_copy->'lines') = 'array' then p_copy->'lines' else '[]'::jsonb end
   ) l;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_diff(p_before jsonb, p_after jsonb)
+ RETURNS jsonb
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(jsonb_object_agg(k, jsonb_build_object('from', p_before -> k, 'to', p_after -> k)), '{}'::jsonb)
+    from jsonb_object_keys(coalesce(p_before, '{}'::jsonb) || coalesce(p_after, '{}'::jsonb)) as k
+   where (p_before -> k) is distinct from (p_after -> k);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_document_first_file()
@@ -6537,6 +6614,144 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_money_charge_chat(p_event text, p_ipas_id uuid, p_charge_id uuid, p_before jsonb, p_after jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_snap jsonb := coalesce(p_after, p_before);
+  v_money text;
+  v_changes jsonb;
+  v_text text;
+  v_meta jsonb;
+begin
+  if coalesce(current_setting('ipas.money_chat_quiet', true), '') = 'on' then
+    return;
+  end if;
+
+  v_money := case when v_snap ->> 'amount' is null then 'no amount yet'
+                  else 'PHP ' || trim(to_char((v_snap ->> 'amount')::numeric, 'FM999G999G999G990.00')) end;
+
+  v_meta := jsonb_build_object(
+    'event', p_event, 'charge_id', p_charge_id,
+    'kind', v_snap -> 'kind', 'currency', 'PHP', 'amount', v_snap -> 'amount',
+    'charged_on', v_snap -> 'charged_on');
+
+  if p_event = 'charge_added' then
+    v_text := 'Added a charge: ' || coalesce(v_snap ->> 'kind', 'Charge') || ' ' || v_money
+      || coalesce(' on ' || (v_snap ->> 'charged_on'), '') || '.';
+  elsif p_event = 'charge_removed' then
+    v_text := 'Removed a charge: ' || coalesce(v_snap ->> 'kind', 'Charge') || ' ' || v_money
+      || coalesce(' dated ' || (v_snap ->> 'charged_on'), '') || '.';
+  else
+    v_changes := public._ipas_diff(p_before, p_after);
+    if v_changes = '{}'::jsonb then
+      return;
+    end if;
+    v_text := 'Changed the charge (' || coalesce(v_snap ->> 'kind', 'Charge') || ' ' || v_money || '): '
+      || public._ipas_changes_text(v_changes) || '.';
+    v_meta := v_meta || jsonb_build_object('changes', v_changes);
+  end if;
+
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata, created_at)
+  values (p_ipas_id, public.get_employee_id(), v_text, v_meta, clock_timestamp());
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_money_charge_snap(p_charge_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+           'kind', (select o.label from public.ipas_options o where o.id = c.kind_id),
+           'charged_on', c.charged_on,
+           'amount', c.amount_php,
+           'attachment', case when c.attachment_url is null then null else 'attached' end)
+    from public.ipas_charges c
+   where c.id = p_charge_id;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_money_payment_chat(p_event text, p_ipas_id uuid, p_payment_id uuid, p_before jsonb, p_after jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_snap jsonb := coalesce(p_after, p_before);
+  v_currency text;
+  v_money text;
+  v_changes jsonb;
+  v_text text;
+  v_meta jsonb;
+begin
+  -- ipas_save_payment posts its own single line; the pieces it calls stay quiet.
+  if coalesce(current_setting('ipas.money_chat_quiet', true), '') = 'on' then
+    return;
+  end if;
+
+  select coalesce(nullif(i.odoo_copy -> 'po' ->> 'currency', ''), '') into v_currency
+    from public.ipas i where i.id = p_ipas_id;
+  v_money := btrim(coalesce(v_currency, '') || ' ' || trim(to_char((v_snap ->> 'amount')::numeric, 'FM999G999G999G990.00')));
+
+  v_meta := jsonb_build_object(
+    'event', p_event, 'payment_id', p_payment_id,
+    'kind', v_snap -> 'kind', 'currency', v_currency, 'amount', v_snap -> 'amount',
+    'paid_on', v_snap -> 'paid_on', 'method', v_snap -> 'method');
+
+  if p_event = 'payment_added' then
+    v_text := 'Recorded a payment: ' || (v_snap ->> 'kind') || ' ' || v_money
+      || coalesce(' on ' || (v_snap ->> 'paid_on'), '')
+      || coalesce(' via ' || (v_snap ->> 'method'), '') || '.';
+  elsif p_event = 'payment_removed' then
+    v_text := 'Removed a payment: ' || (v_snap ->> 'kind') || ' ' || v_money
+      || coalesce(' dated ' || (v_snap ->> 'paid_on'), '') || '.';
+  else
+    v_changes := public._ipas_diff(p_before, p_after);
+    if v_changes = '{}'::jsonb then
+      return;
+    end if;
+    v_text := 'Changed the payment (' || (v_snap ->> 'kind') || ' ' || v_money || '): '
+      || public._ipas_changes_text(v_changes) || '.';
+    v_meta := v_meta || jsonb_build_object('changes', v_changes);
+  end if;
+
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata, created_at)
+  values (p_ipas_id, public.get_employee_id(), v_text, v_meta, clock_timestamp());
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_money_payment_snap(p_payment_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+           'kind', case p.kind when 'down_payment' then 'Down payment' when 'payment' then 'Payment'
+                               when 'full_payment' then 'Full payment' when 'shipping_fee' then 'Shipping fee' else p.kind end,
+           'paid_on', p.paid_on,
+           'amount', p.amount,
+           'percent_of_order', p.percent_of_order,
+           'forex_rate', p.forex_rate,
+           'php_debited', p.php_debited,
+           'charge_fee_php', p.charge_fee_php,
+           'doc_stamp_php', p.doc_stamp_php,
+           'misc_fee_php', p.misc_fee_php,
+           'method', (select o.label from public.ipas_options o where o.id = p.method_id),
+           'method_other', p.method_other,
+           'check_no', p.check_no,
+           'proof_files', greatest(
+             (select count(*) from public.ipas_payment_files f where f.payment_id = p.id),
+             case when p.proof_url is not null then 1 else 0 end))
+    from public.ipas_payments p
+   where p.id = p_payment_id;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_money_writer(p_fn text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -6631,14 +6846,15 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._ipas_payment_ask_to_chat(p_ipas_id uuid, p_event text, p_text text, p_ask_id uuid)
+CREATE OR REPLACE FUNCTION public._ipas_payment_ask_to_chat(p_ipas_id uuid, p_event text, p_text text, p_ask_id uuid, p_meta jsonb DEFAULT '{}'::jsonb)
  RETURNS void
  LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  insert into public.ipas_messages (ipas_id, author_id, content, metadata)
-  values (p_ipas_id, public.get_employee_id(), p_text, jsonb_build_object('event', p_event, 'ask_id', p_ask_id));
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata, created_at)
+  values (p_ipas_id, public.get_employee_id(), p_text,
+          jsonb_build_object('event', p_event, 'ask_id', p_ask_id) || coalesce(p_meta, '{}'::jsonb), clock_timestamp());
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_payment_closes_ask()
@@ -6648,6 +6864,7 @@ CREATE OR REPLACE FUNCTION public._ipas_payment_closes_ask()
  SET search_path TO 'public'
 AS $function$
 declare
+  v_meta jsonb;
   v_ask public.ipas_payment_asks;
 begin
   if new.ask_id is null then
@@ -6676,7 +6893,15 @@ begin
          paid_by_payment_id = new.id
    where id = v_ask.id;
 
-  perform public._ipas_payment_ask_to_chat(new.ipas_id, 'payment_ask_closed', 'Payment recorded; the ask for payment is closed.', v_ask.id);
+  v_meta := public._ipas_ask_meta(v_ask);
+  perform public._ipas_payment_ask_to_chat(
+    new.ipas_id, 'payment_ask_closed',
+    'Paid the ask for payment: ' || (v_meta ->> 'purpose_label') || ' '
+      || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(v_ask.amount, 'FM999G999G999G990.00')))
+      || ' (payment of ' || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(new.amount, 'FM999G999G999G990.00'))) || ' recorded).',
+    v_ask.id,
+    v_meta || jsonb_build_object('reason', 'paid', 'payment_id', new.id, 'paid_amount', new.amount)
+  );
   return null;
 end;
 $function$
@@ -17340,6 +17565,8 @@ begin
     'amount_php', v_row.amount_php
   ));
 
+  perform public._ipas_money_charge_chat('charge_added', v_ipas.id, v_row.id, null, public._ipas_money_charge_snap(v_row.id));
+
   return v_row;
 end;
 $function$
@@ -17484,6 +17711,8 @@ begin
     'currency', v_ipas.odoo_copy->'po'->>'currency'
   ));
 
+  perform public._ipas_money_payment_chat('payment_added', v_ipas.id, v_row.id, null, public._ipas_money_payment_snap(v_row.id));
+
   return v_row;
 end;
 $function$
@@ -17535,7 +17764,8 @@ begin
       || coalesce(' (' || trim(trailing '.' from trim(trailing '0' from to_char(p_percent, 'FM9990.0000'))) || '% of the order)', '')
       || ', ' || public._ipas_ask_priority_label(p_priority) || ' priority'
       || coalesce(' (' || v_note || ')', '') || '.',
-    v_row.id
+    v_row.id,
+    public._ipas_ask_meta(v_row)
   );
   return v_row;
 end;
@@ -17726,6 +17956,8 @@ CREATE OR REPLACE FUNCTION public.ipas_edit_payment_ask(p_ask_id uuid, p_amount 
  SET search_path TO 'public'
 AS $function$
 declare
+  v_changes jsonb;
+  v_meta jsonb;
   v_actor uuid := public.get_employee_id();
   v_ask public.ipas_payment_asks;
   v_ipas public.ipas;
@@ -17770,25 +18002,17 @@ begin
    where id = v_ask.id
   returning * into v_row;
 
-  v_currency := coalesce(nullif(v_ipas.odoo_copy->'po'->>'currency', ''), '');
-  insert into public.ipas_messages (ipas_id, author_id, content, metadata)
-  values (
-    v_ipas.id, v_actor,
-    'Changed the ask for payment: ' || public._ipas_ask_purpose_label(v_row.purpose) || ' '
-      || btrim(v_currency || ' ' || trim(to_char(v_row.amount, 'FM999G999G999G990.00')))
-      || ', ' || public._ipas_ask_priority_label(v_row.priority) || ' priority'
-      || coalesce(' (' || v_row.note || ')', '') || '.',
-    jsonb_build_object(
-      'event', 'payment_ask_edited', 'ask_id', v_row.id,
-      'changes', jsonb_strip_nulls(jsonb_build_object(
-        'amount', case when v_ask.amount is distinct from v_row.amount
-                       then jsonb_build_object('from', v_ask.amount, 'to', v_row.amount) end,
-        'priority', case when v_ask.priority is distinct from v_row.priority
-                         then jsonb_build_object('from', v_ask.priority, 'to', v_row.priority) end,
-        'note', case when v_ask.note is distinct from v_row.note
-                     then jsonb_build_object('from', v_ask.note, 'to', v_row.note) end
-      ))
-    )
+  v_meta := public._ipas_ask_meta(v_row);
+  v_changes := public._ipas_diff(
+    jsonb_build_object('amount', v_ask.amount, 'priority', public._ipas_ask_priority_label(v_ask.priority),
+                       'note', v_ask.note, 'percent_of_order', v_ask.percent_of_order),
+    jsonb_build_object('amount', v_row.amount, 'priority', public._ipas_ask_priority_label(v_row.priority),
+                       'note', v_row.note, 'percent_of_order', v_row.percent_of_order));
+  perform public._ipas_payment_ask_to_chat(
+    v_ipas.id, 'payment_ask_edited',
+    'Changed the ask for payment (' || (v_meta ->> 'purpose_label') || ' ' || btrim((v_meta ->> 'currency') || ' '
+      || trim(to_char(v_row.amount, 'FM999G999G999G990.00'))) || '): ' || public._ipas_changes_text(v_changes) || '.',
+    v_row.id, v_meta || jsonb_build_object('changes', v_changes)
   );
   return v_row;
 end;
@@ -17933,6 +18157,7 @@ CREATE OR REPLACE FUNCTION public.ipas_fill_charge(p_charge_id uuid, p_charged_o
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_fill_charge');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -17957,6 +18182,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_charge_snap(v_before.id);
+
   update public.ipas_charges
      set charged_on = p_charged_on, amount_php = v_amount, attachment_url = v_url
    where id = v_before.id
@@ -17967,6 +18194,9 @@ begin
     'kind', (select o.label from public.ipas_options o where o.id = v_row.kind_id),
     'changes', jsonb_build_object('amount_php', jsonb_build_object('from', v_before.amount_php, 'to', v_amount))
   ));
+  perform public._ipas_money_charge_chat(
+    case when v_snap ->> 'amount' is null then 'charge_added' else 'charge_changed' end,
+    v_ipas.id, v_row.id, v_snap, public._ipas_money_charge_snap(v_row.id));
   return v_row;
 end;
 $function$
@@ -18823,6 +19053,7 @@ CREATE OR REPLACE FUNCTION public.ipas_remove_charge(p_charge_id uuid)
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_remove_charge');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -18834,6 +19065,7 @@ begin
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_remove_charge', v_ipas_id);
+  v_snap := public._ipas_money_charge_snap(p_charge_id);
   delete from public.ipas_charges where id = p_charge_id returning * into v_row;
   if v_row.id is null then
     raise exception 'ipas_remove_charge: charge % not found', p_charge_id using errcode = '22023';
@@ -18845,6 +19077,8 @@ begin
     'charged_on', v_row.charged_on,
     'amount_php', v_row.amount_php
   ));
+
+  perform public._ipas_money_charge_chat('charge_removed', v_ipas.id, v_row.id, v_snap, null);
 
   return v_row;
 end;
@@ -18923,6 +19157,7 @@ CREATE OR REPLACE FUNCTION public.ipas_remove_payment(p_payment_id uuid)
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_remove_payment');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -18934,6 +19169,7 @@ begin
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_remove_payment', v_ipas_id);
+  v_snap := public._ipas_money_payment_snap(p_payment_id);
   delete from public.ipas_payments where id = p_payment_id returning * into v_row;
   if v_row.id is null then
     raise exception 'ipas_remove_payment: payment % not found', p_payment_id using errcode = '22023';
@@ -18951,6 +19187,8 @@ begin
     'had_proof', v_row.proof_url is not null,
     'currency', v_ipas.odoo_copy->'po'->>'currency'
   ));
+
+  perform public._ipas_money_payment_chat('payment_removed', v_ipas.id, v_row.id, v_snap, null);
 
   return v_row;
 end;
@@ -19086,6 +19324,7 @@ CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_ipas public.ipas;
   v_php boolean;
   v_rate numeric := round(p_forex_rate, 6);
@@ -19139,6 +19378,10 @@ begin
        group by btrim(x.u)
     ) s;
 
+  -- One line in the Chat for the whole save: the pieces below stay quiet, and the line is written at the end.
+  perform set_config('ipas.money_chat_quiet', 'on', true);
+  v_snap := public._ipas_money_payment_snap(p_payment_id);
+
   -- One transaction: if any step refuses, nothing is kept.
   if p_payment_id is null then
     v_row := public.ipas_add_payment(v_ipas.id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
@@ -19162,12 +19405,21 @@ begin
 
   update public.ipas_payments set method_other = v_other where id = v_row.id and method_other is distinct from v_other;
 
+  v_row := public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
+
+  perform set_config('ipas.money_chat_quiet', 'off', true);
+  perform public._ipas_money_payment_chat(
+    case when p_payment_id is null then 'payment_added' else 'payment_changed' end,
+    v_ipas.id, v_row.id, v_snap, public._ipas_money_payment_snap(v_row.id));
+
   -- Paying an open ask: the trigger checks it is open, on this IPAS and supplier side, then closes it.
+  -- It runs after the payment's own line so the Chat reads in order.
   if p_ask_id is not null then
     update public.ipas_payments set ask_id = p_ask_id where id = v_row.id and ask_id is distinct from p_ask_id;
+    select * into v_row from public.ipas_payments where id = v_row.id;
   end if;
 
-  return public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
+  return v_row;
 end;
 $function$
 ;
@@ -19930,6 +20182,7 @@ CREATE OR REPLACE FUNCTION public.ipas_set_payment_money(p_payment_id uuid, p_fo
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_set_payment_money');
   v_ipas_id uuid;
   v_before public.ipas_payments;
@@ -19955,6 +20208,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_payment_snap(v_before.id);
+
   update public.ipas_payments
      set forex_rate = v_rate, doc_stamp_php = v_stamp, misc_fee_php = v_misc
    where id = v_before.id
@@ -19969,6 +20224,7 @@ begin
       'misc_fee_php', jsonb_build_object('from', v_before.misc_fee_php, 'to', v_misc)
     )
   ));
+  perform public._ipas_money_payment_chat('payment_changed', v_ipas_id, v_row.id, v_snap, public._ipas_money_payment_snap(v_row.id));
   return v_row;
 end;
 $function$
@@ -21206,6 +21462,7 @@ CREATE OR REPLACE FUNCTION public.ipas_update_charge(p_charge_id uuid, p_kind_id
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_update_charge');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -21252,6 +21509,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_charge_snap(v_before.id);
+
   update public.ipas_charges
      set kind_id = p_kind_id, charged_on = p_charged_on, amount_php = v_amount
    where id = v_before.id
@@ -21262,6 +21521,8 @@ begin
     'kind', v_label,
     'changes', v_changes
   ));
+
+  perform public._ipas_money_charge_chat('charge_changed', v_ipas.id, v_row.id, v_snap, public._ipas_money_charge_snap(v_row.id));
 
   return v_row;
 end;
@@ -21274,6 +21535,7 @@ CREATE OR REPLACE FUNCTION public.ipas_update_payment(p_payment_id uuid, p_kind 
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_update_payment');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -21343,6 +21605,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_payment_snap(v_before.id);
+
   update public.ipas_payments
      set kind = p_kind,
          paid_on = p_paid_on,
@@ -21363,6 +21627,8 @@ begin
     'changes', v_changes
   ));
 
+  perform public._ipas_money_payment_chat('payment_changed', v_ipas.id, v_row.id, v_snap, public._ipas_money_payment_snap(v_row.id));
+
   return v_row;
 end;
 $function$
@@ -21374,6 +21640,7 @@ CREATE OR REPLACE FUNCTION public.ipas_withdraw_payment_ask(p_ask_id uuid)
  SET search_path TO 'public'
 AS $function$
 declare
+  v_meta jsonb;
   v_actor uuid := public.get_employee_id();
   v_row public.ipas_payment_asks;
 begin
@@ -21392,7 +21659,13 @@ begin
     raise exception 'ipas_withdraw_payment_ask: that ask is not open' using errcode = '22023';
   end if;
 
-  perform public._ipas_payment_ask_to_chat(v_row.ipas_id, 'payment_ask_withdrawn', 'Withdrew the ask for payment.', v_row.id);
+  v_meta := public._ipas_ask_meta(v_row);
+  perform public._ipas_payment_ask_to_chat(
+    v_row.ipas_id, 'payment_ask_withdrawn',
+    'Withdrew the ask for payment: ' || (v_meta ->> 'purpose_label') || ' '
+      || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(v_row.amount, 'FM999G999G999G990.00'))) || '.',
+    v_row.id, v_meta
+  );
   return v_row;
 end;
 $function$

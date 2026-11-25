@@ -30,10 +30,75 @@ function formatWhen(iso) {
   return formatDateWith(iso, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }, { time: true });
 }
 
+const CHANGE_LABELS = {
+  kind: "Kind",
+  paid_on: "Paid on",
+  charged_on: "Date",
+  amount: "Amount",
+  percent_of_order: "% of order",
+  forex_rate: "Forex rate",
+  php_debited: "Pesos debited",
+  charge_fee_php: "Bank charge",
+  doc_stamp_php: "Doc stamp",
+  misc_fee_php: "Misc fee",
+  method: "Method",
+  method_other: "Method (other)",
+  check_no: "Check no.",
+  proof_files: "Proof files",
+  attachment: "Attachment",
+  priority: "Priority",
+  note: "Note",
+};
+const MONEY_KEYS = new Set(["amount", "php_debited", "charge_fee_php", "doc_stamp_php", "misc_fee_php"]);
+
+function changeLabel(key) {
+  return CHANGE_LABELS[key] || key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+function changeValue(key, value) {
+  if (value === null || value === undefined || value === "") return "none";
+  if (typeof value === "number") {
+    if (MONEY_KEYS.has(key)) return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (key === "percent_of_order") return `${value}%`;
+  }
+  return String(value);
+}
+
+// An edit line: each changed field with its old value muted and struck through and its new value in
+// normal ink on a light tint. Only changed fields are listed (the database sends only those).
+function ChangeList({ changes }) {
+  const rows = Object.entries(changes || {});
+  if (!rows.length) return null;
+  return (
+    <dl className="mt-1 space-y-0.5 text-sm" data-testid="ipas-event-changes">
+      {rows.map(([key, change]) => (
+        <div key={key} className="flex flex-wrap items-baseline gap-x-2" data-change={key}>
+          <dt className="text-xs text-muted-foreground">{changeLabel(key)}</dt>
+          <dd className="flex flex-wrap items-baseline gap-x-1.5 break-words">
+            <del className="text-muted-foreground line-through decoration-muted-foreground/60" data-testid="change-from">
+              {changeValue(key, change?.from)}
+            </del>
+            <span className="text-muted-foreground" aria-hidden="true">
+              {"→"}
+            </span>
+            <ins className="rounded bg-mauve-4 px-1 text-foreground no-underline" data-testid="change-to">
+              {changeValue(key, change?.to)}
+            </ins>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 // An event line is posted by the database (a status change), never typed: it reads like the Purchase
 // Request chat's event lines, quiet and in italics, under whoever made the change.
 const Message = memo(function Message({ message, highlighted = false }) {
   const isEvent = !!message.metadata?.event;
+  const changes = isEvent && message.metadata?.changes && Object.keys(message.metadata.changes).length ? message.metadata.changes : null;
+  // With a change list the sentence stops at the closing bracket: the list carries the rest.
+  const cut = changes && message.content ? message.content.indexOf("): ") : -1;
+  const lead = cut > -1 ? message.content.slice(0, cut + 1) : message.content;
   return (
     <li
       className={cn("flex gap-2.5 rounded-lg transition-colors duration-700", highlighted && "bg-mauve-3")}
@@ -58,10 +123,11 @@ const Message = memo(function Message({ message, highlighted = false }) {
           </span>
         </p>
         <NoteText
-          content={message.content}
+          content={lead}
           mentions={message.metadata?.mentions}
           className={cn("text-sm break-words", isEvent ? "text-muted-foreground italic" : "text-foreground")}
         />
+        {changes ? <ChangeList changes={changes} /> : null}
         <AttachmentList attachments={message.metadata?.attachments} className={message.content ? "mt-2" : "mt-1"} />
       </div>
     </li>

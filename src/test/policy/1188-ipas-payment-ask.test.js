@@ -161,6 +161,7 @@ describe("withdrawing and closing the ask", () => {
             "payment_ask_opened",
             "payment_ask_withdrawn",
             "payment_ask_opened",
+            "payment_added",
             "payment_ask_closed",
         ])
         expect(lines[0].content).toContain("Down payment")
