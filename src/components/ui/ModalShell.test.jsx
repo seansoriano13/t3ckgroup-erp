@@ -35,7 +35,7 @@ describe("ModalShell record size", () => {
     for (const size of ["compact", "wide"]) {
       const { unmount } = render(shell({ size }));
       const dialog = screen.getByRole("dialog");
-      expect(dialog.className).toContain("max-md:!h-dvh");
+      expect(dialog.className).toContain("max-md:!h-auto");
       expect(dialog.className).toContain("max-md:rounded-t-2xl");
       unmount();
     }

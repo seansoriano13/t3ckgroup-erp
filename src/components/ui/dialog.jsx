@@ -62,7 +62,7 @@ function DialogContent({
           // Header and footer stay pinned (they are sticky) while the body scrolls. A
           // flex column here so the footer can sit at the bottom of a short form.
           sheet &&
-            "max-md:!top-0 max-md:!left-0 max-md:!translate-x-0 max-md:!translate-y-0 max-md:!h-dvh max-md:!max-h-none max-md:!w-full max-md:!max-w-none max-md:flex max-md:flex-col max-md:rounded-t-2xl max-md:rounded-b-none max-md:[&>*]:shrink-0",
+            "max-md:!top-0 max-md:!left-0 max-md:!translate-x-0 max-md:!translate-y-0 max-md:!bottom-0 max-md:!h-auto max-md:!max-h-none max-md:!w-full max-md:!max-w-none max-md:flex max-md:flex-col max-md:rounded-t-2xl max-md:rounded-b-none max-md:[&>*]:shrink-0",
           " data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0 data-closed:zoom-out-95",
           className,
         )}

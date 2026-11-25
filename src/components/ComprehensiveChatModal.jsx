@@ -1455,7 +1455,7 @@ export default function ComprehensiveChatModal({
               {/* Input Area */}
               <form
                 onSubmit={handleSend}
-                className="p-4 border-t border-border bg-muted/10 min-w-0 w-full max-w-full flex flex-col"
+                className="p-4 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))] border-t border-border bg-muted/10 min-w-0 w-full max-w-full flex flex-col"
               >
                 <FileInput
                   ref={fileInputRef}
