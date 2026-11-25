@@ -627,6 +627,14 @@ export const IPAS_SIGNER_LIST = {
 
 export const IPAS_SIGNER_LISTS = Object.values(IPAS_SIGNER_LIST);
 
+/**
+ * The Payers list (#1223, spec #1220): who pays what is asked for on an IPAS. It sits in
+ * ipas_signer_lists beside the sign-off lists but is NOT one of them: it gives no read, no
+ * sign-off and no Approval Center queue, only the bell on a new ask and the For payment count.
+ */
+export const IPAS_PAYERS_LIST = "payers";
+export const IPAS_PAYERS_LIST_LABEL = "Payers";
+
 /** The list that gives each section 7 sign-off. */
 export const IPAS_SECTION_7_LIST = {
   [IPAS_SIGNOFF_ROLE.RECEIVED]: IPAS_SIGNER_LIST.S7_RECEIVED,

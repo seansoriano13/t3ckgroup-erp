@@ -5,7 +5,14 @@ import PeoplePicker from "../ui/PeoplePicker";
 import PageLoading from "../ui/PageLoading";
 import QueryError from "../ui/QueryError";
 import { ipasService } from "../../services/ipasService";
-import { IPAS_SIGNER_LISTS, IPAS_SIGNER_LIST, IPAS_SIGNER_LIST_LABELS, ipasSectionNo } from "../../constants/ipas";
+import {
+  IPAS_PAYERS_LIST,
+  IPAS_PAYERS_LIST_LABEL,
+  IPAS_SIGNER_LISTS,
+  IPAS_SIGNER_LIST,
+  IPAS_SIGNER_LIST_LABELS,
+  ipasSectionNo,
+} from "../../constants/ipas";
 import {
   TRANSMITTAL_STAFF_LIST,
   TRANSMITTAL_STAFF_LIST_LABELS,
@@ -27,14 +34,19 @@ const WHO = {
   [IPAS_SIGNER_LIST.S7_CHECKED]: "Checks the IPAS at filing, after it is received.",
   [IPAS_SIGNER_LIST.S7_APPROVED]: `Approves section ${ipasSectionNo(7)}, which files the IPAS.`,
   [IPAS_SIGNER_LIST.LOGISTICS_SIGNED]: `Signs section ${ipasSectionNo(8)}, Logistics, once the goods are at their location. Filing waits for it.`,
+  [IPAS_PAYERS_LIST]: "Pays what is asked for on an IPAS. Gets a bell on each new ask and sees the For payment count. Gives no other right.",
   [TRANSMITTAL_STAFF_LIST.WAREHOUSE]: "Signs a Transmittal's Warehouse checking and releasing; may raise one and sign Received in Odoo. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.TECHNICAL]: "Signs a Transmittal's Technical inspection and is the TCA in-charge. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.LOGISTICS]: "May raise a Transmittal. Reads Transmittals, not the IPAS.",
   [TRANSMITTAL_STAFF_LIST.CHECK_BY]: "Checks a finished Transmittal (two different people close it) and signs off Canvasses as the purchasing approver. Reads Transmittals, not the IPAS.",
 };
 
-const ALL_LISTS = [...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS];
-const ALL_LIST_LABELS = { ...IPAS_SIGNER_LIST_LABELS, ...TRANSMITTAL_STAFF_LIST_LABELS };
+const ALL_LISTS = [...IPAS_SIGNER_LISTS, IPAS_PAYERS_LIST, ...TRANSMITTAL_STAFF_LISTS];
+const ALL_LIST_LABELS = {
+  ...IPAS_SIGNER_LIST_LABELS,
+  [IPAS_PAYERS_LIST]: IPAS_PAYERS_LIST_LABEL,
+  ...TRANSMITTAL_STAFF_LIST_LABELS,
+};
 
 /**
  * The sign-off lists (#247, spec #241), Super Admins only (the settings page
@@ -79,8 +91,8 @@ export default function IpasSignerListEditor() {
     <div className="space-y-4" data-testid="ipas-signer-lists">
       <p className="rounded-xl bg-muted/60 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
         Anyone with Purchasing access submits a section. Everything after that is signed by the people on its list,
-        and a Super Admin signs only when they are on one: add yourself if you need to. Being on an IPAS list lets
-        someone read every IPAS; the Transmittal lists read Transmittals only. Changing a list never changes what has
+        and a Super Admin signs only when they are on one: add yourself if you need to. Being on an IPAS sign-off list lets
+        someone read every IPAS; the Payers and Transmittal lists give no IPAS read. Changing a list never changes what has
         already been signed.
       </p>
 
