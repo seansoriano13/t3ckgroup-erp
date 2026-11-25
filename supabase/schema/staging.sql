@@ -6023,6 +6023,25 @@ AS $function$
   select upper(btrim(coalesce(p_copy->'po'->>'currency', ''))) = 'PHP';
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_freight_writer(p_fn text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if v_actor is null then
+    raise exception '%: not signed in', p_fn using errcode = '42501';
+  end if;
+  if not (public.has_purchasing_access() or public.has_finance_access()) then
+    raise exception '%: only Purchasing or Finance records payments and charges', p_fn using errcode = '42501';
+  end if;
+  return v_actor;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_landed_cost(p_ipas_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -6518,8 +6537,8 @@ begin
   if v_actor is null then
     raise exception '%: not signed in', p_fn using errcode = '42501';
   end if;
-  if not (public.has_purchasing_access() or public.has_finance_access()) then
-    raise exception '%: only Purchasing or Finance records payments and charges', p_fn using errcode = '42501';
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception '%: only Purchasing, Finance or a Super Admin records payments and charges', p_fn using errcode = '42501';
   end if;
   return v_actor;
 end;
@@ -17454,8 +17473,8 @@ begin
   if v_actor is null then
     raise exception 'ipas_ask_for_payment: not signed in' using errcode = '42501';
   end if;
-  if not public.has_purchasing_access() then
-    raise exception 'ipas_ask_for_payment: only Purchasing asks for a payment' using errcode = '42501';
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception 'ipas_ask_for_payment: only Purchasing, Finance or a Super Admin asks for a payment' using errcode = '42501';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_ask_for_payment', p_ipas_id);
@@ -19347,7 +19366,7 @@ CREATE OR REPLACE FUNCTION public.ipas_set_freight(p_ipas_id uuid, p_amount nume
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public._ipas_money_writer('ipas_set_freight');
+  v_actor uuid := public._ipas_freight_writer('ipas_set_freight');
   v_ipas public.ipas;
   v_amount numeric := round(p_amount, 2);
   v_currency text := nullif(upper(btrim(coalesce(p_currency, ''))), '');
@@ -20242,7 +20261,7 @@ CREATE OR REPLACE FUNCTION public.ipas_set_withholding(p_ipas_id uuid, p_withhol
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public._ipas_money_writer('ipas_set_withholding');
+  v_actor uuid := public._ipas_freight_writer('ipas_set_withholding');
   v_ipas public.ipas;
   v_value text := nullif(btrim(coalesce(p_withholding, '')), '');
   v_row public.ipas;
@@ -21253,8 +21272,8 @@ begin
   if v_actor is null then
     raise exception 'ipas_withdraw_payment_ask: not signed in' using errcode = '42501';
   end if;
-  if not public.has_purchasing_access() then
-    raise exception 'ipas_withdraw_payment_ask: only Purchasing withdraws an ask' using errcode = '42501';
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception 'ipas_withdraw_payment_ask: only Purchasing, Finance or a Super Admin withdraws an ask' using errcode = '42501';
   end if;
 
   update public.ipas_payment_asks

@@ -63,12 +63,19 @@ afterAll(async () => {
 })
 
 describe("asking for a payment", () => {
-    it("is open to Purchasing and refused to everyone else", async () => {
+    it("is open to Purchasing, Finance and a Super Admin and refused to everyone else", async () => {
         const ipas = await raise()
-        for (const who of ["finance", "ordinary", "superAdmin"]) {
+        for (const who of ["ordinary"]) {
             const refused = await ask(who, ipas.id)
             expect(refused.error, `${who} was allowed to ask`).not.toBeNull()
             expect(refused.error.code).toBe("42501")
+        }
+        // #1222: Finance and a Super Admin ask too (one open ask at a time, so on their own IPAS each).
+        for (const who of ["finance", "superAdmin"]) {
+            const other = await raise()
+            const allowed = await ask(who, other.id)
+            expect(allowed.error, `${who} was refused an ask`).toBeNull()
+            expect(allowed.data).toMatchObject({ ipas_id: other.id, asked_by: ids[who] })
         }
         const asked = await ask("outsider", ipas.id)
         expect(asked.error).toBeNull()
@@ -96,12 +103,21 @@ describe("asking for a payment", () => {
 })
 
 describe("withdrawing and closing the ask", () => {
-    it("lets Purchasing withdraw it and nobody else, and then a new ask can be made", async () => {
+    it("lets Purchasing, Finance and a Super Admin withdraw it and nobody else, and then a new ask can be made", async () => {
         const ipas = await raise()
         await ask("outsider", ipas.id)
 
-        const refused = await withdraw("finance", ipas.id)
+        const refused = await withdraw("ordinary", ipas.id)
         expect(refused.error?.code).toBe("42501")
+
+        // #1222: Finance and a Super Admin withdraw an ask too.
+        for (const who of ["finance", "superAdmin"]) {
+            const other = await raise()
+            await ask("outsider", other.id)
+            const withdrawn = await withdraw(who, other.id)
+            expect(withdrawn.error, `${who} was refused a withdrawal`).toBeNull()
+            expect(withdrawn.data).toMatchObject({ closed_reason: "withdrawn", closed_by: ids[who] })
+        }
 
         const done = await withdraw("outsider", ipas.id)
         expect(done.error).toBeNull()

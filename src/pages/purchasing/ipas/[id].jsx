@@ -861,11 +861,11 @@ function IpasPage({ onClose }) {
   // #789: the Logistics signers (the Warehouse) pick the Item Location too, as the run sheet has them do.
   const onLogisticsList = (signerLists?.[IPAS_SIGNER_LIST.LOGISTICS_SIGNED] ?? []).some((member) => member.employeeId === user?.id);
   const canPickLocation = (hasPurchasingFlow || onLogisticsList) && open;
-  // Payments and charges: Purchasing or Finance, until Filing.
-  const canRecord = (hasPurchasingFlow || hasFinanceFlow) && open;
+  // Payments and charges: Purchasing, Finance or a Super Admin (#1222), until Filing.
+  const canRecord = (hasPurchasingFlow || hasFinanceFlow || isSuperAdmin) && open;
   const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
-  // The ask for payment (ADR 0055): Purchasing access, on an open IPAS. The database decides in the end.
-  const canAskPayment = hasPurchasingFlow && open;
+  // The ask for payment (ADR 0055): Purchasing, Finance or a Super Admin (#1222), on an open IPAS. The database decides in the end.
+  const canAskPayment = (hasPurchasingFlow || hasFinanceFlow || isSuperAdmin) && open;
   // The IPAS Status (#1154): Purchasing access, Logistics access or a Super Admin, until Filing.
   const canSetStatusStep = (hasPurchasingFlow || hasLogisticsFlow || isSuperAdmin) && open;
   // A fact that matches a later step (#1155) is offered, never applied: a quiet line under the pills and a

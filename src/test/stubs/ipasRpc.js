@@ -106,8 +106,10 @@ export function stubIpasRpcs({
   // Payments and charges: Purchasing access or Finance access. `money` lets a
   // test say the caller holds Finance access without Purchasing.
   const canWriteMoney = money ?? purchasing
+  // #1222: a Super Admin records payments and charges too, but not freight (ipas_set_freight).
   const requireMoney = (fn) => {
-    if (!canWriteMoney) refuse("42501", `${fn}: only Purchasing or Finance records payments and charges`)
+    const allowed = canWriteMoney || (superAdmin && fn !== "ipas_set_freight")
+    if (!allowed) refuse("42501", `${fn}: only Purchasing, Finance or a Super Admin records payments and charges`)
   }
 
   const nextNumber = () => {
