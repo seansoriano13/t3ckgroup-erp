@@ -78,6 +78,7 @@ export default function IpasChargesTable({ ipas, canRecord = false, canAsk = fal
                 ask={ask}
                 currency={ipas.currency}
                 canAct={canAsk}
+                actionsColumn={showActions}
                 testId="ipas-charge-ask-row"
                 noteFallback="Asked for payment. It counts only once the charge is recorded."
                 onRecord={onRecordAsk}

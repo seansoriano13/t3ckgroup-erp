@@ -4,7 +4,7 @@
 //   AskLiners        the open asks as grey one-line rows above the rows being edited, with Record as paid, Edit, Withdraw
 // The grey row inside the read-only table is `IpasAskTableRow` (../IpasAskTableRow.jsx); both read an ask with askLine.
 
-import { Pencil, Undo2, WalletCards } from "lucide-react";
+import { Circle, CircleDot, Pencil, Undo2, WalletCards } from "lucide-react";
 
 import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -42,13 +42,21 @@ export function PaidOrAskChoice({ id, value, disabled, onChange }) {
                 variant="outline"
                 onClick={() => onChange(option.value)}
                 className={cn(
-                  "h-auto flex-col items-start gap-0 whitespace-normal px-3 py-2 text-left",
+                  "h-auto items-start justify-start gap-2.5 whitespace-normal px-3 py-2 text-left",
                   needed && "border-amber-7 bg-amber-a1",
-                  checked && "border-foreground bg-muted",
+                  checked && "border-foreground bg-muted ring-1 ring-foreground",
                 )}
               >
-                <span className="text-sm font-semibold">{option.label}</span>
-                <span className="text-xs font-normal text-muted-foreground">{option.help}</span>
+                {/* A radio dot, so the pick reads at a glance and not only from the border (#1236). */}
+                {checked ? (
+                  <CircleDot size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-foreground" />
+                ) : (
+                  <Circle size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-muted-foreground" />
+                )}
+                <span className="flex min-w-0 flex-col">
+                  <span className={cn("text-sm font-semibold", !checked && !needed && "text-muted-foreground")}>{option.label}</span>
+                  <span className="text-xs font-normal text-muted-foreground">{option.help}</span>
+                </span>
               </Button>
             );
           })}
