@@ -137,7 +137,7 @@ describe("the new tables are protected", () => {
 })
 
 describe("the option lists", () => {
-    it("start from the sheet's values: the payment methods run Alipay to Others, and there are seven charge kinds", async () => {
+    it("start from the sheet's values: the payment methods run Alipay to Others, and there are eight charge kinds", async () => {
         const { data } = await svc().from("ipas_options").select("list, label, sort, active").order("sort")
         const labels = (list) => data.filter((o) => o.list === list && o.active).map((o) => o.label)
 
@@ -145,7 +145,7 @@ describe("the option lists", () => {
         expect(methods[0]).toBe("Alipay")
         expect(methods.at(-1)).toBe("Others")
         expect(methods).toContain("Dated Check")
-        expect(labels("charge_kind")).toHaveLength(7)
+        expect(labels("charge_kind")).toHaveLength(8)
         expect(labels("freight_service").length).toBeGreaterThan(0)
     })
 

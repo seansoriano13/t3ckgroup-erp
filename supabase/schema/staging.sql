@@ -2141,7 +2141,6 @@ alter table hr_day_shift_config add constraint "hr_day_shift_config_pkey" PRIMAR
 alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMARY KEY (id);
 alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
 alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KEY (ipas_id);
-alter table ipas_charges add constraint "ipas_charges_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
 alter table ipas_document_files add constraint "ipas_document_files_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
@@ -2149,11 +2148,8 @@ alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
 alter table ipas_messages add constraint "ipas_messages_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
-alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_charge_id_fkey" FOREIGN KEY (paid_by_charge_id) REFERENCES ipas_charges(id) ON DELETE SET NULL;
-alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_payment_id_fkey" FOREIGN KEY (paid_by_payment_id) REFERENCES ipas_payments(id) ON DELETE SET NULL;
 alter table ipas_payment_asks add constraint "ipas_payment_asks_pkey" PRIMARY KEY (id);
 alter table ipas_payment_files add constraint "ipas_payment_files_pkey" PRIMARY KEY (id);
-alter table ipas_payments add constraint "ipas_payments_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
@@ -2431,12 +2427,12 @@ alter table ipas_options add constraint "ipas_options_required_before_chk" CHECK
 alter table ipas_options add constraint "ipas_options_system_key_list_chk" CHECK (((system_key IS NULL) OR (list = 'document_kind'::text)));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_amount_chk" CHECK ((amount > (0)::numeric));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_charge_chk" CHECK ((((purpose = 'charge'::text) AND (charge_kind_id IS NOT NULL) AND (currency IS NOT NULL)) OR ((purpose <> 'charge'::text) AND (charge_kind_id IS NULL) AND (currency IS NULL))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_chk" CHECK (((closed_at IS NULL) = (closed_reason IS NULL)));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_reason_chk" CHECK (((closed_reason IS NULL) OR (closed_reason = ANY (ARRAY['withdrawn'::text, 'paid'::text]))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_percent_chk" CHECK (((percent_of_order IS NULL) OR ((percent_of_order > (0)::numeric) AND (percent_of_order <= (1000)::numeric))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_priority_chk" CHECK ((priority = ANY (ARRAY['very_high'::text, 'high'::text, 'medium'::text])));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_purpose_chk" CHECK ((purpose = ANY (ARRAY['down_payment'::text, 'balance'::text, 'charge'::text])));
-alter table ipas_payment_asks add constraint "ipas_payment_asks_charge_chk" CHECK ((((purpose = 'charge'::text) AND (charge_kind_id IS NOT NULL) AND (currency IS NOT NULL)) OR ((purpose <> 'charge'::text) AND (charge_kind_id IS NULL) AND (currency IS NULL))));
 alter table ipas_payment_files add constraint "ipas_payment_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
 alter table ipas_payment_files add constraint "ipas_payment_files_url_chk" CHECK ((url ~* '^https?://'::text));
 alter table ipas_payments add constraint "ipas_payments_amount_chk" CHECK ((amount > (0)::numeric));
@@ -2675,6 +2671,7 @@ alter table ipas add constraint "ipas_import_clearance_typed_by_fkey" FOREIGN KE
 alter table ipas add constraint "ipas_item_location_id_fkey" FOREIGN KEY (item_location_id) REFERENCES ipas_options(id);
 alter table ipas_bank_details add constraint "ipas_bank_details_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_bank_details add constraint "ipas_bank_details_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
+alter table ipas_charges add constraint "ipas_charges_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_charges add constraint "ipas_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_charges add constraint "ipas_charges_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
@@ -2691,8 +2688,11 @@ alter table ipas_payment_asks add constraint "ipas_payment_asks_asked_by_fkey" F
 alter table ipas_payment_asks add constraint "ipas_payment_asks_charge_kind_id_fkey" FOREIGN KEY (charge_kind_id) REFERENCES ipas_options(id);
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_by_fkey" FOREIGN KEY (closed_by) REFERENCES employees(id);
 alter table ipas_payment_asks add constraint "ipas_payment_asks_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_charge_id_fkey" FOREIGN KEY (paid_by_charge_id) REFERENCES ipas_charges(id) ON DELETE SET NULL;
+alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_payment_id_fkey" FOREIGN KEY (paid_by_payment_id) REFERENCES ipas_payments(id) ON DELETE SET NULL;
 alter table ipas_payment_files add constraint "ipas_payment_files_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payment_files add constraint "ipas_payment_files_payment_id_fkey" FOREIGN KEY (payment_id) REFERENCES ipas_payments(id) ON DELETE CASCADE;
+alter table ipas_payments add constraint "ipas_payments_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payments add constraint "ipas_payments_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN KEY (method_id) REFERENCES ipas_options(id);
@@ -6149,25 +6149,6 @@ AS $function$
   ) = 4;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._ipas_is_own_file_link(p_url text)
- RETURNS boolean
- LANGUAGE sql
- IMMUTABLE
- SET search_path TO 'public'
-AS $function$
-  select p_url ~* '^https://res\.cloudinary\.com/[^[:space:]]+$'
-      or p_url ~* '^https://[a-z0-9-]+\.supabase\.co/storage/v1/object/[^[:space:]]+$'
-      or p_url ~* '^http://(127\.0\.0\.1|localhost)(:[0-9]+)?/storage/v1/object/[^[:space:]]+$';
-$function$
-;
-CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
- RETURNS boolean
- LANGUAGE sql
- IMMUTABLE
-AS $function$
-  select upper(btrim(coalesce(p_copy->'po'->>'currency', ''))) = 'PHP';
-$function$
-;
 CREATE OR REPLACE FUNCTION public._ipas_freight_writer(p_fn text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -6185,6 +6166,25 @@ begin
   end if;
   return v_actor;
 end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_is_own_file_link(p_url text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select p_url ~* '^https://res\.cloudinary\.com/[^[:space:]]+$'
+      or p_url ~* '^https://[a-z0-9-]+\.supabase\.co/storage/v1/object/[^[:space:]]+$'
+      or p_url ~* '^http://(127\.0\.0\.1|localhost)(:[0-9]+)?/storage/v1/object/[^[:space:]]+$';
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_is_php(p_copy jsonb)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+  select upper(btrim(coalesce(p_copy->'po'->>'currency', ''))) = 'PHP';
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_landed_cost(p_ipas_id uuid)
@@ -7441,8 +7441,6 @@ begin
      and (p_ipas_id is null or i.id = p_ipas_id)
   on conflict (ipas_id, step) do nothing;
 
-  -- A filed IPAS is frozen; this one update goes through the reopening switch, and the
-  -- updated_at stamp is left alone so the list order does not move.
   perform set_config('ipas.reopening', 'on', true);
   alter table public.ipas disable trigger ipas_updated_at;
 
@@ -33724,6 +33722,7 @@ CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE
 CREATE TRIGGER ipas_withholding_guard BEFORE INSERT OR UPDATE OF withholding, source ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_withholding_guard();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_charge_closes_ask AFTER INSERT OR UPDATE OF ask_id ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION _ipas_charge_closes_ask();
 CREATE TRIGGER ipas_charges_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
@@ -33745,7 +33744,6 @@ CREATE TRIGGER ipas_options_system_key_guard BEFORE INSERT OR UPDATE ON public.i
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payment_asks_notify_payers AFTER INSERT ON public.ipas_payment_asks FOR EACH ROW EXECUTE FUNCTION _ipas_payers_notify_ask();
 CREATE TRIGGER ipas_payment_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_payment_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
-CREATE TRIGGER ipas_charge_closes_ask AFTER INSERT OR UPDATE OF ask_id ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION _ipas_charge_closes_ask();
 CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT OR UPDATE OF ask_id ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
 CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();

@@ -148,7 +148,7 @@ describe("withdrawing and closing the ask", () => {
         expect(row.paid_by_payment_id).toBe(paid.data.id)
     })
 
-    it("posts ask, withdraw and close in the IPAS Chat as event lines that notify nobody", async () => {
+    it("posts ask, withdraw and close in the IPAS Chat as event lines that notify nobody (the payment line is its own event, not an ask line)", async () => {
         const ipas = await raise()
         const first = (await ask("outsider", ipas.id)).data
         await withdraw("outsider", first.id)
@@ -161,7 +161,6 @@ describe("withdrawing and closing the ask", () => {
             "payment_ask_opened",
             "payment_ask_withdrawn",
             "payment_ask_opened",
-            "payment_added",
             "payment_ask_closed",
         ])
         expect(lines[0].content).toContain("Down payment")
