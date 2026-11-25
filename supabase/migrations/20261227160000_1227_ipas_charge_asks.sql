@@ -216,6 +216,9 @@ begin
   if p_percent is not null and (p_percent <= 0 or p_percent > 1000) then
     raise exception 'ipas_ask_for_payment: the %% of order must be more than zero and at most 1000' using errcode = '22023';
   end if;
+  if p_purpose = 'charge' and p_percent is not null then
+    raise exception 'ipas_ask_for_payment: a Charge ask has no %% of order (it applies to a supplier ask only)' using errcode = '22023';
+  end if;
 
   if p_purpose = 'charge' then
     if p_charge_kind_id is null then

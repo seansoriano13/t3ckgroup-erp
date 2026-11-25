@@ -1218,6 +1218,7 @@ export function stubIpasRpcs({
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_ask_for_payment: the amount must be more than zero")
     if (!["down_payment", "balance", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge")
     if (args.p_purpose === "charge" && !args.p_charge_kind_id) refuse("22023", "ipas_ask_for_payment: pick the kind of charge")
+    if (args.p_purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: a Charge ask has no % of order (it applies to a supplier ask only)")
     const isCharge = args.p_purpose === "charge"
     return insertRow("ipas_payment_asks", {
       charge_kind_id: isCharge ? args.p_charge_kind_id : null,
@@ -1239,6 +1240,7 @@ export function stubIpasRpcs({
     requireOpenIpas("ipas_edit_payment_ask", ask.ipas_id)
     if (ask.closed_at) refuse("22023", "ipas_edit_payment_ask: that ask is closed and can't be edited")
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_edit_payment_ask: the amount must be more than zero")
+    if (ask.purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: a Charge ask has no % of order (it applies to a supplier ask only)")
     return updateRow("ipas_payment_asks", ask, {
       amount: args.p_amount,
       priority: args.p_priority,
@@ -1250,6 +1252,7 @@ export function stubIpasRpcs({
     requireAsker("ipas_withdraw_payment_ask")
     const ask = findRow("ipas_payment_asks", args.p_ask_id)
     if (!ask || ask.closed_at) refuse("22023", "ipas_withdraw_payment_ask: that ask is not open")
+    requireOpenIpas("ipas_withdraw_payment_ask", ask.ipas_id)
     return updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "withdrawn" })
   })
 

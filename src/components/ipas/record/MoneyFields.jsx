@@ -489,8 +489,24 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
   );
 }
 
+/**
+ * "Record as paid" on a grey row of the read-only table opens the edit form on this section and leaves a request
+ * (`{ section, ask }`). Once the form is up, the section takes it once: it fills a new row linked to that ask, the
+ * same as its own "Record as paid" would, and tells the page it is handled.
+ */
+function useTakeRecordRequest(section, request, onHandled, record) {
+  const taken = useRef(null);
+  useEffect(() => {
+    if (!request || request.section !== section || taken.current === request) return;
+    taken.current = request;
+    record(request.ask);
+    onHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per request
+  }, [request]);
+}
+
 /** Section 1's payments: DP and FP read off the saved rows, then one inline form per payment. */
-export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved, onEditAsk, onWithdrawAsk }) {
+export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved, onEditAsk, onWithdrawAsk, recordingAsk, onRecordingHandled }) {
   const sum = ipas.paymentSummary;
   const currency = ipas.currency;
   const savedById = new Map((ipas.payments ?? []).map((payment) => [payment.id, payment]));
@@ -506,6 +522,7 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
     const percent = percentApplies(kind) && ask.percent_of_order ? formatPercent(ask.percent_of_order) : "";
     rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: String(Number(ask.amount)), percentOfOrder: percent });
   };
+  useTakeRecordRequest("payments", recordingAsk, onRecordingHandled, recordAsk);
   // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
   // printed % must agree. Not on first paint: opening a saved IPAS never edits it.
   const lastBase = useRef(base?.amount ?? null);
@@ -638,7 +655,7 @@ function ChargeRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, on
 }
 
 /** Section 3's importation charges, in pesos. */
-export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved, onEditAsk, onWithdrawAsk }) {
+export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved, onEditAsk, onWithdrawAsk, recordingAsk, onRecordingHandled }) {
   const savedById = new Map((ipas.charges ?? []).map((charge) => [charge.id, charge]));
   // One note for the lot, not one under every row: saved charges whose amount is still blank.
   const noAmount = form.charges.filter((row) => row.id && row.amountPhp === "").length;
@@ -654,6 +671,7 @@ export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSave
       askHint: inPesos ? null : { amount: ask.amount, currency: ask.currency },
     });
   };
+  useTakeRecordRequest("costs", recordingAsk, onRecordingHandled, recordAsk);
   return (
     <Titled
       title="Importation charges"

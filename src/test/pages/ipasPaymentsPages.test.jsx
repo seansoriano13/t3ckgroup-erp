@@ -336,7 +336,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
         const ask = await screen.findByRole("group", { name: "For payment" });
         await pick(user, ask, /^Kind/, "Brokerage Fee");
-        const currency = within(ask).getByRole("textbox", { name: /^Billed in/ });
+        const currency = within(ask).getByRole("textbox", { name: /^Currency/ });
         expect(currency).toHaveValue("PHP");
         await user.clear(currency);
         await user.type(currency, "usd");
@@ -368,6 +368,69 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         expect(grey).toHaveTextContent(/Forwarder bill/);
         // It is not in Payments.
         expect(screen.queryByTestId("ipas-payment-ask-row")).not.toBeInTheDocument();
+      });
+
+      it("gives the grey row Record as paid, Edit and Withdraw to a writer, and a Charge ask has no % of order", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const open = seedChargeAsk(row, { amount: 4000 });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs");
+        const grey = await screen.findByTestId("ipas-charge-ask-row");
+        expect(within(grey).getByRole("button", { name: "Record as paid" })).toBeInTheDocument();
+
+        await user.click(within(grey).getByRole("button", { name: /^Edit/ }));
+        const dialog = await topDialog();
+        expect(within(dialog).queryByRole("textbox", { name: /% of order/ })).not.toBeInTheDocument();
+        const amount = within(dialog).getByRole("textbox", { name: /^Amount/ });
+        await user.clear(amount);
+        await user.type(amount, "4500");
+        await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+        await waitFor(() => expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id).amount).toBe(4500));
+
+        await user.click(await within(await screen.findByTestId("ipas-charge-ask-row")).findByRole("button", { name: /^Withdraw/ }));
+        await waitFor(() => expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id)).toMatchObject({ closed_reason: "withdrawn" }));
+        await waitFor(() => expect(screen.queryByTestId("ipas-charge-ask-row")).not.toBeInTheDocument());
+      });
+
+      it("Record as paid on the grey row opens the edit form on a filled charge linked to that ask", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const open = seedChargeAsk(row, { amount: 4000 });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs");
+        await user.click(await within(await screen.findByTestId("ipas-charge-ask-row")).findByRole("button", { name: "Record as paid" }));
+        const charge = await screen.findByRole("group", { name: "Charge 1" });
+        expect(within(charge).getByRole("combobox", { name: /^Kind/ })).toHaveTextContent("Brokerage Fee");
+        expect(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ })).toHaveValue("4000");
+        expect(within(charge).getByRole("checkbox", { name: /Does this pay the open item\?/ })).toBeChecked();
+        await saveAll(user);
+        await waitFor(() => expect(db.rows("ipas_charges")[0]).toMatchObject({ amount_php: 4000, ask_id: open.id }));
+      });
+
+      it("shows no buttons on the grey row to someone who cannot write", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        seedChargeAsk(row);
+        mockUser.current = reader;
+        stubIpasRpcs({ actorId: reader.id, purchasing: false, money: false });
+
+        renderDetail(row.id, "costs");
+        const grey = await screen.findByTestId("ipas-charge-ask-row");
+        expect(within(grey).queryByRole("button")).not.toBeInTheDocument();
+      });
+
+      it("marks Currency and Amount as required on a Charge ask", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs", "edit");
+        await user.click(await screen.findByRole("button", { name: /Add charge/ }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        for (const name of [/^Currency/, /^Amount/]) {
+          const box = within(ask).getByRole("textbox", { name });
+          expect(ask.querySelector(`label[for="${box.id}"]`)).toHaveTextContent("*");
+        }
       });
 
       it("Record as paid fills the kind and, for a PHP ask, the amount; saving closes that ask", async () => {
@@ -566,6 +629,38 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         await user.click(within(liners[1]).getByRole("button", { name: /^Withdraw/ }));
         await waitFor(() => expect(db.rows("ipas_payment_asks").find((a) => a.id === second.id)).toMatchObject({ closed_reason: "withdrawn" }));
         await waitFor(() => expect(screen.getAllByTestId("payment-ask-liner")).toHaveLength(1));
+      });
+
+      it("gives a Payments grey row Record as paid, Edit and Withdraw; Record as paid opens a filled, linked payment", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const open = seedAsk(row, { amount: 2250 });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments");
+        const grey = await screen.findByTestId("ipas-payment-ask-row");
+        expect(within(grey).getByRole("button", { name: /^Edit/ })).toBeInTheDocument();
+        expect(within(grey).getByRole("button", { name: /^Withdraw/ })).toBeInTheDocument();
+        await user.click(within(grey).getByRole("button", { name: "Record as paid" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ })).toHaveValue("2250");
+        expect(within(payment).getByRole("checkbox", { name: /Does this pay the open item\?/ })).toBeChecked();
+        await pick(user, payment, /^Method/, "Dated Check");
+        await saveAll(user);
+        await waitFor(() => expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 2250, ask_id: open.id }));
+      });
+
+      it("withdraws a Payments ask from its grey row, and Amount is marked required in the dialog", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const open = seedAsk(row, { amount: 2250 });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments");
+        await user.click(await within(await screen.findByTestId("ipas-payment-ask-row")).findByRole("button", { name: /^Edit/ }));
+        const dialog = await topDialog();
+        expect(dialog.querySelector('label[for="ask-amount"]')).toHaveTextContent("*");
+        await user.keyboard("{Escape}");
+        await user.click(await within(await screen.findByTestId("ipas-payment-ask-row")).findByRole("button", { name: /^Withdraw/ }));
+        await waitFor(() => expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id)).toMatchObject({ closed_reason: "withdrawn" }));
       });
 
       it("names the ask a payment paid when it is removed, and says that ask stays closed", async () => {

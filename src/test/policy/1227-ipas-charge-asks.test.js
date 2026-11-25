@@ -92,6 +92,25 @@ describe("asking for a Charge", () => {
         expect((await svc().from("ipas_payment_asks").select("id").eq("ipas_id", ipas.id)).data).toEqual([])
     })
 
+    it("refuses a percent on a Charge ask, asking or editing, but keeps it on a supplier ask", async () => {
+        const ipas = await raise()
+        expect((await askCharge(ipas.id, { p_percent: 30 })).error?.code).toBe("22023")
+        const open = (await askCharge(ipas.id)).data
+        const edit = (p) => rpc("outsider", "ipas_edit_payment_ask", { p_ask_id: open.id, p_amount: 4000, p_priority: "high", p_note: null, p_percent: p })
+        expect((await edit(30)).error?.code).toBe("22023")
+        expect((await edit(null)).error).toBeNull()
+        expect((await ask("outsider", ipas.id, { p_percent: 30 })).error).toBeNull()
+    })
+
+    it("refuses withdrawing an ask on a cancelled IPAS", async () => {
+        const ipas = await raise()
+        const open = (await askCharge(ipas.id)).data
+        expect((await rpc("outsider", "ipas_cancel", { p_ipas_id: ipas.id, p_reason: "Raised in error" })).error).toBeNull()
+        const withdrawn = await rpc("outsider", "ipas_withdraw_payment_ask", { p_ask_id: open.id })
+        expect(withdrawn.error?.code).toBe("22023")
+        expect(await askRow(open.id)).toMatchObject({ closed_at: null })
+    })
+
     it("keeps no kind and no currency on a Down payment or Balance ask", async () => {
         const ipas = await raise()
         const supplier = await ask("outsider", ipas.id, { p_charge_kind_id: await kindId("Brokerage Fee"), p_currency: "USD" })

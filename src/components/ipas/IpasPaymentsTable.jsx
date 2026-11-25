@@ -7,10 +7,11 @@ import { Paperclip, Pencil, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { ExternalLink } from "../ui/external-link";
 import StatusBadge from "../StatusBadge";
+import IpasAskTableRow from "./IpasAskTableRow";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
-import { IPAS_ASK_PRIORITY_LABELS, IPAS_PAYMENT_KIND_LABELS } from "../../constants/ipas";
-import { askCurrency, askWhat, payableAsks } from "../../utils/ipasPaymentAsk";
-import { formatPercent, paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
+import { IPAS_PAYMENT_KIND_LABELS } from "../../constants/ipas";
+import { payableAsks } from "../../utils/ipasPaymentAsk";
+import { paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "../../utils/ipas";
 import { ipasFigures, realPercent } from "../../utils/ipasFigures";
@@ -26,33 +27,7 @@ const php = (value) => (value === null || value === undefined ? "—" : formatAm
 const fee = (value) => (value ? php(value) : "—");
 const rateText = (rate) => `₱${rate.toFixed(2)}`;
 
-/**
- * An open ask as a grey row at the top of the same table (#1225): not paid yet, so it adds to no total. What it is
- * for and the % sit where a payment's kind is, the priority where the method is, the asked amount (muted) in
- * Amount, and the note across the money columns. Charges reuse it (#1227).
- */
-export function IpasAskTableRow({ ask, currency, canRecord = false }) {
-  const percent = formatPercent(ask.percent_of_order);
-  return (
-    <TableRow data-testid="ipas-payment-ask-row" className="hover:bg-transparent [&>td]:bg-mauve-2">
-      <TableCell className={td}>
-        <div className="font-semibold text-foreground/80">
-          {askWhat(ask)}
-          {percent ? ` · ${percent}%` : ""}
-        </div>
-        <StatusBadge theme="mauve" label="Not paid yet" />
-      </TableCell>
-      <TableCell className={cn(td, "text-muted-foreground")}>{ask.priority ? `${IPAS_ASK_PRIORITY_LABELS[ask.priority] ?? ask.priority} priority` : "—"}</TableCell>
-      <TableCell className={cn(td, num, "italic text-muted-foreground")}>{formatAmount(Number(ask.amount), askCurrency(ask, currency))}</TableCell>
-      <TableCell colSpan={7} className={cn(td, "text-xs text-muted-foreground")}>
-        {typeof ask.note === "string" && ask.note.trim() ? ask.note.trim() : "Asked for payment. It counts as paid only once the payment is recorded."}
-      </TableCell>
-      {canRecord && <TableCell className={td} />}
-    </TableRow>
-  );
-}
-
-export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayment, onRemovePayment }) {
+export default function IpasPaymentsTable({ ipas, canRecord = false, canAsk = false, onEditPayment, onRemovePayment, onRecordAsk, onEditAsk, onWithdrawAsk }) {
   const { payments, currency } = ipas;
   const isPhp = isPhpCurrency(currency);
   const rows = numberPayments(payments).map(({ payment, number }) => {
@@ -67,6 +42,8 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
   const average = isPhp ? null : blendedRate(payments);
   const owed = ipasFigures(ipas).amount;
   const asks = payableAsks(ipas);
+  // The grey ask rows carry their own buttons for anyone who may write, even where the rows below are read-only.
+  const showActions = canRecord || canAsk;
 
   return (
     <div className="space-y-2">
@@ -84,12 +61,23 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
               <th className={cn(th, "text-right")}>Misc</th>
               <th className={cn(th, "text-right")}>Total</th>
               <th className={th}>Proof</th>
-              {canRecord && <th className={th}><span className="sr-only">Actions</span></th>}
+              {showActions && <th className={th}><span className="sr-only">Actions</span></th>}
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y-0">
             {asks.map((ask) => (
-              <IpasAskTableRow key={ask.id} ask={ask} currency={currency} canRecord={canRecord} />
+              <IpasAskTableRow
+                key={ask.id}
+                ask={ask}
+                currency={currency}
+                canAct={canAsk}
+                noteSpan={7}
+                testId="ipas-payment-ask-row"
+                noteFallback="Asked for payment. It counts as paid only once the payment is recorded."
+                onRecord={onRecordAsk}
+                onEdit={onEditAsk}
+                onWithdraw={onWithdrawAsk}
+              />
             ))}
             {rows.map(({ payment, number, pesos, total }) => {
               const kindLabel = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
@@ -130,27 +118,29 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
                       <StatusBadge theme="amber" label="Missing" />
                     )}
                   </TableCell>
-                  {canRecord && (
+                  {showActions && (
                     <TableCell className={td}>
-                      <span className="inline-flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Edit ${kindLabel ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                          onClick={() => onEditPayment(payment)}
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-red-11"
-                          aria-label={`Remove ${kindLabel ?? "payment"} of ${formatDay(payment.paid_on)}`}
-                          onClick={() => onRemovePayment(payment)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </span>
+                      {canRecord && (
+                        <span className="inline-flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${kindLabel ?? "payment"} of ${formatDay(payment.paid_on)}`}
+                            onClick={() => onEditPayment(payment)}
+                          >
+                            <Pencil />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-red-11"
+                            aria-label={`Remove ${kindLabel ?? "payment"} of ${formatDay(payment.paid_on)}`}
+                            onClick={() => onRemovePayment(payment)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </span>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>
@@ -169,7 +159,7 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
               <td className={cn(foot, num)}>{fee(sumFee("misc_fee_php"))}</td>
               <td className={cn(foot, num)}>{known.length > 0 ? php(sumPesos(known.map((row) => row.total ?? 0))) : "—"}</td>
               <td className={foot} />
-              {canRecord && <td className={foot} />}
+              {showActions && <td className={foot} />}
             </tr>
           </tfoot>
         </Table>

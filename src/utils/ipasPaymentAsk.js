@@ -9,6 +9,12 @@ export const askPriorityRank = (priority) => {
   return index === -1 ? IPAS_ASK_PRIORITIES.length : index;
 };
 
+/** "Very High", "High", "Medium" for an ask's priority; an unknown value shows as it is. */
+export const askPriorityLabel = (priority) => IPAS_ASK_PRIORITY_LABELS[priority] ?? priority;
+
+/** The priority choices for a select, most urgent first. */
+export const askPriorityOptions = () => IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPAS_ASK_PRIORITY_LABELS[value] }));
+
 /** Every open ask of a list row's figures (an IPAS may have several, #1224), else the single `paymentAsk`. */
 const openAsksOf = (figures) => (figures?.paymentAsks?.length ? figures.paymentAsks : figures?.paymentAsk ? [figures.paymentAsk] : []);
 
@@ -45,7 +51,7 @@ export function askLine(ask, currency) {
   const note = typeof ask.note === "string" && ask.note.trim() ? ` (${ask.note.trim()})` : "";
   const percent = formatPercent(ask.percent_of_order);
   const percentText = percent ? ` · ${percent}% of the order` : "";
-  const priorityText = ask.priority ? ` · ${IPAS_ASK_PRIORITY_LABELS[ask.priority] ?? ask.priority} priority` : "";
+  const priorityText = ask.priority ? ` · ${askPriorityLabel(ask.priority)} priority` : "";
   return `${askWhat(ask)} · ${amount}${percentText}${priorityText}${note}`;
 }
 

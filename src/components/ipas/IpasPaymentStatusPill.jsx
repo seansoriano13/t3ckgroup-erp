@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import StatusBadge from "../StatusBadge";
-import { IPAS_ASK_PRIORITY_LABELS, IPAS_PAYMENT_STATUS, IPAS_PAYMENT_STATUS_LABELS } from "../../constants/ipas";
-import { askLine, askWhat } from "../../utils/ipasPaymentAsk";
+import { IPAS_PAYMENT_STATUS, IPAS_PAYMENT_STATUS_LABELS } from "../../constants/ipas";
+import { askCurrency, askLine, askPriorityLabel, askWhat } from "../../utils/ipasPaymentAsk";
 import { formatAmount } from "../../utils/ipas";
 import { paidLeftText } from "../../utils/ipasFigures";
 
@@ -39,9 +39,9 @@ function AskLines({ figures }) {
   return (
     <span className="flex max-w-full flex-col items-start gap-1" data-testid="ipas-payment-asks">
       {asks.map((ask, index) => {
-        const currency = ask.currency ?? figures.currency;
+        const currency = askCurrency(ask, figures.currency);
         const amount = formatAmount(Number(ask.amount), currency);
-        const note = [askWhat(ask), IPAS_ASK_PRIORITY_LABELS[ask.priority] ?? ask.priority]
+        const note = [askWhat(ask), askPriorityLabel(ask.priority)]
           .filter(Boolean)
           .join(" · ");
         return (

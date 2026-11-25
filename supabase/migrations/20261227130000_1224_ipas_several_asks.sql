@@ -211,6 +211,9 @@ begin
   if p_percent is not null and (p_percent <= 0 or p_percent > 1000) then
     raise exception 'ipas_edit_payment_ask: the %% of order must be more than zero and at most 1000' using errcode = '22023';
   end if;
+  if p_percent is not null and v_ask.purpose = 'charge' then
+    raise exception 'ipas_edit_payment_ask: a Charge ask has no %% of order (it applies to a supplier ask only)' using errcode = '22023';
+  end if;
 
   if v_ask.amount = p_amount and v_ask.priority = p_priority
      and v_ask.note is not distinct from v_note and v_ask.percent_of_order is not distinct from p_percent then
@@ -252,6 +255,10 @@ grant execute on function public.ipas_edit_payment_ask(uuid, numeric, text, text
 -- ---------------------------------------------------------------------------
 -- Withdraw one open ask, by its own id (it used to take the IPAS id)
 -- ---------------------------------------------------------------------------
+-- The live function names its parameter p_ipas_id; Postgres will not rename a
+-- parameter with create or replace, so drop it first (the grant below is repeated).
+drop function if exists public.ipas_withdraw_payment_ask(uuid);
+
 create or replace function public.ipas_withdraw_payment_ask(p_ask_id uuid)
 returns public.ipas_payment_asks
 language plpgsql
@@ -268,6 +275,12 @@ begin
   if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
     raise exception 'ipas_withdraw_payment_ask: only Purchasing, Finance or a Super Admin withdraws an ask' using errcode = '42501';
   end if;
+
+  select * into v_row from public.ipas_payment_asks where id = p_ask_id;
+  if v_row.id is null then
+    raise exception 'ipas_withdraw_payment_ask: that ask is not open' using errcode = '22023';
+  end if;
+  perform public._ipas_lock_open('ipas_withdraw_payment_ask', v_row.ipas_id);
 
   update public.ipas_payment_asks
      set closed_at = now(), closed_by = v_actor, closed_reason = 'withdrawn'

@@ -1,5 +1,23 @@
 [
     {
+        "date": "2026-11-25",
+        "title": "For payment on payments and charges, Payers list and a quieter Payment column",
+        "version": "1.11.16",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Add payment and Add charge now ask first: Paid already, or For payment (not paid yet). For payment sends the ask to the Payers with no date, method or proof needed.",
+            "An IPAS can have several open asks for payment at once. Each shows as a grey row with Record as paid, Edit and Withdraw, and a payment or charge can say which ask it pays.",
+            "A charge can be asked for too: pick its kind and the currency it is billed in.",
+            "There is a Payers list beside the sign-off lists in the IPAS settings, with 201 on it to start. The people on it are told when an ask for payment is made.",
+            "A Super Admin can now record payments and charges.",
+            "Money changes on an IPAS (asks, payments and charges added, changed or removed) are posted as lines in the IPAS Chat.",
+            "The Payment column is quieter: it only stands out when an ask is open, and shows each ask with what it is for and its priority.",
+            "The IPAS Status no longer has Payment Approval or For Payment. Those steps now live in the payment asks."
+        ]
+    },
+    {
         "date": "2026-11-24",
         "title": "For Payment step, payment priority and Withholding on the IPAS",
         "version": "1.11.15",

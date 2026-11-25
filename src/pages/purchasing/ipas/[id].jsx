@@ -183,6 +183,8 @@ function IpasPage({ onClose }) {
   const [reopening, setReopening] = useState(false);
   const [holding, setHolding] = useState(false);
   const [editingAsk, setEditingAsk] = useState(null); // the open ask being changed from its grey row (#1225)
+  // "Record as paid" on a grey row: the edit form opens on its section with a new row filled from this ask.
+  const [recordingAsk, setRecordingAsk] = useState(null); // { section: "payments" | "costs", ask }
   // A failed move, shown at the place it was started (card or drawer footer), with Retry.
   const [failure, setFailure] = useState(null);
   // The IPAS this viewer just signed, so the card can point at the next one waiting for them.
@@ -207,6 +209,15 @@ function IpasPage({ onClose }) {
   const sections = useSectionsOpen();
   // The section in the edit view (?edit=), and the section last left, to focus its block on the way back.
   const { key: editKey, edit: openEdit, leave: leaveEdit } = useEditSection();
+  // A request the form never took up (the edit view closed first) must not fill a row the next time it opens.
+  const sawEditKey = useRef(false);
+  useEffect(() => {
+    if (editKey) sawEditKey.current = true;
+    else if (sawEditKey.current) {
+      sawEditKey.current = false;
+      setRecordingAsk(null);
+    }
+  }, [editKey]);
   const editedKey = useRef(null);
   const rowEls = useRef({});
   // Back from the edit view lands on that section, open, where it was edited from.
@@ -976,6 +987,12 @@ function IpasPage({ onClose }) {
     editHeader: setTyping,
     editAmount: () => setTyping(IPAS_HEADER_FIELD.PI_QT_AMOUNT),
     pickFreight: (optionId) => pick.mutate({ freightServiceId: optionId }),
+    editAsk: setEditingAsk,
+    withdrawAsk: (ask) => withdrawAsk.mutateAsync(ask.id).catch((error) => toast.error(ipasErrorMessage(error))),
+    recordAsk: (section, ask) => {
+      setRecordingAsk({ section, ask });
+      openEdit(section);
+    },
     removePayment: (payment) => setRemoving({ type: "payment", row: payment }),
     tickSheet: (field, value) => tickSheet.mutate({ field, value }),
     removeCharge: (charge) => setRemoving({ type: "charge", row: charge }),
@@ -1223,10 +1240,10 @@ function IpasPage({ onClose }) {
                 onSave={(plan) => saveAll.mutateAsync(plan)}
                 onEditPurpose={canChange && !ipas.sors?.length ? on.editPurpose : null}
                 onRemoveSaved={(type, row) => setRemoving({ type, row })}
-                onEditAsk={setEditingAsk}
-                onWithdrawAsk={(ask) =>
-                  withdrawAsk.mutateAsync(ask.id).catch((error) => toast.error(ipasErrorMessage(error)))
-                }
+                onEditAsk={on.editAsk}
+                onWithdrawAsk={on.withdrawAsk}
+                recordingAsk={recordingAsk}
+                onRecordingHandled={() => setRecordingAsk(null)}
                 onRemoveDocument={setRemovingDocument}
                 onSuggest={() => suggest.mutate()}
                 notice={editNotice}
