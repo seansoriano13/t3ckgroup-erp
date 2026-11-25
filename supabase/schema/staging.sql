@@ -820,7 +820,8 @@ create table if not exists public."ipas_charges" (
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "attachment_url" text
+  "attachment_url" text,
+  "ask_id" uuid
 );
 
 create table if not exists public."ipas_document_files" (
@@ -896,7 +897,9 @@ create table if not exists public."ipas_payment_asks" (
   "closed_by" uuid,
   "closed_reason" text,
   "priority" text not null default 'high'::text,
-  "percent_of_order" numeric
+  "percent_of_order" numeric,
+  "paid_by_payment_id" uuid,
+  "paid_by_charge_id" uuid
 );
 
 create table if not exists public."ipas_payment_files" (
@@ -927,7 +930,8 @@ create table if not exists public."ipas_payments" (
   "doc_stamp_php" numeric(14,2) not null default 0,
   "misc_fee_php" numeric(14,2) not null default 0,
   "percent_of_order" numeric(7,4),
-  "method_other" text
+  "method_other" text,
+  "ask_id" uuid
 );
 
 create table if not exists public."ipas_signer_list_log" (
@@ -2135,6 +2139,7 @@ alter table hr_day_shift_config add constraint "hr_day_shift_config_pkey" PRIMAR
 alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMARY KEY (id);
 alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
 alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KEY (ipas_id);
+alter table ipas_charges add constraint "ipas_charges_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
 alter table ipas_document_files add constraint "ipas_document_files_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
@@ -2142,8 +2147,11 @@ alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
 alter table ipas_file_rules add constraint "ipas_file_rules_pkey" PRIMARY KEY (id);
 alter table ipas_messages add constraint "ipas_messages_pkey" PRIMARY KEY (id);
 alter table ipas_options add constraint "ipas_options_pkey" PRIMARY KEY (id);
+alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_charge_id_fkey" FOREIGN KEY (paid_by_charge_id) REFERENCES ipas_charges(id) ON DELETE SET NULL;
+alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_payment_id_fkey" FOREIGN KEY (paid_by_payment_id) REFERENCES ipas_payments(id) ON DELETE SET NULL;
 alter table ipas_payment_asks add constraint "ipas_payment_asks_pkey" PRIMARY KEY (id);
 alter table ipas_payment_files add constraint "ipas_payment_files_pkey" PRIMARY KEY (id);
+alter table ipas_payments add constraint "ipas_payments_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_payments add constraint "ipas_payments_pkey" PRIMARY KEY (id);
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_pkey" PRIMARY KEY (id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_pkey" PRIMARY KEY (id);
@@ -2988,6 +2996,7 @@ CREATE INDEX ipas_item_location_id_idx ON public.ipas USING btree (item_location
 CREATE UNIQUE INDEX ipas_live_po_number_key ON public.ipas USING btree (po_number) WHERE (state <> 'cancelled'::text);
 CREATE INDEX ipas_state_idx ON public.ipas USING btree (state, created_at DESC);
 CREATE INDEX ipas_bank_details_updated_by_idx ON public.ipas_bank_details USING btree (updated_by);
+CREATE INDEX ipas_charges_ask_id_idx ON public.ipas_charges USING btree (ask_id);
 CREATE INDEX ipas_charges_created_by_idx ON public.ipas_charges USING btree (created_by);
 CREATE INDEX ipas_charges_ipas_id_idx ON public.ipas_charges USING btree (ipas_id, charged_on);
 CREATE INDEX ipas_charges_kind_id_idx ON public.ipas_charges USING btree (kind_id);
@@ -3005,9 +3014,12 @@ CREATE INDEX ipas_options_list_sort_idx ON public.ipas_options USING btree (list
 CREATE UNIQUE INDEX ipas_options_system_key_key ON public.ipas_options USING btree (system_key) WHERE (system_key IS NOT NULL);
 CREATE INDEX ipas_payment_asks_asked_by_idx ON public.ipas_payment_asks USING btree (asked_by);
 CREATE INDEX ipas_payment_asks_closed_by_idx ON public.ipas_payment_asks USING btree (closed_by);
-CREATE UNIQUE INDEX ipas_payment_asks_one_open_idx ON public.ipas_payment_asks USING btree (ipas_id) WHERE (closed_at IS NULL);
+CREATE INDEX ipas_payment_asks_open_idx ON public.ipas_payment_asks USING btree (ipas_id) WHERE (closed_at IS NULL);
+CREATE INDEX ipas_payment_asks_paid_by_charge_id_idx ON public.ipas_payment_asks USING btree (paid_by_charge_id);
+CREATE INDEX ipas_payment_asks_paid_by_payment_id_idx ON public.ipas_payment_asks USING btree (paid_by_payment_id);
 CREATE INDEX ipas_payment_files_created_by_idx ON public.ipas_payment_files USING btree (created_by);
 CREATE INDEX ipas_payment_files_payment_id_idx ON public.ipas_payment_files USING btree (payment_id);
+CREATE INDEX ipas_payments_ask_id_idx ON public.ipas_payments USING btree (ask_id);
 CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (created_by);
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
@@ -6638,14 +6650,33 @@ AS $function$
 declare
   v_ask public.ipas_payment_asks;
 begin
-  update public.ipas_payment_asks
-     set closed_at = now(), closed_by = public.get_employee_id(), closed_reason = 'paid'
-   where ipas_id = new.ipas_id and closed_at is null
-  returning * into v_ask;
-
-  if v_ask.id is not null then
-    perform public._ipas_payment_ask_to_chat(new.ipas_id, 'payment_ask_closed', 'Payment recorded; the ask for payment is closed.', v_ask.id);
+  if new.ask_id is null then
+    return null;
   end if;
+  if tg_op = 'UPDATE' and old.ask_id is not distinct from new.ask_id then
+    return null;
+  end if;
+
+  select * into v_ask from public.ipas_payment_asks where id = new.ask_id for update;
+  if v_ask.id is null then
+    raise exception 'that ask for payment was not found' using errcode = '22023';
+  end if;
+  if v_ask.ipas_id is distinct from new.ipas_id then
+    raise exception 'that ask for payment is on another IPAS' using errcode = '22023';
+  end if;
+  if v_ask.closed_at is not null then
+    raise exception 'that ask for payment is already closed' using errcode = '22023';
+  end if;
+  if v_ask.purpose not in ('down_payment', 'balance') then
+    raise exception 'a payment can only pay a Down payment or Balance ask' using errcode = '22023';
+  end if;
+
+  update public.ipas_payment_asks
+     set closed_at = now(), closed_by = public.get_employee_id(), closed_reason = 'paid',
+         paid_by_payment_id = new.id
+   where id = v_ask.id;
+
+  perform public._ipas_payment_ask_to_chat(new.ipas_id, 'payment_ask_closed', 'Payment recorded; the ask for payment is closed.', v_ask.id);
   return null;
 end;
 $function$
@@ -17491,9 +17522,6 @@ begin
   if p_percent is not null and (p_percent <= 0 or p_percent > 1000) then
     raise exception 'ipas_ask_for_payment: the %% of order must be more than zero and at most 1000' using errcode = '22023';
   end if;
-  if exists (select 1 from public.ipas_payment_asks where ipas_id = v_ipas.id and closed_at is null) then
-    raise exception 'ipas_ask_for_payment: % already has an open ask; withdraw it first', v_ipas.number using errcode = '23505';
-  end if;
 
   insert into public.ipas_payment_asks (ipas_id, amount, purpose, note, priority, percent_of_order, asked_by)
   values (v_ipas.id, p_amount, p_purpose, v_note, p_priority, p_percent, v_actor)
@@ -17688,6 +17716,81 @@ begin
   end if;
   raise exception 'ipas_create: an IPAS is raised through the server, which reads the PO from Odoo itself; reload the page and try again'
     using errcode = '42501';
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_edit_payment_ask(p_ask_id uuid, p_amount numeric, p_priority text, p_note text DEFAULT NULL::text, p_percent numeric DEFAULT NULL::numeric)
+ RETURNS ipas_payment_asks
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_ask public.ipas_payment_asks;
+  v_ipas public.ipas;
+  v_note text := nullif(btrim(p_note), '');
+  v_row public.ipas_payment_asks;
+  v_currency text;
+begin
+  if v_actor is null then
+    raise exception 'ipas_edit_payment_ask: not signed in' using errcode = '42501';
+  end if;
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception 'ipas_edit_payment_ask: only Purchasing, Finance or a Super Admin edits an ask' using errcode = '42501';
+  end if;
+
+  select * into v_ask from public.ipas_payment_asks where id = p_ask_id;
+  if v_ask.id is null then
+    raise exception 'ipas_edit_payment_ask: that ask was not found' using errcode = '22023';
+  end if;
+  v_ipas := public._ipas_lock_open('ipas_edit_payment_ask', v_ask.ipas_id);
+
+  select * into v_ask from public.ipas_payment_asks where id = p_ask_id for update;
+  if v_ask.closed_at is not null then
+    raise exception 'ipas_edit_payment_ask: that ask is closed and can''t be edited' using errcode = '22023';
+  end if;
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'ipas_edit_payment_ask: the amount must be more than zero' using errcode = '22023';
+  end if;
+  if p_priority is null or p_priority not in ('very_high', 'high', 'medium') then
+    raise exception 'ipas_edit_payment_ask: the priority must be Very High, High or Medium' using errcode = '22023';
+  end if;
+  if p_percent is not null and (p_percent <= 0 or p_percent > 1000) then
+    raise exception 'ipas_edit_payment_ask: the %% of order must be more than zero and at most 1000' using errcode = '22023';
+  end if;
+
+  if v_ask.amount = p_amount and v_ask.priority = p_priority
+     and v_ask.note is not distinct from v_note and v_ask.percent_of_order is not distinct from p_percent then
+    return v_ask;
+  end if;
+
+  update public.ipas_payment_asks
+     set amount = p_amount, priority = p_priority, note = v_note, percent_of_order = p_percent
+   where id = v_ask.id
+  returning * into v_row;
+
+  v_currency := coalesce(nullif(v_ipas.odoo_copy->'po'->>'currency', ''), '');
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata)
+  values (
+    v_ipas.id, v_actor,
+    'Changed the ask for payment: ' || public._ipas_ask_purpose_label(v_row.purpose) || ' '
+      || btrim(v_currency || ' ' || trim(to_char(v_row.amount, 'FM999G999G999G990.00')))
+      || ', ' || public._ipas_ask_priority_label(v_row.priority) || ' priority'
+      || coalesce(' (' || v_row.note || ')', '') || '.',
+    jsonb_build_object(
+      'event', 'payment_ask_edited', 'ask_id', v_row.id,
+      'changes', jsonb_strip_nulls(jsonb_build_object(
+        'amount', case when v_ask.amount is distinct from v_row.amount
+                       then jsonb_build_object('from', v_ask.amount, 'to', v_row.amount) end,
+        'priority', case when v_ask.priority is distinct from v_row.priority
+                         then jsonb_build_object('from', v_ask.priority, 'to', v_row.priority) end,
+        'note', case when v_ask.note is distinct from v_row.note
+                     then jsonb_build_object('from', v_ask.note, 'to', v_row.note) end
+      ))
+    )
+  );
+  return v_row;
 end;
 $function$
 ;
@@ -18976,7 +19079,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric, p_method_other text DEFAULT NULL::text, p_proof_urls text[] DEFAULT NULL::text[])
+CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric, p_method_other text DEFAULT NULL::text, p_proof_urls text[] DEFAULT NULL::text[], p_ask_id uuid DEFAULT NULL::uuid)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -19058,6 +19161,11 @@ begin
   end loop;
 
   update public.ipas_payments set method_other = v_other where id = v_row.id and method_other is distinct from v_other;
+
+  -- Paying an open ask: the trigger checks it is open, on this IPAS and supplier side, then closes it.
+  if p_ask_id is not null then
+    update public.ipas_payments set ask_id = p_ask_id where id = v_row.id and ask_id is distinct from p_ask_id;
+  end if;
 
   return public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
 end;
@@ -21259,7 +21367,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_withdraw_payment_ask(p_ipas_id uuid)
+CREATE OR REPLACE FUNCTION public.ipas_withdraw_payment_ask(p_ask_id uuid)
  RETURNS ipas_payment_asks
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -21278,13 +21386,13 @@ begin
 
   update public.ipas_payment_asks
      set closed_at = now(), closed_by = v_actor, closed_reason = 'withdrawn'
-   where ipas_id = p_ipas_id and closed_at is null
+   where id = p_ask_id and closed_at is null
   returning * into v_row;
   if v_row.id is null then
-    raise exception 'ipas_withdraw_payment_ask: there is no open ask to withdraw' using errcode = '22023';
+    raise exception 'ipas_withdraw_payment_ask: that ask is not open' using errcode = '22023';
   end if;
 
-  perform public._ipas_payment_ask_to_chat(p_ipas_id, 'payment_ask_withdrawn', 'Withdrew the ask for payment.', v_row.id);
+  perform public._ipas_payment_ask_to_chat(v_row.ipas_id, 'payment_ask_withdrawn', 'Withdrew the ask for payment.', v_row.id);
   return v_row;
 end;
 $function$
@@ -33253,7 +33361,7 @@ CREATE TRIGGER ipas_options_system_key_guard BEFORE INSERT OR UPDATE ON public.i
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payment_asks_notify_payers AFTER INSERT ON public.ipas_payment_asks FOR EACH ROW EXECUTE FUNCTION _ipas_payers_notify_ask();
 CREATE TRIGGER ipas_payment_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_payment_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
-CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
+CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT OR UPDATE OF ask_id ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
 CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();

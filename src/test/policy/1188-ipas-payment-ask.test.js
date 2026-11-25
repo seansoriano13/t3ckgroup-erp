@@ -3,8 +3,8 @@
  *
  * `outsider` holds Purchasing access and raises the IPAS; `finance` holds Finance access alone;
  * `ordinary` and `superAdmin` (no flag) hold neither. The Payment status itself is worked out in the
- * unit tier (utils/ipasFigures.test.js); here: who may ask or withdraw, one open ask at a time, a
- * payment closing the ask, and the event lines in the IPAS Chat.
+ * unit tier (utils/ipasFigures.test.js); here: who may ask or withdraw, a payment saved as paying
+ * the ask closing it (#1224: several asks may be open, see also 1224-...), and the event lines in the IPAS Chat.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -42,7 +42,15 @@ async function raise() {
 
 const ask = (who, ipasId, over = {}) =>
     rpc(who, "ipas_ask_for_payment", { p_ipas_id: ipasId, p_amount: 5600, p_purpose: "down_payment", p_note: "30% down", ...over })
-const withdraw = (who, ipasId) => rpc(who, "ipas_withdraw_payment_ask", { p_ipas_id: ipasId })
+const withdraw = (who, askId) => rpc(who, "ipas_withdraw_payment_ask", { p_ask_id: askId })
+const methodId = async () => (await svc().from("ipas_options").select("id").eq("list", "payment_method").limit(1).single()).data.id
+// A payment saved as paying one ask (#1224).
+const payAsk = async (ipasId, askId, over = {}) =>
+    rpc("outsider", "ipas_save_payment", {
+        p_ipas_id: ipasId, p_payment_id: null, p_kind: "payment", p_paid_on: "2026-11-20", p_amount: 100, p_forex_rate: null,
+        p_doc_stamp_php: 0, p_misc_fee_php: 0, p_charge_fee_php: 0, p_method_id: await methodId(), p_check_no: null, p_proof_url: null,
+        p_ask_id: askId, ...over,
+    })
 
 const asksOf = async (ipasId) =>
     (await svc().from("ipas_payment_asks").select("*").eq("ipas_id", ipasId).order("asked_at")).data
@@ -70,7 +78,7 @@ describe("asking for a payment", () => {
             expect(refused.error, `${who} was allowed to ask`).not.toBeNull()
             expect(refused.error.code).toBe("42501")
         }
-        // #1222: Finance and a Super Admin ask too (one open ask at a time, so on their own IPAS each).
+        // #1222: Finance and a Super Admin ask too.
         for (const who of ["finance", "superAdmin"]) {
             const other = await raise()
             const allowed = await ask(who, other.id)
@@ -83,10 +91,9 @@ describe("asking for a payment", () => {
         expect(Number(asked.data.amount)).toBe(5600)
     })
 
-    it("holds one open ask at a time, and refuses a bad amount or purpose", async () => {
+    it("refuses a bad amount or purpose", async () => {
         const ipas = await raise()
         expect((await ask("outsider", ipas.id)).error).toBeNull()
-        expect((await ask("outsider", ipas.id)).error).not.toBeNull()
 
         const other = await raise()
         expect((await ask("outsider", other.id, { p_amount: 0 })).error).not.toBeNull()
@@ -105,64 +112,48 @@ describe("asking for a payment", () => {
 describe("withdrawing and closing the ask", () => {
     it("lets Purchasing, Finance and a Super Admin withdraw it and nobody else, and then a new ask can be made", async () => {
         const ipas = await raise()
-        await ask("outsider", ipas.id)
+        const first = (await ask("outsider", ipas.id)).data
 
-        const refused = await withdraw("ordinary", ipas.id)
+        const refused = await withdraw("ordinary", first.id)
         expect(refused.error?.code).toBe("42501")
 
         // #1222: Finance and a Super Admin withdraw an ask too.
         for (const who of ["finance", "superAdmin"]) {
             const other = await raise()
-            await ask("outsider", other.id)
-            const withdrawn = await withdraw(who, other.id)
+            const theirs = (await ask("outsider", other.id)).data
+            const withdrawn = await withdraw(who, theirs.id)
             expect(withdrawn.error, `${who} was refused a withdrawal`).toBeNull()
             expect(withdrawn.data).toMatchObject({ closed_reason: "withdrawn", closed_by: ids[who] })
         }
 
-        const done = await withdraw("outsider", ipas.id)
+        const done = await withdraw("outsider", first.id)
         expect(done.error).toBeNull()
         expect(done.data).toMatchObject({ closed_reason: "withdrawn", closed_by: ids.outsider })
 
-        expect((await withdraw("outsider", ipas.id)).error).not.toBeNull()
+        expect((await withdraw("outsider", first.id)).error).not.toBeNull()
         expect((await ask("outsider", ipas.id, { p_purpose: "balance" })).error).toBeNull()
     })
 
-    it("closes when any payment is recorded", async () => {
+    it("closes when a payment saved as paying it is recorded, and not for a payment that names no ask (#1224)", async () => {
         const ipas = await raise()
-        await ask("outsider", ipas.id)
-        const paid = await rpc("outsider", "ipas_add_payment", {
-            p_ipas_id: ipas.id,
-            p_kind: "down_payment",
-            p_paid_on: "2026-11-20",
-            p_amount: 5600,
-            p_php_debited: 360000,
-            p_charge_fee_php: 0,
-            p_method_id: (await svc().from("ipas_options").select("id").eq("list", "payment_method").limit(1).single()).data.id,
-            p_check_no: null,
-            p_proof_url: null,
-        })
+        const opened = (await ask("outsider", ipas.id)).data
+        expect((await payAsk(ipas.id, null)).error).toBeNull()
+        expect((await asksOf(ipas.id))[0].closed_at).toBeNull()
+
+        const paid = await payAsk(ipas.id, opened.id, { p_kind: "down_payment", p_amount: 5600 })
         expect(paid.error).toBeNull()
         const [row] = await asksOf(ipas.id)
         expect(row.closed_reason).toBe("paid")
         expect(row.closed_at).not.toBeNull()
+        expect(row.paid_by_payment_id).toBe(paid.data.id)
     })
 
     it("posts ask, withdraw and close in the IPAS Chat as event lines that notify nobody", async () => {
         const ipas = await raise()
-        await ask("outsider", ipas.id)
-        await withdraw("outsider", ipas.id)
-        await ask("outsider", ipas.id, { p_purpose: "balance" })
-        const paid = await rpc("outsider", "ipas_add_payment", {
-            p_ipas_id: ipas.id,
-            p_kind: "payment",
-            p_paid_on: "2026-11-20",
-            p_amount: 100,
-            p_php_debited: 6000,
-            p_charge_fee_php: 0,
-            p_method_id: (await svc().from("ipas_options").select("id").eq("list", "payment_method").limit(1).single()).data.id,
-            p_check_no: null,
-            p_proof_url: null,
-        })
+        const first = (await ask("outsider", ipas.id)).data
+        await withdraw("outsider", first.id)
+        const second = (await ask("outsider", ipas.id, { p_purpose: "balance" })).data
+        const paid = await payAsk(ipas.id, second.id)
         expect(paid.error).toBeNull()
 
         const lines = await eventLines(ipas.id)

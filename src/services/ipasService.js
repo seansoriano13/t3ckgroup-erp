@@ -74,7 +74,7 @@ const IPAS_SELECT =
   // The IPAS Status steps reached, each with the day and who set it (ADR 0054).
   " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))," +
   // The asks for payment (ADR 0055); the open one (no closed_at) makes the Payment status For payment.
-  " payment_asks:ipas_payment_asks(id, amount, purpose, note, priority, percent_of_order, asked_by, asked_at, closed_at, closed_reason, asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
+  " payment_asks:ipas_payment_asks(id, amount, purpose, note, priority, percent_of_order, asked_by, asked_at, closed_at, closed_reason, paid_by_payment_id, asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
@@ -690,9 +690,22 @@ export const ipasService = {
     return data;
   },
 
-  /** Purchasing withdraws the open ask. */
-  async withdrawPaymentAsk(id) {
-    const { data, error } = await supabase.rpc("ipas_withdraw_payment_ask", { p_ipas_id: id });
+  /** Changes one open ask (amount, priority, note, % of order), by the ask's own id (#1224). A closed ask is refused. */
+  async editPaymentAsk(askId, { amount, priority, note = null, percent = null }) {
+    const { data, error } = await supabase.rpc("ipas_edit_payment_ask", {
+      p_ask_id: askId,
+      p_amount: amount,
+      p_priority: priority,
+      p_note: note,
+      p_percent: percent,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Withdraws one open ask, by the ask's own id (#1224). */
+  async withdrawPaymentAsk(askId) {
+    const { data, error } = await supabase.rpc("ipas_withdraw_payment_ask", { p_ask_id: askId });
     if (error) throw error;
     return data;
   },
@@ -1934,7 +1947,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1985,6 +1998,8 @@ function paymentArgs(payment, isPhpPo) {
     p_proof_url: proofList[0] ?? null,
     p_method_other: methodIsOthers ? typedMethod : null,
     p_proof_urls: proofList,
+    // The open ask this payment pays (#1224); none closes nothing.
+    p_ask_id: askId || null,
   };
 }
 
