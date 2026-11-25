@@ -105,9 +105,12 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
       actions={
         editing ? (
           <>
-            <Button disabled={saving} variant="outline" onClick={() => (only ? onClose() : setEditing(null))}>
-              Cancel
-            </Button>
+            {/* Opened for one ask, the shell's own Cancel closes it (#1236); from the list of asks, this goes back to it. */}
+            {!only && (
+              <Button disabled={saving} variant="outline" onClick={() => setEditing(null)}>
+                Back
+              </Button>
+            )}
             <Button disabled={saving || !valid} onClick={() => run(() => onEdit(editing.id, values))}>
               {saving ? "Saving…" : "Save changes"}
             </Button>

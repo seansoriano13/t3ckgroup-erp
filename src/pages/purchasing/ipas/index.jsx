@@ -195,7 +195,9 @@ function IpasList() {
   }
   const visibleColumns = shownColumns(COLUMNS, columns.show);
 
-  const { data: listed = [], isLoading, isError, refetch } = useQuery({
+  // isPending, not isLoading: while a retry is paused (tab in the background, or offline) the query is
+  // neither loading nor failed, and the page must not fall through to "No IPAS yet" (#1235).
+  const { data: listed = [], isPending: isLoading, isError, refetch } = useQuery({
     queryKey: ipasListKey,
     queryFn: () => ipasService.list(),
   });

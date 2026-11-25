@@ -71,6 +71,7 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, canAsk = fa
                 ask={ask}
                 currency={currency}
                 canAct={canAsk}
+                actionsColumn={showActions}
                 noteSpan={7}
                 testId="ipas-payment-ask-row"
                 noteFallback="Asked for payment. It counts as paid only once the payment is recorded."

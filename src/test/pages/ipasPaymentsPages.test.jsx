@@ -515,6 +515,11 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         expect(await screen.findByText(/Payment 1: Pick Paid already or For payment/)).toBeInTheDocument();
         expect(db.rows("ipas_payments")).toHaveLength(0);
         expect(db.rows("ipas_payment_asks")).toHaveLength(0);
+
+        // Picking clears the message at once, without another Save (#1236).
+        await user.click(within(choice).getByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        await waitFor(() => expect(screen.queryByText(/Payment 1: Pick Paid already or For payment/)).not.toBeInTheDocument());
+        expect(within(choice).getByRole("radio", { name: /^For payment \(not paid yet\)/ })).toHaveAttribute("aria-checked", "true");
       });
 
       it("saves For payment as an ask with no date, method or proof, and nothing counts as paid", async () => {
@@ -658,6 +663,8 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         await user.click(await within(await screen.findByTestId("ipas-payment-ask-row")).findByRole("button", { name: /^Edit/ }));
         const dialog = await topDialog();
         expect(dialog.querySelector('label[for="ask-amount"]')).toHaveTextContent("*");
+        // One Cancel: the window's own (#1236).
+        expect(within(dialog).getAllByRole("button", { name: "Cancel" })).toHaveLength(1);
         await user.keyboard("{Escape}");
         await user.click(await within(await screen.findByTestId("ipas-payment-ask-row")).findByRole("button", { name: /^Withdraw/ }));
         await waitFor(() => expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id)).toMatchObject({ closed_reason: "withdrawn" }));

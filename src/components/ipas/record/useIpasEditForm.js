@@ -85,6 +85,9 @@ export function useIpasEditForm({ ipas, savedCount = 0, onSave }) {
   const changed = changeCount(form, base);
   const total = progress.reduce((n, p) => n + p.total, 0);
   const done = progress.reduce((n, p) => n + p.done, 0);
+  // A refused Save's message stays only while the form still has that problem: once the person fixes it
+  // (picks Paid already or For payment, types the date…) it goes, without waiting for the next Save (#1236).
+  const shownError = planError !== null && planSave(form, base).error === planError ? planError : null;
 
   const save = async () => {
     const plan = planSave(form, base);
@@ -111,5 +114,5 @@ export function useIpasEditForm({ ipas, savedCount = 0, onSave }) {
     }
   };
 
-  return { form, set, rows, fresh, progress, missing, changed, total, done, save, clear, saved, planError };
+  return { form, set, rows, fresh, progress, missing, changed, total, done, save, clear, saved, planError: shownError };
 }
