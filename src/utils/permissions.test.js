@@ -35,6 +35,7 @@ describe("getPermissionContext", () => {
     ["has_finance_flow", "hasFinanceFlow", "hasFinanceFlow"],
     ["is_ipas_signer", "isIpasSigner", "isIpasSigner"],
     ["is_ipas_approver", "isIpasApprover", "isIpasApprover"],
+    ["is_ipas_payer", "isIpasPayer", "isIpasPayer"],
     ["is_role_simulator", "isRoleSimulator", "isRoleSimulator"],
   ])("reconciles the snake_case spelling of %s", (snakeKey, _camelKey, ctxKey) => {
     const ctx = getPermissionContext({ [snakeKey]: true });
@@ -54,6 +55,7 @@ describe("getPermissionContext", () => {
     ["has_finance_flow", "hasFinanceFlow", "hasFinanceFlow"],
     ["is_ipas_signer", "isIpasSigner", "isIpasSigner"],
     ["is_ipas_approver", "isIpasApprover", "isIpasApprover"],
+    ["is_ipas_payer", "isIpasPayer", "isIpasPayer"],
     ["is_role_simulator", "isRoleSimulator", "isRoleSimulator"],
   ])("reconciles the camelCase spelling of %s", (_snakeKey, camelKey, ctxKey) => {
     const ctx = getPermissionContext({ [camelKey]: true });

@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { IPAS_SIGNER_LISTS } from "../constants/ipas";
+import { IPAS_PAYERS_LIST, IPAS_SIGNER_LISTS } from "../constants/ipas";
 import { TRANSMITTAL_STAFF_LIST, TRANSMITTAL_STAFF_LISTS } from "../constants/transmittals";
 
 async function prepareEmailForSave(email, currentEmployeeId = null) {
@@ -61,6 +61,7 @@ async function ipasListMembership(employee) {
   const none = {
     isIpasSigner: false,
     isIpasApprover: false,
+    isIpasPayer: false,
     isTransmittalStaff: false,
     isTransmittalWarehouse: false,
     isTransmittalCheckBy: false,
@@ -72,10 +73,12 @@ async function ipasListMembership(employee) {
     // The Transmittal staff lists (#252) read Transmittals, not the IPAS: a
     // member of only those is not an IPAS signer.
     const keys = (data || []).map((row) => row.list_key);
-    const ipasKeys = keys.filter((key) => !TRANSMITTAL_STAFF_LISTS.includes(key));
+    // The Payers list (#1223) reads nothing and signs nothing: it is not an IPAS sign-off list.
+    const ipasKeys = keys.filter((key) => !TRANSMITTAL_STAFF_LISTS.includes(key) && key !== IPAS_PAYERS_LIST);
     const readsAnyway = employee.has_purchasing_flow || employee.has_finance_flow || employee.has_logistics_flow || employee.is_super_admin;
     return {
       isIpasSigner: !readsAnyway && ipasKeys.length > 0,
+      isIpasPayer: keys.includes(IPAS_PAYERS_LIST),
       isIpasApprover: ipasKeys.some((key) => IPAS_SIGNER_LISTS.includes(key)),
       isTransmittalStaff: keys.some((key) => TRANSMITTAL_STAFF_LISTS.includes(key)),
       // On the Transmittal Warehouse list (#255): makes Packing Lists.
@@ -206,6 +209,7 @@ export const employeeService = {
       isRoleSimulator: data.is_role_simulator,
       // On an IPAS sign-off list: reads every IPAS, so the nav shows the list.
       isIpasSigner: ipasLists.isIpasSigner,
+      isIpasPayer: ipasLists.isIpasPayer,
       // On the section 1 or 3 approval list: the Approval Center's IPAS queue.
       isIpasApprover: ipasLists.isIpasApprover,
       // On a Transmittal staff list (#252): the nav shows Transmittals.

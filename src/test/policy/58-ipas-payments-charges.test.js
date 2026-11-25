@@ -137,7 +137,7 @@ describe("the new tables are protected", () => {
 })
 
 describe("the option lists", () => {
-    it("start from the sheet's values: the payment methods run Alipay to Others, and there are seven charge kinds", async () => {
+    it("start from the sheet's values: the payment methods run Alipay to Others, and there are eight charge kinds", async () => {
         const { data } = await svc().from("ipas_options").select("list, label, sort, active").order("sort")
         const labels = (list) => data.filter((o) => o.list === list && o.active).map((o) => o.label)
 
@@ -145,7 +145,7 @@ describe("the option lists", () => {
         expect(methods[0]).toBe("Alipay")
         expect(methods.at(-1)).toBe("Others")
         expect(methods).toContain("Dated Check")
-        expect(labels("charge_kind")).toHaveLength(7)
+        expect(labels("charge_kind")).toHaveLength(8)
         expect(labels("freight_service").length).toBeGreaterThan(0)
     })
 
@@ -240,14 +240,19 @@ describe("recording payments", () => {
         }
     })
 
-    it("is refused to a plain employee, a signer-list-only member and a Super Admin with neither flag", async () => {
+    it("is open to Purchasing, Finance and a Super Admin, and refused to a plain employee or a signer-list-only member", async () => {
         const ipas = await raise()
-        for (const who of CAST_KEYS.filter((k) => !["outsider", "finance"].includes(k))) {
+        for (const who of CAST_KEYS.filter((k) => !["outsider", "finance", "superAdmin"].includes(k))) {
             const { error } = await addPayment(who, ipas.id)
             expect(error?.code, `${who} recorded a payment`).toBe("42501")
         }
-        const { data } = await svc().from("ipas_payments").select("id").eq("ipas_id", ipas.id)
-        expect(data).toEqual([])
+        const { data: none } = await svc().from("ipas_payments").select("id").eq("ipas_id", ipas.id)
+        expect(none).toEqual([])
+
+        // #1222: a Super Admin with no other access records one.
+        const { data: row, error } = await addPayment("superAdmin", ipas.id)
+        expect(error, "superAdmin refused a payment").toBeNull()
+        expect(row).toMatchObject({ ipas_id: ipas.id, created_by: ids.superAdmin })
     })
 
     it("can't be written to the table directly, by anyone", async () => {
@@ -340,9 +345,13 @@ describe("recording payments", () => {
         expect(removed.error?.code).toBe("22023")
         expect(Number((await paymentRow(row.id)).amount)).toBe(500)
 
+        // #1222: a Super Admin gets no way round a filed or cancelled IPAS.
+        expect((await addPayment("superAdmin", filed.id)).error?.code).toBe("22023")
+
         const cancelled = await raise()
         await rpc("outsider", "ipas_cancel", { p_ipas_id: cancelled.id, p_reason: "Dropped" })
         expect((await addPayment("outsider", cancelled.id)).error?.code).toBe("22023")
+        expect((await addPayment("superAdmin", cancelled.id)).error?.code).toBe("22023")
 
         const missing = await addPayment("outsider", "00000000-0000-0000-0000-000000000000")
         expect(missing.error?.code).toBe("22023")
@@ -414,10 +423,10 @@ describe("changing and removing payments", () => {
         expect((await paymentRow(row.id)).php_debited).toBeNull()
     })
 
-    it("is refused to anyone without Purchasing or Finance access", async () => {
+    it("is refused to anyone without Purchasing access, Finance access or Super Admin", async () => {
         const ipas = await raise()
         const { data: row } = await addPayment("outsider", ipas.id)
-        for (const who of ["ordinary", "ipasSigner", "superAdmin", "dealOwner"]) {
+        for (const who of ["ordinary", "ipasSigner", "dealOwner"]) {
             expect((await update(who, row.id, { p_amount: 1 })).error?.code, `${who} changed a payment`).toBe("42501")
             expect(
                 (await rpc(who, "ipas_remove_payment", { p_payment_id: row.id })).error?.code,
@@ -425,6 +434,14 @@ describe("changing and removing payments", () => {
             ).toBe("42501")
         }
         expect(await paymentRow(row.id)).toMatchObject({ id: row.id })
+    })
+
+    it("lets a Super Admin change and remove a payment (#1222)", async () => {
+        const ipas = await raise()
+        const { data: row } = await addPayment("outsider", ipas.id)
+        expect((await update("superAdmin", row.id, { p_amount: 1 })).error).toBeNull()
+        expect((await rpc("superAdmin", "ipas_remove_payment", { p_payment_id: row.id })).error).toBeNull()
+        expect(await paymentRow(row.id)).toBeFalsy()
     })
 
     it("lets a deactivated method stay on the payment that used it, and refuses it for a new one", async () => {
@@ -457,20 +474,20 @@ describe("recording charges", () => {
         ...over,
     })
 
-    it("is open to Purchasing and Finance and refused to everyone else", async () => {
+    it("is open to Purchasing, Finance and a Super Admin and refused to everyone else", async () => {
         const ipas = await raise()
-        for (const who of ["outsider", "finance"]) {
+        for (const who of ["outsider", "finance", "superAdmin"]) {
             const { data, error } = await rpc(who, "ipas_add_charge", charge(ipas.id))
             expect(error, `${who} refused a charge`).toBeNull()
             expect(data).toMatchObject({ ipas_id: ipas.id, kind_id: kindIds.brokerage, created_by: ids[who] })
             expect(Number(data.amount_php)).toBe(4200)
         }
-        for (const who of CAST_KEYS.filter((k) => !["outsider", "finance"].includes(k))) {
+        for (const who of CAST_KEYS.filter((k) => !["outsider", "finance", "superAdmin"].includes(k))) {
             const { error } = await rpc(who, "ipas_add_charge", charge(ipas.id))
             expect(error?.code, `${who} recorded a charge`).toBe("42501")
         }
         const { data } = await svc().from("ipas_charges").select("id").eq("ipas_id", ipas.id)
-        expect(data).toHaveLength(2)
+        expect(data).toHaveLength(3)
     })
 
     it("can't be written to the table directly", async () => {
@@ -500,6 +517,19 @@ describe("recording charges", () => {
         const ipas = await raise()
         const { error } = await rpc("outsider", "ipas_add_charge", charge(ipas.id, typeof over === "function" ? over() : over))
         expect(error?.code).toBe("22023")
+    })
+
+    it("lets a Super Admin change and remove a charge (#1222)", async () => {
+        const ipas = await raise()
+        const { data: row } = await rpc("superAdmin", "ipas_add_charge", charge(ipas.id))
+        const edited = await rpc("superAdmin", "ipas_update_charge", {
+            p_charge_id: row.id,
+            p_kind_id: kindIds.duties,
+            p_charged_on: "2026-10-06",
+            p_amount_php: 100,
+        })
+        expect(edited.error).toBeNull()
+        expect((await rpc("superAdmin", "ipas_remove_charge", { p_charge_id: row.id })).error).toBeNull()
     })
 
     it("keeps each add, change and removal in history, and refuses a filed IPAS", async () => {
@@ -541,6 +571,7 @@ describe("recording charges", () => {
         const kept = await rpc("outsider", "ipas_add_charge", charge(ipas.id))
         await file(ipas.id)
         expect((await rpc("outsider", "ipas_add_charge", charge(ipas.id))).error?.code).toBe("22023")
+        expect((await rpc("superAdmin", "ipas_add_charge", charge(ipas.id))).error?.code).toBe("22023")
         expect((await rpc("outsider", "ipas_remove_charge", { p_charge_id: kept.data.id })).error?.code).toBe("22023")
     })
 

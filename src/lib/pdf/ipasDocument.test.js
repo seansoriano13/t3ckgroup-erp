@@ -297,7 +297,7 @@ describe("the IPAS Status on paper (#1157)", () => {
     const html = doc()
 
     expect(html).toContain("IPAS Status · In Transit")
-    for (const label of ["Order-Draft", "Payment Approval", "Customs / Port Hold", "Out for Delivery", "Delivered", "Done"]) {
+    for (const label of ["Order-Draft", "Ordered", "Customs / Port Hold", "Out for Delivery", "Delivered", "Done"]) {
       expect(html).toContain(label)
     }
     expect(html).toContain("Sep 5, 2026")

@@ -39,3 +39,7 @@ Purchasing's notes listed the order's early life as For Payment, In Production, 
 - **For Payment** follows Payment Approval: the approvers have said yes, and the money now waits for the GM to release it. Different people, so two steps.
 - **Processing / Preparing Shipment is split** into In Production and Ready for Shipment. IPAS on it move to In Production, and its Ageing rule carries over to In Production.
 - **Picking For Payment opens "Ask for payment"** (ADR 0055) filled in for the down payment. It is the one place the two statuses touch: the step is still picked by a person, and recording the payment only suggests the next step, never moves it.
+
+## Amendment, 2026-11-25: Payment Approval and For Payment leave the list
+
+Both steps are removed; money waiting to be paid is shown only by the Payment status (ADR 0055, amendment of 2026-11-25). An order whose payment must be released before it is placed stays Order-Draft while its Payment status reads For payment. IPAS on either step move to Order-Draft, and the hints that suggested Payment Approval (section 1 prepared, the P.I and its amount in) go. The list is now: Order-Draft, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit, Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done.

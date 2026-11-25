@@ -4,7 +4,6 @@ import { cellsInOrder } from "../../utils/columnOrder";
 import { IdentityText } from "../purchasing/list/IdentityCell";
 import {
   IPAS_COMPUTATION_STATUS,
-  IPAS_ASK_PRIORITY_LABELS,
   IPAS_WITHHOLDING_LABELS,
   IPAS_SOURCE,
   IPAS_COMPUTATION_STATUS_LABELS,
@@ -12,6 +11,7 @@ import {
   IPAS_STATE,
 } from "../../constants/ipas";
 import { formatAmount, raisedByParts, sorLineParts } from "../../utils/ipas";
+import { askPriorityLabel } from "../../utils/ipasPaymentAsk";
 import HighlightText from "../HighlightText";
 import { matchesSorCode } from "../../utils/sorSearch";
 import { IPAS_AMOUNT_SOURCE } from "../../utils/ipasFigures";
@@ -133,14 +133,16 @@ export default function IpasRow({ row, onOpen, columns, search = "" }) {
         ),
         // The Payment status (ADR 0055), read from the same figures as the record's pill and the export.
         "payment-status": () => (
-          <TableCell>{row.figures?.paymentStatus ? <IpasPaymentStatusPill figures={row.figures} /> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+          <TableCell>
+            <IpasPaymentStatusPill figures={row.figures} />
+          </TableCell>
         ),
         // How soon the GM should pay the open ask (#1208); blank when nothing is asked.
         priority: () => (
           <TableCell>
             {row.figures?.paymentAsk?.priority ? (
               <span className="whitespace-nowrap text-xs text-foreground" data-testid="ipas-ask-priority">
-                {IPAS_ASK_PRIORITY_LABELS[row.figures.paymentAsk.priority] ?? row.figures.paymentAsk.priority}
+                {askPriorityLabel(row.figures.paymentAsk.priority)}
               </span>
             ) : (
               <span className="text-xs text-muted-foreground">—</span>

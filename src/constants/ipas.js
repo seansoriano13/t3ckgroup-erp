@@ -89,8 +89,6 @@ export const IPAS_STATE_FILTER_ALL = "all";
  */
 const IPAS_STATUS_STEPS = [
   { key: "order_draft", label: "Order-Draft" },
-  { key: "payment_approval", label: "Payment Approval" },
-  { key: "for_payment", label: "For Payment" },
   { key: "ordered", label: "Ordered" },
   { key: "in_production", label: "In Production" },
   { key: "ready_for_shipment", label: "Ready for Shipment" },
@@ -110,11 +108,14 @@ export const IPAS_STATUS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key }) =>
 /** In order: the order the list's filter and sort use. */
 export const IPAS_STATUSES = IPAS_STATUS_STEPS.map(({ key }) => key);
 
-// A status-history entry from before #1206 can still name `processing`; it reads as In Production (the
-// database label function does the same). It is not a step: it is not in IPAS_STATUSES or the dropdown.
+// A status-history entry can still name a retired step: `processing` (before #1206) reads as In Production,
+// and Payment Approval / For Payment (retired in #1221) keep their words (the database label function does the
+// same). None is a step: none is in IPAS_STATUSES or the dropdown.
 export const IPAS_STATUS_LABELS = {
   ...Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label])),
   processing: "In Production",
+  payment_approval: "Payment Approval",
+  for_payment: "For Payment",
 };
 
 /** The list filter's value for an IPAS that is On-Hold (a flag over its step, not a step). */
@@ -627,6 +628,14 @@ export const IPAS_SIGNER_LIST = {
 
 export const IPAS_SIGNER_LISTS = Object.values(IPAS_SIGNER_LIST);
 
+/**
+ * The Payers list (#1223, spec #1220): who pays what is asked for on an IPAS. It sits in
+ * ipas_signer_lists beside the sign-off lists but is NOT one of them: it gives no read, no
+ * sign-off and no Approval Center queue, only the bell on a new ask and the For payment count.
+ */
+export const IPAS_PAYERS_LIST = "payers";
+export const IPAS_PAYERS_LIST_LABEL = "Payers";
+
 /** The list that gives each section 7 sign-off. */
 export const IPAS_SECTION_7_LIST = {
   [IPAS_SIGNOFF_ROLE.RECEIVED]: IPAS_SIGNER_LIST.S7_RECEIVED,
@@ -722,9 +731,6 @@ export const IPAS_DIRECT_DELIVERY_LABEL = "Direct delivery to client";
  */
 export const IPAS_STATUS_MEANINGS = {
   [IPAS_STATUS.ORDER_DRAFT]: null,
-  [IPAS_STATUS.PAYMENT_APPROVAL]:
-    "Only for an order that must be approved for payment before it is placed. A pay-later order goes from Order-Draft to Ordered.",
-  [IPAS_STATUS.FOR_PAYMENT]: null,
   [IPAS_STATUS.ORDERED]: null,
   [IPAS_STATUS.IN_PRODUCTION]: null,
   [IPAS_STATUS.READY_FOR_SHIPMENT]: null,
@@ -770,10 +776,10 @@ export const IPAS_ASK_PRIORITY_LABELS = {
 };
 
 /** What an ask for payment is for (ipas_payment_asks.purpose). */
-export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "freight"];
+export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "charge"];
 
 export const IPAS_ASK_PURPOSE_LABELS = {
   down_payment: "Down payment",
   balance: "Balance",
-  freight: "Freight",
+  charge: "Charge",
 };

@@ -25,6 +25,7 @@ import {
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
 import { isBlankCharge } from "../../utils/ipasDocuments";
+import { payableAsks } from "../../utils/ipasPaymentAsk";
 import { optionsForPicker } from "../../utils/ipasPayments";
 import { forexRate, isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
@@ -58,6 +59,9 @@ export function IpasPaymentsBlock({
   onAddPayment,
   onEditPayment,
   onRemovePayment,
+  onRecordAsk,
+  onEditAsk,
+  onWithdrawAsk,
 }) {
   const canChange = useEditable(changeGranted);
   const canRecord = useEditable(recordGranted);
@@ -123,7 +127,7 @@ export function IpasPaymentsBlock({
         )}
       </SectionHeader>
 
-      {payments.length === 0 ? (
+      {payments.length === 0 && payableAsks(ipas).length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No payments recorded yet.
           {!isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE
@@ -131,7 +135,16 @@ export function IpasPaymentsBlock({
             : ""}
         </p>
       ) : (
-        <IpasPaymentsTable ipas={ipas} canRecord={canRecord} onEditPayment={onEditPayment} onRemovePayment={onRemovePayment} />
+        <IpasPaymentsTable
+          ipas={ipas}
+          canRecord={canRecord}
+          canAsk={recordGranted}
+          onEditPayment={onEditPayment}
+          onRemovePayment={onRemovePayment}
+          onRecordAsk={onRecordAsk}
+          onEditAsk={onEditAsk}
+          onWithdrawAsk={onWithdrawAsk}
+        />
       )}
     </div>
   );
@@ -148,6 +161,9 @@ export function IpasChargesSection({
   onEditCharge,
   onRemoveCharge,
   onRemoveBlankCharges,
+  onRecordAsk,
+  onEditAsk,
+  onWithdrawAsk,
   children = null,
 }) {
   const canRecord = useEditable(recordGranted);
@@ -172,7 +188,16 @@ export function IpasChargesSection({
       </SectionHeader>
 
       <div className="mt-3">
-        <IpasChargesTable ipas={ipas} canRecord={canRecord} onEditCharge={onEditCharge} onRemoveCharge={onRemoveCharge} />
+        <IpasChargesTable
+          ipas={ipas}
+          canRecord={canRecord}
+          canAsk={recordGranted}
+          onEditCharge={onEditCharge}
+          onRemoveCharge={onRemoveCharge}
+          onRecordAsk={onRecordAsk}
+          onEditAsk={onEditAsk}
+          onWithdrawAsk={onWithdrawAsk}
+        />
       </div>
       {children}
     </IpasSection>

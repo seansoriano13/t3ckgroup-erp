@@ -39,16 +39,18 @@ import {
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
 import { formatAmount } from "@/utils/ipas";
-import { odooPoTotal } from "@/utils/ipasFigures";
+import { ipasFigures, odooPoTotal } from "@/utils/ipasFigures";
 import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
 import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence, rateSourceLabel } from "@/utils/referenceRate";
-import { Field, GroupTitle, PickField, ReadValue, RequiredMark } from "./FormFields";
+import { askLine, chargeAsks, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
+import { Field, GroupTitle, PickField, ReadValue, RequiredMark, Tick } from "./FormFields";
+import { AskDraftFields, AskLiners, ChargeAskFields, PaidOrAskChoice } from "./AskRows";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
-import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
+import { BY_HAND, PAYMENT_MODE, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
 
 export const SHOW_HAS_TICKS = false;
 
@@ -311,6 +313,35 @@ function ProofField({ row, disabled, required, onPatch }) {
   );
 }
 
+/**
+ * "Does this pay the open item?" on a payment not saved yet: a tick for one open ask, a pick of them plus None for
+ * several. A payment saved as paying none closes none. Asks another new payment row already picked are not offered twice.
+ */
+function PaysAskField({ ipas, id, row, rows, disabled, onPatch, source = payableAsks, extra = null }) {
+  const taken = new Set(rows.filter((other) => other.key !== row.key && other.askId && other.mode !== PAYMENT_MODE.ASK).map((other) => other.askId));
+  const asks = source(ipas).filter((ask) => !taken.has(ask.id));
+  if (asks.length === 0) return null;
+  const label = "Does this pay the open item?";
+  if (asks.length === 1) {
+    const [ask] = asks;
+    return (
+      <div className="min-w-0 sm:col-span-2" data-testid="payment-pays-ask">
+        <Tick label={label} checked={row.askId === ask.id} disabled={disabled} onChange={(on) => onPatch({ askId: on ? ask.id : "" })} />
+        <p className="mt-1 pl-1 text-xs text-muted-foreground">{askLine(ask, ipas.currency)}. {extra ?? "Even a smaller payment closes it; ask again for the rest."}</p>
+      </div>
+    );
+  }
+  const options = asks.map((ask) => ({ value: ask.id, label: askLine(ask, ipas.currency) }));
+  return (
+    <div className="min-w-0 sm:col-span-2" data-testid="payment-pays-ask">
+      <PickField id={id} label={label} emptyLabel="None" options={options} value={row.askId} disabled={disabled} onChange={(v) => onPatch({ askId: v })} />
+    </div>
+  );
+}
+
+/** What a payment can be asked for from here; Freight asks belong to Charges (#1227). */
+const ASK_PURPOSES_ON_PAYMENTS = ["down_payment", "balance"];
+
 function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPatch, onRemove }) {
   const { isPhp } = form;
   const currency = ipas.currency || "Odoo PO currency";
@@ -333,15 +364,18 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
   const kindLabel = IPAS_PAYMENT_KIND_LABELS[saved?.kind] ?? "payment";
   const showPercent = percentApplies(row.kind);
   const percent = parsePercentInput(row.percentOfOrder);
+  // A new row is Paid already or For payment (#1225); a stored payment is paid. Nothing shows until the pick is made.
+  const asking = !saved && row.mode === PAYMENT_MODE.ASK;
+  const paid = Boolean(saved) || row.mode === PAYMENT_MODE.PAID;
   return (
     <DraftRow
-      label={`Payment ${index + 1}`}
+      label={asking ? "For payment" : `Payment ${index + 1}`}
       testId={saved ? "ipas-payment-row" : undefined}
       fresh={fresh}
-      focusId={id("amount")}
+      focusId={id(row.mode ? "amount" : "mode")}
       header={
         <RowHeader
-          title={saved ? `Payment ${index + 1}` : `Payment ${index + 1} (not saved yet)`}
+          title={saved ? `Payment ${index + 1}` : `${asking ? "For payment" : `Payment ${index + 1}`} (not saved yet)`}
           badge={saved?.paid_before_approval ? <StatusBadge theme="amber" label="Paid before approval" /> : null}
           canRemove={!disabled}
           removeLabel={saved ? `Remove ${kindLabel} of ${formatDay(saved.paid_on)}` : `Remove payment ${index + 1}`}
@@ -349,7 +383,20 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
         />
       }
     >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {!saved && <PaidOrAskChoice id={id("mode")} value={row.mode} disabled={disabled} onChange={(mode) => onPatch({ mode })} />}
+      {asking && (
+        <AskDraftFields
+          id={id}
+          row={row}
+          purposes={ASK_PURPOSES_ON_PAYMENTS}
+          currencyLabel={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
+          prefix={isPhp ? "PHP" : currency}
+          base={base}
+          disabled={disabled}
+          onPatch={onPatch}
+        />
+      )}
+      {paid && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS.some((o) => o.value === row.kind) || !row.kind ? KIND_OPTIONS : [...KIND_OPTIONS, { value: row.kind, label: IPAS_PAYMENT_KIND_LABELS[row.kind] ?? row.kind }]} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
         <Field id={id("paidOn")} label="Date" kind="date" required min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.paidOn, "The payment date") ?? undefined} value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
         {showPercent && (
@@ -435,21 +482,47 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
           <Field id={id("methodOther")} label="What was the method?" required placeholder="Type the payment method" value={row.methodOther} disabled={disabled} onChange={(v) => onPatch({ methodOther: v })} />
         )}
         <Field id={id("checkNo")} label="Check No." placeholder="When paid by check" value={row.checkNo} disabled={disabled} onChange={(v) => onPatch({ checkNo: v })} />
-      </div>
-      <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />
+        {!saved && <PaysAskField ipas={ipas} id={id("askId")} row={row} rows={form.payments} disabled={disabled} onPatch={onPatch} />}
+      </div>}
+      {paid && <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />}
     </DraftRow>
   );
 }
 
+/**
+ * "Record as paid" on a grey row of the read-only table opens the edit form on this section and leaves a request
+ * (`{ section, ask }`). Once the form is up, the section takes it once: it fills a new row linked to that ask, the
+ * same as its own "Record as paid" would, and tells the page it is handled.
+ */
+function useTakeRecordRequest(section, request, onHandled, record) {
+  const taken = useRef(null);
+  useEffect(() => {
+    if (!request || request.section !== section || taken.current === request) return;
+    taken.current = request;
+    record(request.ask);
+    onHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per request
+  }, [request]);
+}
+
 /** Section 1's payments: DP and FP read off the saved rows, then one inline form per payment. */
-export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved }) {
+export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved, onEditAsk, onWithdrawAsk, recordingAsk, onRecordingHandled }) {
   const sum = ipas.paymentSummary;
   const currency = ipas.currency;
   const savedById = new Map((ipas.payments ?? []).map((payment) => [payment.id, payment]));
   // The % is taken from the P.I/QT Amount as typed on the form, else the PO total (#958).
   const poTotal = odooPoTotal(ipas.odoo_copy)?.total ?? null;
   const base = percentBase({ piQtAmount: parseAmountInput(form.piQtAmount).value, poTotal });
-  const warnings = paymentWarnings(form.payments, base?.amount ?? null);
+  // A row picked as For payment is not paid: it counts toward nothing here.
+  const warnings = paymentWarnings(form.payments.filter((row) => row.mode !== PAYMENT_MODE.ASK), base?.amount ?? null);
+  const asks = payableAsks(ipas);
+  // "Record as paid" opens a new payment row filled from the ask and linked to it (#1225); any box can still change.
+  const recordAsk = (ask) => {
+    const kind = paidKindForAsk(ask, ipasFigures(ipas).remainingBalance);
+    const percent = percentApplies(kind) && ask.percent_of_order ? formatPercent(ask.percent_of_order) : "";
+    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: String(Number(ask.amount)), percentOfOrder: percent });
+  };
+  useTakeRecordRequest("payments", recordingAsk, onRecordingHandled, recordAsk);
   // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
   // printed % must agree. Not on first paint: opening a saved IPAS never edits it.
   const lastBase = useRef(base?.amount ?? null);
@@ -461,7 +534,19 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the base amount changes
   }, [base?.amount]);
   return (
-    <Titled title="Payments" action={canRecord && <AddButton onClick={() => rows.add("payments", newPaymentDraft())}>Add payment</AddButton>}>
+    <Titled title="Payments" action={
+        canRecord && (
+          <AddButton
+            onClick={() => {
+              // "Does this pay the open item?" starts on the oldest open ask no other new row has picked.
+              const picked = new Set(form.payments.filter((row) => row.mode !== PAYMENT_MODE.ASK).map((row) => row.askId).filter(Boolean));
+              rows.add("payments", newPaymentDraft(payableAsks(ipas).find((ask) => !picked.has(ask.id))?.id ?? ""));
+            }}
+          >
+            Add payment
+          </AddButton>
+        )
+      }>
       <div className={GRID}>
         <ReadValue label="DP">{sum.downPayment > 0 ? formatAmount(sum.downPayment, currency) : null}</ReadValue>
         <ReadValue label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</ReadValue>
@@ -479,6 +564,15 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
           The payments add up to {formatAmount(warnings.amountOver.paid, currency)}, which is {formatAmount(warnings.amountOver.over, currency)} more than the order amount of {formatAmount(warnings.amountOver.order, currency)}. You can still save.
         </AmberNote>
       )}
+      <AskLiners
+        asks={asks}
+        currency={ipas.currency}
+        canRecord={canRecord}
+        recording={form.payments.filter((row) => row.mode === PAYMENT_MODE.PAID).map((row) => row.askId).filter(Boolean)}
+        onRecord={recordAsk}
+        onEdit={onEditAsk}
+        onWithdraw={onWithdrawAsk}
+      />
       {form.payments.length === 0 ? (
         <EmptyNote>
           No payments recorded yet.
@@ -508,25 +602,31 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
 
 // ── Section 3: charges, documents, bank details ─────────────────────────────
 
-function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove }) {
+function ChargeRow({ ipas, form, row, index, saved, fresh, disabled, onPatch, onRemove }) {
   const kinds = optionsForPicker(ipas.options ?? [], IPAS_OPTION_LIST.CHARGE_KIND, saved?.kind_id ?? null).map(asOption);
   const id = (name) => `chg-${row.key}-${name}`;
   const amount = parseAmountInput(row.amountPhp);
+  // A new row is Paid already or For payment (#1227); a stored charge is paid. Nothing shows until the pick is made.
+  const asking = !saved && row.mode === PAYMENT_MODE.ASK;
+  const paid = Boolean(saved) || row.mode === PAYMENT_MODE.PAID;
   return (
     <DraftRow
-      label={`Charge ${index + 1}`}
+      label={asking ? "For payment" : `Charge ${index + 1}`}
       testId={saved ? "ipas-charge-row" : undefined}
       fresh={fresh}
-      focusId={id("amountPhp")}
+      focusId={id(row.mode ? "amountPhp" : "mode")}
       header={
         <RowHeader
-          title={saved ? `Charge ${index + 1}` : `Charge ${index + 1} (not saved yet)`}
+          title={saved ? `Charge ${index + 1}` : `${asking ? "For payment" : `Charge ${index + 1}`} (not saved yet)`}
           canRemove={!disabled}
           removeLabel={saved ? `Remove ${saved.kindLabel ?? "charge"} of ${formatDay(saved.charged_on)}` : `Remove charge ${index + 1}`}
           onRemove={onRemove}
         />
       }
     >
+      {!saved && <PaidOrAskChoice id={id("mode")} value={row.mode} disabled={disabled} onChange={(mode) => onPatch({ mode })} />}
+      {asking && <ChargeAskFields id={id} row={row} kinds={kinds} disabled={disabled} onPatch={onPatch} />}
+      {paid && (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <PickField id={id("kindId")} label="Kind" required placeholder="Pick a kind" options={kinds} value={row.kindId} disabled={disabled} onChange={(v) => onPatch({ kindId: v })} />
         <Field id={id("chargedOn")} label="Date" kind="date" required={!saved} min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.chargedOn, "The charge date") ?? undefined} value={row.chargedOn} disabled={disabled} onChange={(v) => onPatch({ chargedOn: v })} />
@@ -542,18 +642,62 @@ function ChargeRow({ ipas, row, index, saved, fresh, disabled, onPatch, onRemove
           onChange={(v) => onPatch({ amountPhp: v })}
         />
         <AttachFile label="File" url={row.attachmentUrl} disabled={disabled} missingIn="costs" onChange={(v) => onPatch({ attachmentUrl: v })} />
+        {row.askHint && (
+          <p className="text-xs text-muted-foreground sm:col-span-4" data-testid="charge-ask-hint">
+            Asked for {formatAmount(Number(row.askHint.amount), row.askHint.currency)}. Charges are recorded in pesos, so type the pesos paid.
+          </p>
+        )}
+        {!saved && <PaysAskField ipas={ipas} id={id("askId")} row={row} rows={form.charges} disabled={disabled} onPatch={onPatch} source={chargeAsks} extra="Even a smaller charge closes it; ask again for the rest." />}
       </div>
+      )}
     </DraftRow>
   );
 }
 
 /** Section 3's importation charges, in pesos. */
-export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved }) {
+export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved, onEditAsk, onWithdrawAsk, recordingAsk, onRecordingHandled }) {
   const savedById = new Map((ipas.charges ?? []).map((charge) => [charge.id, charge]));
   // One note for the lot, not one under every row: saved charges whose amount is still blank.
   const noAmount = form.charges.filter((row) => row.id && row.amountPhp === "").length;
+  const asks = chargeAsks(ipas);
+  // "Record as paid" opens a new charge row filled from the ask and linked to it (#1227). The kind comes across;
+  // the amount only for a PHP ask, since charges are in pesos. A foreign-currency ask keeps its amount as a hint.
+  const recordAsk = (ask) => {
+    const inPesos = String(ask.currency ?? "PHP").toUpperCase() === "PHP";
+    rows.add("charges", {
+      ...newChargeDraft(ask.id, PAYMENT_MODE.PAID),
+      kindId: ask.charge_kind_id ?? "",
+      amountPhp: inPesos ? String(Number(ask.amount)) : "",
+      askHint: inPesos ? null : { amount: ask.amount, currency: ask.currency },
+    });
+  };
+  useTakeRecordRequest("costs", recordingAsk, onRecordingHandled, recordAsk);
   return (
-    <Titled title="Importation charges" action={canRecord && <AddButton onClick={() => rows.add("charges", newChargeDraft())}>Add charge</AddButton>}>
+    <Titled
+      title="Importation charges"
+      action={
+        canRecord && (
+          <AddButton
+            onClick={() => {
+              // "Does this pay the open item?" starts on the oldest open Charge ask no other new row has picked.
+              const picked = new Set(form.charges.filter((row) => row.mode !== PAYMENT_MODE.ASK).map((row) => row.askId).filter(Boolean));
+              rows.add("charges", newChargeDraft(asks.find((ask) => !picked.has(ask.id))?.id ?? ""));
+            }}
+          >
+            Add charge
+          </AddButton>
+        )
+      }
+    >
+      <AskLiners
+        asks={asks}
+        currency={ipas.currency}
+        canRecord={canRecord}
+        recording={form.charges.filter((row) => row.mode === PAYMENT_MODE.PAID).map((row) => row.askId).filter(Boolean)}
+        onRecord={recordAsk}
+        onEdit={onEditAsk}
+        onWithdraw={onWithdrawAsk}
+      />
       {form.charges.length === 0 ? (
         <EmptyNote>No charges recorded yet. A charge covering several Odoo POs is recorded as this IPAS&apos;s own share.</EmptyNote>
       ) : (
@@ -567,6 +711,7 @@ export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSave
             <ChargeRow
               key={row.key}
               ipas={ipas}
+              form={form}
               row={row}
               index={index}
               saved={savedById.get(row.id) ?? null}

@@ -91,7 +91,9 @@ export function useNavBadges(user) {
 
   // 5. IPAS For payment (#1190): the Payment Forecast view's rows, counted from the same cached
   // list and the same view rule, so the number equals the rows on open.
-  const mayReadIpas = canReadIpas(getPermissionContext(user));
+  // Only Payers see the count (#1223); every other reader still opens the view from the list page.
+  const ipasCtx = getPermissionContext(user);
+  const mayReadIpas = canReadIpas(ipasCtx) && ipasCtx.isIpasPayer;
   const { data: ipasList = [] } = useQuery({
     queryKey: ipasListKey,
     queryFn: () => ipasService.list(),

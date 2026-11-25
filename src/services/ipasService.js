@@ -32,6 +32,7 @@ import {
   ipasSectionNo,
   ipasSectionWord,
   ipasSectionName,
+  IPAS_PAYERS_LIST,
   IPAS_SIGNER_LISTS,
   IPAS_FILING_SECTION,
   IPAS_SIGNOFF_ROLE,
@@ -73,7 +74,7 @@ const IPAS_SELECT =
   // The IPAS Status steps reached, each with the day and who set it (ADR 0054).
   " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))," +
   // The asks for payment (ADR 0055); the open one (no closed_at) makes the Payment status For payment.
-  " payment_asks:ipas_payment_asks(id, amount, purpose, note, priority, percent_of_order, asked_by, asked_at, closed_at, closed_reason, asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
+  " payment_asks:ipas_payment_asks(id, amount, purpose, note, priority, percent_of_order, asked_by, asked_at, closed_at, closed_reason, paid_by_payment_id, paid_by_charge_id, charge_kind_id, currency, charge_kind:ipas_options!ipas_payment_asks_charge_kind_id_fkey(id, label), asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
@@ -676,7 +677,7 @@ export const ipasService = {
   // ── Ask for payment (#1188, ADR 0055) ────────────────────────────────────
 
   /** Purchasing asks for a payment on an open IPAS: amount in the P0's currency, a purpose, an optional note. */
-  async askForPayment(id, { amount, purpose, note = null, priority = "high", percent = null }) {
+  async askForPayment(id, { amount, purpose, note = null, priority = "high", percent = null, chargeKindId = null, currency = null }) {
     const { data, error } = await supabase.rpc("ipas_ask_for_payment", {
       p_ipas_id: id,
       p_amount: amount,
@@ -684,14 +685,29 @@ export const ipasService = {
       p_note: note,
       p_priority: priority,
       p_percent: percent,
+      p_charge_kind_id: chargeKindId,
+      p_currency: currency,
     });
     if (error) throw error;
     return data;
   },
 
-  /** Purchasing withdraws the open ask. */
-  async withdrawPaymentAsk(id) {
-    const { data, error } = await supabase.rpc("ipas_withdraw_payment_ask", { p_ipas_id: id });
+  /** Changes one open ask (amount, priority, note, % of order), by the ask's own id (#1224). A closed ask is refused. */
+  async editPaymentAsk(askId, { amount, priority, note = null, percent = null }) {
+    const { data, error } = await supabase.rpc("ipas_edit_payment_ask", {
+      p_ask_id: askId,
+      p_amount: amount,
+      p_priority: priority,
+      p_note: note,
+      p_percent: percent,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Withdraws one open ask, by the ask's own id (#1224). */
+  async withdrawPaymentAsk(askId) {
+    const { data, error } = await supabase.rpc("ipas_withdraw_payment_ask", { p_ask_id: askId });
     if (error) throw error;
     return data;
   },
@@ -732,7 +748,8 @@ export const ipasService = {
   /** Records a charge on an open IPAS: `{ kindId, chargedOn, amountPhp }`, PHP. Returns the row. */
   async addCharge(id, charge) {
     const args = chargeArgs(charge);
-    const { data, error } = await supabase.rpc("ipas_add_charge", { p_ipas_id: id, ...args });
+    // A charge saved as paying an open Charge ask closes it (#1227).
+    const { data, error } = await supabase.rpc("ipas_add_charge", { p_ipas_id: id, ...args, p_ask_id: charge?.askId || null });
     if (error) throw error;
     return data;
   },
@@ -1611,7 +1628,7 @@ export const ipasService = {
     if (error) throw error;
 
     // The Transmittal staff lists (#252) live in the same table.
-    const lists = Object.fromEntries([...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS].map((key) => [key, []]));
+    const lists = Object.fromEntries([...IPAS_SIGNER_LISTS, IPAS_PAYERS_LIST, ...TRANSMITTAL_STAFF_LISTS].map((key) => [key, []]));
     for (const row of data || []) {
       if (!lists[row.list_key]) continue;
       lists[row.list_key].push({
@@ -1632,7 +1649,7 @@ export const ipasService = {
    * Nobody's past sign-offs change. Returns the list as `getSignerLists` gives it.
    */
   async setSignerList(listKey, employeeIds = []) {
-    requireOneOf(listKey, [...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS], "That isn't a sign-off list.");
+    requireOneOf(listKey, [...IPAS_SIGNER_LISTS, IPAS_PAYERS_LIST, ...TRANSMITTAL_STAFF_LISTS], "That isn't a sign-off list.");
     const wanted = [...new Set((employeeIds || []).filter(Boolean))];
 
     const { error } = await supabase.rpc("ipas_set_signer_list", {
@@ -1933,7 +1950,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1984,6 +2001,8 @@ function paymentArgs(payment, isPhpPo) {
     p_proof_url: proofList[0] ?? null,
     p_method_other: methodIsOthers ? typedMethod : null,
     p_proof_urls: proofList,
+    // The open ask this payment pays (#1224); none closes nothing.
+    p_ask_id: askId || null,
   };
 }
 

@@ -45,7 +45,7 @@ const REQUIRED_BEFORE_OPTIONS = [
   ...IPAS_REQUIRED_BEFORE_VALUES.map((value) => ({ value: String(value), label: IPAS_REQUIRED_BEFORE_LABELS[value] })),
 ];
 
-const SYSTEM_KEY_HINT = "Used by the Payment Approval suggestion. Renaming it is fine.";
+const SYSTEM_KEY_HINT = "Used by the app to recognise this entry. Renaming it is fine.";
 const FILED_HINT = "Used on a filed IPAS. Deactivate it and add a new one instead.";
 
 /**

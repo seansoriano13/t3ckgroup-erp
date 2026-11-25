@@ -1,7 +1,7 @@
 /**
  * Ask for payment: priority and percent (#1208, spec #1205, ADR 0055): the database rules.
  *
- * `outsider` holds Purchasing access; `finance` and `ordinary` do not.
+ * `outsider` holds Purchasing access; `finance` may ask too (spec #1220); `ordinary` has none of the three.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -80,11 +80,15 @@ describe("an ask's priority and percent", () => {
         expect((await ask("outsider", ipas.id, { p_percent: -5 })).error).not.toBeNull()
     })
 
-    it("is refused to anyone without Purchasing access", async () => {
+    it("is refused to someone with none of Purchasing, Finance or Super Admin access", async () => {
         const ipas = await raise()
-        for (const who of ["finance", "ordinary"]) {
-            const refused = await ask(who, ipas.id, { p_priority: "very_high", p_percent: 40 })
-            expect(refused.error?.code, `${who} was allowed`).toBe("42501")
-        }
+        const refused = await ask("ordinary", ipas.id, { p_priority: "very_high", p_percent: 40 })
+        expect(refused.error?.code, "ordinary was allowed").toBe("42501")
+    })
+
+    it("is allowed to Finance too (spec #1220, ticket #1222)", async () => {
+        const ipas = await raise()
+        const allowed = await ask("finance", ipas.id, { p_priority: "very_high", p_percent: 40 })
+        expect(allowed.error).toBeNull()
     })
 })

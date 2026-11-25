@@ -106,8 +106,10 @@ export function stubIpasRpcs({
   // Payments and charges: Purchasing access or Finance access. `money` lets a
   // test say the caller holds Finance access without Purchasing.
   const canWriteMoney = money ?? purchasing
+  // #1222: a Super Admin records payments and charges too, but not freight (ipas_set_freight).
   const requireMoney = (fn) => {
-    if (!canWriteMoney) refuse("42501", `${fn}: only Purchasing or Finance records payments and charges`)
+    const allowed = canWriteMoney || (superAdmin && fn !== "ipas_set_freight")
+    if (!allowed) refuse("42501", `${fn}: only Purchasing, Finance or a Super Admin records payments and charges`)
   }
 
   const nextNumber = () => {
@@ -1193,7 +1195,65 @@ export function stubIpasRpcs({
       }
     }
     updateRow("ipas_payments", findRow("ipas_payments", saved.id), { method_other: isOthers ? methodOther : null })
+    // #1224: saved as paying one open, supplier-side ask on this IPAS, which closes only that ask.
+    if (args.p_ask_id) {
+      const ask = findRow("ipas_payment_asks", args.p_ask_id)
+      if (!ask) refuse("22023", "that ask for payment was not found")
+      if (ask.ipas_id !== saved.ipas_id) refuse("22023", "that ask for payment is on another IPAS")
+      if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
+      if (!["down_payment", "balance"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
+      updateRow("ipas_payments", findRow("ipas_payments", saved.id), { ask_id: ask.id })
+      updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_payment_id: saved.id })
+    }
     return callStub("ipas_set_payment_money", money(saved))
+  })
+
+  // #1224: asks for payment. Several may be open; each is edited and withdrawn by its own id.
+  const requireAsker = (fn) => {
+    if (!(purchasing || hasFinance || superAdmin)) refuse("42501", `${fn}: only Purchasing, Finance or a Super Admin asks for a payment`)
+  }
+  stubRpc("ipas_ask_for_payment", (args) => {
+    requireAsker("ipas_ask_for_payment")
+    const ipas = requireOpenIpas("ipas_ask_for_payment", args.p_ipas_id)
+    if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_ask_for_payment: the amount must be more than zero")
+    if (!["down_payment", "balance", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge")
+    if (args.p_purpose === "charge" && !args.p_charge_kind_id) refuse("22023", "ipas_ask_for_payment: pick the kind of charge")
+    if (args.p_purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: a Charge ask has no % of order (it applies to a supplier ask only)")
+    const isCharge = args.p_purpose === "charge"
+    return insertRow("ipas_payment_asks", {
+      charge_kind_id: isCharge ? args.p_charge_kind_id : null,
+      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : null,
+      ipas_id: ipas.id,
+      amount: args.p_amount,
+      purpose: args.p_purpose,
+      note: args.p_note ?? null,
+      priority: args.p_priority ?? "high",
+      percent_of_order: args.p_percent ?? null,
+      asked_by: actorId,
+      asked_at: new Date().toISOString(),
+    })
+  })
+  stubRpc("ipas_edit_payment_ask", (args) => {
+    requireAsker("ipas_edit_payment_ask")
+    const ask = findRow("ipas_payment_asks", args.p_ask_id)
+    if (!ask) refuse("22023", "ipas_edit_payment_ask: that ask was not found")
+    requireOpenIpas("ipas_edit_payment_ask", ask.ipas_id)
+    if (ask.closed_at) refuse("22023", "ipas_edit_payment_ask: that ask is closed and can't be edited")
+    if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_edit_payment_ask: the amount must be more than zero")
+    if (ask.purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: a Charge ask has no % of order (it applies to a supplier ask only)")
+    return updateRow("ipas_payment_asks", ask, {
+      amount: args.p_amount,
+      priority: args.p_priority,
+      note: args.p_note ?? null,
+      percent_of_order: args.p_percent ?? null,
+    })
+  })
+  stubRpc("ipas_withdraw_payment_ask", (args) => {
+    requireAsker("ipas_withdraw_payment_ask")
+    const ask = findRow("ipas_payment_asks", args.p_ask_id)
+    if (!ask || ask.closed_at) refuse("22023", "ipas_withdraw_payment_ask: that ask is not open")
+    requireOpenIpas("ipas_withdraw_payment_ask", ask.ipas_id)
+    return updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "withdrawn" })
   })
 
   stubRpc("ipas_remove_payment", (args) => {
@@ -1203,6 +1263,8 @@ export function stubIpasRpcs({
     const ipas = requireOpenIpas("ipas_remove_payment", row.ipas_id)
     const rows = rowsOf("ipas_payments")
     rows.splice(rows.indexOf(row), 1)
+    // The ask this payment paid stays closed; only its link goes (#1224).
+    for (const ask of rowsOf("ipas_payment_asks")) if (ask.paid_by_payment_id === row.id) updateRow("ipas_payment_asks", ask, { paid_by_payment_id: null })
     event(ipas.id, "payment_removed", {
       payment_id: row.id,
       kind: row.kind,
@@ -1230,13 +1292,23 @@ export function stubIpasRpcs({
     requireMoney("ipas_add_charge")
     const ipas = requireOpenIpas("ipas_add_charge", args.p_ipas_id)
     const c = cleanCharge("ipas_add_charge", args, null)
+    // #1227: saved as paying one open Charge ask on this IPAS, which closes only that ask.
+    const ask = args.p_ask_id ? findRow("ipas_payment_asks", args.p_ask_id) : null
+    if (args.p_ask_id) {
+      if (!ask) refuse("22023", "that ask for payment was not found")
+      if (ask.ipas_id !== ipas.id) refuse("22023", "that ask for payment is on another IPAS")
+      if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
+      if (ask.purpose !== "charge") refuse("22023", "a charge cannot pay a Down payment or Balance ask; record a payment instead")
+    }
     const row = insertRow("ipas_charges", {
       ipas_id: ipas.id,
       kind_id: args.p_kind_id,
       charged_on: args.p_charged_on,
       amount_php: c.amount,
       created_by: actorId,
+      ask_id: ask?.id ?? null,
     })
+    if (ask) updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_charge_id: row.id })
     event(ipas.id, "charge_added", {
       charge_id: row.id,
       kind_id: row.kind_id,
@@ -1476,11 +1548,11 @@ export function stubIpasRpcs({
   stubRpc("ipas_set_typed_status", () => refuse("42501", "permission denied for function ipas_set_typed_status"))
 
   const STATUS_ORDER = [
-    "order_draft", "payment_approval", "for_payment", "ordered", "in_production", "ready_for_shipment", "shipped", "in_transit",
+    "order_draft", "ordered", "in_production", "ready_for_shipment", "shipped", "in_transit",
     "customs", "local_hub", "out_for_delivery", "delivered", "done",
   ]
   const STATUS_LABELS = {
-    order_draft: "Order-Draft", payment_approval: "Payment Approval", for_payment: "For Payment", ordered: "Ordered",
+    order_draft: "Order-Draft", ordered: "Ordered",
     in_production: "In Production", ready_for_shipment: "Ready for Shipment", shipped: "Shipped / Picked Up", in_transit: "In Transit",
     customs: "Customs / Port Hold", local_hub: "Arrived at Local Hub", out_for_delivery: "Out for Delivery",
     delivered: "Delivered", done: "Done",
@@ -1892,7 +1964,7 @@ export function stubIpasRpcs({
   stubRpc("ipas_set_signer_list", (args) => {
     if (!superAdmin) refuse("42501", "ipas_set_signer_list: only a Super Admin changes who is on a sign-off list")
     const listKey = args.p_list_key
-    const keys = ["s1_approved", "s3_approved", "s6_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved"]
+    const keys = ["s1_approved", "s3_approved", "s6_approved", "s7_received", "s7_noted", "s7_checked", "s7_approved", "payers"]
     keys.push("transmittal_warehouse", "transmittal_technical", "transmittal_logistics", "transmittal_check_by")
     if (!keys.includes(listKey)) {
       refuse("22023", `ipas_set_signer_list: ${listKey} isn't a sign-off list`)
