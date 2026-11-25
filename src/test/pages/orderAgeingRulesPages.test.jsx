@@ -54,8 +54,6 @@ describe("Settings > Purchasing: Ageing rules", () => {
     expect(await screen.findByLabelText("Days for Ordered")).toHaveValue(null);
     for (const label of [
       "Order-Draft",
-      "Payment Approval",
-      "For Payment",
       "Ordered",
       "In Production",
       "Ready for Shipment",

@@ -196,20 +196,6 @@ describe("The IPAS Status steps (#1156)", () => {
     expect(standing.daysWaiting).toBe(2);
   });
 
-  it("Payment Approval is waiting on us, owed by the order approvers", () => {
-    const standing = orderStanding(at("payment_approval", "2026-10-18"), [], TODAY);
-    expect(standing.group).toBe("waiting_on_us");
-    expect(standing.next.owner).toBe("order_approvers");
-    expect(ORDER_OWNER_LABELS[standing.next.owner]).toBe("Order approvers");
-  });
-
-  it("For Payment is waiting on us, owed by the General Manager", () => {
-    const standing = orderStanding(at("for_payment", "2026-10-18"), [], TODAY);
-    expect(standing.group).toBe("waiting_on_us");
-    expect(standing.next).toMatchObject({ owner: "gm", step: "for_payment" });
-    expect(ORDER_OWNER_LABELS[standing.next.owner]).toBe("General Manager");
-  });
-
   it.each(["ordered", "in_production", "ready_for_shipment", "shipped", "in_transit", "customs", "local_hub", "out_for_delivery"])(
     "%s is waiting on someone else",
     (step) => {

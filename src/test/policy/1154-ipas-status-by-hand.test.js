@@ -148,7 +148,7 @@ describe("the date", () => {
         await setStep("outsider", ipas.id, "ordered", manilaDay(-3))
 
         expect((await setStep("outsider", ipas.id, "shipped", manilaDay(-6))).error).toBeNull()
-        expect((await setStep("outsider", ipas.id, "payment_approval", manilaDay(-9))).error).toBeNull()
+        expect((await setStep("outsider", ipas.id, "in_production", manilaDay(-9))).error).toBeNull()
     })
 
     it("changes the day of a step already reached, even out of order", async () => {
@@ -287,12 +287,12 @@ describe("the switch-over", () => {
         expect(done.steps).toEqual({ order_draft: manilaDay() })
     })
 
-    it("maps a confirmed Odoo PO to Ordered and a live section 1 Prepared to Payment Approval", async () => {
+    it("maps a confirmed Odoo PO to Ordered, and a live section 1 Prepared no longer reaches any payment step (#1221)", async () => {
         expect((await switchedOver({ poState: "purchase" })).status).toBe("ordered")
-        expect((await switchedOver({ prepared: true })).status).toBe("payment_approval")
+        expect((await switchedOver({ prepared: true })).status).toBe("order_draft")
         const both = await switchedOver({ poState: "done", prepared: true })
         expect(both.status).toBe("ordered")
-        expect(Object.keys(both.steps).sort()).toEqual(["order_draft", "ordered", "payment_approval"])
+        expect(Object.keys(both.steps).sort()).toEqual(["order_draft", "ordered"])
     })
 
     it("maps the Supplier Origin dates to Shipped, In Transit and Customs, carrying the dates over", async () => {

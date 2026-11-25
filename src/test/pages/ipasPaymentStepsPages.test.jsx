@@ -66,19 +66,20 @@ describe("IPAS payment steps (spec #1205)", () => {
     stubIpasRpcs({ actorId: purchaser.id });
   });
 
-  it("opens 'Ask for payment' with Down payment and the amount owed when For Payment is picked (#1209)", { timeout: 20000 }, async () => {
+  it("has no Payment Approval or For Payment in the Status picker, and picking a step opens no ask (#1221)", { timeout: 20000 }, async () => {
     const row = ipas({ po_number: "P02552", pi_qt_amount: 10000, created_by: purchaser.id });
     const user = setupUser();
 
     renderDetail(row.id);
     const label = await within(await waitForRecord()).findByText("Status");
     await user.click(label.closest("button"));
-    await user.click(await screen.findByRole("option", { name: /For Payment/ }));
+    expect(await screen.findByRole("option", { name: /Ordered/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Payment Approval/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /For Payment/ })).not.toBeInTheDocument();
 
-    expect((await screen.findAllByText(`Ask for payment on ${row.number}`)).length).toBeGreaterThan(0);
-    expect(await screen.findByRole("textbox", { name: /^Amount/ })).toHaveValue("10000");
-    expect(screen.getByRole("combobox", { name: /What for/ })).toHaveTextContent("Down payment");
-    expect(db.internal.rowsOf("ipas").find((r) => r.id === row.id).status).toBe("for_payment");
+    await user.click(screen.getByRole("option", { name: /Ordered/ }));
+    await waitFor(() => expect(db.internal.rowsOf("ipas").find((r) => r.id === row.id).status).toBe("ordered"));
+    expect(screen.queryByText(`Ask for payment on ${row.number}`)).not.toBeInTheDocument();
   });
 
   it("lists the Payment Forecast with Very High asks first, then the oldest ask (#1208)", async () => {

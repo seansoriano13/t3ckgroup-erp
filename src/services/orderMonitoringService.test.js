@@ -278,16 +278,6 @@ describe("orderMonitoringService: what needs doing", () => {
       expect(row.group).toBe("waiting_on_us")
     })
 
-    it("puts Payment Approval with the order approvers, waiting on us", async () => {
-      const ipas = seedOrder({ status: "payment_approval" })
-
-      const row = rowsFor(await listAll(), ipas)
-
-      expect(row.next.step).toBe("payment_approval")
-      expect(row.next.owner).toBe("order_approvers")
-      expect(row.group).toBe("waiting_on_us")
-    })
-
     it("says a delivered order has no Transmittal raised, owed by Purchasing", async () => {
       const ipas = seedOrder({ deliveredOn: "2026-10-14" })
       seedPayment(ipas)

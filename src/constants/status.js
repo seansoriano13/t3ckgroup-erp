@@ -106,7 +106,6 @@ export const IPAS_STATUS_THEME = {
   // The IPAS Status steps (ADR 0054, spec #1151), set by hand. DONE is below; a
   // DELIVERED step reads the Procurement outcome's colour (also green).
   ORDER_DRAFT: STATUS_THEME.MAUVE,
-  PAYMENT_APPROVAL: STATUS_THEME.AMBER,
   ORDERED: STATUS_THEME.BLUE,
   FOR_PAYMENT: STATUS_THEME.AMBER,
   IN_PRODUCTION: STATUS_THEME.VIOLET,

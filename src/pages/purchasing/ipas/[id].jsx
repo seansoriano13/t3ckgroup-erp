@@ -686,10 +686,6 @@ function IpasPage({ onClose }) {
     onSuccess: (_, { step }) => {
       toast.success(`Status set to ${IPAS_STATUS_LABELS[step]}.`);
       changed();
-      // #1209: picking For Payment saves the step, then opens the ask filled in for the down payment. Closing
-      // the form keeps the step; with an ask already open, the form stays shut.
-      const askOpen = (ipas?.payment_asks ?? []).some((ask) => !ask?.closed_at);
-      if (step === IPAS_STATUS.FOR_PAYMENT && canAskPayment && !askOpen) setAskingPayment(true);
     },
     onError: (error, vars) => {
       failChange(error, () => saveStatus.mutate(vars));
