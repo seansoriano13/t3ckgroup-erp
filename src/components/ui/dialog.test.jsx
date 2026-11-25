@@ -104,7 +104,7 @@ describe("Dialog height", () => {
         </DialogContent>
       </Dialog>,
     );
-    expect(popup().className).toContain("max-md:!h-dvh");
+    expect(popup().className).toContain("max-md:!h-auto");
     expect(popup().className).toContain("max-md:rounded-t-2xl");
     unmount();
     render(
@@ -114,7 +114,7 @@ describe("Dialog height", () => {
         </DialogContent>
       </Dialog>,
     );
-    expect(popup().className).not.toContain("max-md:!h-dvh");
+    expect(popup().className).not.toContain("max-md:!h-auto");
   });
 
   it("lets a caller keep its own overflow for a pinned header and footer", () => {
