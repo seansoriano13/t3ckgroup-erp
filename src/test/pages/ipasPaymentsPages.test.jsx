@@ -99,6 +99,13 @@ const addPayment = async (user) => {
   await user.click(radios[radios.length - 1]);
 };
 
+/** Add charge, then the required pick (#1227): the newest row says Paid already. */
+const addCharge = async (user) => {
+  await user.click(await screen.findByRole("button", { name: /Add charge/ }));
+  const radios = await screen.findAllByRole("radio", { name: /^Paid already/ });
+  await user.click(radios[radios.length - 1]);
+};
+
 beforeEach(() => stubRoomyScreen());
 
 describe("IPAS page: payments, charges and Landed Cost", () => {
@@ -267,7 +274,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       // Editing is in place: open the section if it is still shut.
       const costsHead = screen.getByRole("button", { name: /^3 · Costs/ });
       if (costsHead.getAttribute("aria-expanded") === "false") await user.click(costsHead);
-      await user.click(await screen.findByRole("button", { name: /Add charge/ }));
+      await addCharge(user);
       const charge = await screen.findByRole("group", { name: "Charge 1" });
       await pick(user, charge, /^Kind/, "Brokerage Fee");
       await user.type(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "250");
@@ -285,6 +292,133 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(db.rows("ipas_payments")).toHaveLength(1);
       await waitFor(() => expect(screen.getByText("All changes saved")).toBeInTheDocument());
       expect(screen.getAllByRole("group", { name: /^Charge \d/ })).toHaveLength(1);
+    });
+
+    describe("Charge asks inside Charges (#1227)", () => {
+      const seedChargeAsk = (row, over = {}) =>
+        db.seed("ipas_payment_asks", {
+          ipas_id: row.id,
+          amount: 4000,
+          purpose: "charge",
+          charge_kind_id: options.charge_kind["Brokerage Fee"].id,
+          currency: "PHP",
+          priority: "high",
+          note: null,
+          asked_by: purchaser.id,
+          asked_at: "2026-11-02T00:00:00Z",
+          closed_at: null,
+          ...over,
+        });
+
+      it("will not save a new charge until Paid already or For payment is picked", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs", "edit");
+        await user.click(await screen.findByRole("button", { name: /Add charge/ }));
+        const charge = await screen.findByRole("group", { name: "Charge 1" });
+        const choice = within(charge).getByTestId("payment-mode-choice");
+        expect(within(choice).getByText("*")).toBeInTheDocument();
+        expect(within(charge).queryByRole("textbox", { name: /^Amount/ })).not.toBeInTheDocument();
+
+        await saveAll(user);
+        expect(await screen.findByText(/Charge 1: Pick Paid already or For payment/)).toBeInTheDocument();
+        expect(db.rows("ipas_charges")).toHaveLength(0);
+        expect(db.rows("ipas_payment_asks")).toHaveLength(0);
+      });
+
+      it("saves For payment as a Charge ask with its kind and currency, and nothing counts as a charge", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs", "edit");
+        await user.click(await screen.findByRole("button", { name: /Add charge/ }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        await pick(user, ask, /^Kind/, "Brokerage Fee");
+        const currency = within(ask).getByRole("textbox", { name: /^Billed in/ });
+        expect(currency).toHaveValue("PHP");
+        await user.clear(currency);
+        await user.type(currency, "usd");
+        await user.type(within(ask).getByRole("textbox", { name: /^Amount \(USD\)/ }), "700");
+        await saveAll(user);
+
+        await waitFor(() => expect(db.rows("ipas_payment_asks")).toHaveLength(1));
+        expect(db.rows("ipas_payment_asks")[0]).toMatchObject({
+          purpose: "charge",
+          amount: 700,
+          currency: "USD",
+          charge_kind_id: options.charge_kind["Brokerage Fee"].id,
+        });
+        expect(db.rows("ipas_charges")).toHaveLength(0);
+        const liner = await screen.findByTestId("payment-ask-liner");
+        expect(liner).toHaveTextContent(/Brokerage Fee/);
+        expect(liner).toHaveTextContent(/700\.00/);
+      });
+
+      it("shows an open Charge ask as a grey row in the Charges table, in its own currency", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        seedChargeAsk(row, { amount: 700, currency: "USD", note: "Forwarder bill" });
+
+        renderDetail(row.id, "costs");
+        const grey = await screen.findByTestId("ipas-charge-ask-row");
+        expect(grey).toHaveTextContent(/Brokerage Fee/);
+        expect(grey).toHaveTextContent(/Not paid yet/);
+        expect(grey).toHaveTextContent(/700\.00/);
+        expect(grey).toHaveTextContent(/Forwarder bill/);
+        // It is not in Payments.
+        expect(screen.queryByTestId("ipas-payment-ask-row")).not.toBeInTheDocument();
+      });
+
+      it("Record as paid fills the kind and, for a PHP ask, the amount; saving closes that ask", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const open = seedChargeAsk(row, { amount: 4000 });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const charge = await screen.findByRole("group", { name: "Charge 1" });
+        expect(within(charge).getByRole("combobox", { name: /^Kind/ })).toHaveTextContent("Brokerage Fee");
+        expect(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ })).toHaveValue("4000");
+        expect(within(charge).getByRole("checkbox", { name: /Does this pay the open item\?/ })).toBeChecked();
+        await saveAll(user);
+
+        await waitFor(() => expect(db.rows("ipas_charges")).toHaveLength(1));
+        expect(db.rows("ipas_charges")[0]).toMatchObject({ amount_php: 4000, ask_id: open.id });
+        expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id)).toMatchObject({ closed_reason: "paid" });
+      });
+
+      it("keeps the amount blank for a foreign-currency ask and shows the asked amount as a hint", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        seedChargeAsk(row, { amount: 700, currency: "USD" });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const charge = await screen.findByRole("group", { name: "Charge 1" });
+        expect(within(charge).getByRole("textbox", { name: /^Amount \(PHP\)/ })).toHaveValue("");
+        expect(within(charge).getByTestId("charge-ask-hint")).toHaveTextContent(/700\.00/);
+      });
+
+      it("asks \"Does this pay the open item?\" on a plain Add charge, and a charge cannot be offered a payment's ask", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        seedChargeAsk(row, { amount: 4000 });
+        seedChargeAsk(row, { amount: 900, asked_at: "2026-11-05T00:00:00Z" });
+        const user = setupUser();
+
+        renderDetail(row.id, "costs", "edit");
+        await addCharge(user);
+        const charge = await screen.findByRole("group", { name: "Charge 1" });
+        expect(within(charge).getByTestId("payment-pays-ask")).toHaveTextContent(/Does this pay the open item\?/);
+        cleanup();
+
+        // A payment is never offered a Charge ask, and Payments shows no grey row for it.
+        renderDetail(row.id, "payments", "edit");
+        await addPayment(user);
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).queryByTestId("payment-pays-ask")).not.toBeInTheDocument();
+        expect(screen.queryByTestId("payment-ask-liner")).not.toBeInTheDocument();
+      });
     });
 
     describe("For payment inside Payments (#1225)", () => {
@@ -726,7 +860,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const user = setupUser();
 
       renderDetail(row.id, "costs", "edit");
-      await user.click(await screen.findByRole("button", { name: /Add charge/ }));
+      await addCharge(user);
       const charge = await screen.findByRole("group", { name: "Charge 1" });
       expect(queryOtherDialog()).not.toBeInTheDocument();
       await pick(user, charge, /^Kind/, "Brokerage Fee");

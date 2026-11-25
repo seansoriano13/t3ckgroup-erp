@@ -8,8 +8,8 @@ import { Button } from "../ui/button";
 import { ExternalLink } from "../ui/external-link";
 import StatusBadge from "../StatusBadge";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
-import { IPAS_ASK_PRIORITY_LABELS, IPAS_ASK_PURPOSE_LABELS, IPAS_PAYMENT_KIND_LABELS } from "../../constants/ipas";
-import { payableAsks } from "../../utils/ipasPaymentAsk";
+import { IPAS_ASK_PRIORITY_LABELS, IPAS_PAYMENT_KIND_LABELS } from "../../constants/ipas";
+import { askCurrency, askWhat, payableAsks } from "../../utils/ipasPaymentAsk";
 import { formatPercent, paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "../../utils/ipas";
@@ -37,13 +37,13 @@ export function IpasAskTableRow({ ask, currency, canRecord = false }) {
     <TableRow data-testid="ipas-payment-ask-row" className="hover:bg-transparent [&>td]:bg-mauve-2">
       <TableCell className={td}>
         <div className="font-semibold text-foreground/80">
-          {IPAS_ASK_PURPOSE_LABELS[ask.purpose] ?? ask.purpose}
+          {askWhat(ask)}
           {percent ? ` · ${percent}%` : ""}
         </div>
         <StatusBadge theme="mauve" label="Not paid yet" />
       </TableCell>
       <TableCell className={cn(td, "text-muted-foreground")}>{ask.priority ? `${IPAS_ASK_PRIORITY_LABELS[ask.priority] ?? ask.priority} priority` : "—"}</TableCell>
-      <TableCell className={cn(td, num, "italic text-muted-foreground")}>{formatAmount(Number(ask.amount), currency)}</TableCell>
+      <TableCell className={cn(td, num, "italic text-muted-foreground")}>{formatAmount(Number(ask.amount), askCurrency(ask, currency))}</TableCell>
       <TableCell colSpan={7} className={cn(td, "text-xs text-muted-foreground")}>
         {typeof ask.note === "string" && ask.note.trim() ? ask.note.trim() : "Asked for payment. It counts as paid only once the payment is recorded."}
       </TableCell>

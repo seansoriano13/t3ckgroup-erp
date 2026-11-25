@@ -74,7 +74,7 @@ const IPAS_SELECT =
   // The IPAS Status steps reached, each with the day and who set it (ADR 0054).
   " status_steps:ipas_status_steps(step, reached_on, set_at, setter:employees!ipas_status_steps_set_by_fkey(id, name))," +
   // The asks for payment (ADR 0055); the open one (no closed_at) makes the Payment status For payment.
-  " payment_asks:ipas_payment_asks(id, amount, purpose, note, priority, percent_of_order, asked_by, asked_at, closed_at, closed_reason, paid_by_payment_id, asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
+  " payment_asks:ipas_payment_asks(id, amount, purpose, note, priority, percent_of_order, asked_by, asked_at, closed_at, closed_reason, paid_by_payment_id, paid_by_charge_id, charge_kind_id, currency, charge_kind:ipas_options!ipas_payment_asks_charge_kind_id_fkey(id, label), asker:employees!ipas_payment_asks_asked_by_fkey(id, name))";
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
@@ -677,7 +677,7 @@ export const ipasService = {
   // ── Ask for payment (#1188, ADR 0055) ────────────────────────────────────
 
   /** Purchasing asks for a payment on an open IPAS: amount in the P0's currency, a purpose, an optional note. */
-  async askForPayment(id, { amount, purpose, note = null, priority = "high", percent = null }) {
+  async askForPayment(id, { amount, purpose, note = null, priority = "high", percent = null, chargeKindId = null, currency = null }) {
     const { data, error } = await supabase.rpc("ipas_ask_for_payment", {
       p_ipas_id: id,
       p_amount: amount,
@@ -685,6 +685,8 @@ export const ipasService = {
       p_note: note,
       p_priority: priority,
       p_percent: percent,
+      p_charge_kind_id: chargeKindId,
+      p_currency: currency,
     });
     if (error) throw error;
     return data;
@@ -746,7 +748,8 @@ export const ipasService = {
   /** Records a charge on an open IPAS: `{ kindId, chargedOn, amountPhp }`, PHP. Returns the row. */
   async addCharge(id, charge) {
     const args = chargeArgs(charge);
-    const { data, error } = await supabase.rpc("ipas_add_charge", { p_ipas_id: id, ...args });
+    // A charge saved as paying an open Charge ask closes it (#1227).
+    const { data, error } = await supabase.rpc("ipas_add_charge", { p_ipas_id: id, ...args, p_ask_id: charge?.askId || null });
     if (error) throw error;
     return data;
   },

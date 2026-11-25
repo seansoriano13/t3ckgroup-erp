@@ -7,9 +7,12 @@ import { CircleAlert, Paperclip, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { ExternalLink } from "../ui/external-link";
+import StatusBadge from "../StatusBadge";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import { cn } from "@/lib/utils";
+import { IPAS_ASK_PRIORITY_LABELS } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
+import { askCurrency, askWhat, chargeAsks } from "../../utils/ipasPaymentAsk";
 import { formatDay } from "../../utils/ipasPayments";
 import { finiteNumber, isPhpCurrency, sumPesos } from "../../utils/landedCost";
 
@@ -44,6 +47,28 @@ function freightFigures(ipas) {
   return { amount, currency, billed, rate: converts ? rate : null };
 }
 
+/**
+ * An open Charge ask as a grey row at the top of the same table (#1227): not paid yet, so it adds to no total.
+ * The kind sits where a charge's kind is, the priority where the date is, the asked amount (muted, in its own
+ * currency) in Amount, and the note where the file is.
+ */
+export function IpasChargeAskTableRow({ ask, currency, canRecord = false }) {
+  return (
+    <TableRow data-testid="ipas-charge-ask-row" className="hover:bg-transparent [&>td]:bg-mauve-2">
+      <TableCell className={td}>
+        <div className="font-semibold text-foreground/80">{askWhat(ask)}</div>
+        <StatusBadge theme="mauve" label="Not paid yet" />
+      </TableCell>
+      <TableCell className={cn(td, "text-muted-foreground")}>{ask.priority ? `${IPAS_ASK_PRIORITY_LABELS[ask.priority] ?? ask.priority} priority` : "—"}</TableCell>
+      <TableCell className={cn(td, num, "italic text-muted-foreground")}>{formatAmount(Number(ask.amount), askCurrency(ask, currency))}</TableCell>
+      <TableCell className={cn(td, "text-xs text-muted-foreground")}>
+        {typeof ask.note === "string" && ask.note.trim() ? ask.note.trim() : "Asked for payment. It counts only once the charge is recorded."}
+      </TableCell>
+      {canRecord && <TableCell className={td} />}
+    </TableRow>
+  );
+}
+
 export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge, onRemoveCharge }) {
   const charges = ipas.charges ?? [];
   const freight = freightFigures(ipas);
@@ -51,6 +76,7 @@ export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge
   const chargesTotal = sumPesos(charges.map((charge) => finiteNumber(charge.amount_php) ?? 0));
   const freightPhp = ipas.landedCost?.totals?.freightPhp ?? 0;
   const bankCharges = ipas.paymentSummary?.chargeFeesPhp ?? 0;
+  const asks = chargeAsks(ipas);
 
   return (
     <div className="space-y-2">
@@ -66,6 +92,9 @@ export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y-0">
+            {asks.map((ask) => (
+              <IpasChargeAskTableRow key={ask.id} ask={ask} currency={ipas.currency} canRecord={canRecord} />
+            ))}
             <TableRow data-testid="ipas-freight-row" className={freight ? "hover:bg-transparent" : blankRow}>
               <TableCell className={td}>
                 <div className="font-semibold">Freight{ipas.freightService?.label ? ` · ${ipas.freightService.label}` : ""}</div>

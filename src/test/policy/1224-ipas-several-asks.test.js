@@ -95,13 +95,14 @@ describe("a payment closing its ask", () => {
         expect(await askRow(opened.id)).toMatchObject({ closed_at: null })
     })
 
-    it("refuses a closed ask, another IPAS's ask and a freight ask", async () => {
+    it("refuses a closed ask, another IPAS's ask and a Charge ask", async () => {
         const ipas = await raise()
         const other = await raise()
         const closed = (await ask("outsider", ipas.id)).data
         await withdraw("outsider", closed.id)
         const elsewhere = (await ask("outsider", other.id)).data
-        const freight = (await ask("outsider", ipas.id, { p_purpose: "freight" })).data
+        const kind = (await svc().from("ipas_options").select("id").eq("list", "charge_kind").limit(1).single()).data.id
+        const freight = (await ask("outsider", ipas.id, { p_purpose: "charge", p_charge_kind_id: kind })).data
 
         expect((await pay(ipas.id, closed.id)).error?.code).toBe("22023")
         expect((await pay(ipas.id, elsewhere.id)).error?.code).toBe("22023")

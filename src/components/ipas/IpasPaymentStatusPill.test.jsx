@@ -45,7 +45,7 @@ describe("IpasPaymentStatusPill", () => {
   })
 
   it("stacks several open asks as one line each, and leaves closed asks out", () => {
-    const asks = [ask({ id: "a1" }), ask({ id: "a2", purpose: "freight", priority: "medium", amount: 500 }), ask({ id: "a3", closed_at: "2026-11-20" })]
+    const asks = [ask({ id: "a1" }), ask({ id: "a2", purpose: "charge", charge_kind: { label: "Freight" }, currency: "EUR", priority: "medium", amount: 500 }), ask({ id: "a3", closed_at: "2026-11-20" })]
     render(<IpasPaymentStatusPill figures={ipasFigures(ipas({ payment_asks: asks }))} />)
     const lines = screen.getAllByTestId("ipas-payment-ask")
     expect(lines).toHaveLength(2)

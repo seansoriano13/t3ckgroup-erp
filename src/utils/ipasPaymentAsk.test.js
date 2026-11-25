@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ipasFigures } from "./ipasFigures";
-import { askPriorityRank, comparePaymentForecast, paidKindForAsk, paymentAskHover } from "./ipasPaymentAsk";
+import { askLine, askPriorityRank, chargeAsks, comparePaymentForecast, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
 
 const withAsk = (ask) => ({ figures: { paymentAsk: ask } });
 
@@ -106,5 +106,36 @@ describe("several open asks (#1224)", () => {
     expect(none.paymentAsks).toEqual([]);
     expect(one.paid).toBe(300);
     expect(one.paidPercent).toBe(none.paidPercent);
+  });
+});
+
+describe("Charge asks (#1227)", () => {
+  const chargeAsk = { id: "a-c", purpose: "charge", amount: 700, currency: "USD", priority: "high", charge_kind: { label: "Brokerage Fee" }, asked_at: "2026-11-02T00:00:00Z", closed_at: null };
+  const supplierAsk = { id: "a-s", purpose: "down_payment", amount: 500, priority: "high", asked_at: "2026-11-01T00:00:00Z", closed_at: null };
+
+  it("names a Charge ask by its kind and shows it in its own currency", () => {
+    const line = askLine(chargeAsk, "EUR");
+    expect(line).toContain("Brokerage Fee");
+    expect(line).toContain("700.00");
+    expect(line).not.toContain("€");
+  });
+
+  it("keeps Charge asks out of what a payment can pay, and supplier asks out of what a charge can pay", () => {
+    const ipas = { payment_asks: [chargeAsk, supplierAsk, { ...supplierAsk, id: "a-x", closed_at: "2026-11-03T00:00:00Z" }] };
+    expect(payableAsks(ipas).map((ask) => ask.id)).toEqual(["a-s"]);
+    expect(chargeAsks(ipas).map((ask) => ask.id)).toEqual(["a-c"]);
+  });
+
+  it("lists each Charge ask in its own currency on the forecast hover, never summed", () => {
+    const figures = ipasFigures({
+      state: "open",
+      odoo_copy: { po: { currency: "EUR" } },
+      payment_asks: [chargeAsk, { ...chargeAsk, id: "a-d", currency: "PHP", amount: 900, priority: "medium" }, supplierAsk],
+    });
+    const lines = paymentAskHover(figures).split("\n");
+    expect(lines).toHaveLength(3);
+    expect(lines.filter((line) => line.includes("Brokerage Fee"))).toHaveLength(2);
+    expect(lines.some((line) => line.includes("900.00"))).toBe(true);
+    expect(lines.some((line) => line.includes("700.00"))).toBe(true);
   });
 });

@@ -955,9 +955,11 @@ function IpasPage({ onClose }) {
   const shownReturnTargets =
     returning?.section == null ? returnTargets : returnTargets.filter((target) => target.section === returning.section);
 
-  // A payment that paid an ask (#1225): removing it names that ask and says it stays closed.
+  // A payment or charge that paid an ask (#1225, #1227): removing it names that ask and says it stays closed.
   const paidAsk =
-    removing?.type === "payment" ? (ipas.payment_asks ?? []).find((ask) => ask.paid_by_payment_id === removing.row?.id) ?? null : null;
+    removing?.type === "payment" || removing?.type === "charge"
+      ? (ipas.payment_asks ?? []).find((ask) => (removing.type === "payment" ? ask.paid_by_payment_id : ask.paid_by_charge_id) === removing.row?.id) ?? null
+      : null;
 
   // Everything the record's header, decider and sections can ask the page to do.
   const on = {

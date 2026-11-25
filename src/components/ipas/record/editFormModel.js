@@ -164,6 +164,9 @@ export const newPaymentDraft = (askId = "", mode = "") => ({
   mode,
 });
 
+/** A Charge ask's own boxes on a charge row picked as For payment (#1227): currency (PHP to start), priority, note. */
+const chargeAskFields = () => ({ askCurrency: "PHP", askPriority: IPAS_ASK_DEFAULT_PRIORITY, askNote: "" });
+
 export const chargeDraft = (charge) => ({
   key: charge.id,
   id: charge.id,
@@ -171,15 +174,24 @@ export const chargeDraft = (charge) => ({
   chargedOn: charge.charged_on ?? "",
   amountPhp: text(charge.amount_php),
   attachmentUrl: charge.attachment_url ?? "",
+  askId: "", // only a new charge can be saved as paying an open Charge ask (#1227)
+  askHint: null, // a foreign-currency ask's asked amount, shown while the pesos are typed
+  ...chargeAskFields(),
+  mode: PAYMENT_MODE.PAID, // a saved charge is paid
 });
 
-export const newChargeDraft = () => ({
+/** A new, empty charge row. Like a payment it starts with neither Paid already nor For payment picked (#1227). */
+export const newChargeDraft = (askId = "", mode = "") => ({
   key: draftKey(),
   id: null,
   kindId: "",
   chargedOn: getCurrentLocalDate(),
   amountPhp: "",
   attachmentUrl: "",
+  askId,
+  askHint: null,
+  ...chargeAskFields(),
+  mode,
 });
 
 export const documentDraft = (document) => ({
@@ -307,9 +319,16 @@ export function requiredFields(form) {
   });
   form.charges.forEach((c, i) => {
     const n = `Charge ${i + 1}`;
+    if (!c.id) need("costs", `chg-${c.key}-mode`, `${n}: Paid already or For payment`, c.mode);
     need("costs", `chg-${c.key}-kindId`, `${n} kind`, c.kindId);
+    if (c.mode === PAYMENT_MODE.ASK) {
+      need("costs", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
+      need("costs", `chg-${c.key}-askCurrency`, `${n} currency`, c.askCurrency);
+      need("costs", `chg-${c.key}-askPriority`, `${n} priority`, c.askPriority);
+      return;
+    }
     // A saved charge may be blank (unknown); only a new one must be filled in.
-    if (!c.id) {
+    if (!c.id && c.mode) {
       need("costs", `chg-${c.key}-chargedOn`, `${n} date`, c.chargedOn);
       need("costs", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
     }
@@ -417,6 +436,15 @@ function askProblem(p) {
   return null;
 }
 
+/** A charge row picked as For payment: the kind, an amount in its currency (PHP to start) and a priority. */
+function chargeAskProblem(c) {
+  if (!c.kindId) return "Pick the kind of charge.";
+  if (!/^[A-Za-z]{3}$/.test((c.askCurrency ?? "").trim())) return "Give the currency as three letters, like PHP.";
+  if (!positive(c.amountPhp)) return "Amount must be a number more than zero.";
+  if (!c.askPriority) return "Pick the priority.";
+  return null;
+}
+
 function chargeProblem(c) {
   if (!c.kindId) return "Pick the kind of charge.";
   if (c.id) {
@@ -450,6 +478,17 @@ const askValues = (p) => ({
   priority: p.askPriority,
   note: blank(p.askNote) ? null : p.askNote.trim(),
   percent: parsePercentInput(p.percentOfOrder).value,
+});
+
+/** A charge row picked as For payment, as the ask RPC takes it: a Charge ask of that kind, in that currency. */
+const chargeAskValues = (c) => ({
+  amount: parseAmountInput(c.amountPhp).value,
+  purpose: "charge",
+  chargeKindId: c.kindId,
+  currency: c.askCurrency.trim().toUpperCase(),
+  priority: c.askPriority,
+  note: blank(c.askNote) ? null : c.askNote.trim(),
+  percent: null,
 });
 
 const paymentValues = (p) => ({
@@ -582,6 +621,13 @@ export function planSave(form, base) {
     ["update", chg.updated],
   ]) {
     for (const row of rows) {
+      if (!row.id && !row.mode) fail(`Charge ${form.charges.indexOf(row) + 1}: Pick Paid already or For payment.`);
+      if (row.mode === PAYMENT_MODE.ASK) {
+        const askIssue = chargeAskProblem(row);
+        if (askIssue) fail(`Charge ${form.charges.indexOf(row) + 1}: ${askIssue}`);
+        plan.asks.add.push({ key: row.key, values: chargeAskValues(row) });
+        continue;
+      }
       const problem = chargeProblem(row);
       if (problem) fail(`Charge ${form.charges.indexOf(row) + 1}: ${problem}`);
       plan.charges[target].push({
@@ -592,6 +638,7 @@ export function planSave(form, base) {
           chargedOn: row.chargedOn,
           amountPhp: row.amountPhp,
           attachmentUrl: row.attachmentUrl,
+          askId: row.askId ?? "",
         },
       });
     }

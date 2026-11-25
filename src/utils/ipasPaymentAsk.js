@@ -30,22 +30,36 @@ export function comparePaymentForecast(a, b) {
   return Number.isFinite(byAge) ? byAge : 0;
 }
 
+/** What an ask is for in words: a Charge ask by its kind ("Freight"), the others by their purpose. */
+export const askWhat = (ask) =>
+  ask?.purpose === "charge"
+    ? (ask.charge_kind?.label ?? IPAS_ASK_PURPOSE_LABELS.charge)
+    : (IPAS_ASK_PURPOSE_LABELS[ask?.purpose] ?? ask?.purpose);
+
+/** A Charge ask is billed in its own currency (#1227); the others use the P0's. */
+export const askCurrency = (ask, fallback) => (ask?.purpose === "charge" && ask.currency ? ask.currency : fallback);
+
 /** "Down payment · €5,600.00 · 40% of the order · High priority (30% down)" for one ask. */
 export function askLine(ask, currency) {
-  const amount = formatAmount(Number(ask.amount), currency);
+  const amount = formatAmount(Number(ask.amount), askCurrency(ask, currency));
   const note = typeof ask.note === "string" && ask.note.trim() ? ` (${ask.note.trim()})` : "";
   const percent = formatPercent(ask.percent_of_order);
   const percentText = percent ? ` · ${percent}% of the order` : "";
   const priorityText = ask.priority ? ` · ${IPAS_ASK_PRIORITY_LABELS[ask.priority] ?? ask.priority} priority` : "";
-  return `${IPAS_ASK_PURPOSE_LABELS[ask.purpose] ?? ask.purpose} · ${amount}${percentText}${priorityText}${note}`;
+  return `${askWhat(ask)} · ${amount}${percentText}${priorityText}${note}`;
 }
 
-/** The open asks a payment on this IPAS can pay: supplier side (not Freight), oldest first (#1224, #1225). */
-export const payableAsks = (ipas) =>
+const openAsksByAge = (ipas, wanted) =>
   (ipas?.payment_asks ?? [])
-    .filter((ask) => ask && !ask.closed_at && ask.purpose !== "freight")
+    .filter((ask) => ask && !ask.closed_at && wanted(ask))
     .slice()
     .sort((a, b) => askedTime(a) - askedTime(b));
+
+/** The open asks a payment on this IPAS can pay: supplier side (never a Charge ask), oldest first (#1224, #1225). */
+export const payableAsks = (ipas) => openAsksByAge(ipas, (ask) => ask.purpose !== "charge");
+
+/** The open Charge asks (#1227): only a charge can pay them, never a payment. Oldest first. */
+export const chargeAsks = (ipas) => openAsksByAge(ipas, (ask) => ask.purpose === "charge");
 
 /**
  * The kind "Record as paid" fills for an ask (#1225): Down payment fills Down payment; Balance fills Full payment

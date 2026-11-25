@@ -12,6 +12,7 @@ import {
   newPaymentDraft,
   planIsEmpty,
   planSave,
+  requiredFields,
   sectionProgress,
 } from "./editFormModel";
 
@@ -113,7 +114,7 @@ describe("IPAS edit form model", () => {
     it("counts the boxes the old dialogs required: a payment's date, amount and method, a charge's kind, date and amount", () => {
       const base = formFromIpas(ipas({ contact: "R. Cruz", piNumber: "PI-1", piQtAmount: 1 }));
       const payment = newPaymentDraft("", "paid");
-      const charge = newChargeDraft();
+      const charge = newChargeDraft("", "paid");
       const form = { ...base, payments: [payment], charges: [charge] };
       expect(missingFields(form).map((m) => m.id)).toEqual([
         `pay-${payment.key}-amount`,
@@ -125,7 +126,7 @@ describe("IPAS edit form model", () => {
       const progress = sectionProgress(form);
       expect(progress.find((p) => p.key === "order")).toMatchObject({ total: 3, left: 0 });
       expect(progress.find((p) => p.key === "payments")).toMatchObject({ total: 4, left: 2 });
-      expect(progress.find((p) => p.key === "costs")).toMatchObject({ total: 3, left: 2 });
+      expect(progress.find((p) => p.key === "costs")).toMatchObject({ total: 4, left: 2 });
       expect(progress.find((p) => p.key === "delivery")).toMatchObject({ total: 1, left: 1 });
     });
 
@@ -203,7 +204,7 @@ describe("IPAS edit form model", () => {
       expect(planSave(pay(tomorrow), base).error).toBe("Payment 1: The payment date cannot be after today.");
       expect(planSave(pay("2014-12-31"), base).error).toBe("Payment 1: The payment date cannot be before January 1, 2015.");
       expect(planSave(pay(ipasDateMax()), base).error).toBeNull();
-      const chg = (chargedOn) => ({ ...base, charges: [{ ...newChargeDraft(), kindId: "k-1", amountPhp: "10", chargedOn }] });
+      const chg = (chargedOn) => ({ ...base, charges: [{ ...newChargeDraft("", "paid"), kindId: "k-1", amountPhp: "10", chargedOn }] });
       expect(planSave(chg(tomorrow), base).error).toBe("Charge 1: The charge date cannot be after today.");
       expect(planSave(chg("2014-12-31"), base).error).toBe("Charge 1: The charge date cannot be before January 1, 2015.");
       expect(planSave(chg(ipasDateMax()), base).error).toBeNull();
@@ -223,7 +224,33 @@ describe("IPAS edit form model", () => {
       expect(planSave({ ...foreign, payments: [zeroPhp] }, foreign).error).toBe(
         "Payment 1: Forex rate paid must be a number more than zero, or left blank.",
       );
-      expect(planSave({ ...base, charges: [newChargeDraft()] }, base).error).toBe("Charge 1: Pick the kind of charge.");
+      expect(planSave({ ...base, charges: [newChargeDraft("", "paid")] }, base).error).toBe("Charge 1: Pick the kind of charge.");
+    });
+
+    it("will not save a new charge row until Paid already or For payment is picked (#1227)", () => {
+      const base = formFromIpas(ipas());
+      const row = { ...newChargeDraft(), kindId: "k-1", amountPhp: "10" };
+      expect(planSave({ ...base, charges: [row] }, base).error).toBe("Charge 1: Pick Paid already or For payment.");
+      expect(requiredFields({ ...base, charges: [row] }).find((f) => f.id === `chg-${row.key}-mode`)).toMatchObject({ filled: false });
+    });
+
+    it("plans a charge row picked as For payment as a Charge ask of that kind and currency (#1227)", () => {
+      const base = formFromIpas(ipas());
+      const row = { ...newChargeDraft("", "ask"), kindId: "k-1", amountPhp: "700", askCurrency: "usd", askNote: " by Friday " };
+      const plan = planSave({ ...base, charges: [row] }, base);
+      expect(plan.error).toBeNull();
+      expect(plan.charges.add).toEqual([]);
+      expect(plan.asks.add).toEqual([
+        { key: row.key, values: { amount: 700, purpose: "charge", chargeKindId: "k-1", currency: "USD", priority: "high", note: "by Friday", percent: null } },
+      ]);
+      expect(planSave({ ...base, charges: [{ ...row, kindId: "" }] }, base).error).toBe("Charge 1: Pick the kind of charge.");
+      expect(planSave({ ...base, charges: [{ ...row, askCurrency: "P" }] }, base).error).toBe("Charge 1: Give the currency as three letters, like PHP.");
+    });
+
+    it("sends the ask a charge pays (#1227)", () => {
+      const base = formFromIpas(ipas());
+      const row = { ...newChargeDraft("a-1", "paid"), kindId: "k-1", amountPhp: "10" };
+      expect(planSave({ ...base, charges: [row] }, base).charges.add[0].values.askId).toBe("a-1");
     });
 
     it("section 2 is not complete when a charge has a blank amount", () => {
