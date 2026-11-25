@@ -17144,6 +17144,8 @@ begin
             limit 1
         ) cta
         left join public.employees e on e.id = cta.author_id
+        -- Hidden while its SOR is archived or deleted.
+        where ct.opportunity_id is null or not public.sor_is_put_away(ct.opportunity_id)
     ),
     combined_chats as (
         select * from task_chats
@@ -28518,6 +28520,19 @@ AS $function$
     or p_opp.support_sales_1_id = p_employee_id
     or p_opp.support_sales_2_id = p_employee_id
     or p_opp.sales_director_id = p_employee_id
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_is_put_away(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(
+    (select o.archived_at is not null or coalesce(o.is_deleted, false)
+       from public.sales_opportunities o
+      where o.id = p_opportunity_id),
+    false)
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_is_stage_shut_out(p_opp sales_opportunities, p_employee_id uuid, p_stage_id uuid)
