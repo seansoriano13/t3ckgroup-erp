@@ -512,6 +512,25 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.queryByRole("combobox", { name: "Spread charges" })).not.toBeInTheDocument();
     });
 
+    it("gives a Super Admin with no other access payments and charges on an open IPAS, and nothing on a filed one (#1222)", async () => {
+      const boss = makeEmployee({ name: "Boss", is_super_admin: true });
+      mockUser.current = boss;
+      stubIpasRpcs({ actorId: boss.id, purchasing: false, superAdmin: true });
+      const open = ipas({ po_number: "P02552" });
+      const paymentsView = renderDetail(open.id, "payments", "edit");
+      expect(await screen.findByRole("button", { name: "Add payment" })).toBeInTheDocument();
+      paymentsView.unmount();
+
+      renderDetail(open.id, "costs", "edit");
+      expect(await screen.findByRole("button", { name: /Add charge/ })).toBeInTheDocument();
+      cleanup();
+
+      const filed = ipas({ po_number: "P02553", state: "filed" });
+      renderDetail(filed.id, "payments", "edit");
+      await screen.findByRole("region", { name: /Payments/ });
+      expect(screen.queryByRole("button", { name: /Add payment/ })).not.toBeInTheDocument();
+    });
+
     it("gives Finance no status step at all: the record reads Final, and Checked by is gone", async () => {
       mockUser.current = finance;
       stubIpasRpcs({ actorId: finance.id, purchasing: false, money: true });

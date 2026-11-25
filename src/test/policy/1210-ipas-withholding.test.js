@@ -86,4 +86,10 @@ describe("Withholding (2307)", () => {
         const refused = await setWithholding("ordinary", ipas.id, "1")
         expect(refused.error?.code).toBe("42501")
     })
+
+    it("stays closed to a Super Admin with no other access, though payments and charges are open to one (#1222)", async () => {
+        const ipas = await raise("local")
+        const refused = await setWithholding("superAdmin", ipas.id, "1")
+        expect(refused.error?.code).toBe("42501")
+    })
 })
