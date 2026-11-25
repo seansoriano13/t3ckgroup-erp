@@ -8,6 +8,7 @@
 // status are plain keys.
 
 import {
+  IPAS_ASK_DEFAULT_PRIORITY,
   IPAS_OVERRIDE,
   IPAS_PAYMENT_KIND,
   IPAS_STATUS_SOURCE,
@@ -111,6 +112,15 @@ export function actualCheckingStampable(ipas) {
 let draftCounter = 0;
 const draftKey = () => `new-${(draftCounter += 1)}`;
 
+/**
+ * What a new row under Payments is (#1225): "Paid already" (a payment) or "For payment (not paid yet)" (an ask for
+ * payment). A new row starts with neither picked and will not save until one is. Charges reuse this (#1227).
+ */
+export const PAYMENT_MODE = { PAID: "paid", ASK: "ask" };
+
+/** The ask's own boxes on a row picked as For payment. The amount and % of order share the row's own boxes. */
+const askDraftFields = () => ({ askPurpose: "down_payment", askPriority: IPAS_ASK_DEFAULT_PRIORITY, askNote: "" });
+
 export const paymentDraft = (payment) => ({
   key: payment.id,
   id: payment.id,
@@ -127,10 +137,13 @@ export const paymentDraft = (payment) => ({
   methodOther: payment.method_other ?? "",
   checkNo: payment.check_no ?? "",
   proofUrls: paymentProofFiles(payment).map((file) => file.url),
+  askId: "", // only a new payment can be saved as paying an open ask (#1224)
+  ...askDraftFields(),
+  mode: PAYMENT_MODE.PAID, // a saved payment is paid
 });
 
-/** A new, empty payment row: today's date and the kind "Payment". */
-export const newPaymentDraft = () => ({
+/** A new, empty payment row: today's date and the kind "Payment". `askId` is the open ask it pays, if any. */
+export const newPaymentDraft = (askId = "", mode = "") => ({
   key: draftKey(),
   id: null,
   kind: IPAS_PAYMENT_KIND.PAYMENT,
@@ -146,7 +159,13 @@ export const newPaymentDraft = () => ({
   methodOther: "",
   checkNo: "",
   proofUrls: [],
+  askId,
+  ...askDraftFields(),
+  mode,
 });
+
+/** A Charge ask's own boxes on a charge row picked as For payment (#1227): currency (PHP to start), priority, note. */
+const chargeAskFields = () => ({ askCurrency: "PHP", askPriority: IPAS_ASK_DEFAULT_PRIORITY, askNote: "" });
 
 export const chargeDraft = (charge) => ({
   key: charge.id,
@@ -155,15 +174,24 @@ export const chargeDraft = (charge) => ({
   chargedOn: charge.charged_on ?? "",
   amountPhp: text(charge.amount_php),
   attachmentUrl: charge.attachment_url ?? "",
+  askId: "", // only a new charge can be saved as paying an open Charge ask (#1227)
+  askHint: null, // a foreign-currency ask's asked amount, shown while the pesos are typed
+  ...chargeAskFields(),
+  mode: PAYMENT_MODE.PAID, // a saved charge is paid
 });
 
-export const newChargeDraft = () => ({
+/** A new, empty charge row. Like a payment it starts with neither Paid already nor For payment picked (#1227). */
+export const newChargeDraft = (askId = "", mode = "") => ({
   key: draftKey(),
   id: null,
   kindId: "",
   chargedOn: getCurrentLocalDate(),
   amountPhp: "",
   attachmentUrl: "",
+  askId,
+  askHint: null,
+  ...chargeAskFields(),
+  mode,
 });
 
 export const documentDraft = (document) => ({
@@ -276,6 +304,13 @@ export function requiredFields(form) {
   need("order", "f-piQtAmount", "P.I/QT Amount", form.piQtAmount);
   form.payments.forEach((p, i) => {
     const n = `Payment ${i + 1}`;
+    if (!p.id) need("payments", `pay-${p.key}-mode`, `${n}: Paid already or For payment`, p.mode);
+    if (p.mode === PAYMENT_MODE.ASK) {
+      need("payments", `pay-${p.key}-amount`, `${n} amount`, p.amount);
+      need("payments", `pay-${p.key}-askPriority`, `${n} priority`, p.askPriority);
+      return;
+    }
+    if (!p.id && !p.mode) return;
     need("payments", `pay-${p.key}-paidOn`, `${n} date`, p.paidOn);
     need("payments", `pay-${p.key}-amount`, `${n} amount`, p.amount);
     // "Pesos taken from the bank" is optional (#604): not a required field.
@@ -284,9 +319,16 @@ export function requiredFields(form) {
   });
   form.charges.forEach((c, i) => {
     const n = `Charge ${i + 1}`;
+    if (!c.id) need("costs", `chg-${c.key}-mode`, `${n}: Paid already or For payment`, c.mode);
     need("costs", `chg-${c.key}-kindId`, `${n} kind`, c.kindId);
+    if (c.mode === PAYMENT_MODE.ASK) {
+      need("costs", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
+      need("costs", `chg-${c.key}-askCurrency`, `${n} currency`, c.askCurrency);
+      need("costs", `chg-${c.key}-askPriority`, `${n} priority`, c.askPriority);
+      return;
+    }
     // A saved charge may be blank (unknown); only a new one must be filled in.
-    if (!c.id) {
+    if (!c.id && c.mode) {
       need("costs", `chg-${c.key}-chargedOn`, `${n} date`, c.chargedOn);
       need("costs", `chg-${c.key}-amountPhp`, `${n} amount`, c.amountPhp);
     }
@@ -367,6 +409,7 @@ function positive(raw) {
 }
 
 function paymentProblem(p, isPhp) {
+  if (!p.id && !p.mode) return "Pick Paid already or For payment (not paid yet).";
   if (!isIsoDate(p.paidOn)) return "Give the date of the payment.";
   const dateIssue = ipasDateIssue(p.paidOn, "The payment date");
   if (dateIssue) return dateIssue;
@@ -383,6 +426,22 @@ function paymentProblem(p, isPhp) {
     return "Misc fee must be a number.";
   if (!p.methodId) return "Pick the payment method.";
   if (p.methodIsOthers === true && blank(p.methodOther)) return "Type the payment method when it is Others.";
+  return null;
+}
+
+function askProblem(p) {
+  if (!positive(p.amount)) return "Amount must be a number more than zero.";
+  if (!parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
+  if (!p.askPriority) return "Pick the priority.";
+  return null;
+}
+
+/** A charge row picked as For payment: the kind, an amount in its currency (PHP to start) and a priority. */
+function chargeAskProblem(c) {
+  if (!c.kindId) return "Pick the kind of charge.";
+  if (!/^[A-Za-z]{3}$/.test((c.askCurrency ?? "").trim())) return "Give the currency as three letters, like PHP.";
+  if (!positive(c.amountPhp)) return "Amount must be a number more than zero.";
+  if (!c.askPriority) return "Pick the priority.";
   return null;
 }
 
@@ -412,6 +471,26 @@ function documentProblem(d) {
   return null;
 }
 
+/** A row picked as For payment, as the ask RPC takes it. */
+const askValues = (p) => ({
+  amount: parseAmountInput(p.amount).value,
+  purpose: p.askPurpose,
+  priority: p.askPriority,
+  note: blank(p.askNote) ? null : p.askNote.trim(),
+  percent: parsePercentInput(p.percentOfOrder).value,
+});
+
+/** A charge row picked as For payment, as the ask RPC takes it: a Charge ask of that kind, in that currency. */
+const chargeAskValues = (c) => ({
+  amount: parseAmountInput(c.amountPhp).value,
+  purpose: "charge",
+  chargeKindId: c.kindId,
+  currency: c.askCurrency.trim().toUpperCase(),
+  priority: c.askPriority,
+  note: blank(c.askNote) ? null : c.askNote.trim(),
+  percent: null,
+});
+
 const paymentValues = (p) => ({
   kind: p.kind,
   paidOn: p.paidOn,
@@ -426,6 +505,7 @@ const paymentValues = (p) => ({
   methodOther: p.methodIsOthers === true ? p.methodOther : "",
   checkNo: p.checkNo,
   proofUrls: p.proofUrls,
+  askId: p.askId ?? "",
 });
 
 /**
@@ -442,6 +522,7 @@ export function planSave(form, base) {
     directDelivery: undefined,
     stamp: undefined,
     payments: { add: [], update: [], isPhpPo: form.isPhp },
+    asks: { add: [] },
     charges: { add: [], update: [] },
     documents: { add: [], update: [] },
     bank: undefined,
@@ -518,6 +599,12 @@ export function planSave(form, base) {
     ["update", pay.updated],
   ]) {
     for (const row of rows) {
+      if (row.mode === PAYMENT_MODE.ASK) {
+        const askIssue = askProblem(row);
+        if (askIssue) fail(`Payment ${form.payments.indexOf(row) + 1}: ${askIssue}`);
+        plan.asks.add.push({ key: row.key, values: askValues(row) });
+        continue;
+      }
       const problem = paymentProblem(row, form.isPhp);
       if (problem)
         fail(`Payment ${form.payments.indexOf(row) + 1}: ${problem}`);
@@ -534,6 +621,13 @@ export function planSave(form, base) {
     ["update", chg.updated],
   ]) {
     for (const row of rows) {
+      if (!row.id && !row.mode) fail(`Charge ${form.charges.indexOf(row) + 1}: Pick Paid already or For payment.`);
+      if (row.mode === PAYMENT_MODE.ASK) {
+        const askIssue = chargeAskProblem(row);
+        if (askIssue) fail(`Charge ${form.charges.indexOf(row) + 1}: ${askIssue}`);
+        plan.asks.add.push({ key: row.key, values: chargeAskValues(row) });
+        continue;
+      }
       const problem = chargeProblem(row);
       if (problem) fail(`Charge ${form.charges.indexOf(row) + 1}: ${problem}`);
       plan.charges[target].push({
@@ -544,6 +638,7 @@ export function planSave(form, base) {
           chargedOn: row.chargedOn,
           amountPhp: row.amountPhp,
           attachmentUrl: row.attachmentUrl,
+          askId: row.askId ?? "",
         },
       });
     }
@@ -596,7 +691,7 @@ export function planIsEmpty(plan) {
     plan.freight === undefined &&
     plan.withholding === undefined &&
     plan.stamp === undefined &&
-    plan.payments.add.length + plan.payments.update.length === 0 &&
+    plan.payments.add.length + plan.payments.update.length + plan.asks.add.length === 0 &&
     plan.charges.add.length + plan.charges.update.length === 0 &&
     plan.documents.add.length + plan.documents.update.length === 0 &&
     plan.bank === undefined &&

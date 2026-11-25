@@ -999,23 +999,40 @@ itself is a filing document, attached later.
 _Avoid_: EWT, W/ Less (the sheet's column title)
 
 **Payment Forecast**:
-The General Manager's (201) list of what is still to be paid on purchases: to
-whom, for which order, how much, and how urgent. One place that answers "what do
+The General Manager's (201) list of what is still to be paid on purchases, to the
+supplier and for Charges alike (a forwarder's freight, duties and taxes, brokerage):
+to whom, for which order, how much, and how urgent. One place that answers "what do
 we pay next", replacing the company's Payment Forecast sheet. It is the IPAS list
 showing the IPAS whose Payment status is For payment; a purchase with no IPAS is
-not on it. Kept by the people who already keep the IPAS; the General Manager only
-reads it.
+not on it. Kept by the people who already keep the IPAS: the General Manager does
+the paying, and Purchasing records the payment afterwards (she may record it herself).
+Anyone who can open an IPAS can open it; only the Payers see its count.
 _Avoid_: Forecast Payment (the sheet's other title), Payables, Payment schedule
+
+**Payers**:
+The list, kept in the IPAS settings beside the sign-off lists, of who pays what is
+asked for on an IPAS: the General Manager (201). Each new ask notifies them, and only
+they see the For payment count on the sidebar. Being on it gives no other right.
+_Avoid_: Approvers, Releasers, Finance (Finance records payments; the Payers pay)
 
 **Payment status**:
 Where an IPAS's payment to its supplier stands, shown beside its IPAS Status and
 separate from it: Not due yet, For payment, DP paid, Fully paid. For payment is the one
-step a person sets: Purchasing asks for a payment, saying how much and what for,
-and recording that payment clears it; it shows while an ask is open, whatever was
-paid before. DP paid (some paid, a balance left) and Fully paid (nothing left) are
+step a person sets: Purchasing, Finance or a Super Admin asks for a payment, saying how
+much and what for: a down payment, the balance, or a Charge of any kind. Anything that
+needs paying is asked for, and an IPAS may have several asks open at once. People
+make an ask by adding a payment or Charge as "For payment" (not paid yet) rather than
+"Paid already", and see it among the payments until it is paid; its amount, priority
+and note can be changed meanwhile. It has no due date: its priority says how urgent. A supplier
+ask is in the PO's currency; a Charge's ask is in the currency it is billed in.
+Recording the payment or Charge that pays an ask clears it, even for less than was asked
+(the rest is asked again); a different payment recorded meanwhile does not. A payment
+may also be recorded with no ask. Every ask, and every payment or Charge added, changed
+or removed, is written in the IPAS Chat with its amounts. It shows while an ask is
+open, whatever was paid before. DP paid (some paid, a balance left) and Fully paid (nothing left) are
 worked out from the payments recorded, never picked. On-Hold is the IPAS's own.
 _Avoid_: Pending (an old IPAS Status step; here it is Not due yet), Paid (the
-team says Fully paid), Payment Approval (an IPAS Status step, before the order is placed)
+team says Fully paid), Payment Approval (an old IPAS Status step)
 
 **Freight** (on an IPAS):
 What it cost to ship an order, kept in the IPAS's Charges in the currency it was
@@ -1057,21 +1074,18 @@ _Avoid_: Unapprove, Revert
 
 **IPAS Status**:
 Where an IPAS's order stands, set by hand by anyone with Purchasing access or
-Logistics access, in the team's own words: Order-Draft, Payment Approval, For Payment,
-Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit,
+Logistics access, in the team's own words: Order-Draft, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit,
 Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done. A Local purchase has
 no Customs / Port Hold, Arrived at Local Hub or Out for Delivery. Customs / Port
 Hold is the normal customs step, not trouble. The local hub is the forwarder's or
 courier's warehouse in the Philippines; Out for Delivery is leaving it for our
 warehouse, or for the client on a Direct delivery; Delivered is reaching our
-warehouse, or the client on a Direct delivery. Payment Approval is only for an
-order that must be approved for payment before it is placed; For Payment is
-that approved payment waiting to be released, and picking it opens an ask for
-payment (see Payment status); a pay-later order goes from Order-Draft to Ordered. Done comes only from Filing and leaves only on
-Reopen. When the IPAS already knows a fact that matches a step (raised, section 1
-sent or its P.I — a Local order's quotation — attached with the P.I/QT Amount
-typed, the Odoo PO confirmed, the
-goods received), it suggests that step; it never
+warehouse, or the client on a Direct delivery. It tracks the goods only: money
+waiting to be paid is the Payment status's, so an order whose payment must be
+released before it is placed stays Order-Draft while the Payment status shows For
+payment. Done comes only from Filing and leaves only on
+Reopen. When the IPAS already knows a fact that matches a step (raised, the Odoo PO
+confirmed, the goods received), it suggests that step; it never
 moves on its own. Any step may be picked, forward or back, and skipped steps stay
 blank: the status is the step last picked, not the furthest one. Each step keeps
 the date it was reached, today unless changed to an earlier day. One status covers
@@ -1083,7 +1097,8 @@ track and the Supplier Origin dates. Separate from the IPAS's state (open, filed
 cancelled) and from its Computation status.
 _Avoid_: Shipping status, Buyer track, Supplier Origin (the old dates), Pending,
 Requested, Ongoing or Paid (the old steps), Processing / Preparing Shipment (now
-In Production and Ready for Shipment), Payment status, Progress, PMS status
+In Production and Ready for Shipment), Payment Approval and For Payment (old
+steps; money is the Payment status's), Payment status, Progress, PMS status
 (the sheet put "PMS" before each step; screens do not)
 
 **Direct delivery**:
@@ -1128,7 +1143,8 @@ _Avoid_: Checked by, Costing approval
 Who counts as Finance — granted per employee by its own access flag, the way
 Purchasing access is, and never inferred from the freeform department or
 sub-department text. Finance receives an IPAS for Filing, records its payments
-and charges, and sees supplier bank details.
+and charges, and sees supplier bank details. A Super Admin records payments too,
+so the General Manager can record a payment the moment she releases it.
 _Avoid_: Accounting (as a role), Finance department (when meaning who has access)
 
 **Logistics access**:

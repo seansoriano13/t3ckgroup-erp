@@ -820,7 +820,8 @@ create table if not exists public."ipas_charges" (
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
-  "attachment_url" text
+  "attachment_url" text,
+  "ask_id" uuid
 );
 
 create table if not exists public."ipas_document_files" (
@@ -896,7 +897,11 @@ create table if not exists public."ipas_payment_asks" (
   "closed_by" uuid,
   "closed_reason" text,
   "priority" text not null default 'high'::text,
-  "percent_of_order" numeric
+  "percent_of_order" numeric,
+  "paid_by_payment_id" uuid,
+  "paid_by_charge_id" uuid,
+  "charge_kind_id" uuid,
+  "currency" text
 );
 
 create table if not exists public."ipas_payment_files" (
@@ -927,7 +932,8 @@ create table if not exists public."ipas_payments" (
   "doc_stamp_php" numeric(14,2) not null default 0,
   "misc_fee_php" numeric(14,2) not null default 0,
   "percent_of_order" numeric(7,4),
-  "method_other" text
+  "method_other" text,
+  "ask_id" uuid
 );
 
 create table if not exists public."ipas_signer_list_log" (
@@ -2421,11 +2427,12 @@ alter table ipas_options add constraint "ipas_options_required_before_chk" CHECK
 alter table ipas_options add constraint "ipas_options_system_key_list_chk" CHECK (((system_key IS NULL) OR (list = 'document_kind'::text)));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_amount_chk" CHECK ((amount > (0)::numeric));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_charge_chk" CHECK ((((purpose = 'charge'::text) AND (charge_kind_id IS NOT NULL) AND (currency IS NOT NULL)) OR ((purpose <> 'charge'::text) AND (charge_kind_id IS NULL) AND (currency IS NULL))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_chk" CHECK (((closed_at IS NULL) = (closed_reason IS NULL)));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_reason_chk" CHECK (((closed_reason IS NULL) OR (closed_reason = ANY (ARRAY['withdrawn'::text, 'paid'::text]))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_percent_chk" CHECK (((percent_of_order IS NULL) OR ((percent_of_order > (0)::numeric) AND (percent_of_order <= (1000)::numeric))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_priority_chk" CHECK ((priority = ANY (ARRAY['very_high'::text, 'high'::text, 'medium'::text])));
-alter table ipas_payment_asks add constraint "ipas_payment_asks_purpose_chk" CHECK ((purpose = ANY (ARRAY['down_payment'::text, 'balance'::text, 'freight'::text])));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_purpose_chk" CHECK ((purpose = ANY (ARRAY['down_payment'::text, 'balance'::text, 'charge'::text])));
 alter table ipas_payment_files add constraint "ipas_payment_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
 alter table ipas_payment_files add constraint "ipas_payment_files_url_chk" CHECK ((url ~* '^https?://'::text));
 alter table ipas_payments add constraint "ipas_payments_amount_chk" CHECK ((amount > (0)::numeric));
@@ -2439,13 +2446,13 @@ alter table ipas_payments add constraint "ipas_payments_percent_max_chk" CHECK (
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
-alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
-alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'payers'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'payers'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL) AND (cleared_by IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL) AND (length(btrim(cleared_reason)) > 0))));
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7, 8])));
-alter table ipas_status_steps add constraint "ipas_status_steps_step_chk" CHECK ((_ipas_status_order(step) IS NOT NULL));
+alter table ipas_status_steps add constraint "ipas_status_steps_step_chk" CHECK (_ipas_status_step_known(step));
 alter table lwop_leaves add constraint "lwop_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table lwop_leaves add constraint "lwop_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -2474,7 +2481,7 @@ alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CH
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
-alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'payment_approval'::text, 'for_payment'::text, 'ordered'::text, 'in_production'::text, 'ready_for_shipment'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'ordered'::text, 'in_production'::text, 'ready_for_shipment'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
 alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -2664,6 +2671,7 @@ alter table ipas add constraint "ipas_import_clearance_typed_by_fkey" FOREIGN KE
 alter table ipas add constraint "ipas_item_location_id_fkey" FOREIGN KEY (item_location_id) REFERENCES ipas_options(id);
 alter table ipas_bank_details add constraint "ipas_bank_details_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_bank_details add constraint "ipas_bank_details_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
+alter table ipas_charges add constraint "ipas_charges_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_charges add constraint "ipas_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_charges add constraint "ipas_charges_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
@@ -2677,10 +2685,14 @@ alter table ipas_events add constraint "ipas_events_ipas_id_fkey" FOREIGN KEY (i
 alter table ipas_messages add constraint "ipas_messages_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
 alter table ipas_messages add constraint "ipas_messages_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payment_asks add constraint "ipas_payment_asks_asked_by_fkey" FOREIGN KEY (asked_by) REFERENCES employees(id);
+alter table ipas_payment_asks add constraint "ipas_payment_asks_charge_kind_id_fkey" FOREIGN KEY (charge_kind_id) REFERENCES ipas_options(id);
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_by_fkey" FOREIGN KEY (closed_by) REFERENCES employees(id);
 alter table ipas_payment_asks add constraint "ipas_payment_asks_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_charge_id_fkey" FOREIGN KEY (paid_by_charge_id) REFERENCES ipas_charges(id) ON DELETE SET NULL;
+alter table ipas_payment_asks add constraint "ipas_payment_asks_paid_by_payment_id_fkey" FOREIGN KEY (paid_by_payment_id) REFERENCES ipas_payments(id) ON DELETE SET NULL;
 alter table ipas_payment_files add constraint "ipas_payment_files_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payment_files add constraint "ipas_payment_files_payment_id_fkey" FOREIGN KEY (payment_id) REFERENCES ipas_payments(id) ON DELETE CASCADE;
+alter table ipas_payments add constraint "ipas_payments_ask_id_fkey" FOREIGN KEY (ask_id) REFERENCES ipas_payment_asks(id) ON DELETE SET NULL;
 alter table ipas_payments add constraint "ipas_payments_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_payments add constraint "ipas_payments_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_payments add constraint "ipas_payments_method_id_fkey" FOREIGN KEY (method_id) REFERENCES ipas_options(id);
@@ -2988,6 +3000,7 @@ CREATE INDEX ipas_item_location_id_idx ON public.ipas USING btree (item_location
 CREATE UNIQUE INDEX ipas_live_po_number_key ON public.ipas USING btree (po_number) WHERE (state <> 'cancelled'::text);
 CREATE INDEX ipas_state_idx ON public.ipas USING btree (state, created_at DESC);
 CREATE INDEX ipas_bank_details_updated_by_idx ON public.ipas_bank_details USING btree (updated_by);
+CREATE INDEX ipas_charges_ask_id_idx ON public.ipas_charges USING btree (ask_id);
 CREATE INDEX ipas_charges_created_by_idx ON public.ipas_charges USING btree (created_by);
 CREATE INDEX ipas_charges_ipas_id_idx ON public.ipas_charges USING btree (ipas_id, charged_on);
 CREATE INDEX ipas_charges_kind_id_idx ON public.ipas_charges USING btree (kind_id);
@@ -3004,10 +3017,14 @@ CREATE UNIQUE INDEX ipas_options_list_label_key ON public.ipas_options USING btr
 CREATE INDEX ipas_options_list_sort_idx ON public.ipas_options USING btree (list, sort);
 CREATE UNIQUE INDEX ipas_options_system_key_key ON public.ipas_options USING btree (system_key) WHERE (system_key IS NOT NULL);
 CREATE INDEX ipas_payment_asks_asked_by_idx ON public.ipas_payment_asks USING btree (asked_by);
+CREATE INDEX ipas_payment_asks_charge_kind_id_idx ON public.ipas_payment_asks USING btree (charge_kind_id);
 CREATE INDEX ipas_payment_asks_closed_by_idx ON public.ipas_payment_asks USING btree (closed_by);
-CREATE UNIQUE INDEX ipas_payment_asks_one_open_idx ON public.ipas_payment_asks USING btree (ipas_id) WHERE (closed_at IS NULL);
+CREATE INDEX ipas_payment_asks_open_idx ON public.ipas_payment_asks USING btree (ipas_id) WHERE (closed_at IS NULL);
+CREATE INDEX ipas_payment_asks_paid_by_charge_id_idx ON public.ipas_payment_asks USING btree (paid_by_charge_id);
+CREATE INDEX ipas_payment_asks_paid_by_payment_id_idx ON public.ipas_payment_asks USING btree (paid_by_payment_id);
 CREATE INDEX ipas_payment_files_created_by_idx ON public.ipas_payment_files USING btree (created_by);
 CREATE INDEX ipas_payment_files_payment_id_idx ON public.ipas_payment_files USING btree (payment_id);
+CREATE INDEX ipas_payments_ask_id_idx ON public.ipas_payments USING btree (ask_id);
 CREATE INDEX ipas_payments_created_by_idx ON public.ipas_payments USING btree (created_by);
 CREATE INDEX ipas_payments_ipas_id_idx ON public.ipas_payments USING btree (ipas_id, paid_on);
 CREATE INDEX ipas_payments_method_id_idx ON public.ipas_payments USING btree (method_id);
@@ -5418,6 +5435,28 @@ AS $function$
   select regexp_replace(coalesce(p_account, ''), '[[:space:]-]', '', 'g');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_ask_meta(p_ask ipas_payment_asks)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+           'ask_id', p_ask.id,
+           'purpose', p_ask.purpose,
+           'purpose_label', coalesce(
+             (select o.label from public.ipas_options o where o.id = p_ask.charge_kind_id),
+             public._ipas_ask_purpose_label(p_ask.purpose)),
+           'amount', p_ask.amount,
+           'currency', coalesce(nullif(p_ask.currency, ''), nullif(i.odoo_copy -> 'po' ->> 'currency', ''), ''),
+           'kind', (select o.label from public.ipas_options o where o.id = p_ask.charge_kind_id),
+           'priority', public._ipas_ask_priority_label(p_ask.priority),
+           'percent_of_order', p_ask.percent_of_order,
+           'note', p_ask.note)
+    from public.ipas i
+   where i.id = p_ask.ipas_id;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_ask_priority_label(p_priority text)
  RETURNS text
  LANGUAGE sql
@@ -5433,7 +5472,7 @@ CREATE OR REPLACE FUNCTION public._ipas_ask_purpose_label(p_purpose text)
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  select case p_purpose when 'down_payment' then 'Down payment' when 'balance' then 'Balance' when 'freight' then 'Freight' else p_purpose end;
+  select case p_purpose when 'down_payment' then 'Down payment' when 'balance' then 'Balance' when 'charge' then 'Charge' when 'freight' then 'Freight' else p_purpose end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_can_sign_section(p_section integer, p_employee_id uuid)
@@ -5521,6 +5560,101 @@ begin
     'total_from', v_total_from,
     'total_to', v_total_to
   );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_changes_text(p_changes jsonb)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select string_agg(
+           case c.key
+             when 'kind' then 'Kind'
+             when 'paid_on' then 'Paid on'
+             when 'charged_on' then 'Date'
+             when 'amount' then 'Amount'
+             when 'percent_of_order' then '% of order'
+             when 'forex_rate' then 'Forex rate'
+             when 'php_debited' then 'Pesos debited'
+             when 'charge_fee_php' then 'Bank charge'
+             when 'doc_stamp_php' then 'Doc stamp'
+             when 'misc_fee_php' then 'Misc fee'
+             when 'method' then 'Method'
+             when 'method_other' then 'Method (other)'
+             when 'check_no' then 'Check no.'
+             when 'proof_files' then 'Proof files'
+             when 'attachment' then 'Attachment'
+             when 'priority' then 'Priority'
+             when 'note' then 'Note'
+             else initcap(replace(c.key, '_', ' '))
+           end
+           || ' ' || case
+             when c.value -> 'from' is null or jsonb_typeof(c.value -> 'from') = 'null' then 'none'
+             when jsonb_typeof(c.value -> 'from') = 'number' and c.key in ('amount', 'php_debited', 'charge_fee_php', 'doc_stamp_php', 'misc_fee_php')
+               then trim(to_char((c.value ->> 'from')::numeric, 'FM999G999G999G990.00'))
+             when jsonb_typeof(c.value -> 'from') = 'number' and c.key = 'percent_of_order'
+               then trim(trailing '.' from trim(trailing '0' from to_char((c.value ->> 'from')::numeric, 'FM9990.0000'))) || '%'
+             else c.value ->> 'from'
+           end || ' → ' || case
+             when c.value -> 'to' is null or jsonb_typeof(c.value -> 'to') = 'null' then 'none'
+             when jsonb_typeof(c.value -> 'to') = 'number' and c.key in ('amount', 'php_debited', 'charge_fee_php', 'doc_stamp_php', 'misc_fee_php')
+               then trim(to_char((c.value ->> 'to')::numeric, 'FM999G999G999G990.00'))
+             when jsonb_typeof(c.value -> 'to') = 'number' and c.key = 'percent_of_order'
+               then trim(trailing '.' from trim(trailing '0' from to_char((c.value ->> 'to')::numeric, 'FM9990.0000'))) || '%'
+             else c.value ->> 'to'
+           end,
+           '; ' order by c.key)
+    from jsonb_each(coalesce(p_changes, '{}'::jsonb)) as c(key, value);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_charge_closes_ask()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_meta jsonb;
+  v_ask public.ipas_payment_asks;
+begin
+  if new.ask_id is null then
+    return null;
+  end if;
+  if tg_op = 'UPDATE' and old.ask_id is not distinct from new.ask_id then
+    return null;
+  end if;
+
+  select * into v_ask from public.ipas_payment_asks where id = new.ask_id for update;
+  if v_ask.id is null then
+    raise exception 'that ask for payment was not found' using errcode = '22023';
+  end if;
+  if v_ask.ipas_id is distinct from new.ipas_id then
+    raise exception 'that ask for payment is on another IPAS' using errcode = '22023';
+  end if;
+  if v_ask.closed_at is not null then
+    raise exception 'that ask for payment is already closed' using errcode = '22023';
+  end if;
+  if v_ask.purpose <> 'charge' then
+    raise exception 'a charge cannot pay a Down payment or Balance ask; record a payment instead' using errcode = '22023';
+  end if;
+
+  update public.ipas_payment_asks
+     set closed_at = now(), closed_by = public.get_employee_id(), closed_reason = 'paid',
+         paid_by_charge_id = new.id
+   where id = v_ask.id;
+
+  v_meta := public._ipas_ask_meta(v_ask);
+  perform public._ipas_payment_ask_to_chat(
+    new.ipas_id, 'payment_ask_closed',
+    'Paid the ask for payment: ' || (v_meta ->> 'purpose_label') || ' '
+      || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(v_ask.amount, 'FM999G999G999G990.00')))
+      || ' (charge' || coalesce(' of PHP ' || trim(to_char(new.amount_php, 'FM999G999G999G990.00')), '') || ' recorded).',
+    v_ask.id,
+    v_meta || jsonb_build_object('reason', 'paid', 'charge_id', new.id, 'paid_amount', new.amount_php)
+  );
+  return null;
 end;
 $function$
 ;
@@ -5907,6 +6041,17 @@ AS $function$
   ) l;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_diff(p_before jsonb, p_after jsonb)
+ RETURNS jsonb
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(jsonb_object_agg(k, jsonb_build_object('from', p_before -> k, 'to', p_after -> k)), '{}'::jsonb)
+    from jsonb_object_keys(coalesce(p_before, '{}'::jsonb) || coalesce(p_after, '{}'::jsonb)) as k
+   where (p_before -> k) is distinct from (p_after -> k);
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_document_first_file()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -5952,6 +6097,7 @@ AS $function$
         or exists (
           select 1 from ipas_signer_lists l
            where l.employee_id = e.id
+             and l.list_key <> 'payers'
              and l.list_key not like 'transmittal\_%' escape '\'
         )
       )
@@ -6001,6 +6147,25 @@ AS $function$
        and s.role = 'approved'
        and s.cleared_at is null
   ) = 4;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_freight_writer(p_fn text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if v_actor is null then
+    raise exception '%: not signed in', p_fn using errcode = '42501';
+  end if;
+  if not (public.has_purchasing_access() or public.has_finance_access()) then
+    raise exception '%: only Purchasing or Finance records payments and charges', p_fn using errcode = '42501';
+  end if;
+  return v_actor;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_is_own_file_link(p_url text)
@@ -6448,6 +6613,29 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_migrate_freight_asks()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_kind uuid;
+  v_moved integer;
+begin
+  select id into v_kind from public.ipas_options
+   where list = 'charge_kind' and lower(btrim(label)) = 'freight';
+  update public.ipas_payment_asks a
+     set purpose = 'charge',
+         charge_kind_id = v_kind,
+         currency = coalesce(nullif(upper(btrim(i.odoo_copy -> 'po' ->> 'currency')), ''), 'PHP')
+    from public.ipas i
+   where i.id = a.ipas_id and a.purpose = 'freight';
+  get diagnostics v_moved = row_count;
+  return v_moved;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_missing_documents(p_ipas_id uuid, p_section integer)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -6505,6 +6693,144 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_money_charge_chat(p_event text, p_ipas_id uuid, p_charge_id uuid, p_before jsonb, p_after jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_snap jsonb := coalesce(p_after, p_before);
+  v_money text;
+  v_changes jsonb;
+  v_text text;
+  v_meta jsonb;
+begin
+  if coalesce(current_setting('ipas.money_chat_quiet', true), '') = 'on' then
+    return;
+  end if;
+
+  v_money := case when v_snap ->> 'amount' is null then 'no amount yet'
+                  else 'PHP ' || trim(to_char((v_snap ->> 'amount')::numeric, 'FM999G999G999G990.00')) end;
+
+  v_meta := jsonb_build_object(
+    'event', p_event, 'charge_id', p_charge_id,
+    'kind', v_snap -> 'kind', 'currency', 'PHP', 'amount', v_snap -> 'amount',
+    'charged_on', v_snap -> 'charged_on');
+
+  if p_event = 'charge_added' then
+    v_text := 'Added a charge: ' || coalesce(v_snap ->> 'kind', 'Charge') || ' ' || v_money
+      || coalesce(' on ' || (v_snap ->> 'charged_on'), '') || '.';
+  elsif p_event = 'charge_removed' then
+    v_text := 'Removed a charge: ' || coalesce(v_snap ->> 'kind', 'Charge') || ' ' || v_money
+      || coalesce(' dated ' || (v_snap ->> 'charged_on'), '') || '.';
+  else
+    v_changes := public._ipas_diff(p_before, p_after);
+    if v_changes = '{}'::jsonb then
+      return;
+    end if;
+    v_text := 'Changed the charge (' || coalesce(v_snap ->> 'kind', 'Charge') || ' ' || v_money || '): '
+      || public._ipas_changes_text(v_changes) || '.';
+    v_meta := v_meta || jsonb_build_object('changes', v_changes);
+  end if;
+
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata, created_at)
+  values (p_ipas_id, public.get_employee_id(), v_text, v_meta, clock_timestamp());
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_money_charge_snap(p_charge_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+           'kind', (select o.label from public.ipas_options o where o.id = c.kind_id),
+           'charged_on', c.charged_on,
+           'amount', c.amount_php,
+           'attachment', case when c.attachment_url is null then null else 'attached' end)
+    from public.ipas_charges c
+   where c.id = p_charge_id;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_money_payment_chat(p_event text, p_ipas_id uuid, p_payment_id uuid, p_before jsonb, p_after jsonb)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_snap jsonb := coalesce(p_after, p_before);
+  v_currency text;
+  v_money text;
+  v_changes jsonb;
+  v_text text;
+  v_meta jsonb;
+begin
+  -- ipas_save_payment posts its own single line; the pieces it calls stay quiet.
+  if coalesce(current_setting('ipas.money_chat_quiet', true), '') = 'on' then
+    return;
+  end if;
+
+  select coalesce(nullif(i.odoo_copy -> 'po' ->> 'currency', ''), '') into v_currency
+    from public.ipas i where i.id = p_ipas_id;
+  v_money := btrim(coalesce(v_currency, '') || ' ' || trim(to_char((v_snap ->> 'amount')::numeric, 'FM999G999G999G990.00')));
+
+  v_meta := jsonb_build_object(
+    'event', p_event, 'payment_id', p_payment_id,
+    'kind', v_snap -> 'kind', 'currency', v_currency, 'amount', v_snap -> 'amount',
+    'paid_on', v_snap -> 'paid_on', 'method', v_snap -> 'method');
+
+  if p_event = 'payment_added' then
+    v_text := 'Recorded a payment: ' || (v_snap ->> 'kind') || ' ' || v_money
+      || coalesce(' on ' || (v_snap ->> 'paid_on'), '')
+      || coalesce(' via ' || (v_snap ->> 'method'), '') || '.';
+  elsif p_event = 'payment_removed' then
+    v_text := 'Removed a payment: ' || (v_snap ->> 'kind') || ' ' || v_money
+      || coalesce(' dated ' || (v_snap ->> 'paid_on'), '') || '.';
+  else
+    v_changes := public._ipas_diff(p_before, p_after);
+    if v_changes = '{}'::jsonb then
+      return;
+    end if;
+    v_text := 'Changed the payment (' || (v_snap ->> 'kind') || ' ' || v_money || '): '
+      || public._ipas_changes_text(v_changes) || '.';
+    v_meta := v_meta || jsonb_build_object('changes', v_changes);
+  end if;
+
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata, created_at)
+  values (p_ipas_id, public.get_employee_id(), v_text, v_meta, clock_timestamp());
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_money_payment_snap(p_payment_id uuid)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select jsonb_build_object(
+           'kind', case p.kind when 'down_payment' then 'Down payment' when 'payment' then 'Payment'
+                               when 'full_payment' then 'Full payment' when 'shipping_fee' then 'Shipping fee' else p.kind end,
+           'paid_on', p.paid_on,
+           'amount', p.amount,
+           'percent_of_order', p.percent_of_order,
+           'forex_rate', p.forex_rate,
+           'php_debited', p.php_debited,
+           'charge_fee_php', p.charge_fee_php,
+           'doc_stamp_php', p.doc_stamp_php,
+           'misc_fee_php', p.misc_fee_php,
+           'method', (select o.label from public.ipas_options o where o.id = p.method_id),
+           'method_other', p.method_other,
+           'check_no', p.check_no,
+           'proof_files', greatest(
+             (select count(*) from public.ipas_payment_files f where f.payment_id = p.id),
+             case when p.proof_url is not null then 1 else 0 end))
+    from public.ipas_payments p
+   where p.id = p_payment_id;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_money_writer(p_fn text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -6517,8 +6843,8 @@ begin
   if v_actor is null then
     raise exception '%: not signed in', p_fn using errcode = '42501';
   end if;
-  if not (public.has_purchasing_access() or public.has_finance_access()) then
-    raise exception '%: only Purchasing or Finance records payments and charges', p_fn using errcode = '42501';
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception '%: only Purchasing, Finance or a Super Admin records payments and charges', p_fn using errcode = '42501';
   end if;
   return v_actor;
 end;
@@ -6571,14 +6897,47 @@ AS $function$
   );
 $function$
 ;
-CREATE OR REPLACE FUNCTION public._ipas_payment_ask_to_chat(p_ipas_id uuid, p_event text, p_text text, p_ask_id uuid)
+CREATE OR REPLACE FUNCTION public._ipas_payers_notify_ask()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_asker text;
+  v_what text;
+  v_currency text;
+begin
+  select * into v_ipas from public.ipas where id = new.ipas_id;
+  select name into v_asker from public.employees where id = new.asked_by;
+  select o.label into v_what from public.ipas_options o where o.id = new.charge_kind_id;
+  v_currency := coalesce(nullif(new.currency, ''), nullif(v_ipas.odoo_copy->'po'->>'currency', ''));
+
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select l.employee_id, new.asked_by, 'IPAS_PAYMENT_ASKED',
+         coalesce(v_asker, 'Someone') || ' asked for a payment',
+         left(concat_ws(' — ', v_ipas.number, nullif(v_ipas.odoo_copy->'supplier'->>'name', ''))
+              || ': ' || concat_ws(' ', v_what, v_currency, to_char(new.amount, 'FM999G999G999G990.00')), 280),
+         v_ipas.id::text
+    from public.ipas_signer_lists l
+    join public.employees e on e.id = l.employee_id
+   where l.list_key = 'payers'
+     and not coalesce(e.is_deleted, false)
+     and l.employee_id is distinct from new.asked_by;
+  return null;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_payment_ask_to_chat(p_ipas_id uuid, p_event text, p_text text, p_ask_id uuid, p_meta jsonb DEFAULT '{}'::jsonb)
  RETURNS void
  LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
-  insert into public.ipas_messages (ipas_id, author_id, content, metadata)
-  values (p_ipas_id, public.get_employee_id(), p_text, jsonb_build_object('event', p_event, 'ask_id', p_ask_id));
+  insert into public.ipas_messages (ipas_id, author_id, content, metadata, created_at)
+  values (p_ipas_id, public.get_employee_id(), p_text,
+          jsonb_build_object('event', p_event, 'ask_id', p_ask_id) || coalesce(p_meta, '{}'::jsonb), clock_timestamp());
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_payment_closes_ask()
@@ -6588,16 +6947,44 @@ CREATE OR REPLACE FUNCTION public._ipas_payment_closes_ask()
  SET search_path TO 'public'
 AS $function$
 declare
+  v_meta jsonb;
   v_ask public.ipas_payment_asks;
 begin
-  update public.ipas_payment_asks
-     set closed_at = now(), closed_by = public.get_employee_id(), closed_reason = 'paid'
-   where ipas_id = new.ipas_id and closed_at is null
-  returning * into v_ask;
-
-  if v_ask.id is not null then
-    perform public._ipas_payment_ask_to_chat(new.ipas_id, 'payment_ask_closed', 'Payment recorded; the ask for payment is closed.', v_ask.id);
+  if new.ask_id is null then
+    return null;
   end if;
+  if tg_op = 'UPDATE' and old.ask_id is not distinct from new.ask_id then
+    return null;
+  end if;
+
+  select * into v_ask from public.ipas_payment_asks where id = new.ask_id for update;
+  if v_ask.id is null then
+    raise exception 'that ask for payment was not found' using errcode = '22023';
+  end if;
+  if v_ask.ipas_id is distinct from new.ipas_id then
+    raise exception 'that ask for payment is on another IPAS' using errcode = '22023';
+  end if;
+  if v_ask.closed_at is not null then
+    raise exception 'that ask for payment is already closed' using errcode = '22023';
+  end if;
+  if v_ask.purpose not in ('down_payment', 'balance') then
+    raise exception 'a payment cannot pay a Charge ask; record a charge instead' using errcode = '22023';
+  end if;
+
+  update public.ipas_payment_asks
+     set closed_at = now(), closed_by = public.get_employee_id(), closed_reason = 'paid',
+         paid_by_payment_id = new.id
+   where id = v_ask.id;
+
+  v_meta := public._ipas_ask_meta(v_ask);
+  perform public._ipas_payment_ask_to_chat(
+    new.ipas_id, 'payment_ask_closed',
+    'Paid the ask for payment: ' || (v_meta ->> 'purpose_label') || ' '
+      || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(v_ask.amount, 'FM999G999G999G990.00')))
+      || ' (payment of ' || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(new.amount, 'FM999G999G999G990.00'))) || ' recorded).',
+    v_ask.id,
+    v_meta || jsonb_build_object('reason', 'paid', 'payment_id', new.id, 'paid_amount', new.amount)
+  );
   return null;
 end;
 $function$
@@ -6800,9 +7187,30 @@ begin
     select new.id, o.id, null, null
       from public.ipas_options o
      where o.list = 'charge_kind' and o.active
+       and lower(btrim(o.label)) <> 'freight'
      order by o.sort, o.label;
   end if;
   return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_seed_payers()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_added integer;
+begin
+  insert into public.ipas_signer_lists (list_key, employee_id)
+  select 'payers', e.id
+    from public.employees e
+   where e.call_sign = '201'
+     and not coalesce(e.is_deleted, false)
+  on conflict do nothing;
+  get diagnostics v_added = row_count;
+  return v_added;
 end;
 $function$
 ;
@@ -6925,6 +7333,37 @@ AS $function$
       or (p_section = 8 and p_role = 'approved');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_status_drop_payment_steps(p_ipas_id uuid DEFAULT NULL::uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_moved integer;
+begin
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  select i.id, 'order_draft', (i.created_at at time zone 'Asia/Manila')::date, null, now()
+    from public.ipas i
+   where i.status in ('payment_approval', 'for_payment')
+     and (p_ipas_id is null or i.id = p_ipas_id)
+  on conflict (ipas_id, step) do nothing;
+
+  -- A filed IPAS sits on done, never on these steps, so the reopening switch is not needed;
+  -- the status trigger stays on so each move posts its line in the Chat.
+  alter table public.ipas disable trigger ipas_updated_at;
+
+  update public.ipas i
+     set status = 'order_draft'
+   where i.status in ('payment_approval', 'for_payment')
+     and (p_ipas_id is null or i.id = p_ipas_id);
+  get diagnostics v_moved = row_count;
+
+  alter table public.ipas enable trigger ipas_updated_at;
+  return v_moved;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_status_label(p_step text)
  RETURNS text
  LANGUAGE sql
@@ -6957,9 +7396,18 @@ CREATE OR REPLACE FUNCTION public._ipas_status_order(p_step text)
  SET search_path TO 'public'
 AS $function$
   select array_position(array[
-    'order_draft', 'payment_approval', 'for_payment', 'ordered', 'in_production', 'ready_for_shipment',
+    'order_draft', 'ordered', 'in_production', 'ready_for_shipment',
     'shipped', 'in_transit', 'customs', 'local_hub', 'out_for_delivery', 'delivered', 'done'
   ]::text[], p_step);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_step_known(p_step text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select public._ipas_status_order(p_step) is not null or p_step in ('payment_approval', 'for_payment');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_status_switch_over(p_ipas_id uuid DEFAULT NULL::uuid)
@@ -6974,10 +7422,6 @@ begin
     from public.ipas i
    cross join lateral (values
      ('order_draft', (i.created_at at time zone 'Asia/Manila')::date),
-     ('payment_approval', (
-        select (min(g.signed_at) at time zone 'Asia/Manila')::date
-          from public.ipas_signoffs g
-         where g.ipas_id = i.id and g.section = 1 and g.role = 'prepared' and g.cleared_at is null)),
      ('ordered', case when i.odoo_copy -> 'po' ->> 'state' in ('purchase', 'done')
                       then (i.odoo_fetched_at at time zone 'Asia/Manila')::date end),
      ('shipped', i.shipped_out_on),
@@ -6997,8 +7441,6 @@ begin
      and (p_ipas_id is null or i.id = p_ipas_id)
   on conflict (ipas_id, step) do nothing;
 
-  -- A filed IPAS is frozen; this one update goes through the reopening switch, and the
-  -- updated_at stamp is left alone so the list order does not move.
   perform set_config('ipas.reopening', 'on', true);
   alter table public.ipas disable trigger ipas_updated_at;
 
@@ -7008,7 +7450,7 @@ begin
        when i.state = 'filed' then 'done'
        else coalesce((
          select s.step from public.ipas_status_steps s
-          where s.ipas_id = i.id
+          where s.ipas_id = i.id and public._ipas_status_order(s.step) is not null
           order by public._ipas_status_order(s.step) desc limit 1
        ), 'order_draft')
      end
@@ -17170,7 +17612,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_add_charge(p_ipas_id uuid, p_kind_id uuid, p_charged_on date, p_amount_php numeric)
+CREATE OR REPLACE FUNCTION public.ipas_add_charge(p_ipas_id uuid, p_kind_id uuid, p_charged_on date, p_amount_php numeric, p_ask_id uuid DEFAULT NULL::uuid)
  RETURNS ipas_charges
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -17193,8 +17635,9 @@ begin
   end if;
   v_label := public._ipas_check_option('ipas_add_charge', p_kind_id, 'charge_kind', null, 'charge kind');
 
-  insert into public.ipas_charges (ipas_id, kind_id, charged_on, amount_php, created_by)
-  values (v_ipas.id, p_kind_id, p_charged_on, v_amount, v_actor)
+  -- The ask link is set on the insert; the trigger checks it is an open Charge ask on this IPAS and closes it.
+  insert into public.ipas_charges (ipas_id, kind_id, charged_on, amount_php, created_by, ask_id)
+  values (v_ipas.id, p_kind_id, p_charged_on, v_amount, v_actor, p_ask_id)
   returning * into v_row;
 
   perform public._ipas_write_event(v_ipas.id, v_actor, 'charge_added', jsonb_build_object(
@@ -17204,6 +17647,8 @@ begin
     'charged_on', v_row.charged_on,
     'amount_php', v_row.amount_php
   ));
+
+  perform public._ipas_money_charge_chat('charge_added', v_ipas.id, v_row.id, null, public._ipas_money_charge_snap(v_row.id));
 
   return v_row;
 end;
@@ -17349,11 +17794,13 @@ begin
     'currency', v_ipas.odoo_copy->'po'->>'currency'
   ));
 
+  perform public._ipas_money_payment_chat('payment_added', v_ipas.id, v_row.id, null, public._ipas_money_payment_snap(v_row.id));
+
   return v_row;
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_ask_for_payment(p_ipas_id uuid, p_amount numeric, p_purpose text, p_note text DEFAULT NULL::text, p_priority text DEFAULT 'high'::text, p_percent numeric DEFAULT NULL::numeric)
+CREATE OR REPLACE FUNCTION public.ipas_ask_for_payment(p_ipas_id uuid, p_amount numeric, p_purpose text, p_note text DEFAULT NULL::text, p_priority text DEFAULT 'high'::text, p_percent numeric DEFAULT NULL::numeric, p_charge_kind_id uuid DEFAULT NULL::uuid, p_currency text DEFAULT NULL::text)
  RETURNS ipas_payment_asks
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -17364,13 +17811,15 @@ declare
   v_ipas public.ipas;
   v_note text := nullif(btrim(p_note), '');
   v_row public.ipas_payment_asks;
+  v_kind uuid;
   v_currency text;
+  v_meta jsonb;
 begin
   if v_actor is null then
     raise exception 'ipas_ask_for_payment: not signed in' using errcode = '42501';
   end if;
-  if not public.has_purchasing_access() then
-    raise exception 'ipas_ask_for_payment: only Purchasing asks for a payment' using errcode = '42501';
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception 'ipas_ask_for_payment: only Purchasing, Finance or a Super Admin asks for a payment' using errcode = '42501';
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_ask_for_payment', p_ipas_id);
@@ -17378,8 +17827,8 @@ begin
   if p_amount is null or p_amount <= 0 then
     raise exception 'ipas_ask_for_payment: the amount must be more than zero' using errcode = '22023';
   end if;
-  if p_purpose is null or p_purpose not in ('down_payment', 'balance', 'freight') then
-    raise exception 'ipas_ask_for_payment: the purpose must be Down payment, Balance or Freight' using errcode = '22023';
+  if p_purpose is null or p_purpose not in ('down_payment', 'balance', 'charge') then
+    raise exception 'ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge' using errcode = '22023';
   end if;
   if p_priority is null or p_priority not in ('very_high', 'high', 'medium') then
     raise exception 'ipas_ask_for_payment: the priority must be Very High, High or Medium' using errcode = '22023';
@@ -17387,23 +17836,36 @@ begin
   if p_percent is not null and (p_percent <= 0 or p_percent > 1000) then
     raise exception 'ipas_ask_for_payment: the %% of order must be more than zero and at most 1000' using errcode = '22023';
   end if;
-  if exists (select 1 from public.ipas_payment_asks where ipas_id = v_ipas.id and closed_at is null) then
-    raise exception 'ipas_ask_for_payment: % already has an open ask; withdraw it first', v_ipas.number using errcode = '23505';
+  if p_purpose = 'charge' and p_percent is not null then
+    raise exception 'ipas_ask_for_payment: a Charge ask has no %% of order (it applies to a supplier ask only)' using errcode = '22023';
   end if;
 
-  insert into public.ipas_payment_asks (ipas_id, amount, purpose, note, priority, percent_of_order, asked_by)
-  values (v_ipas.id, p_amount, p_purpose, v_note, p_priority, p_percent, v_actor)
+  if p_purpose = 'charge' then
+    if p_charge_kind_id is null then
+      raise exception 'ipas_ask_for_payment: pick the kind of charge' using errcode = '22023';
+    end if;
+    perform public._ipas_check_option('ipas_ask_for_payment', p_charge_kind_id, 'charge_kind', null, 'charge kind');
+    v_kind := p_charge_kind_id;
+    v_currency := upper(btrim(coalesce(nullif(btrim(p_currency), ''), 'PHP')));
+    if v_currency !~ '^[A-Z]{3}$' then
+      raise exception 'ipas_ask_for_payment: the currency must be a three-letter code like PHP' using errcode = '22023';
+    end if;
+  end if;
+
+  insert into public.ipas_payment_asks (ipas_id, amount, purpose, note, priority, percent_of_order, asked_by, charge_kind_id, currency)
+  values (v_ipas.id, p_amount, p_purpose, v_note, p_priority, p_percent, v_actor, v_kind, v_currency)
   returning * into v_row;
 
-  v_currency := coalesce(nullif(v_ipas.odoo_copy->'po'->>'currency', ''), '');
+  v_meta := public._ipas_ask_meta(v_row);
   perform public._ipas_payment_ask_to_chat(
     v_ipas.id, 'payment_ask_opened',
-    'Asked for payment: ' || public._ipas_ask_purpose_label(p_purpose) || ' '
-      || btrim(v_currency || ' ' || trim(to_char(p_amount, 'FM999G999G999G990.00')))
+    'Asked for payment: ' || (v_meta ->> 'purpose_label') || ' '
+      || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(p_amount, 'FM999G999G999G990.00')))
       || coalesce(' (' || trim(trailing '.' from trim(trailing '0' from to_char(p_percent, 'FM9990.0000'))) || '% of the order)', '')
       || ', ' || public._ipas_ask_priority_label(p_priority) || ' priority'
       || coalesce(' (' || v_note || ')', '') || '.',
-    v_row.id
+    v_row.id,
+    v_meta
   );
   return v_row;
 end;
@@ -17453,6 +17915,7 @@ AS $function$
         or exists (
           select 1 from ipas_signer_lists l
            where l.employee_id = e.id
+             and l.list_key <> 'payers'
              and l.list_key not like 'transmittal\_%' escape '\'
         )
       )
@@ -17583,6 +18046,78 @@ begin
   end if;
   raise exception 'ipas_create: an IPAS is raised through the server, which reads the PO from Odoo itself; reload the page and try again'
     using errcode = '42501';
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_edit_payment_ask(p_ask_id uuid, p_amount numeric, p_priority text, p_note text DEFAULT NULL::text, p_percent numeric DEFAULT NULL::numeric)
+ RETURNS ipas_payment_asks
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_changes jsonb;
+  v_meta jsonb;
+  v_actor uuid := public.get_employee_id();
+  v_ask public.ipas_payment_asks;
+  v_ipas public.ipas;
+  v_note text := nullif(btrim(p_note), '');
+  v_row public.ipas_payment_asks;
+  v_currency text;
+begin
+  if v_actor is null then
+    raise exception 'ipas_edit_payment_ask: not signed in' using errcode = '42501';
+  end if;
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception 'ipas_edit_payment_ask: only Purchasing, Finance or a Super Admin edits an ask' using errcode = '42501';
+  end if;
+
+  select * into v_ask from public.ipas_payment_asks where id = p_ask_id;
+  if v_ask.id is null then
+    raise exception 'ipas_edit_payment_ask: that ask was not found' using errcode = '22023';
+  end if;
+  v_ipas := public._ipas_lock_open('ipas_edit_payment_ask', v_ask.ipas_id);
+
+  select * into v_ask from public.ipas_payment_asks where id = p_ask_id for update;
+  if v_ask.closed_at is not null then
+    raise exception 'ipas_edit_payment_ask: that ask is closed and can''t be edited' using errcode = '22023';
+  end if;
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'ipas_edit_payment_ask: the amount must be more than zero' using errcode = '22023';
+  end if;
+  if p_priority is null or p_priority not in ('very_high', 'high', 'medium') then
+    raise exception 'ipas_edit_payment_ask: the priority must be Very High, High or Medium' using errcode = '22023';
+  end if;
+  if p_percent is not null and (p_percent <= 0 or p_percent > 1000) then
+    raise exception 'ipas_edit_payment_ask: the %% of order must be more than zero and at most 1000' using errcode = '22023';
+  end if;
+  if p_percent is not null and v_ask.purpose = 'charge' then
+    raise exception 'ipas_edit_payment_ask: a Charge ask has no %% of order (it applies to a supplier ask only)' using errcode = '22023';
+  end if;
+
+  if v_ask.amount = p_amount and v_ask.priority = p_priority
+     and v_ask.note is not distinct from v_note and v_ask.percent_of_order is not distinct from p_percent then
+    return v_ask;
+  end if;
+
+  update public.ipas_payment_asks
+     set amount = p_amount, priority = p_priority, note = v_note, percent_of_order = p_percent
+   where id = v_ask.id
+  returning * into v_row;
+
+  v_meta := public._ipas_ask_meta(v_row);
+  v_changes := public._ipas_diff(
+    jsonb_build_object('amount', v_ask.amount, 'priority', public._ipas_ask_priority_label(v_ask.priority),
+                       'note', v_ask.note, 'percent_of_order', v_ask.percent_of_order),
+    jsonb_build_object('amount', v_row.amount, 'priority', public._ipas_ask_priority_label(v_row.priority),
+                       'note', v_row.note, 'percent_of_order', v_row.percent_of_order));
+  perform public._ipas_payment_ask_to_chat(
+    v_ipas.id, 'payment_ask_edited',
+    'Changed the ask for payment (' || (v_meta ->> 'purpose_label') || ' ' || btrim((v_meta ->> 'currency') || ' '
+      || trim(to_char(v_row.amount, 'FM999G999G999G990.00'))) || '): ' || public._ipas_changes_text(v_changes) || '.',
+    v_row.id, v_meta || jsonb_build_object('changes', v_changes)
+  );
+  return v_row;
 end;
 $function$
 ;
@@ -17725,6 +18260,7 @@ CREATE OR REPLACE FUNCTION public.ipas_fill_charge(p_charge_id uuid, p_charged_o
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_fill_charge');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -17749,6 +18285,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_charge_snap(v_before.id);
+
   update public.ipas_charges
      set charged_on = p_charged_on, amount_php = v_amount, attachment_url = v_url
    where id = v_before.id
@@ -17759,6 +18297,9 @@ begin
     'kind', (select o.label from public.ipas_options o where o.id = v_row.kind_id),
     'changes', jsonb_build_object('amount_php', jsonb_build_object('from', v_before.amount_php, 'to', v_amount))
   ));
+  perform public._ipas_money_charge_chat(
+    case when v_snap ->> 'amount' is null then 'charge_added' else 'charge_changed' end,
+    v_ipas.id, v_row.id, v_snap, public._ipas_money_charge_snap(v_row.id));
   return v_row;
 end;
 $function$
@@ -18615,6 +19156,7 @@ CREATE OR REPLACE FUNCTION public.ipas_remove_charge(p_charge_id uuid)
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_remove_charge');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -18626,6 +19168,7 @@ begin
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_remove_charge', v_ipas_id);
+  v_snap := public._ipas_money_charge_snap(p_charge_id);
   delete from public.ipas_charges where id = p_charge_id returning * into v_row;
   if v_row.id is null then
     raise exception 'ipas_remove_charge: charge % not found', p_charge_id using errcode = '22023';
@@ -18637,6 +19180,8 @@ begin
     'charged_on', v_row.charged_on,
     'amount_php', v_row.amount_php
   ));
+
+  perform public._ipas_money_charge_chat('charge_removed', v_ipas.id, v_row.id, v_snap, null);
 
   return v_row;
 end;
@@ -18715,6 +19260,7 @@ CREATE OR REPLACE FUNCTION public.ipas_remove_payment(p_payment_id uuid)
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_remove_payment');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -18726,6 +19272,7 @@ begin
   end if;
 
   v_ipas := public._ipas_lock_open('ipas_remove_payment', v_ipas_id);
+  v_snap := public._ipas_money_payment_snap(p_payment_id);
   delete from public.ipas_payments where id = p_payment_id returning * into v_row;
   if v_row.id is null then
     raise exception 'ipas_remove_payment: payment % not found', p_payment_id using errcode = '22023';
@@ -18743,6 +19290,8 @@ begin
     'had_proof', v_row.proof_url is not null,
     'currency', v_ipas.odoo_copy->'po'->>'currency'
   ));
+
+  perform public._ipas_money_payment_chat('payment_removed', v_ipas.id, v_row.id, v_snap, null);
 
   return v_row;
 end;
@@ -18871,13 +19420,14 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric, p_method_other text DEFAULT NULL::text, p_proof_urls text[] DEFAULT NULL::text[])
+CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric, p_method_other text DEFAULT NULL::text, p_proof_urls text[] DEFAULT NULL::text[], p_ask_id uuid DEFAULT NULL::uuid)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_ipas public.ipas;
   v_php boolean;
   v_rate numeric := round(p_forex_rate, 6);
@@ -18931,6 +19481,10 @@ begin
        group by btrim(x.u)
     ) s;
 
+  -- One line in the Chat for the whole save: the pieces below stay quiet, and the line is written at the end.
+  perform set_config('ipas.money_chat_quiet', 'on', true);
+  v_snap := public._ipas_money_payment_snap(p_payment_id);
+
   -- One transaction: if any step refuses, nothing is kept.
   if p_payment_id is null then
     v_row := public.ipas_add_payment(v_ipas.id, p_kind, p_paid_on, p_amount, v_pesos, p_charge_fee_php,
@@ -18954,7 +19508,21 @@ begin
 
   update public.ipas_payments set method_other = v_other where id = v_row.id and method_other is distinct from v_other;
 
-  return public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
+  v_row := public.ipas_set_payment_money(v_row.id, v_rate, p_doc_stamp_php, p_misc_fee_php);
+
+  perform set_config('ipas.money_chat_quiet', 'off', true);
+  perform public._ipas_money_payment_chat(
+    case when p_payment_id is null then 'payment_added' else 'payment_changed' end,
+    v_ipas.id, v_row.id, v_snap, public._ipas_money_payment_snap(v_row.id));
+
+  -- Paying an open ask: the trigger checks it is open, on this IPAS and supplier side, then closes it.
+  -- It runs after the payment's own line so the Chat reads in order.
+  if p_ask_id is not null then
+    update public.ipas_payments set ask_id = p_ask_id where id = v_row.id and ask_id is distinct from p_ask_id;
+    select * into v_row from public.ipas_payments where id = v_row.id;
+  end if;
+
+  return v_row;
 end;
 $function$
 ;
@@ -19261,7 +19829,7 @@ CREATE OR REPLACE FUNCTION public.ipas_set_freight(p_ipas_id uuid, p_amount nume
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public._ipas_money_writer('ipas_set_freight');
+  v_actor uuid := public._ipas_freight_writer('ipas_set_freight');
   v_ipas public.ipas;
   v_amount numeric := round(p_amount, 2);
   v_currency text := nullif(upper(btrim(coalesce(p_currency, ''))), '');
@@ -19717,6 +20285,7 @@ CREATE OR REPLACE FUNCTION public.ipas_set_payment_money(p_payment_id uuid, p_fo
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_set_payment_money');
   v_ipas_id uuid;
   v_before public.ipas_payments;
@@ -19742,6 +20311,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_payment_snap(v_before.id);
+
   update public.ipas_payments
      set forex_rate = v_rate, doc_stamp_php = v_stamp, misc_fee_php = v_misc
    where id = v_before.id
@@ -19756,6 +20327,7 @@ begin
       'misc_fee_php', jsonb_build_object('from', v_before.misc_fee_php, 'to', v_misc)
     )
   ));
+  perform public._ipas_money_payment_chat('payment_changed', v_ipas_id, v_row.id, v_snap, public._ipas_money_payment_snap(v_row.id));
   return v_row;
 end;
 $function$
@@ -19859,7 +20431,7 @@ begin
     raise exception 'ipas_set_signer_list: only a Super Admin changes who is on a sign-off list' using errcode = '42501';
   end if;
   if p_list_key is null or p_list_key not in (
-    's1_approved', 's3_approved', 's6_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved', 'logistics_signed',
+    's1_approved', 's3_approved', 's6_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved', 'logistics_signed', 'payers',
     'transmittal_warehouse', 'transmittal_technical', 'transmittal_logistics', 'transmittal_check_by'
   ) then
     raise exception 'ipas_set_signer_list: % isn''t a sign-off list', coalesce(p_list_key, 'null') using errcode = '22023';
@@ -20156,7 +20728,7 @@ CREATE OR REPLACE FUNCTION public.ipas_set_withholding(p_ipas_id uuid, p_withhol
  SET search_path TO 'public'
 AS $function$
 declare
-  v_actor uuid := public._ipas_money_writer('ipas_set_withholding');
+  v_actor uuid := public._ipas_freight_writer('ipas_set_withholding');
   v_ipas public.ipas;
   v_value text := nullif(btrim(coalesce(p_withholding, '')), '');
   v_row public.ipas;
@@ -20709,7 +21281,8 @@ begin
     elsif old.state = 'filed' and new.state = 'open' then
       delete from public.ipas_status_steps where ipas_id = new.id and step = 'done';
       select s.step into v_last from public.ipas_status_steps s
-       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+       where s.ipas_id = new.id and public._ipas_status_order(s.step) is not null
+       order by public._ipas_status_order(s.step) desc limit 1;
       new.status := coalesce(v_last, 'order_draft');
     elsif new.state = 'cancelled' then
       new.status := null;
@@ -20721,7 +21294,8 @@ begin
      where ipas_id = new.id and step in ('customs', 'local_hub', 'out_for_delivery');
     if new.status in ('customs', 'local_hub', 'out_for_delivery') then
       select s.step into v_last from public.ipas_status_steps s
-       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+       where s.ipas_id = new.id and public._ipas_status_order(s.step) is not null
+       order by public._ipas_status_order(s.step) desc limit 1;
       new.status := coalesce(v_last, 'order_draft');
     end if;
   end if;
@@ -20991,6 +21565,7 @@ CREATE OR REPLACE FUNCTION public.ipas_update_charge(p_charge_id uuid, p_kind_id
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_update_charge');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -21037,6 +21612,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_charge_snap(v_before.id);
+
   update public.ipas_charges
      set kind_id = p_kind_id, charged_on = p_charged_on, amount_php = v_amount
    where id = v_before.id
@@ -21047,6 +21624,8 @@ begin
     'kind', v_label,
     'changes', v_changes
   ));
+
+  perform public._ipas_money_charge_chat('charge_changed', v_ipas.id, v_row.id, v_snap, public._ipas_money_charge_snap(v_row.id));
 
   return v_row;
 end;
@@ -21059,6 +21638,7 @@ CREATE OR REPLACE FUNCTION public.ipas_update_payment(p_payment_id uuid, p_kind 
  SET search_path TO 'public'
 AS $function$
 declare
+  v_snap jsonb;
   v_actor uuid := public._ipas_money_writer('ipas_update_payment');
   v_ipas_id uuid;
   v_ipas public.ipas;
@@ -21128,6 +21708,8 @@ begin
     return v_before;
   end if;
 
+  v_snap := public._ipas_money_payment_snap(v_before.id);
+
   update public.ipas_payments
      set kind = p_kind,
          paid_on = p_paid_on,
@@ -21148,36 +21730,51 @@ begin
     'changes', v_changes
   ));
 
+  perform public._ipas_money_payment_chat('payment_changed', v_ipas.id, v_row.id, v_snap, public._ipas_money_payment_snap(v_row.id));
+
   return v_row;
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_withdraw_payment_ask(p_ipas_id uuid)
+CREATE OR REPLACE FUNCTION public.ipas_withdraw_payment_ask(p_ask_id uuid)
  RETURNS ipas_payment_asks
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 declare
+  v_meta jsonb;
   v_actor uuid := public.get_employee_id();
   v_row public.ipas_payment_asks;
 begin
   if v_actor is null then
     raise exception 'ipas_withdraw_payment_ask: not signed in' using errcode = '42501';
   end if;
-  if not public.has_purchasing_access() then
-    raise exception 'ipas_withdraw_payment_ask: only Purchasing withdraws an ask' using errcode = '42501';
+  if not (public.has_purchasing_access() or public.has_finance_access() or coalesce(public.is_super_admin(), false)) then
+    raise exception 'ipas_withdraw_payment_ask: only Purchasing, Finance or a Super Admin withdraws an ask' using errcode = '42501';
   end if;
+
+  select * into v_row from public.ipas_payment_asks where id = p_ask_id;
+  if v_row.id is null then
+    raise exception 'ipas_withdraw_payment_ask: that ask is not open' using errcode = '22023';
+  end if;
+  perform public._ipas_lock_open('ipas_withdraw_payment_ask', v_row.ipas_id);
 
   update public.ipas_payment_asks
      set closed_at = now(), closed_by = v_actor, closed_reason = 'withdrawn'
-   where ipas_id = p_ipas_id and closed_at is null
+   where id = p_ask_id and closed_at is null
   returning * into v_row;
   if v_row.id is null then
-    raise exception 'ipas_withdraw_payment_ask: there is no open ask to withdraw' using errcode = '22023';
+    raise exception 'ipas_withdraw_payment_ask: that ask is not open' using errcode = '22023';
   end if;
 
-  perform public._ipas_payment_ask_to_chat(p_ipas_id, 'payment_ask_withdrawn', 'Withdrew the ask for payment.', v_row.id);
+  v_meta := public._ipas_ask_meta(v_row);
+  perform public._ipas_payment_ask_to_chat(
+    v_row.ipas_id, 'payment_ask_withdrawn',
+    'Withdrew the ask for payment: ' || (v_meta ->> 'purpose_label') || ' '
+      || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(v_row.amount, 'FM999G999G999G990.00'))) || '.',
+    v_row.id, v_meta
+  );
   return v_row;
 end;
 $function$
@@ -33125,6 +33722,7 @@ CREATE TRIGGER ipas_updated_at BEFORE UPDATE ON public.ipas FOR EACH ROW EXECUTE
 CREATE TRIGGER ipas_withholding_guard BEFORE INSERT OR UPDATE OF withholding, source ON public.ipas FOR EACH ROW EXECUTE FUNCTION ipas_withholding_guard();
 CREATE TRIGGER ipas_bank_details_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_bank_details_updated_at BEFORE UPDATE ON public.ipas_bank_details FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_charge_closes_ask AFTER INSERT OR UPDATE OF ask_id ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION _ipas_charge_closes_ask();
 CREATE TRIGGER ipas_charges_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
@@ -33144,8 +33742,9 @@ CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH 
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
 CREATE TRIGGER ipas_options_system_key_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_system_key_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_payment_asks_notify_payers AFTER INSERT ON public.ipas_payment_asks FOR EACH ROW EXECUTE FUNCTION _ipas_payers_notify_ask();
 CREATE TRIGGER ipas_payment_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_payment_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
-CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
+CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT OR UPDATE OF ask_id ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
 CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');
 CREATE TRIGGER ipas_payments_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_payments_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();

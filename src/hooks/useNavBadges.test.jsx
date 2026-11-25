@@ -77,14 +77,19 @@ describe("useNavBadges", () => {
     expect(ipasService.pendingSignoffsFor).not.toHaveBeenCalled();
   });
 
-  it("counts the IPAS that are For payment, for someone who can read IPAS, and doesn't ask anyone else", async () => {
+  it("counts the IPAS that are For payment for a Payer only, and doesn't ask anyone else", async () => {
     ipasService.list.mockResolvedValue([
       { id: "a", payment_ask: { amount: 10 } },
       { id: "b", payment_ask: null },
       { id: "c", payment_ask: { amount: 5 } },
     ]);
-    const gm = renderHookWithQuery(() => useNavBadges({ id: "gm", isIpasApprover: true }));
+    const gm = renderHookWithQuery(() => useNavBadges({ id: "gm", isIpasApprover: true, isIpasPayer: true }));
     await vi.waitFor(() => expect(gm.result.current.ipasForPayment).toBe(2));
+
+    ipasService.list.mockClear();
+    const reader = renderHookWithQuery(() => useNavBadges({ id: "reader", isIpasApprover: true }));
+    expect(reader.result.current.ipasForPayment).toBe(0);
+    expect(ipasService.list).not.toHaveBeenCalled();
 
     ipasService.list.mockClear();
     const other = renderHookWithQuery(() => useNavBadges({ id: "plain" }));

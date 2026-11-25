@@ -7,9 +7,12 @@ import { CircleAlert, Paperclip, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { ExternalLink } from "../ui/external-link";
+import StatusBadge from "../StatusBadge";
+import IpasAskTableRow from "./IpasAskTableRow";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "../../utils/ipas";
+import { chargeAsks } from "../../utils/ipasPaymentAsk";
 import { formatDay } from "../../utils/ipasPayments";
 import { finiteNumber, isPhpCurrency, sumPesos } from "../../utils/landedCost";
 
@@ -44,13 +47,16 @@ function freightFigures(ipas) {
   return { amount, currency, billed, rate: converts ? rate : null };
 }
 
-export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge, onRemoveCharge }) {
+export default function IpasChargesTable({ ipas, canRecord = false, canAsk = false, onEditCharge, onRemoveCharge, onRecordAsk, onEditAsk, onWithdrawAsk }) {
   const charges = ipas.charges ?? [];
   const freight = freightFigures(ipas);
   const blanks = charges.filter((charge) => finiteNumber(charge.amount_php) === null).length;
   const chargesTotal = sumPesos(charges.map((charge) => finiteNumber(charge.amount_php) ?? 0));
   const freightPhp = ipas.landedCost?.totals?.freightPhp ?? 0;
   const bankCharges = ipas.paymentSummary?.chargeFeesPhp ?? 0;
+  const asks = chargeAsks(ipas);
+  // The grey ask rows carry their own buttons for anyone who may write, even where the rows below are read-only.
+  const showActions = canRecord || canAsk;
 
   return (
     <div className="space-y-2">
@@ -62,10 +68,23 @@ export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge
               <th className={th}>Date</th>
               <th className={cn(th, "text-right")}>Amount</th>
               <th className={th}>File</th>
-              {canRecord && <th className={th}><span className="sr-only">Actions</span></th>}
+              {showActions && <th className={th}><span className="sr-only">Actions</span></th>}
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y-0">
+            {asks.map((ask) => (
+              <IpasAskTableRow
+                key={ask.id}
+                ask={ask}
+                currency={ipas.currency}
+                canAct={canAsk}
+                testId="ipas-charge-ask-row"
+                noteFallback="Asked for payment. It counts only once the charge is recorded."
+                onRecord={onRecordAsk}
+                onEdit={onEditAsk}
+                onWithdraw={onWithdrawAsk}
+              />
+            ))}
             <TableRow data-testid="ipas-freight-row" className={freight ? "hover:bg-transparent" : blankRow}>
               <TableCell className={td}>
                 <div className="font-semibold">Freight{ipas.freightService?.label ? ` · ${ipas.freightService.label}` : ""}</div>
@@ -87,7 +106,7 @@ export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge
               <TableCell className={td}>
                 <FileCell url={ipas.freight_attachment_url} needed={false} />
               </TableCell>
-              {canRecord && <TableCell className={td} />}
+              {showActions && <TableCell className={td} />}
             </TableRow>
             {charges.map((charge) => {
               const amount = finiteNumber(charge.amount_php);
@@ -109,22 +128,24 @@ export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge
                   <TableCell className={td}>
                     <FileCell url={charge.attachment_url} needed={!empty} />
                   </TableCell>
-                  {canRecord && (
+                  {showActions && (
                     <TableCell className={td}>
-                      <span className="inline-flex items-center gap-1">
-                        <Button variant="ghost" size="icon" aria-label={`Edit ${label}`} onClick={() => onEditCharge?.(charge)}>
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-red-11"
-                          aria-label={`Remove ${label}`}
-                          onClick={() => onRemoveCharge?.(charge)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </span>
+                      {canRecord && (
+                        <span className="inline-flex items-center gap-1">
+                          <Button variant="ghost" size="icon" aria-label={`Edit ${label}`} onClick={() => onEditCharge?.(charge)}>
+                            <Pencil />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-red-11"
+                            aria-label={`Remove ${label}`}
+                            onClick={() => onRemoveCharge?.(charge)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        </span>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>
@@ -137,7 +158,7 @@ export default function IpasChargesTable({ ipas, canRecord = false, onEditCharge
               <td className={foot} />
               <td className={cn(foot, num)}>{php(sumPesos([chargesTotal, freightPhp]))}</td>
               <td className={cn(foot, "font-normal text-mauve-11")}>+ bank charges {php(bankCharges)}</td>
-              {canRecord && <td className={foot} />}
+              {showActions && <td className={foot} />}
             </tr>
           </tfoot>
         </Table>

@@ -385,6 +385,23 @@ describe("IPAS sign-offs", () => {
       expect(db.rows("ipas_signer_lists").filter((l) => l.list_key === "s3_approved")).toHaveLength(1);
     });
 
+    it("shows a Payers list beside the sign-off lists, and a Super Admin can take someone off it", async () => {
+      onList("payers", approver, other);
+      signIn(superAdmin, { superAdmin: true });
+      const user = setupUser();
+
+      renderSettings();
+      await user.click(await screen.findByRole("tab", { name: "Sign-off lists" }));
+
+      const payers = await screen.findByTestId("ipas-signer-list-payers");
+      expect(within(payers).getByText("Payers")).toBeInTheDocument();
+      expect(await within(payers).findByText("Boss Lito")).toBeInTheDocument();
+
+      await user.click(within(payers).getByRole("button", { name: "Remove Co Approver" }));
+      await waitFor(() => expect(within(screen.getByTestId("ipas-signer-list-payers")).queryByText("Co Approver")).not.toBeInTheDocument());
+      expect(db.rows("ipas_signer_lists").filter((l) => l.list_key === "payers").map((l) => l.employee_id)).toEqual([approver.id]);
+    });
+
     it("shows who changed the lists, newest first, and adds to it as lists change", async () => {
       onList("s1_approved", approver);
       db.seed("ipas_signer_list_log", { list_key: "s7_noted", employee_id: other.id, action: "added", actor_id: superAdmin.id, created_at: "2026-10-12T02:00:00.000Z" });

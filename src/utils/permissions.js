@@ -29,6 +29,8 @@ export function getPermissionContext(user) {
   const hasLogisticsFlow = !!(user?.has_logistics_flow ?? user?.hasLogisticsFlow);
   // On a sign-off list (ipas_signer_lists); derived by employeeService.
   const isIpasSigner = !!(user?.is_ipas_signer ?? user?.isIpasSigner);
+  // On the Payers list (#1223): the For payment count; no other right.
+  const isIpasPayer = !!(user?.is_ipas_payer ?? user?.isIpasPayer);
   // On the section 1 or 3 approval list (the Approval Center's IPAS queue).
   const isIpasApprover = !!(user?.is_ipas_approver ?? user?.isIpasApprover);
   // On a Transmittal staff list (#252): reads Transmittals and the nav entry.
@@ -76,6 +78,7 @@ export function getPermissionContext(user) {
     hasFinanceFlow,
     hasLogisticsFlow,
     isIpasSigner,
+    isIpasPayer,
     isIpasApprover,
     isTransmittalStaff,
     isTransmittalWarehouse,
