@@ -1195,7 +1195,58 @@ export function stubIpasRpcs({
       }
     }
     updateRow("ipas_payments", findRow("ipas_payments", saved.id), { method_other: isOthers ? methodOther : null })
+    // #1224: saved as paying one open, supplier-side ask on this IPAS, which closes only that ask.
+    if (args.p_ask_id) {
+      const ask = findRow("ipas_payment_asks", args.p_ask_id)
+      if (!ask) refuse("22023", "that ask for payment was not found")
+      if (ask.ipas_id !== saved.ipas_id) refuse("22023", "that ask for payment is on another IPAS")
+      if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
+      if (!["down_payment", "balance"].includes(ask.purpose)) refuse("22023", "a payment can only pay a Down payment or Balance ask")
+      updateRow("ipas_payments", findRow("ipas_payments", saved.id), { ask_id: ask.id })
+      updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_payment_id: saved.id })
+    }
     return callStub("ipas_set_payment_money", money(saved))
+  })
+
+  // #1224: asks for payment. Several may be open; each is edited and withdrawn by its own id.
+  const requireAsker = (fn) => {
+    if (!(purchasing || hasFinance || superAdmin)) refuse("42501", `${fn}: only Purchasing, Finance or a Super Admin asks for a payment`)
+  }
+  stubRpc("ipas_ask_for_payment", (args) => {
+    requireAsker("ipas_ask_for_payment")
+    const ipas = requireOpenIpas("ipas_ask_for_payment", args.p_ipas_id)
+    if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_ask_for_payment: the amount must be more than zero")
+    if (!["down_payment", "balance", "freight"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Freight")
+    return insertRow("ipas_payment_asks", {
+      ipas_id: ipas.id,
+      amount: args.p_amount,
+      purpose: args.p_purpose,
+      note: args.p_note ?? null,
+      priority: args.p_priority ?? "high",
+      percent_of_order: args.p_percent ?? null,
+      asked_by: actorId,
+      asked_at: new Date().toISOString(),
+    })
+  })
+  stubRpc("ipas_edit_payment_ask", (args) => {
+    requireAsker("ipas_edit_payment_ask")
+    const ask = findRow("ipas_payment_asks", args.p_ask_id)
+    if (!ask) refuse("22023", "ipas_edit_payment_ask: that ask was not found")
+    requireOpenIpas("ipas_edit_payment_ask", ask.ipas_id)
+    if (ask.closed_at) refuse("22023", "ipas_edit_payment_ask: that ask is closed and can't be edited")
+    if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_edit_payment_ask: the amount must be more than zero")
+    return updateRow("ipas_payment_asks", ask, {
+      amount: args.p_amount,
+      priority: args.p_priority,
+      note: args.p_note ?? null,
+      percent_of_order: args.p_percent ?? null,
+    })
+  })
+  stubRpc("ipas_withdraw_payment_ask", (args) => {
+    requireAsker("ipas_withdraw_payment_ask")
+    const ask = findRow("ipas_payment_asks", args.p_ask_id)
+    if (!ask || ask.closed_at) refuse("22023", "ipas_withdraw_payment_ask: that ask is not open")
+    return updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "withdrawn" })
   })
 
   stubRpc("ipas_remove_payment", (args) => {
@@ -1205,6 +1256,8 @@ export function stubIpasRpcs({
     const ipas = requireOpenIpas("ipas_remove_payment", row.ipas_id)
     const rows = rowsOf("ipas_payments")
     rows.splice(rows.indexOf(row), 1)
+    // The ask this payment paid stays closed; only its link goes (#1224).
+    for (const ask of rowsOf("ipas_payment_asks")) if (ask.paid_by_payment_id === row.id) updateRow("ipas_payment_asks", ask, { paid_by_payment_id: null })
     event(ipas.id, "payment_removed", {
       payment_id: row.id,
       kind: row.kind,

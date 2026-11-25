@@ -701,8 +701,16 @@ function IpasPage({ onClose }) {
       refreshIpasList(queryClient);
     },
   });
+  const editAsk = useMutation({
+    mutationFn: ({ askId, ...values }) => ipasService.editPaymentAsk(askId, values),
+    onSuccess: () => {
+      toast.success("Ask changed.");
+      changed();
+      refreshIpasList(queryClient);
+    },
+  });
   const withdrawAsk = useMutation({
-    mutationFn: () => ipasService.withdrawPaymentAsk(id),
+    mutationFn: (askId) => ipasService.withdrawPaymentAsk(askId),
     onSuccess: () => {
       toast.success("Ask withdrawn.");
       changed();
@@ -1071,7 +1079,8 @@ function IpasPage({ onClose }) {
             figures={digest.figures}
             initial={{ purpose: "down_payment", amount: digest.figures.remainingBalance }}
             onAsk={(ask) => askPayment.mutateAsync(ask)}
-            onWithdraw={() => withdrawAsk.mutateAsync()}
+            onEdit={(askId, values) => editAsk.mutateAsync({ askId, ...values })}
+            onWithdraw={(askId) => withdrawAsk.mutateAsync(askId)}
           />
           <div className="space-y-3">
             <RecordHeader reference={ipas.number} name={ipas.supplier} badge={ipasBadge(ipas)} line={ipasLine(ipas)} />

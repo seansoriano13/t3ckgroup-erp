@@ -280,6 +280,94 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.getAllByRole("group", { name: /^Charge \d/ })).toHaveLength(1);
     });
 
+    describe("Does this pay the open item? (#1224)", () => {
+      const seedAsk = (row, over = {}) =>
+        db.seed("ipas_payment_asks", {
+          ipas_id: row.id,
+          amount: 5000,
+          purpose: "down_payment",
+          priority: "high",
+          asked_by: purchaser.id,
+          asked_at: "2026-11-02T00:00:00Z",
+          closed_at: null,
+          ...over,
+        });
+      const fillPayment = async (user, payment) => {
+        await user.type(within(payment).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "3000");
+        await pick(user, payment, /^Method/, "Dated Check");
+      };
+
+      it("offers a tick, on by default, for one open ask; the smaller payment closes only that ask", async () => {
+        const row = ipas({ po_number: "P02552", created_by: purchaser.id });
+        const open = seedAsk(row);
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        const tick = within(payment).getByRole("checkbox", { name: /Does this pay the open item\?/ });
+        expect(tick).toBeChecked();
+        await fillPayment(user, payment);
+        await saveAll(user);
+
+        await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
+        expect(db.rows("ipas_payments")[0].ask_id).toBe(open.id);
+        expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id)).toMatchObject({ closed_reason: "paid" });
+      });
+
+      it("closes nothing when the tick is taken off", async () => {
+        const row = ipas({ po_number: "P02553", created_by: purchaser.id });
+        const open = seedAsk(row);
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        await user.click(within(payment).getByRole("checkbox", { name: /Does this pay the open item\?/ }));
+        await fillPayment(user, payment);
+        await saveAll(user);
+
+        await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
+        expect(db.rows("ipas_payments")[0].ask_id ?? null).toBeNull();
+        expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id).closed_at).toBeNull();
+      });
+
+      it("offers a pick of the open asks plus None for several, defaulting to the oldest", async () => {
+        const row = ipas({ po_number: "P02554", created_by: purchaser.id });
+        const older = seedAsk(row, { amount: 5000, asked_at: "2026-11-02T00:00:00Z" });
+        const newer = seedAsk(row, { amount: 2000, purpose: "balance", asked_at: "2026-11-09T00:00:00Z" });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        const choose = within(payment).getByRole("combobox", { name: /Does this pay the open item\?/ });
+        expect(choose).toHaveTextContent(/Down payment/);
+        await user.click(choose);
+        expect(await screen.findByRole("option", { name: "None" })).toBeInTheDocument();
+        await user.click(screen.getByRole("option", { name: /Balance/ }));
+        await fillPayment(user, payment);
+        await saveAll(user);
+
+        await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
+        expect(db.rows("ipas_payments")[0].ask_id).toBe(newer.id);
+        const asks = db.rows("ipas_payment_asks");
+        expect(asks.find((a) => a.id === newer.id).closed_reason).toBe("paid");
+        expect(asks.find((a) => a.id === older.id).closed_at).toBeNull();
+      });
+
+      it("shows nothing when no ask is open", async () => {
+        const row = ipas({ po_number: "P02555", created_by: purchaser.id });
+        seedAsk(row, { closed_at: "2026-11-03T00:00:00Z", closed_reason: "withdrawn" });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).queryByText(/Does this pay the open item\?/)).not.toBeInTheDocument();
+      });
+    });
+
     it("drops an unsaved payment when it is removed, without asking", async () => {
       const row = ipas({ po_number: "P02552", created_by: purchaser.id });
       const user = setupUser();

@@ -105,10 +105,10 @@ describe("a new ask for payment", () => {
     it("rings nothing when the ask is withdrawn or a payment closes it", async () => {
         await putOnPayers(ids.ipasSigner)
         const ipas = await raise()
-        await ask("outsider", ipas.id)
+        const opened = (await ask("outsider", ipas.id)).data
         await svc().from("notifications").delete().eq("reference_id", ipas.id)
 
-        expect((await rpc("outsider", "ipas_withdraw_payment_ask", { p_ipas_id: ipas.id })).error).toBeNull()
+        expect((await rpc("outsider", "ipas_withdraw_payment_ask", { p_ask_id: opened.id })).error).toBeNull()
         const all = (await svc().from("notifications").select("id").eq("reference_id", ipas.id).eq("type", "IPAS_PAYMENT_ASKED")).data
         expect(all).toEqual([])
     })

@@ -20,7 +20,7 @@
  * Everything is in the P0's currency; currencies are never converted.
  */
 
-import { IPAS_PAYMENT_KIND, IPAS_PAYMENT_STATUS, IPAS_STATE } from "../constants/ipas";
+import { IPAS_ASK_PRIORITIES, IPAS_PAYMENT_KIND, IPAS_PAYMENT_STATUS, IPAS_STATE } from "../constants/ipas";
 import { finiteNumber, fromCents, toCents } from "./landedCost";
 import { paymentKindWithPercent, roundPercent } from "./ipasPaymentPercent";
 
@@ -100,7 +100,8 @@ const methodLabelOf = (payment) => {
  *   paymentStatus       the Payment status (ADR 0055): for_payment while `payment_ask` (the open ask) is set,
  *                       else paid at a balance of 0 or less, else dp_paid with anything paid, else not_due_yet;
  *                       null for a cancelled IPAS
- *   paymentAsk          the open ask {amount, purpose, note, ...} or null
+ *   paymentAsk          the most urgent open ask {amount, purpose, note, ...} (highest priority, then oldest) or null
+ *   paymentAsks         every open ask, most urgent first (an IPAS may have several, #1224); [] when none
  *   remainingBalance    amount - paid; 0 once a full payment is recorded or the IPAS is filed (ADR 0036:
  *                       withholding never leaves a settled order owing); null when
  *                       there is no Amount
@@ -204,7 +205,19 @@ export function ipasFigures(ipas) {
   // ADR 0055, first match wins: an open ask, a settled balance, anything paid, else not due yet.
   // A cancelled IPAS has none. Overpaid still reads Paid (a balance below zero is a balance of none).
   let paymentStatus = null;
-  const paymentAsk = ipas?.payment_ask ?? (ipas?.payment_asks ?? []).find((ask) => !ask?.closed_at) ?? null;
+  // Several asks may be open at once (#1224): most urgent first, then the oldest. Closed asks never count.
+  const rank = (ask) => {
+    const index = IPAS_ASK_PRIORITIES.indexOf(ask?.priority);
+    return index === -1 ? IPAS_ASK_PRIORITIES.length : index;
+  };
+  const askedAt = (ask) => {
+    const time = new Date(ask?.asked_at).getTime();
+    return Number.isFinite(time) ? time : Infinity;
+  };
+  const openAsks = (ipas?.payment_ask ? [ipas.payment_ask] : (ipas?.payment_asks ?? []).filter((ask) => ask && !ask.closed_at))
+    .slice()
+    .sort((a, b) => rank(a) - rank(b) || askedAt(a) - askedAt(b));
+  const paymentAsk = openAsks[0] ?? null;
   if (ipas && ipas.state !== IPAS_STATE.CANCELLED) {
     if (paymentAsk) paymentStatus = IPAS_PAYMENT_STATUS.FOR_PAYMENT;
     else if (remainingBalance !== null && remainingBalance <= 0) paymentStatus = IPAS_PAYMENT_STATUS.PAID;
@@ -215,6 +228,7 @@ export function ipasFigures(ipas) {
   return {
     paymentStatus,
     paymentAsk: ipas && ipas.state !== IPAS_STATE.CANCELLED ? paymentAsk : null,
+    paymentAsks: ipas && ipas.state !== IPAS_STATE.CANCELLED ? openAsks : [],
     currency,
     piAmount,
     poTotal,

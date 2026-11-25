@@ -46,7 +46,8 @@ import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimit
 import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence, rateSourceLabel } from "@/utils/referenceRate";
-import { Field, GroupTitle, PickField, ReadValue, RequiredMark } from "./FormFields";
+import { askLine } from "@/utils/ipasPaymentAsk";
+import { Field, GroupTitle, PickField, ReadValue, RequiredMark, Tick } from "./FormFields";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
 
@@ -311,6 +312,39 @@ function ProofField({ row, disabled, required, onPatch }) {
   );
 }
 
+/** The open asks a payment on this IPAS can pay: supplier side (not Freight), oldest first (#1224). */
+const payableAsks = (ipas) =>
+  (ipas?.payment_asks ?? [])
+    .filter((ask) => ask && !ask.closed_at && ask.purpose !== "freight")
+    .slice()
+    .sort((a, b) => new Date(a.asked_at).getTime() - new Date(b.asked_at).getTime());
+
+/**
+ * "Does this pay the open item?" on a payment not saved yet: a tick for one open ask, a pick of them plus None for
+ * several. A payment saved as paying none closes none. Asks another new payment row already picked are not offered twice.
+ */
+function PaysAskField({ ipas, id, row, rows, disabled, onPatch }) {
+  const taken = new Set(rows.filter((other) => other.key !== row.key && other.askId).map((other) => other.askId));
+  const asks = payableAsks(ipas).filter((ask) => !taken.has(ask.id));
+  if (asks.length === 0) return null;
+  const label = "Does this pay the open item?";
+  if (asks.length === 1) {
+    const [ask] = asks;
+    return (
+      <div className="min-w-0 sm:col-span-2" data-testid="payment-pays-ask">
+        <Tick label={label} checked={row.askId === ask.id} disabled={disabled} onChange={(on) => onPatch({ askId: on ? ask.id : "" })} />
+        <p className="mt-1 pl-1 text-xs text-muted-foreground">{askLine(ask, ipas.currency)}. Even a smaller payment closes it; ask again for the rest.</p>
+      </div>
+    );
+  }
+  const options = asks.map((ask) => ({ value: ask.id, label: askLine(ask, ipas.currency) }));
+  return (
+    <div className="min-w-0 sm:col-span-2" data-testid="payment-pays-ask">
+      <PickField id={id} label={label} emptyLabel="None" options={options} value={row.askId} disabled={disabled} onChange={(v) => onPatch({ askId: v })} />
+    </div>
+  );
+}
+
 function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPatch, onRemove }) {
   const { isPhp } = form;
   const currency = ipas.currency || "Odoo PO currency";
@@ -435,6 +469,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
           <Field id={id("methodOther")} label="What was the method?" required placeholder="Type the payment method" value={row.methodOther} disabled={disabled} onChange={(v) => onPatch({ methodOther: v })} />
         )}
         <Field id={id("checkNo")} label="Check No." placeholder="When paid by check" value={row.checkNo} disabled={disabled} onChange={(v) => onPatch({ checkNo: v })} />
+        {!saved && <PaysAskField ipas={ipas} id={id("askId")} row={row} rows={form.payments} disabled={disabled} onPatch={onPatch} />}
       </div>
       <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />
     </DraftRow>
@@ -461,7 +496,19 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the base amount changes
   }, [base?.amount]);
   return (
-    <Titled title="Payments" action={canRecord && <AddButton onClick={() => rows.add("payments", newPaymentDraft())}>Add payment</AddButton>}>
+    <Titled title="Payments" action={
+        canRecord && (
+          <AddButton
+            onClick={() => {
+              // "Does this pay the open item?" starts on the oldest open ask no other new row has picked.
+              const picked = new Set(form.payments.map((row) => row.askId).filter(Boolean));
+              rows.add("payments", newPaymentDraft(payableAsks(ipas).find((ask) => !picked.has(ask.id))?.id ?? ""));
+            }}
+          >
+            Add payment
+          </AddButton>
+        )
+      }>
       <div className={GRID}>
         <ReadValue label="DP">{sum.downPayment > 0 ? formatAmount(sum.downPayment, currency) : null}</ReadValue>
         <ReadValue label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</ReadValue>

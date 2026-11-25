@@ -45,3 +45,52 @@ describe("the ask's hover line (#1208)", () => {
     expect(paymentAskHover(figures)).toContain("High priority");
   });
 });
+
+describe("several open asks (#1224)", () => {
+  const rowOf = (id, asks) => ({ id, figures: ipasFigures({ state: "open", payment_asks: asks }) });
+
+  it("shows an IPAS once and sorts it by its most urgent open ask, then its oldest", () => {
+    const rows = [
+      // High and Medium: its best ask is High, and its oldest ask (the Medium one) is older than c's.
+      rowOf("a", [
+        { priority: "medium", asked_at: "2026-11-01T00:00:00Z", amount: 1, purpose: "balance" },
+        { priority: "high", asked_at: "2026-11-08T00:00:00Z", amount: 1, purpose: "down_payment" },
+      ]),
+      // Only Very High; a closed High ask older than everything does not count.
+      rowOf("b", [
+        { priority: "very_high", asked_at: "2026-11-09T00:00:00Z", amount: 1, purpose: "down_payment" },
+        { priority: "high", asked_at: "2026-10-01T00:00:00Z", amount: 1, purpose: "balance", closed_at: "2026-10-02T00:00:00Z" },
+      ]),
+      rowOf("c", [{ priority: "high", asked_at: "2026-11-03T00:00:00Z", amount: 1, purpose: "down_payment" }]),
+    ];
+    expect(rows.sort(comparePaymentForecast).map((r) => r.id)).toEqual(["b", "a", "c"]);
+  });
+
+  it("lists each open ask on its own line in the hover, most urgent first", () => {
+    const figures = ipasFigures({
+      state: "open",
+      payment_asks: [
+        { amount: 100, purpose: "balance", priority: "medium", asked_at: "2026-11-01T00:00:00Z", closed_at: null },
+        { amount: 200, purpose: "down_payment", priority: "very_high", asked_at: "2026-11-02T00:00:00Z", closed_at: null },
+        { amount: 300, purpose: "balance", priority: "high", asked_at: "2026-11-03T00:00:00Z", closed_at: "2026-11-04T00:00:00Z" },
+      ],
+    });
+    const lines = paymentAskHover(figures).split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("Down payment");
+    expect(lines[1]).toContain("Balance");
+  });
+
+  it("reads For payment while any ask is open, and the paid/left split ignores open asks", () => {
+    const base = { state: "open", pi_qt_amount: 1000, odoo_copy: { po: { currency: "PHP" } } };
+    const paid = [{ kind: "down_payment", amount: 300, paid_on: "2026-11-01" }];
+    const one = ipasFigures({ ...base, payments: paid, payment_asks: [{ amount: 500, purpose: "balance", priority: "high", closed_at: null }] });
+    expect(one.paymentStatus).toBe("for_payment");
+    expect(one.paymentAsks).toHaveLength(1);
+    const none = ipasFigures({ ...base, payments: paid, payment_asks: [{ amount: 500, purpose: "balance", priority: "high", closed_at: "2026-11-02T00:00:00Z", closed_reason: "paid" }] });
+    expect(none.paymentStatus).toBe("dp_paid");
+    expect(none.paymentAsks).toEqual([]);
+    expect(one.paid).toBe(300);
+    expect(one.paidPercent).toBe(none.paidPercent);
+  });
+});

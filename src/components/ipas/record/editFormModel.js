@@ -127,10 +127,11 @@ export const paymentDraft = (payment) => ({
   methodOther: payment.method_other ?? "",
   checkNo: payment.check_no ?? "",
   proofUrls: paymentProofFiles(payment).map((file) => file.url),
+  askId: "", // only a new payment can be saved as paying an open ask (#1224)
 });
 
-/** A new, empty payment row: today's date and the kind "Payment". */
-export const newPaymentDraft = () => ({
+/** A new, empty payment row: today's date and the kind "Payment". `askId` is the open ask it pays, if any. */
+export const newPaymentDraft = (askId = "") => ({
   key: draftKey(),
   id: null,
   kind: IPAS_PAYMENT_KIND.PAYMENT,
@@ -146,6 +147,7 @@ export const newPaymentDraft = () => ({
   methodOther: "",
   checkNo: "",
   proofUrls: [],
+  askId,
 });
 
 export const chargeDraft = (charge) => ({
@@ -426,6 +428,7 @@ const paymentValues = (p) => ({
   methodOther: p.methodIsOthers === true ? p.methodOther : "",
   checkNo: p.checkNo,
   proofUrls: p.proofUrls,
+  askId: p.askId ?? "",
 });
 
 /**
