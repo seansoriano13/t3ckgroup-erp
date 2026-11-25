@@ -34,15 +34,16 @@ export default function AskForPaymentDialog({ open, onOpenChange, ...body }) {
   return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
-function Body({ number, figures, initial, onAsk, onEdit, onWithdraw, onClose }) {
-  const openAsks = figures?.paymentAsks ?? [];
-  const [editing, setEditing] = useState(null); // the open ask being changed, or null for a new one
+function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClose }) {
+  // `only` (#1225): opened from an ask's grey row to change just that ask. Cancel and Save both close it.
+  const openAsks = only ? [] : (figures?.paymentAsks ?? []);
+  const [editing, setEditing] = useState(only ?? null); // the open ask being changed, or null for a new one
   const owed = Number(initial?.amount);
-  const [amount, setAmount] = useState(Number.isFinite(owed) && owed > 0 ? String(owed) : "");
+  const [amount, setAmount] = useState(only ? String(only.amount) : Number.isFinite(owed) && owed > 0 ? String(owed) : "");
   const [purpose, setPurpose] = useState(initial?.purpose ?? "down_payment");
-  const [note, setNote] = useState("");
-  const [priority, setPriority] = useState(IPAS_ASK_DEFAULT_PRIORITY);
-  const [percent, setPercent] = useState("");
+  const [note, setNote] = useState(only?.note ?? "");
+  const [priority, setPriority] = useState(only?.priority ?? IPAS_ASK_DEFAULT_PRIORITY);
+  const [percent, setPercent] = useState(only?.percent_of_order ? String(Number(only.percent_of_order)) : "");
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState(null);
 
@@ -92,7 +93,7 @@ function Body({ number, figures, initial, onAsk, onEdit, onWithdraw, onClose }) 
   };
 
   const values = { amount: parsed.value, note: note.trim() || null, priority, percent: percentRead.value };
-  const title = openAsks.length > 0 ? `Payment asks on ${number}` : `Ask for payment on ${number}`;
+  const title = only ? `Change the ask on ${number}` : openAsks.length > 0 ? `Payment asks on ${number}` : `Ask for payment on ${number}`;
   return (
     <ModalShell
       open
@@ -102,7 +103,7 @@ function Body({ number, figures, initial, onAsk, onEdit, onWithdraw, onClose }) 
       actions={
         editing ? (
           <>
-            <Button disabled={saving} variant="outline" onClick={() => setEditing(null)}>
+            <Button disabled={saving} variant="outline" onClick={() => (only ? onClose() : setEditing(null))}>
               Cancel
             </Button>
             <Button disabled={saving || !valid} onClick={() => run(() => onEdit(editing.id, values))}>

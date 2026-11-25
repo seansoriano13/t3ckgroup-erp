@@ -8,8 +8,9 @@ import { Button } from "../ui/button";
 import { ExternalLink } from "../ui/external-link";
 import StatusBadge from "../StatusBadge";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table";
-import { IPAS_PAYMENT_KIND_LABELS } from "../../constants/ipas";
-import { paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
+import { IPAS_ASK_PRIORITY_LABELS, IPAS_ASK_PURPOSE_LABELS, IPAS_PAYMENT_KIND_LABELS } from "../../constants/ipas";
+import { payableAsks } from "../../utils/ipasPaymentAsk";
+import { formatPercent, paymentKindWithPercent } from "../../utils/ipasPaymentPercent";
 import { cn } from "@/lib/utils";
 import { formatAmount } from "../../utils/ipas";
 import { ipasFigures, realPercent } from "../../utils/ipasFigures";
@@ -25,6 +26,32 @@ const php = (value) => (value === null || value === undefined ? "—" : formatAm
 const fee = (value) => (value ? php(value) : "—");
 const rateText = (rate) => `₱${rate.toFixed(2)}`;
 
+/**
+ * An open ask as a grey row at the top of the same table (#1225): not paid yet, so it adds to no total. What it is
+ * for and the % sit where a payment's kind is, the priority where the method is, the asked amount (muted) in
+ * Amount, and the note across the money columns. Charges reuse it (#1227).
+ */
+export function IpasAskTableRow({ ask, currency, canRecord = false }) {
+  const percent = formatPercent(ask.percent_of_order);
+  return (
+    <TableRow data-testid="ipas-payment-ask-row" className="hover:bg-transparent [&>td]:bg-mauve-2">
+      <TableCell className={td}>
+        <div className="font-semibold text-foreground/80">
+          {IPAS_ASK_PURPOSE_LABELS[ask.purpose] ?? ask.purpose}
+          {percent ? ` · ${percent}%` : ""}
+        </div>
+        <StatusBadge theme="mauve" label="Not paid yet" />
+      </TableCell>
+      <TableCell className={cn(td, "text-muted-foreground")}>{ask.priority ? `${IPAS_ASK_PRIORITY_LABELS[ask.priority] ?? ask.priority} priority` : "—"}</TableCell>
+      <TableCell className={cn(td, num, "italic text-muted-foreground")}>{formatAmount(Number(ask.amount), currency)}</TableCell>
+      <TableCell colSpan={7} className={cn(td, "text-xs text-muted-foreground")}>
+        {typeof ask.note === "string" && ask.note.trim() ? ask.note.trim() : "Asked for payment. It counts as paid only once the payment is recorded."}
+      </TableCell>
+      {canRecord && <TableCell className={td} />}
+    </TableRow>
+  );
+}
+
 export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayment, onRemovePayment }) {
   const { payments, currency } = ipas;
   const isPhp = isPhpCurrency(currency);
@@ -39,6 +66,7 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
   const sumFee = (key) => sumPesos(payments.map((payment) => payment[key] ?? 0));
   const average = isPhp ? null : blendedRate(payments);
   const owed = ipasFigures(ipas).amount;
+  const asks = payableAsks(ipas);
 
   return (
     <div className="space-y-2">
@@ -60,6 +88,9 @@ export default function IpasPaymentsTable({ ipas, canRecord = false, onEditPayme
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y-0">
+            {asks.map((ask) => (
+              <IpasAskTableRow key={ask.id} ask={ask} currency={currency} canRecord={canRecord} />
+            ))}
             {rows.map(({ payment, number, pesos, total }) => {
               const kindLabel = IPAS_PAYMENT_KIND_LABELS[payment.kind] ?? payment.kind;
               const kindWithPercent = paymentKindWithPercent(payment.kind, realPercent(toCents(payment.amount ?? 0), owed) ?? payment.percent_of_order);

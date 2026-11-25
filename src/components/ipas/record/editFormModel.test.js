@@ -112,7 +112,7 @@ describe("IPAS edit form model", () => {
 
     it("counts the boxes the old dialogs required: a payment's date, amount and method, a charge's kind, date and amount", () => {
       const base = formFromIpas(ipas({ contact: "R. Cruz", piNumber: "PI-1", piQtAmount: 1 }));
-      const payment = newPaymentDraft();
+      const payment = newPaymentDraft("", "paid");
       const charge = newChargeDraft();
       const form = { ...base, payments: [payment], charges: [charge] };
       expect(missingFields(form).map((m) => m.id)).toEqual([
@@ -124,13 +124,13 @@ describe("IPAS edit form model", () => {
       ]);
       const progress = sectionProgress(form);
       expect(progress.find((p) => p.key === "order")).toMatchObject({ total: 3, left: 0 });
-      expect(progress.find((p) => p.key === "payments")).toMatchObject({ total: 3, left: 2 });
+      expect(progress.find((p) => p.key === "payments")).toMatchObject({ total: 4, left: 2 });
       expect(progress.find((p) => p.key === "costs")).toMatchObject({ total: 3, left: 2 });
       expect(progress.find((p) => p.key === "delivery")).toMatchObject({ total: 1, left: 1 });
     });
 
     it("never asks for the forex rate: it is optional on a foreign-currency PO (#604)", () => {
-      const payment = newPaymentDraft();
+      const payment = newPaymentDraft("", "paid");
       const php = { ...formFromIpas(ipas()), payments: [payment] };
       const usd = { ...formFromIpas(ipas({ currency: "USD" })), payments: [payment] };
       expect(missingFields(php).map((m) => m.id)).not.toContain(`pay-${payment.key}-forexRate`);
@@ -145,9 +145,35 @@ describe("IPAS edit form model", () => {
       expect(missingFields({ ...base, documents: [byHand] }).map((m) => m.label)).toContain("New document 1 name");
     });
 
+    it("needs Paid already or For payment on a new payment row, and refuses to save without it (#1225)", () => {
+      const base = formFromIpas(ipas({ contact: "R. Cruz", piNumber: "PI-1", piQtAmount: 1 }));
+      const blank = newPaymentDraft();
+      expect(blank.mode).toBe("");
+      const form = { ...base, payments: [blank] };
+      expect(missingFields(form).map((m) => m.id)).toContain(`pay-${blank.key}-mode`);
+      // Nothing else is asked until the pick is made.
+      expect(missingFields(form).map((m) => m.id)).not.toContain(`pay-${blank.key}-methodId`);
+      const plan = planSave(form, base);
+      expect(plan.error).toMatch(/Pick Paid already or For payment/);
+    });
+
+    it("plans a row picked as For payment as an ask, needing only an amount and priority (#1225)", () => {
+      const base = formFromIpas(ipas({ contact: "R. Cruz", piNumber: "PI-1", piQtAmount: 1 }));
+      const row = { ...newPaymentDraft("", "ask"), amount: "3000", askPurpose: "balance", askNote: " Friday " };
+      const form = { ...base, payments: [row] };
+      expect(missingFields(form).map((m) => m.id)).not.toContain(`pay-${row.key}-methodId`);
+      expect(missingFields(form).map((m) => m.id)).not.toContain(`pay-${row.key}-paidOn`);
+      const plan = planSave(form, base);
+      expect(plan.error).toBeNull();
+      expect(plan.payments.add).toEqual([]);
+      expect(plan.asks.add).toEqual([{ key: row.key, values: { amount: 3000, purpose: "balance", priority: "high", note: "Friday", percent: null } }]);
+      expect(planIsEmpty(plan)).toBe(false);
+      expect(planSave({ ...form, payments: [{ ...row, amount: "" }] }, base).error).toMatch(/Amount must be a number/);
+    });
+
     it("plans new and changed rows apart, and the rest of the money after the header", () => {
       const base = formFromIpas(ipas({ payments: [saved], documents: [{ id: "d-1", purchasingHas: false, financeHas: false, attachmentUrl: null }] }));
-      const added = { ...newPaymentDraft(), amount: "100", methodId: "m-1" };
+      const added = { ...newPaymentDraft("", "paid"), amount: "100", methodId: "m-1" };
       const form = {
         ...base,
         freight: "f-9",
@@ -173,7 +199,7 @@ describe("IPAS edit form model", () => {
     it("refuses a payment, a charge and a date outside 2015-01-01..today, and takes today", () => {
       const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
       const base = formFromIpas(ipas());
-      const pay = (paidOn) => ({ ...base, payments: [{ ...newPaymentDraft(), amount: "5", methodId: "m-1", paidOn }] });
+      const pay = (paidOn) => ({ ...base, payments: [{ ...newPaymentDraft("", "paid"), amount: "5", methodId: "m-1", paidOn }] });
       expect(planSave(pay(tomorrow), base).error).toBe("Payment 1: The payment date cannot be after today.");
       expect(planSave(pay("2014-12-31"), base).error).toBe("Payment 1: The payment date cannot be before January 1, 2015.");
       expect(planSave(pay(ipasDateMax()), base).error).toBeNull();
@@ -185,13 +211,13 @@ describe("IPAS edit form model", () => {
 
     it("sends nothing and says why when a payment can't be saved yet", () => {
       const base = formFromIpas(ipas());
-      const bad = { ...newPaymentDraft(), amount: "12abc", methodId: "m-1" };
+      const bad = { ...newPaymentDraft("", "paid"), amount: "12abc", methodId: "m-1" };
       expect(planSave({ ...base, payments: [bad] }, base).error).toBe("Payment 1: Amount must be a number more than zero.");
-      const noMethod = { ...newPaymentDraft(), amount: "5" };
+      const noMethod = { ...newPaymentDraft("", "paid"), amount: "5" };
       expect(planSave({ ...base, payments: [noMethod] }, base).error).toBe("Payment 1: Pick the payment method.");
       const foreign = formFromIpas(ipas({ currency: "USD" }));
       // Pesos taken from the bank may be left blank on a foreign PO (#604); a given figure must be above zero.
-      const noPhp = { ...newPaymentDraft(), amount: "5", methodId: "m-1" };
+      const noPhp = { ...newPaymentDraft("", "paid"), amount: "5", methodId: "m-1" };
       expect(planSave({ ...foreign, payments: [noPhp] }, foreign).error).toBeNull();
       const zeroPhp = { ...noPhp, forexRate: "0" };
       expect(planSave({ ...foreign, payments: [zeroPhp] }, foreign).error).toBe(

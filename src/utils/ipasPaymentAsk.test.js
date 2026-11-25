@@ -1,8 +1,22 @@
 import { describe, it, expect } from "vitest";
 import { ipasFigures } from "./ipasFigures";
-import { askPriorityRank, comparePaymentForecast, paymentAskHover } from "./ipasPaymentAsk";
+import { askPriorityRank, comparePaymentForecast, paidKindForAsk, paymentAskHover } from "./ipasPaymentAsk";
 
 const withAsk = (ask) => ({ figures: { paymentAsk: ask } });
+
+describe("the kind Record as paid fills (#1225)", () => {
+  it("fills Down payment for a Down payment ask", () => {
+    expect(paidKindForAsk({ purpose: "down_payment", amount: 100 }, 1000)).toBe("down_payment");
+  });
+
+  it("fills Full payment only when a Balance pays off what is left", () => {
+    expect(paidKindForAsk({ purpose: "balance", amount: 1000 }, 1000)).toBe("full_payment");
+    expect(paidKindForAsk({ purpose: "balance", amount: 1200 }, 1000)).toBe("full_payment");
+    expect(paidKindForAsk({ purpose: "balance", amount: 999.99 }, 1000)).toBe("payment");
+    expect(paidKindForAsk({ purpose: "balance", amount: 500 }, null)).toBe("payment");
+    expect(paidKindForAsk({ purpose: "balance", amount: 500 }, 0)).toBe("payment");
+  });
+});
 
 describe("Payment Forecast order (#1208)", () => {
   it("lists Very High first, then High, then Medium", () => {
