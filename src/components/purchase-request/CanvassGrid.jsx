@@ -664,7 +664,7 @@ export function CanvassGridModal({ open, onOpenChange, request, focusItemId = nu
       crumbs={["Canvass", request?.title || "Purchase Request"].filter(Boolean)}
       title="Canvass"
       cancelLabel="Close"
-      className="max-md:!top-0 max-md:!left-0 max-md:!h-dvh max-md:!max-h-dvh max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:rounded-none"
+      className="max-md:!top-0 max-md:!left-0 max-md:!bottom-0 max-md:!h-auto max-md:!max-h-none max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:rounded-none"
     >
       <CanvassGrid request={request} focusItemId={focusItemId} />
     </ModalShell>
