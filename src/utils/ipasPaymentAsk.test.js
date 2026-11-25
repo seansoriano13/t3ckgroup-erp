@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ipasFigures } from "./ipasFigures";
-import { askLine, askPriorityRank, chargeAsks, comparePaymentForecast, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
+import { askLine, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
 
 const withAsk = (ask) => ({ figures: { paymentAsk: ask } });
 
@@ -139,3 +139,15 @@ describe("Charge asks (#1227)", () => {
     expect(lines.some((line) => line.includes("700.00"))).toBe(true);
   });
 });
+
+describe("the priority helpers", () => {
+  it("lists the priorities most urgent first, with their labels", () => {
+    expect(askPriorityOptions().map((option) => option.value)).toEqual(["very_high", "high", "medium"])
+    expect(askPriorityOptions()[0].label).toBe("Very High")
+  })
+
+  it("labels a priority, and shows an unknown one as it is", () => {
+    expect(askPriorityLabel("medium")).toBe("Medium")
+    expect(askPriorityLabel("urgent")).toBe("urgent")
+  })
+})

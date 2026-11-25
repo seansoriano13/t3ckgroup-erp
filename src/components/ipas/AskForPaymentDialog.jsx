@@ -9,19 +9,17 @@ import { SelectField } from "@/components/ui/SelectField";
 import InlineError from "@/components/record/InlineError";
 import {
   IPAS_ASK_DEFAULT_PRIORITY,
-  IPAS_ASK_PRIORITIES,
-  IPAS_ASK_PRIORITY_LABELS,
   IPAS_ASK_PURPOSES,
   IPAS_ASK_PURPOSE_LABELS,
 } from "@/constants/ipas";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { parseAmountInput } from "@/utils/ipasPayments";
-import { askLine } from "@/utils/ipasPaymentAsk";
+import { askLine, askPriorityOptions } from "@/utils/ipasPaymentAsk";
 import { amountFromPercent, parsePercentInput, percentBase, PERCENT_ERROR } from "@/utils/ipasPaymentPercent";
 
 // A Charge ask is made from Charges (#1227), with its kind and currency.
 const PURPOSE_OPTIONS = IPAS_ASK_PURPOSES.filter((value) => value !== "charge").map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
-const PRIORITY_OPTIONS = IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPAS_ASK_PRIORITY_LABELS[value] }));
+const PRIORITY_OPTIONS = askPriorityOptions();
 
 /**
  * "Ask for payment" (ADR 0055): Purchasing, Finance or a Super Admin says how much, in the P0's currency, and what
@@ -48,9 +46,11 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState(null);
 
+  // A Charge ask has no % of order (it applies to a supplier ask only).
+  const isCharge = editing?.purpose === "charge";
   const parsed = parseAmountInput(amount);
   const percentRead = parsePercentInput(percent);
-  const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && percentRead.ok && Boolean(priority);
+  const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && (isCharge || percentRead.ok) && Boolean(priority);
   const askCurrency = editing?.currency ?? figures?.currency;
   const currency = askCurrency ? ` (${askCurrency})` : "";
   // The same base as a payment's percent: the P.I/QT Amount, else the P0 total.
@@ -94,7 +94,7 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
     }
   };
 
-  const values = { amount: parsed.value, note: note.trim() || null, priority, percent: percentRead.value };
+  const values = { amount: parsed.value, note: note.trim() || null, priority, percent: isCharge ? null : percentRead.value };
   const title = only ? `Change the ask on ${number}` : openAsks.length > 0 ? `Payment asks on ${number}` : `Ask for payment on ${number}`;
   return (
     <ModalShell
@@ -147,22 +147,24 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
             ? "Add another ask below. Each one closes when a payment saved as paying it is recorded, or when you withdraw it."
             : "The Payers see this IPAS as For payment until the payment that pays it is recorded or you withdraw the ask."}
       </p>
-      <FieldBox label={base ? `% of order (optional, of the ${base.label})` : "% of order (optional)"} htmlFor="ask-percent" bare>
-        <Input id="ask-percent" inputMode="decimal" value={percent} onChange={(e) => typePercent(e.target.value)} placeholder="e.g. 40" />
-      </FieldBox>
-      {!percentRead.ok && (
+      {!isCharge && (
+        <FieldBox label={base ? `% of order (optional, of the ${base.label})` : "% of order (optional)"} htmlFor="ask-percent" bare>
+          <Input id="ask-percent" inputMode="decimal" value={percent} onChange={(e) => typePercent(e.target.value)} placeholder="e.g. 40" />
+        </FieldBox>
+      )}
+      {!isCharge && !percentRead.ok && (
         <p role="alert" className="text-xs text-red-11">
           {PERCENT_ERROR}
         </p>
       )}
-      <FieldBox label={`Amount${currency}`} htmlFor="ask-amount" bare>
+      <FieldBox label={`Amount${currency}`} htmlFor="ask-amount" required bare>
         <Input id="ask-amount" inputMode="decimal" value={amount} onChange={(e) => typeAmount(e.target.value)} />
       </FieldBox>
       <FieldBox label="Priority" htmlFor="ask-priority" required bare>
         <SelectField id="ask-priority" size="sm" options={PRIORITY_OPTIONS} value={priority} onChange={setPriority} className="h-10 w-full" />
       </FieldBox>
       {!editing && (
-        <FieldBox label="What for" htmlFor="ask-purpose" bare>
+        <FieldBox label="What for" htmlFor="ask-purpose" required bare>
           <SelectField id="ask-purpose" size="sm" options={PURPOSE_OPTIONS} value={purpose} onChange={setPurpose} className="h-10 w-full" />
         </FieldBox>
       )}

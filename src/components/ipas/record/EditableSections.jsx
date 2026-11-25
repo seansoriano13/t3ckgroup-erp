@@ -28,6 +28,8 @@ export default function EditableSections({
   onRemoveSaved,
   onEditAsk,
   onWithdrawAsk,
+  recordingAsk,
+  onRecordingHandled,
   onRemoveDocument,
   onSuggest,
   notice,
@@ -45,7 +47,7 @@ export default function EditableSections({
   const missingFiles = missingRequiredFiles({ ipas, digest });
 
   const edit = editKey
-    ? { ...editor, ipas, can, focusKey: editKey, onEditPurpose, money: { onRemoveSaved, onEditAsk, onWithdrawAsk, onRemoveDocument, onSuggest } }
+    ? { ...editor, ipas, can, focusKey: editKey, onEditPurpose, money: { onRemoveSaved, onEditAsk, onWithdrawAsk, recordingAsk, onRecordingHandled, onRemoveDocument, onSuggest } }
     : null;
 
   return (

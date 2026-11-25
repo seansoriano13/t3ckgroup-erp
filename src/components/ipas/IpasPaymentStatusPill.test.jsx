@@ -54,7 +54,7 @@ describe("IpasPaymentStatusPill", () => {
   })
 
   it("shows an ask in its own currency when it has one", () => {
-    const figures = ipasFigures(ipas({ payment_asks: [ask({ amount: 800, currency: "USD" })] }))
+    const figures = ipasFigures(ipas({ payment_asks: [ask({ amount: 800, currency: "USD", purpose: "charge" })] }))
     render(<IpasPaymentStatusPill figures={figures} />)
     expect(screen.getByTestId("ipas-payment-ask")).toHaveTextContent(/\$|USD/)
   })

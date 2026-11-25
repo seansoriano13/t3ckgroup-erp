@@ -87,6 +87,8 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
             onRemoveSaved={money.onRemoveSaved}
             onEditAsk={money.onEditAsk}
             onWithdrawAsk={money.onWithdrawAsk}
+            recordingAsk={money.recordingAsk}
+            onRecordingHandled={money.onRecordingHandled}
           />
           <BankFields ipas={ipas} form={form} set={set} canChange={money.can.change} />
         </div>
@@ -103,6 +105,8 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
             onRemoveSaved={money.onRemoveSaved}
             onEditAsk={money.onEditAsk}
             onWithdrawAsk={money.onWithdrawAsk}
+            recordingAsk={money.recordingAsk}
+            onRecordingHandled={money.onRecordingHandled}
           />
         </div>
       );

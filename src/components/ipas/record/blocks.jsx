@@ -31,6 +31,9 @@ export function buildBlocks(ctx) {
       onAddPayment={on.addPayment}
       onEditPayment={on.editPayment}
       onRemovePayment={on.removePayment}
+      onRecordAsk={(ask) => on.recordAsk("payments", ask)}
+      onEditAsk={on.editAsk}
+      onWithdrawAsk={on.withdrawAsk}
     />
   );
 
@@ -61,7 +64,16 @@ export function buildBlocks(ctx) {
     />
   );
   const charges = (
-    <IpasChargesSection ipas={ipas} canRecord={can.record} onAddCharge={on.addCharge} onEditCharge={on.editCharge} onRemoveCharge={on.removeCharge} />
+    <IpasChargesSection
+      ipas={ipas}
+      canRecord={can.record}
+      onAddCharge={on.addCharge}
+      onEditCharge={on.editCharge}
+      onRemoveCharge={on.removeCharge}
+      onRecordAsk={(ask) => on.recordAsk("costs", ask)}
+      onEditAsk={on.editAsk}
+      onWithdrawAsk={on.withdrawAsk}
+    />
   );
   const sales = (
     <IpasSalesSection ipas={ipas} canChange={can.change} onEditOverride={on.editOverride} onResetOverride={on.resetOverride} />

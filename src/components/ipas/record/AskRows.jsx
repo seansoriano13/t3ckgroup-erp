@@ -2,7 +2,7 @@
 //   PaidOrAskChoice  the required "Paid already / For payment (not paid yet)" pick on a new row
 //   AskDraftFields   the ask's own boxes: % of order, amount, what for, priority, note
 //   AskLiners        the open asks as grey one-line rows above the rows being edited, with Record as paid, Edit, Withdraw
-// The grey row inside the read-only table is `IpasAskTableRow` (../IpasPaymentsTable.jsx); both read an ask with askLine.
+// The grey row inside the read-only table is `IpasAskTableRow` (../IpasAskTableRow.jsx); both read an ask with askLine.
 
 import { Pencil, Undo2, WalletCards } from "lucide-react";
 
@@ -10,9 +10,9 @@ import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { FieldBox } from "@/components/ui/FieldBox";
 import { RequiredMark } from "@/components/ui/RequiredMark";
-import { IPAS_ASK_PRIORITIES, IPAS_ASK_PRIORITY_LABELS, IPAS_ASK_PURPOSE_LABELS } from "@/constants/ipas";
+import { IPAS_ASK_PURPOSE_LABELS } from "@/constants/ipas";
 import { cn } from "@/lib/utils";
-import { askLine, askWhat } from "@/utils/ipasPaymentAsk";
+import { askLine, askPriorityOptions, askWhat } from "@/utils/ipasPaymentAsk";
 import { afterPercentEdit, parsePercentInput } from "@/utils/ipasPaymentPercent";
 import { parseAmountInput } from "@/utils/ipasPayments";
 import { Field, NeededTag, PickField } from "./FormFields";
@@ -66,11 +66,11 @@ export function AskDraftFields({ id, row, purposes, currencyLabel, prefix, base,
   const amount = parseAmountInput(row.amount);
   const percent = parsePercentInput(row.percentOfOrder);
   const purposeOptions = purposes.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
-  const priorityOptions = IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPAS_ASK_PRIORITY_LABELS[value] }));
+  const priorityOptions = askPriorityOptions();
   return (
     <div className="space-y-3" data-testid="payment-ask-fields">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <PickField id={id("askPurpose")} label="What for" options={purposeOptions} value={row.askPurpose} disabled={disabled} onChange={(v) => onPatch({ askPurpose: v })} />
+        <PickField id={id("askPurpose")} label="What for" required options={purposeOptions} value={row.askPurpose} disabled={disabled} onChange={(v) => onPatch({ askPurpose: v })} />
         <div className="min-w-0">
           <Field
             id={id("percentOfOrder")}
@@ -147,20 +147,22 @@ export function AskLiners({ asks, currency, canRecord, recording = [], onRecord,
 
 /**
  * A Charge ask's boxes (#1227): which charge, the currency it is billed in (PHP to start), the amount in that
- * currency, the priority and a note. `row` is a charge draft (`kindId`, `amountPhp`, `askCurrency`, `askPriority`,
+ * currency, the priority and a note. `row` is a charge draft (`kindId`, `amountPhp` (the asked amount), `askCurrency`, `askPriority`,
  * `askNote`); `kinds` are the charge-kind options on offer.
  */
 export function ChargeAskFields({ id, row, kinds, disabled, onPatch }) {
-  const amount = parseAmountInput(row.amountPhp);
+  // The charge draft keeps its amount under `amountPhp`; on an ask it is the asked amount, in the ask's own currency.
+  const askedAmount = row.amountPhp;
+  const amount = parseAmountInput(askedAmount);
   const currency = (row.askCurrency ?? "").trim().toUpperCase();
-  const priorityOptions = IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPAS_ASK_PRIORITY_LABELS[value] }));
+  const priorityOptions = askPriorityOptions();
   return (
     <div className="space-y-3" data-testid="charge-ask-fields">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <PickField id={id("kindId")} label="Kind" required placeholder="Pick a kind" options={kinds} value={row.kindId} disabled={disabled} onChange={(v) => onPatch({ kindId: v })} />
         <Field
           id={id("askCurrency")}
-          label="Billed in (currency)"
+          label="Currency"
           required
           placeholder="PHP"
           value={row.askCurrency}
@@ -174,9 +176,9 @@ export function ChargeAskFields({ id, row, kinds, disabled, onPatch }) {
           kind="amount"
           prefix={currency || undefined}
           required
-          value={row.amountPhp}
+          value={askedAmount}
           disabled={disabled}
-          error={row.amountPhp !== "" && !amount.ok ? "Not a number" : undefined}
+          error={askedAmount !== "" && !amount.ok ? "Not a number" : undefined}
           onChange={(v) => onPatch({ amountPhp: v })}
         />
         <PickField id={id("askPriority")} label="Priority" required options={priorityOptions} value={row.askPriority} disabled={disabled} onChange={(v) => onPatch({ askPriority: v })} />
