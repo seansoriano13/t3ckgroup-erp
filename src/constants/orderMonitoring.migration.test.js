@@ -10,7 +10,7 @@ describe("order ageing steps", () => {
     // #1156 and #1206 together.
     const first = readFileSync("supabase/migrations/20261221150000_1156_order_ageing_status_steps.sql", "utf8");
     const second = readFileSync("supabase/migrations/20261226100000_1206_ipas_status_for_payment_production.sql", "utf8");
-    const latest = readFileSync("supabase/migrations/20261227100000_1221_ipas_status_drop_payment_steps.sql", "utf8");
+    const latest = readFileSync("supabase/migrations/20261227100001_1221_ipas_status_drop_payment_steps.sql", "utf8");
     const keys = ORDER_AGEING_STEPS.map((step) => step.key);
     const quoted = (text) => [...text.matchAll(/'([a-z0-9_]+)'/g)].map((match) => match[1]);
 
