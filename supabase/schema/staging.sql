@@ -2445,7 +2445,7 @@ alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((c
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_section_chk" CHECK ((section = ANY (ARRAY[1, 3, 6, 7, 8])));
-alter table ipas_status_steps add constraint "ipas_status_steps_step_chk" CHECK ((_ipas_status_order(step) IS NOT NULL));
+alter table ipas_status_steps add constraint "ipas_status_steps_step_chk" CHECK (_ipas_status_step_known(step));
 alter table lwop_leaves add constraint "lwop_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table lwop_leaves add constraint "lwop_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
@@ -2474,7 +2474,7 @@ alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CH
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
-alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'payment_approval'::text, 'for_payment'::text, 'ordered'::text, 'in_production'::text, 'ready_for_shipment'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'ordered'::text, 'in_production'::text, 'ready_for_shipment'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
 alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -6925,6 +6925,37 @@ AS $function$
       or (p_section = 8 and p_role = 'approved');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_status_drop_payment_steps(p_ipas_id uuid DEFAULT NULL::uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_moved integer;
+begin
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  select i.id, 'order_draft', (i.created_at at time zone 'Asia/Manila')::date, null, now()
+    from public.ipas i
+   where i.status in ('payment_approval', 'for_payment')
+     and (p_ipas_id is null or i.id = p_ipas_id)
+  on conflict (ipas_id, step) do nothing;
+
+  -- A filed IPAS sits on done, never on these steps, so the reopening switch is not needed;
+  -- the status trigger stays on so each move posts its line in the Chat.
+  alter table public.ipas disable trigger ipas_updated_at;
+
+  update public.ipas i
+     set status = 'order_draft'
+   where i.status in ('payment_approval', 'for_payment')
+     and (p_ipas_id is null or i.id = p_ipas_id);
+  get diagnostics v_moved = row_count;
+
+  alter table public.ipas enable trigger ipas_updated_at;
+  return v_moved;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_status_label(p_step text)
  RETURNS text
  LANGUAGE sql
@@ -6957,9 +6988,18 @@ CREATE OR REPLACE FUNCTION public._ipas_status_order(p_step text)
  SET search_path TO 'public'
 AS $function$
   select array_position(array[
-    'order_draft', 'payment_approval', 'for_payment', 'ordered', 'in_production', 'ready_for_shipment',
+    'order_draft', 'ordered', 'in_production', 'ready_for_shipment',
     'shipped', 'in_transit', 'customs', 'local_hub', 'out_for_delivery', 'delivered', 'done'
   ]::text[], p_step);
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_status_step_known(p_step text)
+ RETURNS boolean
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select public._ipas_status_order(p_step) is not null or p_step in ('payment_approval', 'for_payment');
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_status_switch_over(p_ipas_id uuid DEFAULT NULL::uuid)
@@ -6974,10 +7014,6 @@ begin
     from public.ipas i
    cross join lateral (values
      ('order_draft', (i.created_at at time zone 'Asia/Manila')::date),
-     ('payment_approval', (
-        select (min(g.signed_at) at time zone 'Asia/Manila')::date
-          from public.ipas_signoffs g
-         where g.ipas_id = i.id and g.section = 1 and g.role = 'prepared' and g.cleared_at is null)),
      ('ordered', case when i.odoo_copy -> 'po' ->> 'state' in ('purchase', 'done')
                       then (i.odoo_fetched_at at time zone 'Asia/Manila')::date end),
      ('shipped', i.shipped_out_on),
@@ -7008,7 +7044,7 @@ begin
        when i.state = 'filed' then 'done'
        else coalesce((
          select s.step from public.ipas_status_steps s
-          where s.ipas_id = i.id
+          where s.ipas_id = i.id and public._ipas_status_order(s.step) is not null
           order by public._ipas_status_order(s.step) desc limit 1
        ), 'order_draft')
      end
@@ -20709,7 +20745,8 @@ begin
     elsif old.state = 'filed' and new.state = 'open' then
       delete from public.ipas_status_steps where ipas_id = new.id and step = 'done';
       select s.step into v_last from public.ipas_status_steps s
-       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+       where s.ipas_id = new.id and public._ipas_status_order(s.step) is not null
+       order by public._ipas_status_order(s.step) desc limit 1;
       new.status := coalesce(v_last, 'order_draft');
     elsif new.state = 'cancelled' then
       new.status := null;
@@ -20721,7 +20758,8 @@ begin
      where ipas_id = new.id and step in ('customs', 'local_hub', 'out_for_delivery');
     if new.status in ('customs', 'local_hub', 'out_for_delivery') then
       select s.step into v_last from public.ipas_status_steps s
-       where s.ipas_id = new.id order by public._ipas_status_order(s.step) desc limit 1;
+       where s.ipas_id = new.id and public._ipas_status_order(s.step) is not null
+       order by public._ipas_status_order(s.step) desc limit 1;
       new.status := coalesce(v_last, 'order_draft');
     end if;
   end if;

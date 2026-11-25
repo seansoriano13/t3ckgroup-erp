@@ -18,17 +18,19 @@ describe("suggestStatus (#1155)", () => {
     expect(suggestStatus(ipasOf())).toBeNull()
   })
 
-  it("suggests Payment Approval when section 1 is prepared", () => {
-    expect(suggestStatus(ipasOf({ signoffSections: { 1: { prepared: { id: "s1" } } } }))).toMatchObject({ step: "payment_approval" })
+  it("no longer suggests a removed step: a prepared section 1 or a P.I and its amount say nothing (#1221)", () => {
+    const pi = { label: "Proforma Invoice", hasFile: true, kind: { system_key: "proforma_invoice" } }
+    expect(suggestStatus(ipasOf({ signoffSections: { 1: { prepared: { id: "s1" } } } }))).toBeNull()
+    expect(suggestStatus(ipasOf({ documents: [pi], pi_qt_amount: 8400 }))).toBeNull()
   })
 
-  it("suggests only the furthest step: a confirmed PO gives Ordered, not Payment Approval", () => {
+  it("suggests a confirmed PO as Ordered", () => {
     const hit = suggestStatus(ipasOf({ statuses: poConfirmed, signoffSections: { 1: { prepared: { id: "s1" } } } }))
     expect(hit).toMatchObject({ step: "ordered", label: "Ordered", because: "Odoo says this PO is confirmed." })
   })
 
   it("suggests Ordered when a payment closed an ask, not when it was withdrawn (#1209)", () => {
-    const base = { status: "for_payment" }
+    const base = { status: "order_draft" }
     const paid = { closed_at: "2026-11-24T01:00:00Z", closed_reason: "paid" }
     const withdrawn = { closed_at: "2026-11-24T01:00:00Z", closed_reason: "withdrawn" }
     expect(suggestStatus(ipasOf({ ...base, payment_asks: [paid] }))).toMatchObject({ step: "ordered", label: "Ordered" })
@@ -57,35 +59,5 @@ describe("suggestStatus (#1155)", () => {
   it("suggests nothing on a filed or cancelled IPAS", () => {
     expect(suggestStatus(ipasOf({ state: "filed", statuses: poConfirmed }))).toBeNull()
     expect(suggestStatus(ipasOf({ state: "cancelled", statuses: poConfirmed }))).toBeNull()
-  })
-
-  describe("P.I fact (#1191)", () => {
-    const pi = { label: "Proforma Invoice", hasFile: true, kind: { system_key: "proforma_invoice" } }
-    const quote = { label: "Quotation (Local)", hasFile: true, kind: { system_key: "quotation" } }
-    it("suggests Payment Approval from a P.I file plus a typed amount", () => {
-      expect(suggestStatus(ipasOf({ documents: [pi], pi_qt_amount: 8400 }))).toMatchObject({ step: "payment_approval" })
-    })
-    it("needs both the file and the amount", () => {
-      expect(suggestStatus(ipasOf({ documents: [pi], pi_qt_amount: null }))).toBeNull()
-      expect(suggestStatus(ipasOf({ documents: [{ ...pi, hasFile: false }], pi_qt_amount: 8400 }))).toBeNull()
-    })
-    it("on a Local order the Quotation plays the P.I", () => {
-      expect(suggestStatus(ipasOf({ source: "local", documents: [quote], pi_qt_amount: 100 }))).toMatchObject({ step: "payment_approval" })
-      expect(suggestStatus(ipasOf({ source: "local", documents: [pi], pi_qt_amount: 100 }))).toBeNull()
-    })
-    it("still suggests after the kind is renamed: the key counts, not the label", () => {
-      const renamedPi = { ...pi, label: "Supplier Quote Sheet" }
-      const renamedQuote = { ...quote, label: "Price offer" }
-      expect(suggestStatus(ipasOf({ documents: [renamedPi], pi_qt_amount: 8400 }))).toMatchObject({ step: "payment_approval" })
-      expect(suggestStatus(ipasOf({ source: "local", documents: [renamedQuote], pi_qt_amount: 100 }))).toMatchObject({ step: "payment_approval" })
-    })
-    it("a document labelled like a P.I but without the key does not count", () => {
-      const lookalike = { label: "Proforma Invoice", hasFile: true, kind: { system_key: null } }
-      expect(suggestStatus(ipasOf({ documents: [lookalike], pi_qt_amount: 8400 }))).toBeNull()
-    })
-    it("suggests nothing at or past Payment Approval", () => {
-      expect(suggestStatus(ipasOf({ status: "payment_approval", documents: [pi], pi_qt_amount: 1 }))).toBeNull()
-      expect(suggestStatus(ipasOf({ status: "ordered", documents: [pi], pi_qt_amount: 1 }))).toBeNull()
-    })
   })
 })

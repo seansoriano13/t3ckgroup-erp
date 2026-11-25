@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { IPAS_STATUS_LABELS } from "../constants/ipas";
 import { statusDatesOutOfOrder } from "./ipasStatusDates";
 
-const STEPS = ["order_draft", "payment_approval", "ordered", "shipped", "in_transit", "delivered", "done"];
+const STEPS = ["order_draft", "ordered", "shipped", "in_transit", "delivered", "done"];
 
 describe("statusDatesOutOfOrder", () => {
   it("warns on a step dated before an earlier step", () => {
