@@ -39,17 +39,18 @@ import {
 } from "@/constants/ipas";
 import { ALLOWED_EXTENSIONS_STRING, MAX_ATTACHMENT_BYTES, formatBytes, isAllowedAttachment } from "@/utils/attachments";
 import { formatAmount } from "@/utils/ipas";
-import { odooPoTotal } from "@/utils/ipasFigures";
+import { ipasFigures, odooPoTotal } from "@/utils/ipasFigures";
 import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
 import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateDay, formatRateNumber, rateDivergence, rateSourceLabel } from "@/utils/referenceRate";
-import { askLine } from "@/utils/ipasPaymentAsk";
+import { askLine, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
 import { Field, GroupTitle, PickField, ReadValue, RequiredMark, Tick } from "./FormFields";
+import { AskDraftFields, AskLiners, PaidOrAskChoice } from "./AskRows";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
-import { BY_HAND, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
+import { BY_HAND, PAYMENT_MODE, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
 
 export const SHOW_HAS_TICKS = false;
 
@@ -312,19 +313,12 @@ function ProofField({ row, disabled, required, onPatch }) {
   );
 }
 
-/** The open asks a payment on this IPAS can pay: supplier side (not Freight), oldest first (#1224). */
-const payableAsks = (ipas) =>
-  (ipas?.payment_asks ?? [])
-    .filter((ask) => ask && !ask.closed_at && ask.purpose !== "freight")
-    .slice()
-    .sort((a, b) => new Date(a.asked_at).getTime() - new Date(b.asked_at).getTime());
-
 /**
  * "Does this pay the open item?" on a payment not saved yet: a tick for one open ask, a pick of them plus None for
  * several. A payment saved as paying none closes none. Asks another new payment row already picked are not offered twice.
  */
 function PaysAskField({ ipas, id, row, rows, disabled, onPatch }) {
-  const taken = new Set(rows.filter((other) => other.key !== row.key && other.askId).map((other) => other.askId));
+  const taken = new Set(rows.filter((other) => other.key !== row.key && other.askId && other.mode !== PAYMENT_MODE.ASK).map((other) => other.askId));
   const asks = payableAsks(ipas).filter((ask) => !taken.has(ask.id));
   if (asks.length === 0) return null;
   const label = "Does this pay the open item?";
@@ -344,6 +338,9 @@ function PaysAskField({ ipas, id, row, rows, disabled, onPatch }) {
     </div>
   );
 }
+
+/** What a payment can be asked for from here; Freight asks belong to Charges (#1227). */
+const ASK_PURPOSES_ON_PAYMENTS = ["down_payment", "balance"];
 
 function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPatch, onRemove }) {
   const { isPhp } = form;
@@ -367,15 +364,18 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
   const kindLabel = IPAS_PAYMENT_KIND_LABELS[saved?.kind] ?? "payment";
   const showPercent = percentApplies(row.kind);
   const percent = parsePercentInput(row.percentOfOrder);
+  // A new row is Paid already or For payment (#1225); a stored payment is paid. Nothing shows until the pick is made.
+  const asking = !saved && row.mode === PAYMENT_MODE.ASK;
+  const paid = Boolean(saved) || row.mode === PAYMENT_MODE.PAID;
   return (
     <DraftRow
-      label={`Payment ${index + 1}`}
+      label={asking ? "For payment" : `Payment ${index + 1}`}
       testId={saved ? "ipas-payment-row" : undefined}
       fresh={fresh}
-      focusId={id("amount")}
+      focusId={id(row.mode ? "amount" : "mode")}
       header={
         <RowHeader
-          title={saved ? `Payment ${index + 1}` : `Payment ${index + 1} (not saved yet)`}
+          title={saved ? `Payment ${index + 1}` : `${asking ? "For payment" : `Payment ${index + 1}`} (not saved yet)`}
           badge={saved?.paid_before_approval ? <StatusBadge theme="amber" label="Paid before approval" /> : null}
           canRemove={!disabled}
           removeLabel={saved ? `Remove ${kindLabel} of ${formatDay(saved.paid_on)}` : `Remove payment ${index + 1}`}
@@ -383,7 +383,20 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
         />
       }
     >
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {!saved && <PaidOrAskChoice id={id("mode")} value={row.mode} disabled={disabled} onChange={(mode) => onPatch({ mode })} />}
+      {asking && (
+        <AskDraftFields
+          id={id}
+          row={row}
+          purposes={ASK_PURPOSES_ON_PAYMENTS}
+          currencyLabel={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
+          prefix={isPhp ? "PHP" : currency}
+          base={base}
+          disabled={disabled}
+          onPatch={onPatch}
+        />
+      )}
+      {paid && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <PickField id={id("kind")} label="Kind" options={KIND_OPTIONS.some((o) => o.value === row.kind) || !row.kind ? KIND_OPTIONS : [...KIND_OPTIONS, { value: row.kind, label: IPAS_PAYMENT_KIND_LABELS[row.kind] ?? row.kind }]} value={row.kind} disabled={disabled} onChange={(v) => onPatch(afterPercentEdit(row, { field: "kind", value: v }))} />
         <Field id={id("paidOn")} label="Date" kind="date" required min={IPAS_DATE_MIN} max={ipasDateMax()} error={ipasDateIssue(row.paidOn, "The payment date") ?? undefined} value={row.paidOn} disabled={disabled} onChange={(v) => onPatch({ paidOn: v })} />
         {showPercent && (
@@ -470,21 +483,29 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
         )}
         <Field id={id("checkNo")} label="Check No." placeholder="When paid by check" value={row.checkNo} disabled={disabled} onChange={(v) => onPatch({ checkNo: v })} />
         {!saved && <PaysAskField ipas={ipas} id={id("askId")} row={row} rows={form.payments} disabled={disabled} onPatch={onPatch} />}
-      </div>
-      <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />
+      </div>}
+      {paid && <ProofField row={row} disabled={disabled} required={fileRulesOf(ipas).proofOnEveryPayment} onPatch={onPatch} />}
     </DraftRow>
   );
 }
 
 /** Section 1's payments: DP and FP read off the saved rows, then one inline form per payment. */
-export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved }) {
+export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSaved, onEditAsk, onWithdrawAsk }) {
   const sum = ipas.paymentSummary;
   const currency = ipas.currency;
   const savedById = new Map((ipas.payments ?? []).map((payment) => [payment.id, payment]));
   // The % is taken from the P.I/QT Amount as typed on the form, else the PO total (#958).
   const poTotal = odooPoTotal(ipas.odoo_copy)?.total ?? null;
   const base = percentBase({ piQtAmount: parseAmountInput(form.piQtAmount).value, poTotal });
-  const warnings = paymentWarnings(form.payments, base?.amount ?? null);
+  // A row picked as For payment is not paid: it counts toward nothing here.
+  const warnings = paymentWarnings(form.payments.filter((row) => row.mode !== PAYMENT_MODE.ASK), base?.amount ?? null);
+  const asks = payableAsks(ipas);
+  // "Record as paid" opens a new payment row filled from the ask and linked to it (#1225); any box can still change.
+  const recordAsk = (ask) => {
+    const kind = paidKindForAsk(ask, ipasFigures(ipas).remainingBalance);
+    const percent = percentApplies(kind) && ask.percent_of_order ? formatPercent(ask.percent_of_order) : "";
+    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: String(Number(ask.amount)), percentOfOrder: percent });
+  };
   // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
   // printed % must agree. Not on first paint: opening a saved IPAS never edits it.
   const lastBase = useRef(base?.amount ?? null);
@@ -501,7 +522,7 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
           <AddButton
             onClick={() => {
               // "Does this pay the open item?" starts on the oldest open ask no other new row has picked.
-              const picked = new Set(form.payments.map((row) => row.askId).filter(Boolean));
+              const picked = new Set(form.payments.filter((row) => row.mode !== PAYMENT_MODE.ASK).map((row) => row.askId).filter(Boolean));
               rows.add("payments", newPaymentDraft(payableAsks(ipas).find((ask) => !picked.has(ask.id))?.id ?? ""));
             }}
           >
@@ -526,6 +547,15 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
           The payments add up to {formatAmount(warnings.amountOver.paid, currency)}, which is {formatAmount(warnings.amountOver.over, currency)} more than the order amount of {formatAmount(warnings.amountOver.order, currency)}. You can still save.
         </AmberNote>
       )}
+      <AskLiners
+        asks={asks}
+        currency={ipas.currency}
+        canRecord={canRecord}
+        recording={form.payments.filter((row) => row.mode === PAYMENT_MODE.PAID).map((row) => row.askId).filter(Boolean)}
+        onRecord={recordAsk}
+        onEdit={onEditAsk}
+        onWithdraw={onWithdrawAsk}
+      />
       {form.payments.length === 0 ? (
         <EmptyNote>
           No payments recorded yet.

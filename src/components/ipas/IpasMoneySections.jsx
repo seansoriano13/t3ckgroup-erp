@@ -25,6 +25,7 @@ import {
 } from "../../constants/ipas";
 import { formatAmount } from "../../utils/ipas";
 import { isBlankCharge } from "../../utils/ipasDocuments";
+import { payableAsks } from "../../utils/ipasPaymentAsk";
 import { optionsForPicker } from "../../utils/ipasPayments";
 import { forexRate, isLandedCostEstimate, isPhpCurrency, landedCostEstimateNote } from "../../utils/landedCost";
 
@@ -123,7 +124,7 @@ export function IpasPaymentsBlock({
         )}
       </SectionHeader>
 
-      {payments.length === 0 ? (
+      {payments.length === 0 && payableAsks(ipas).length === 0 ? (
         <p className="text-sm text-muted-foreground">
           No payments recorded yet.
           {!isPhp && landedCost.status === IPAS_LANDED_COST_STATUS.UNAVAILABLE

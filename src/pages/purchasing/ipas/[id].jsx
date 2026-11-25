@@ -54,6 +54,7 @@ import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage, odooRefreshMoved } from "../../../utils/ipas";
+import { askLine } from "../../../utils/ipasPaymentAsk";
 import IpasStatusControl from "../../../components/ipas/IpasStatusControl";
 import IpasPaymentStatusPill from "../../../components/ipas/IpasPaymentStatusPill";
 import AskForPaymentDialog from "../../../components/ipas/AskForPaymentDialog";
@@ -181,7 +182,7 @@ function IpasPage({ onClose }) {
   const [filing, setFiling] = useState(null);
   const [reopening, setReopening] = useState(false);
   const [holding, setHolding] = useState(false);
-  const [askingPayment, setAskingPayment] = useState(false);
+  const [editingAsk, setEditingAsk] = useState(null); // the open ask being changed from its grey row (#1225)
   // A failed move, shown at the place it was started (card or drawer footer), with Retry.
   const [failure, setFailure] = useState(null);
   // The IPAS this viewer just signed, so the card can point at the next one waiting for them.
@@ -693,14 +694,6 @@ function IpasPage({ onClose }) {
   });
 
   // Ask for payment and withdraw it (ADR 0055): the dialog shows a failure itself, so these only rethrow.
-  const askPayment = useMutation({
-    mutationFn: (ask) => ipasService.askForPayment(id, ask),
-    onSuccess: () => {
-      toast.success("Asked for payment.");
-      changed();
-      refreshIpasList(queryClient);
-    },
-  });
   const editAsk = useMutation({
     mutationFn: ({ askId, ...values }) => ipasService.editPaymentAsk(askId, values),
     onSuccess: () => {
@@ -746,6 +739,8 @@ function IpasPage({ onClose }) {
         if (plan.directDelivery !== undefined) await ipasService.setDirectDelivery(id, plan.directDelivery);
         if (plan.location !== undefined) await ipasService.setItemLocation(id, plan.location);
         if (plan.stamp !== undefined) await ipasService.stampActualChecking(id, { stamped: plan.stamp });
+        // Rows picked as For payment (#1225) are asks, not payments: nothing counts as paid.
+        for (const item of plan.asks?.add ?? []) await once(item.key, () => ipasService.askForPayment(id, item.values));
         const { isPhpPo } = plan.payments;
         for (const item of plan.payments.add) await once(item.key, () => ipasService.addPayment(id, item.values, { isPhpPo }));
         for (const item of plan.payments.update) await once(item.key, () => ipasService.updatePayment(item.id, item.values, { isPhpPo }));
@@ -873,7 +868,6 @@ function IpasPage({ onClose }) {
   const canRecord = (hasPurchasingFlow || hasFinanceFlow || isSuperAdmin) && open;
   const canHold = (hasPurchasingFlow || hasFinanceFlow) && open;
   // The ask for payment (ADR 0055): Purchasing, Finance or a Super Admin (#1222), on an open IPAS. The database decides in the end.
-  const canAskPayment = (hasPurchasingFlow || hasFinanceFlow || isSuperAdmin) && open;
   // The IPAS Status (#1154): Purchasing access, Logistics access or a Super Admin, until Filing.
   const canSetStatusStep = (hasPurchasingFlow || hasLogisticsFlow || isSuperAdmin) && open;
   // A fact that matches a later step (#1155) is offered, never applied: a quiet line under the pills and a
@@ -961,6 +955,10 @@ function IpasPage({ onClose }) {
   const shownReturnTargets =
     returning?.section == null ? returnTargets : returnTargets.filter((target) => target.section === returning.section);
 
+  // A payment that paid an ask (#1225): removing it names that ask and says it stays closed.
+  const paidAsk =
+    removing?.type === "payment" ? (ipas.payment_asks ?? []).find((ask) => ask.paid_by_payment_id === removing.row?.id) ?? null : null;
+
   // Everything the record's header, decider and sections can ask the page to do.
   const on = {
     print: () => startPrint(false),
@@ -969,7 +967,6 @@ function IpasPage({ onClose }) {
     edit: () => openEdit("order"),
     editPurpose: () => setEditing(true),
     hold: () => setHolding(true),
-    askPayment: () => setAskingPayment(true),
     cancel: () => setCancelling(true),
     reopen: () => setReopening(true),
     editOverride: setOverriding,
@@ -1022,7 +1019,6 @@ function IpasPage({ onClose }) {
       printFiling: filed && ipas.canReadBankDetails,
       // On-Hold (#597), from the More menu: Purchasing access or Finance access, on an open IPAS.
       hold: canHold,
-      askPayment: canAskPayment,
       markup: canSetMarkup,
     },
     onHold: Boolean(digest.figures?.onHold),
@@ -1073,12 +1069,11 @@ function IpasPage({ onClose }) {
       >
         <div className="space-y-6 pb-2">
           <AskForPaymentDialog
-            open={askingPayment}
-            onOpenChange={setAskingPayment}
+            open={editingAsk !== null}
+            onOpenChange={(next) => !next && setEditingAsk(null)}
             number={ipas.number}
             figures={digest.figures}
-            initial={{ purpose: "down_payment", amount: digest.figures.remainingBalance }}
-            onAsk={(ask) => askPayment.mutateAsync(ask)}
+            only={editingAsk}
             onEdit={(askId, values) => editAsk.mutateAsync({ askId, ...values })}
             onWithdraw={(askId) => withdrawAsk.mutateAsync(askId)}
           />
@@ -1226,6 +1221,10 @@ function IpasPage({ onClose }) {
                 onSave={(plan) => saveAll.mutateAsync(plan)}
                 onEditPurpose={canChange && !ipas.sors?.length ? on.editPurpose : null}
                 onRemoveSaved={(type, row) => setRemoving({ type, row })}
+                onEditAsk={setEditingAsk}
+                onWithdrawAsk={(ask) =>
+                  withdrawAsk.mutateAsync(ask.id).catch((error) => toast.error(ipasErrorMessage(error)))
+                }
                 onRemoveDocument={setRemovingDocument}
                 onSuggest={() => suggest.mutate()}
                 notice={editNotice}
@@ -1298,7 +1297,9 @@ function IpasPage({ onClose }) {
               ? `Remove ${removing.rows.length} blank ${removing.rows.length === 1 ? "charge" : "charges"}?`
               : "Remove this charge?"
         }
-        description="It leaves the IPAS and Landed Cost is worked out again. The history keeps what was removed."
+        description={`It leaves the IPAS and Landed Cost is worked out again. The history keeps what was removed.${
+          paidAsk ? ` It paid this ask: ${askLine(paidAsk, ipas.currency)}. That ask stays closed; ask again if it still needs paying.` : ""
+        }`}
         confirmLabel="Remove"
         cancelLabel="Keep it"
         tone="destructive"
