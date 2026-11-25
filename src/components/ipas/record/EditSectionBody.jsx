@@ -101,6 +101,8 @@ function PartBody({ sectionKey, ipas, form, set, blocks, disabled, onEditPurpose
             fresh={money.fresh}
             canRecord={money.can.record}
             onRemoveSaved={money.onRemoveSaved}
+            onEditAsk={money.onEditAsk}
+            onWithdrawAsk={money.onWithdrawAsk}
           />
         </div>
       );

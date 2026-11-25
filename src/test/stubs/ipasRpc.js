@@ -1201,7 +1201,7 @@ export function stubIpasRpcs({
       if (!ask) refuse("22023", "that ask for payment was not found")
       if (ask.ipas_id !== saved.ipas_id) refuse("22023", "that ask for payment is on another IPAS")
       if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
-      if (!["down_payment", "balance"].includes(ask.purpose)) refuse("22023", "a payment can only pay a Down payment or Balance ask")
+      if (!["down_payment", "balance"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
       updateRow("ipas_payments", findRow("ipas_payments", saved.id), { ask_id: ask.id })
       updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_payment_id: saved.id })
     }
@@ -1216,8 +1216,12 @@ export function stubIpasRpcs({
     requireAsker("ipas_ask_for_payment")
     const ipas = requireOpenIpas("ipas_ask_for_payment", args.p_ipas_id)
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_ask_for_payment: the amount must be more than zero")
-    if (!["down_payment", "balance", "freight"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Freight")
+    if (!["down_payment", "balance", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge")
+    if (args.p_purpose === "charge" && !args.p_charge_kind_id) refuse("22023", "ipas_ask_for_payment: pick the kind of charge")
+    const isCharge = args.p_purpose === "charge"
     return insertRow("ipas_payment_asks", {
+      charge_kind_id: isCharge ? args.p_charge_kind_id : null,
+      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : null,
       ipas_id: ipas.id,
       amount: args.p_amount,
       purpose: args.p_purpose,
@@ -1285,13 +1289,23 @@ export function stubIpasRpcs({
     requireMoney("ipas_add_charge")
     const ipas = requireOpenIpas("ipas_add_charge", args.p_ipas_id)
     const c = cleanCharge("ipas_add_charge", args, null)
+    // #1227: saved as paying one open Charge ask on this IPAS, which closes only that ask.
+    const ask = args.p_ask_id ? findRow("ipas_payment_asks", args.p_ask_id) : null
+    if (args.p_ask_id) {
+      if (!ask) refuse("22023", "that ask for payment was not found")
+      if (ask.ipas_id !== ipas.id) refuse("22023", "that ask for payment is on another IPAS")
+      if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
+      if (ask.purpose !== "charge") refuse("22023", "a charge cannot pay a Down payment or Balance ask; record a payment instead")
+    }
     const row = insertRow("ipas_charges", {
       ipas_id: ipas.id,
       kind_id: args.p_kind_id,
       charged_on: args.p_charged_on,
       amount_php: c.amount,
       created_by: actorId,
+      ask_id: ask?.id ?? null,
     })
+    if (ask) updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_charge_id: row.id })
     event(ipas.id, "charge_added", {
       charge_id: row.id,
       kind_id: row.kind_id,

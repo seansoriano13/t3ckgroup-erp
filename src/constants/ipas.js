@@ -776,10 +776,10 @@ export const IPAS_ASK_PRIORITY_LABELS = {
 };
 
 /** What an ask for payment is for (ipas_payment_asks.purpose). */
-export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "freight"];
+export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "charge"];
 
 export const IPAS_ASK_PURPOSE_LABELS = {
   down_payment: "Down payment",
   balance: "Balance",
-  freight: "Freight",
+  charge: "Charge",
 };

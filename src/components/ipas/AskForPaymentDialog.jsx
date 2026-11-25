@@ -19,7 +19,8 @@ import { parseAmountInput } from "@/utils/ipasPayments";
 import { askLine } from "@/utils/ipasPaymentAsk";
 import { amountFromPercent, parsePercentInput, percentBase, PERCENT_ERROR } from "@/utils/ipasPaymentPercent";
 
-const PURPOSE_OPTIONS = IPAS_ASK_PURPOSES.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
+// A Charge ask is made from Charges (#1227), with its kind and currency.
+const PURPOSE_OPTIONS = IPAS_ASK_PURPOSES.filter((value) => value !== "charge").map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
 const PRIORITY_OPTIONS = IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPAS_ASK_PRIORITY_LABELS[value] }));
 
 /**
@@ -50,7 +51,8 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
   const parsed = parseAmountInput(amount);
   const percentRead = parsePercentInput(percent);
   const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && percentRead.ok && Boolean(priority);
-  const currency = figures?.currency ? ` (${figures.currency})` : "";
+  const askCurrency = editing?.currency ?? figures?.currency;
+  const currency = askCurrency ? ` (${askCurrency})` : "";
   // The same base as a payment's percent: the P.I/QT Amount, else the P0 total.
   const base = percentBase({ piQtAmount: figures?.piAmount, poTotal: figures?.poTotal });
 

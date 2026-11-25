@@ -12,7 +12,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 import { RequiredMark } from "@/components/ui/RequiredMark";
 import { IPAS_ASK_PRIORITIES, IPAS_ASK_PRIORITY_LABELS, IPAS_ASK_PURPOSE_LABELS } from "@/constants/ipas";
 import { cn } from "@/lib/utils";
-import { askLine } from "@/utils/ipasPaymentAsk";
+import { askLine, askWhat } from "@/utils/ipasPaymentAsk";
 import { afterPercentEdit, parsePercentInput } from "@/utils/ipasPaymentPercent";
 import { parseAmountInput } from "@/utils/ipasPayments";
 import { Field, NeededTag, PickField } from "./FormFields";
@@ -129,11 +129,11 @@ export function AskLiners({ asks, currency, canRecord, recording = [], onRecord,
                 <WalletCards size={14} aria-hidden="true" />
                 Record as paid
               </Button>
-              <Button type="button" size="sm" variant="ghost" className="gap-1.5" aria-label={`Edit ${IPAS_ASK_PURPOSE_LABELS[ask.purpose] ?? "ask"}`} onClick={() => onEdit(ask)}>
+              <Button type="button" size="sm" variant="ghost" className="gap-1.5" aria-label={`Edit ${askWhat(ask)}`} onClick={() => onEdit(ask)}>
                 <Pencil size={13} aria-hidden="true" />
                 Edit
               </Button>
-              <Button type="button" size="sm" variant="ghost" className="gap-1.5 text-muted-foreground hover:text-red-11" aria-label={`Withdraw ${IPAS_ASK_PURPOSE_LABELS[ask.purpose] ?? "ask"}`} onClick={() => onWithdraw(ask)}>
+              <Button type="button" size="sm" variant="ghost" className="gap-1.5 text-muted-foreground hover:text-red-11" aria-label={`Withdraw ${askWhat(ask)}`} onClick={() => onWithdraw(ask)}>
                 <Undo2 size={13} aria-hidden="true" />
                 Withdraw
               </Button>
@@ -142,5 +142,49 @@ export function AskLiners({ asks, currency, canRecord, recording = [], onRecord,
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * A Charge ask's boxes (#1227): which charge, the currency it is billed in (PHP to start), the amount in that
+ * currency, the priority and a note. `row` is a charge draft (`kindId`, `amountPhp`, `askCurrency`, `askPriority`,
+ * `askNote`); `kinds` are the charge-kind options on offer.
+ */
+export function ChargeAskFields({ id, row, kinds, disabled, onPatch }) {
+  const amount = parseAmountInput(row.amountPhp);
+  const currency = (row.askCurrency ?? "").trim().toUpperCase();
+  const priorityOptions = IPAS_ASK_PRIORITIES.map((value) => ({ value, label: IPAS_ASK_PRIORITY_LABELS[value] }));
+  return (
+    <div className="space-y-3" data-testid="charge-ask-fields">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <PickField id={id("kindId")} label="Kind" required placeholder="Pick a kind" options={kinds} value={row.kindId} disabled={disabled} onChange={(v) => onPatch({ kindId: v })} />
+        <Field
+          id={id("askCurrency")}
+          label="Billed in (currency)"
+          required
+          placeholder="PHP"
+          value={row.askCurrency}
+          disabled={disabled}
+          error={currency !== "" && !/^[A-Z]{3}$/.test(currency) ? "Three letters, like PHP" : undefined}
+          onChange={(v) => onPatch({ askCurrency: v.toUpperCase() })}
+        />
+        <Field
+          id={id("amountPhp")}
+          label={`Amount${currency ? ` (${currency})` : ""}`}
+          kind="amount"
+          prefix={currency || undefined}
+          required
+          value={row.amountPhp}
+          disabled={disabled}
+          error={row.amountPhp !== "" && !amount.ok ? "Not a number" : undefined}
+          onChange={(v) => onPatch({ amountPhp: v })}
+        />
+        <PickField id={id("askPriority")} label="Priority" required options={priorityOptions} value={row.askPriority} disabled={disabled} onChange={(v) => onPatch({ askPriority: v })} />
+        <div className="min-w-0 sm:col-span-2 lg:col-span-4">
+          <Field id={id("askNote")} label="Note (optional)" value={row.askNote} disabled={disabled} onChange={(v) => onPatch({ askNote: v })} />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">Nothing counts as a charge yet. The Payers see this IPAS as For payment until the charge that pays it is recorded or you withdraw it.</p>
+    </div>
   );
 }
