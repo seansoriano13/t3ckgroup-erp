@@ -199,6 +199,7 @@ export const NOTIFICATION_TARGETS = {
   IPAS_PO_CHANGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
   IPAS_ACCOUNT_FLAGGED: { module: "purchasing", icon: "FileText", target: ipasTarget },
   IPAS_SECTION_3_CLEARED: { module: "purchasing", icon: "FileText", target: ipasTarget },
+  IPAS_PAYMENT_ASKED: { module: "purchasing", icon: "FileText", target: ipasTarget },
   IPAS_MESSAGE: { module: "purchasing", icon: "MessageCircle", target: ipasChatTarget },
   IPAS_MENTION: { module: "purchasing", icon: "MessageCircle", target: ipasChatTarget },
   PURCHASE_REQUEST_BUYER: { module: "purchasing", icon: "FileText", target: purchaseRequestTarget() },

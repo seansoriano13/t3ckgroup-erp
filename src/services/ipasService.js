@@ -32,6 +32,7 @@ import {
   ipasSectionNo,
   ipasSectionWord,
   ipasSectionName,
+  IPAS_PAYERS_LIST,
   IPAS_SIGNER_LISTS,
   IPAS_FILING_SECTION,
   IPAS_SIGNOFF_ROLE,
@@ -1611,7 +1612,7 @@ export const ipasService = {
     if (error) throw error;
 
     // The Transmittal staff lists (#252) live in the same table.
-    const lists = Object.fromEntries([...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS].map((key) => [key, []]));
+    const lists = Object.fromEntries([...IPAS_SIGNER_LISTS, IPAS_PAYERS_LIST, ...TRANSMITTAL_STAFF_LISTS].map((key) => [key, []]));
     for (const row of data || []) {
       if (!lists[row.list_key]) continue;
       lists[row.list_key].push({
@@ -1632,7 +1633,7 @@ export const ipasService = {
    * Nobody's past sign-offs change. Returns the list as `getSignerLists` gives it.
    */
   async setSignerList(listKey, employeeIds = []) {
-    requireOneOf(listKey, [...IPAS_SIGNER_LISTS, ...TRANSMITTAL_STAFF_LISTS], "That isn't a sign-off list.");
+    requireOneOf(listKey, [...IPAS_SIGNER_LISTS, IPAS_PAYERS_LIST, ...TRANSMITTAL_STAFF_LISTS], "That isn't a sign-off list.");
     const wanted = [...new Set((employeeIds || []).filter(Boolean))];
 
     const { error } = await supabase.rpc("ipas_set_signer_list", {

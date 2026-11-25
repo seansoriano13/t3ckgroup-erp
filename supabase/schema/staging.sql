@@ -2439,8 +2439,8 @@ alter table ipas_payments add constraint "ipas_payments_percent_max_chk" CHECK (
 alter table ipas_payments add constraint "ipas_payments_php_debited_chk" CHECK (((php_debited IS NULL) OR (php_debited > (0)::numeric)));
 alter table ipas_payments add constraint "ipas_payments_proof_url_chk" CHECK (((proof_url IS NULL) OR (proof_url ~* '^https?://'::text)));
 alter table ipas_signer_list_log add constraint "ipas_signer_list_log_action_chk" CHECK ((action = ANY (ARRAY['added'::text, 'removed'::text])));
-alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
-alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_list_log add constraint "ipas_signer_list_log_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'payers'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
+alter table ipas_signer_lists add constraint "ipas_signer_lists_key_chk" CHECK ((list_key = ANY (ARRAY['s1_approved'::text, 's3_approved'::text, 's6_approved'::text, 's7_received'::text, 's7_noted'::text, 's7_checked'::text, 's7_approved'::text, 'logistics_signed'::text, 'payers'::text, 'transmittal_warehouse'::text, 'transmittal_technical'::text, 'transmittal_logistics'::text, 'transmittal_check_by'::text])));
 alter table ipas_signoffs add constraint "ipas_signoffs_cleared_chk" CHECK ((((cleared_at IS NULL) AND (cleared_reason IS NULL) AND (cleared_by IS NULL)) OR ((cleared_at IS NOT NULL) AND (cleared_reason IS NOT NULL) AND (length(btrim(cleared_reason)) > 0))));
 alter table ipas_signoffs add constraint "ipas_signoffs_pair_chk" CHECK (_ipas_signoff_pair_ok((section)::integer, role));
 alter table ipas_signoffs add constraint "ipas_signoffs_role_chk" CHECK ((role = ANY (ARRAY['prepared'::text, 'approved'::text, 'received'::text, 'noted'::text, 'checked'::text])));
@@ -5952,6 +5952,7 @@ AS $function$
         or exists (
           select 1 from ipas_signer_lists l
            where l.employee_id = e.id
+             and l.list_key <> 'payers'
              and l.list_key not like 'transmittal\_%' escape '\'
         )
       )
@@ -6571,6 +6572,34 @@ AS $function$
   );
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_payers_notify_ask()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_ipas public.ipas;
+  v_asker text;
+begin
+  select * into v_ipas from public.ipas where id = new.ipas_id;
+  select name into v_asker from public.employees where id = new.asked_by;
+
+  insert into public.notifications (recipient_id, sender_id, type, title, message, reference_id)
+  select l.employee_id, new.asked_by, 'IPAS_PAYMENT_ASKED',
+         coalesce(v_asker, 'Someone') || ' asked for a payment',
+         left(concat_ws(' — ', v_ipas.number, nullif(v_ipas.odoo_copy->'supplier'->>'name', ''))
+              || ': ' || to_char(new.amount, 'FM999G999G999G990.00'), 280),
+         v_ipas.id::text
+    from public.ipas_signer_lists l
+    join public.employees e on e.id = l.employee_id
+   where l.list_key = 'payers'
+     and not coalesce(e.is_deleted, false)
+     and l.employee_id is distinct from new.asked_by;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_payment_ask_to_chat(p_ipas_id uuid, p_event text, p_text text, p_ask_id uuid)
  RETURNS void
  LANGUAGE sql
@@ -6803,6 +6832,26 @@ begin
      order by o.sort, o.label;
   end if;
   return new;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_seed_payers()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_added integer;
+begin
+  insert into public.ipas_signer_lists (list_key, employee_id)
+  select 'payers', e.id
+    from public.employees e
+   where e.call_sign = '201'
+     and not coalesce(e.is_deleted, false)
+  on conflict do nothing;
+  get diagnostics v_added = row_count;
+  return v_added;
 end;
 $function$
 ;
@@ -17489,6 +17538,7 @@ AS $function$
         or exists (
           select 1 from ipas_signer_lists l
            where l.employee_id = e.id
+             and l.list_key <> 'payers'
              and l.list_key not like 'transmittal\_%' escape '\'
         )
       )
@@ -19895,7 +19945,7 @@ begin
     raise exception 'ipas_set_signer_list: only a Super Admin changes who is on a sign-off list' using errcode = '42501';
   end if;
   if p_list_key is null or p_list_key not in (
-    's1_approved', 's3_approved', 's6_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved', 'logistics_signed',
+    's1_approved', 's3_approved', 's6_approved', 's7_received', 's7_noted', 's7_checked', 's7_approved', 'logistics_signed', 'payers',
     'transmittal_warehouse', 'transmittal_technical', 'transmittal_logistics', 'transmittal_check_by'
   ) then
     raise exception 'ipas_set_signer_list: % isn''t a sign-off list', coalesce(p_list_key, 'null') using errcode = '22023';
@@ -33182,6 +33232,7 @@ CREATE TRIGGER ipas_options_guard BEFORE UPDATE ON public.ipas_options FOR EACH 
 CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_required_before_guard();
 CREATE TRIGGER ipas_options_system_key_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_system_key_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_payment_asks_notify_payers AFTER INSERT ON public.ipas_payment_asks FOR EACH ROW EXECUTE FUNCTION _ipas_payers_notify_ask();
 CREATE TRIGGER ipas_payment_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_payment_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
 CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
 CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');

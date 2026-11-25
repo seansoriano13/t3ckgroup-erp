@@ -99,6 +99,18 @@ describe("employeeService", () => {
       expect((await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).isIpasApprover).toBe(false)
     })
 
+    it("marks a Payer, who is not an IPAS signer or approver for that", async () => {
+      const payer = makeEmployee({ email: "payer@t3ckgroup.test" })
+      makeEmployee({ email: "bystander@t3ckgroup.test" })
+      db.seed("ipas_signer_lists", { list_key: "payers", employee_id: payer.id })
+
+      const found = await employeeService.getEmployeeByEmail("payer@t3ckgroup.test")
+      expect(found.isIpasPayer).toBe(true)
+      expect(found.isIpasSigner).toBe(false)
+      expect(found.isIpasApprover).toBe(false)
+      expect((await employeeService.getEmployeeByEmail("bystander@t3ckgroup.test")).isIpasPayer).toBe(false)
+    })
+
     it("maps hidden_nav_keys onto hiddenNavKeys, defaulting to empty", async () => {
       makeEmployee({ email: "hidden@t3ckgroup.test", hidden_nav_keys: ["sales.commissionDashboard"] })
       makeEmployee({ email: "unhidden@t3ckgroup.test" })
