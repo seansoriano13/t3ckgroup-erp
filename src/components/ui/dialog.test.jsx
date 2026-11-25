@@ -129,3 +129,19 @@ describe("Dialog height", () => {
     expect(popup().className).not.toContain("overflow-y-auto");
   });
 });
+
+// iPhone Safari: a phone window sized with 100dvh ran past the bottom of the
+// screen and hid the chat message box. Every phone window pins top and bottom
+// instead, so it can never be taller than what is on screen.
+describe("phone windows fit the iPhone screen", () => {
+  const phoneClasses = (element) => element.className.split(/\s+/).filter((c) => c.startsWith("max-md:"));
+  it.each([
+    ["a dialog sheet", () => <DialogContent><DialogTitle>Chat</DialogTitle></DialogContent>],
+    ["a record window", () => <RecordModalContent><DialogTitle>SOR</DialogTitle></RecordModalContent>],
+  ])("%s is pinned to the top and bottom, never sized with dvh", (_, content) => {
+    render(<Dialog open>{content()}</Dialog>);
+    const phone = phoneClasses(popup());
+    expect(phone).toEqual(expect.arrayContaining(["max-md:!top-0", "max-md:!bottom-0", "max-md:!h-auto"]));
+    expect(phone.filter((c) => /h-dvh|dvh\)?\]?$/.test(c) && !c.includes("max-h-none"))).toEqual([]);
+  });
+});
