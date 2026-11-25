@@ -87,6 +87,58 @@ describe("the Payers list", () => {
         const rows = (await svc().from("ipas_signer_lists").select("employee_id").eq("list_key", "payers")).data
         expect(rows.map((r) => r.employee_id)).toEqual([ids.ordinary])
     })
+
+    // #1233: production has no call signs; the GM is the Super Admin named "201".
+    describe("when nobody has call sign 201", () => {
+        let superAdminName
+        let ordinaryName
+
+        beforeAll(async () => {
+            superAdminName = (await svc().from("employees").select("name").eq("id", ids.superAdmin).single()).data.name
+            ordinaryName = (await svc().from("employees").select("name").eq("id", ids.ordinary).single()).data.name
+        })
+
+        afterEach(async () => {
+            await svc().from("employees").update({ name: superAdminName, call_sign: null }).eq("id", ids.superAdmin)
+            await svc().from("employees").update({ name: ordinaryName, call_sign: null }).eq("id", ids.ordinary)
+        })
+
+        it("puts the Super Admin named 201 on the list, and only once", async () => {
+            await svc().from("employees").update({ call_sign: null }).eq("id", ids.ordinary)
+            const renamed = await svc().from("employees").update({ name: "201", call_sign: null }).eq("id", ids.superAdmin)
+            expect(renamed.error).toBeNull()
+
+            await sql().query("select public._ipas_seed_payers()")
+            await sql().query("select public._ipas_seed_payers()")
+
+            const rows = (await svc().from("ipas_signer_lists").select("employee_id").eq("list_key", "payers")).data
+            expect(rows.map((r) => r.employee_id)).toEqual([ids.superAdmin])
+        })
+
+        it("leaves out someone named 201 who is not a Super Admin", async () => {
+            const renamed = await svc().from("employees").update({ name: "201", call_sign: null }).eq("id", ids.ordinary)
+            expect(renamed.error).toBeNull()
+
+            await sql().query("select public._ipas_seed_payers()")
+
+            const rows = (await svc().from("ipas_signer_lists").select("employee_id").eq("list_key", "payers")).data
+            expect(rows).toEqual([])
+        })
+    })
+
+    it("takes call sign 201 over a Super Admin named 201", async () => {
+        const superAdminName = (await svc().from("employees").select("name").eq("id", ids.superAdmin).single()).data.name
+        await svc().from("employees").update({ name: "201", call_sign: null }).eq("id", ids.superAdmin)
+        await svc().from("employees").update({ call_sign: "201" }).eq("id", ids.ordinary)
+        try {
+            await sql().query("select public._ipas_seed_payers()")
+            const rows = (await svc().from("ipas_signer_lists").select("employee_id").eq("list_key", "payers")).data
+            expect(rows.map((r) => r.employee_id)).toEqual([ids.ordinary])
+        } finally {
+            await svc().from("employees").update({ name: superAdminName }).eq("id", ids.superAdmin)
+            await svc().from("employees").update({ call_sign: null }).eq("id", ids.ordinary)
+        }
+    })
 })
 
 describe("a new ask for payment", () => {

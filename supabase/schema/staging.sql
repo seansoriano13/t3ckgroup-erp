@@ -7206,8 +7206,19 @@ begin
   insert into public.ipas_signer_lists (list_key, employee_id)
   select 'payers', e.id
     from public.employees e
-   where e.call_sign = '201'
-     and not coalesce(e.is_deleted, false)
+   where not coalesce(e.is_deleted, false)
+     and (
+       e.call_sign = '201'
+       or (
+         e.call_sign is null
+         and e.name = '201'
+         and e.is_super_admin
+         and not exists (
+           select 1 from public.employees c
+            where c.call_sign = '201' and not coalesce(c.is_deleted, false)
+         )
+       )
+     )
   on conflict do nothing;
   get diagnostics v_added = row_count;
   return v_added;
