@@ -23,7 +23,7 @@
 
 export const RELEASE = {
   title: "What's new: October–November",
-  window: "Everything that changed in the ERP from 1 October to 24 November 2026.",
+  window: "Everything that changed in the ERP from 1 October to 25 November 2026.",
 }
 
 export const SECTIONS = [
@@ -1933,11 +1933,12 @@ export const SECTIONS = [
         title: "The IPAS Status, in the team's own words",
         body: "Every IPAS has one Status, picked from a dropdown at the top of the record. It saves at once, with no date to type, and every change is posted in the IPAS's Chat with who made it, so the Chat is its history. A small ? beside the Status, and What do these mean? at the bottom of the dropdown, open a short guide to each step. Done comes only from Filing.",
         points: [
-          "The steps: Order-Draft, Payment Approval, For Payment, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit, Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered and Done. A Local purchase skips Customs / Port Hold, Arrived at Local Hub and Out for Delivery.",
-          "When the IPAS already knows a later step, such as the P.I file and amount being in, the PO being confirmed, a payment being recorded or the goods being received, it suggests that step under the Status. It never moves on its own.",
+          "The steps: Order-Draft, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit, Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered and Done. A Local purchase skips Customs / Port Hold, Arrived at Local Hub and Out for Delivery.",
+          "When the IPAS already knows a later step, such as the PO being confirmed, a payment being recorded against an ask or the goods being received, it suggests that step under the Status. It never moves on its own.",
           "Purchasing, Super Admins and people with the new Logistics access set the Status until the IPAS is filed. Logistics access also lets them read every IPAS.",
           "The Status shows on the IPAS list, right after the Odoo PO, and in the Excel export, the SOR, the Purchasing Dashboard and the printed IPAS. The State column is gone: the Open, Filed and Cancelled tabs already say it.",
           "The ageing rules for late orders follow the Status steps.",
+          "Payment Approval and For Payment are no longer Status steps: money is told only in the Payment status. IPAS that were on either step moved to Order-Draft, and the move is written in their Chat.",
         ],
         who: ["Purchasing", "Logistics", "Finance"],
         flow: [
@@ -1981,38 +1982,40 @@ export const SECTIONS = [
       },
       {
         id: "payment-status",
-        title: "Payment status and Ask for payment",
-        body: "Each IPAS shows a Payment status beside its IPAS Status: Not due yet, For payment, DP paid or Fully paid. Purchasing presses Ask for payment to tell Finance an order is ready to pay, with how much, what for and how urgent. Recording that payment clears the ask. DP paid and Fully paid are worked out from the payments, never picked, and DP paid says how much is paid and how much is left.",
+        title: "For payment, right where payments are added",
+        body: "Add payment and Add charge now ask first: Paid already, or For payment (not paid yet). For payment asks the Payers to pay it, with no date paid, method or proof needed. It shows as a grey row in the Payments or Charges table, with Record as paid, Edit and Withdraw. Ask for payment is gone from the More menu.",
         points: [
-          "An ask has a priority, Very High, High or Medium, and can give a percent of the order.",
-          "Picking For Payment as the IPAS Status opens Ask for payment, already filled with Down payment and the amount still owed.",
-          "An ask can be withdrawn. Each ask, withdrawal and payment is posted in the IPAS's Chat.",
-          "The Payment status is a column and a filter on the IPAS list, and a column in the Excel export.",
+          "A supplier item is a Down payment or a Balance, as an amount or a percent of the order, with a priority (Very High, High or Medium) and a note. A charge item takes its kind, such as Freight, an amount and the currency it is billed in, starting on PHP.",
+          "Several items can be open on one IPAS at once. Only the payment that pays an item closes it: Record as paid always does, and a plain Add payment asks which open item it pays.",
+          "There is a Payers list beside the sign-off lists in the IPAS settings, with 201 on it to start. Each new item rings the bell for the Payers, and only they see the For payment count beside IPAS in the side menu.",
+          "Super Admins can now add, edit and remove payments and charges, as Purchasing and Finance can.",
+          "Every item, payment and charge added, edited or removed writes a line in the IPAS's Chat with its amounts. An edit shows what changed, before and after. These lines notify nobody.",
+          "The Payment column is quieter: nothing when nothing is due, grey text with a small bar for part paid or Fully paid, and an amber For payment with its amount only when an item is waiting. The Payment pill on the record follows the same rule.",
         ],
-        who: ["Purchasing", "Finance"],
+        who: ["Purchasing", "Finance", "Management"],
         flow: [
           {
-            title: "Ask for payment",
-            text: "Purchasing says how much, what for and how urgent: Very High, High or Medium.",
+            title: "Add payment or Add charge",
+            text: "Pick Paid already, or For payment (not paid yet).",
           },
           {
-            title: "For payment",
-            text: "The IPAS shows For payment while the ask is open, and it joins the Payment Forecast.",
+            title: "A grey row waits",
+            text: "The Payers are told, and the IPAS joins the Payment Forecast.",
           },
           {
-            title: "Record the payment",
-            text: "Recording it clears the ask.",
+            title: "Record as paid",
+            text: "Opens the payment already filled in. Change anything before saving.",
           },
           {
-            title: "DP paid or Fully paid",
-            text: "Worked out from the payments. DP paid says, for example, 70% paid, 30% left.",
+            title: "The item closes",
+            text: "It leaves the Payment Forecast. Paid less than asked? Add the rest as a new item.",
           },
         ],
       },
       {
         id: "payment-forecast",
         title: "The Payment Forecast",
-        body: "A new Payment Forecast view on the IPAS list shows every IPAS asked for payment and still to be paid: to whom, for which order, how much and how urgent. It lists Very High first, then the oldest ask. Its count shows beside IPAS in the side menu, and clicking it opens the view. It takes the place of the Payment Forecast sheet, so the General Manager can see what to pay next.",
+        body: "A new Payment Forecast view on the IPAS list shows every IPAS asked for payment and still to be paid: to whom, for which order, how much and how urgent. It lists Very High first, then the oldest ask. The Payers see its count beside IPAS in the side menu, and clicking it opens the view. It shows each IPAS once, with each open item as a short note, and never adds different currencies together. It takes the place of the Payment Forecast sheet, so the General Manager can see what to pay next.",
         who: ["Management", "Finance", "Purchasing"],
         highlights: [
           {
@@ -2024,8 +2027,8 @@ export const SECTIONS = [
             text: "Very High first, then the oldest ask, until you sort by a column.",
           },
           {
-            title: "A count in the menu",
-            text: "The number beside IPAS opens the view.",
+            title: "A count for the Payers",
+            text: "The number beside IPAS opens the view. Only people on the Payers list see it.",
           },
           {
             title: "Withholding (2307)",
