@@ -67,6 +67,34 @@ describe("the IPAS chat", () => {
     expect(screen.getByText("Status set to Done (was Delivered).").closest("[data-testid=ipas-message]")).toHaveTextContent("System")
   })
 
+  it("shows a money edit as before → after: old struck and muted, new tinted, only the changed fields", async () => {
+    db.seed("ipas_messages", {
+      ipas_id: ipas.id,
+      author_id: buyer.id,
+      content: "Changed the payment (Down payment EUR 6,000.00): Amount 5,000.00 → 6,000.00; Method Cash → Check.",
+      metadata: {
+        event: "payment_changed",
+        payment_id: "p1",
+        amount: 6000,
+        changes: { amount: { from: 5000, to: 6000 }, method: { from: "Cash", to: "Check" } },
+      },
+      created_at: "2026-11-02T00:00:00Z",
+    })
+    renderWithProviders(<IpasChat ipasId={ipas.id} />)
+
+    const line = (await screen.findByText("Changed the payment (Down payment EUR 6,000.00)")).closest("[data-testid=ipas-message]")
+    expect(line).toHaveAttribute("data-event", "payment_changed")
+    const rows = line.querySelectorAll("[data-change]")
+    expect(rows).toHaveLength(2)
+    const amount = line.querySelector("[data-change=amount]")
+    expect(amount.querySelector("[data-testid=change-from]")).toHaveTextContent("5,000.00")
+    expect(amount.querySelector("[data-testid=change-from]").tagName).toBe("DEL")
+    expect(amount.querySelector("[data-testid=change-from]")).toHaveClass("text-muted-foreground", "line-through")
+    expect(amount.querySelector("[data-testid=change-to]")).toHaveTextContent("6,000.00")
+    expect(amount.querySelector("[data-testid=change-to]")).toHaveClass("bg-mauve-4")
+    expect(line.querySelector("[data-change=method] [data-testid=change-to]")).toHaveTextContent("Check")
+  })
+
   it("posts a message that mentions someone who can open IPAS", async () => {
     const user = setupUser()
     renderWithProviders(<IpasChat ipasId={ipas.id} />)
