@@ -1123,8 +1123,8 @@ function IpasPage({ onClose }) {
               })}
             />
             {/* The Payment status (ADR 0055), beside the IPAS Status and separate from it. */}
-            {digest.figures.paymentStatus && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="ipas-record-payment-status">
+            {digest.figures.paymentStatus && digest.figures.paymentStatus !== "not_due_yet" && (
+              <div className="flex items-start gap-2 text-sm text-muted-foreground" data-testid="ipas-record-payment-status">
                 <span>Payment</span>
                 <IpasPaymentStatusPill figures={digest.figures} />
               </div>
