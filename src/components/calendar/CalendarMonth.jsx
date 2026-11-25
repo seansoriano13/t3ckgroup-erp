@@ -38,7 +38,7 @@ function Week({ fill, week, entries, selectedYmd, todayYmd, onSelectDay, onOpenD
 
   return (
     <div
-      className={cn('grid border-b border-mauve-5 last:border-b-0 laptop:[--cal-row:2.6rem]', COLS, fill && 'min-h-24 flex-1 basis-0')}
+      className={cn('grid border-b border-mauve-5 last:border-b-0 laptop:[--cal-row:2.6rem]', COLS, fill && 'min-h-24 flex-[1_0_auto]')}
       style={{ gridTemplateRows: `2.25rem ${lanes ? `repeat(${lanes}, ${LANE})` : ''} minmax(var(--cal-row, 4.5rem), auto)` }}
     >
       {week.map((day, i) => {
