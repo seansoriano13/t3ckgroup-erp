@@ -93,7 +93,7 @@ describe("who reads and who changes the settings", () => {
     it("lets everyone signed in read both tables", async () => {
         for (const who of ["ordinary", "head", "hr", "superAdmin"]) {
             const c = await clientFor(who)
-            expect((await c.from("activity_type_settings").select("activity_type")).data).toHaveLength(4)
+            expect((await c.from("activity_type_settings").select("activity_type")).data).toHaveLength(5) // four ordinary types + GROUP_TASK (#1250)
             expect((await c.from("activity_general_settings").select("id")).data).toHaveLength(1)
         }
     })
