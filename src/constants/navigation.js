@@ -270,6 +270,7 @@ export const NAV_MODULES = {
     links: [
       {
         key: "finance.opex",
+        beta: true,
         label: "OPEX",
         link: "/finance/opex",
         icon: Banknote,
