@@ -15,6 +15,7 @@ const TITLES = [
   ["/calendar", "Calendar"],
   ["/costing-matrix", "S0 Evaluation"],
   ["/technical", "Technical"],
+  ["/finance/opex", "OPEX"],
   ["/flow-versions", "Flow Snapshot"],
   ["/group-tasks/templates", "Group Task Templates"],
   ["/group-tasks", "Group Tasks"],

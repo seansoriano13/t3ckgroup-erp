@@ -440,7 +440,7 @@ function OtherCostsPanel({ matrix, save, bands, abcTotal, expenses, floorTotal, 
     <section className="overflow-hidden rounded-xl border border-border bg-card" aria-label="Other costs" data-testid="corridor-other-costs">
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border bg-muted px-4 py-2.5">
         <h3 className="text-sm font-semibold">Other costs</h3>
-        <span className="text-xs text-muted-foreground">Type the amount, or the % of the ABC. They count in OPEX and raise the Go floor.</span>
+        <span className="text-xs text-muted-foreground">Type the amount, or the % of the ABC. They count in OPEX (planned) and raise the Go floor.</span>
       </div>
       <div className="overflow-x-auto">
         <Table className="border-separate border-spacing-0">

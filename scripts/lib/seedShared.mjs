@@ -211,6 +211,18 @@ export const SEED_EXCLUDED_TABLES = {
     "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
   costing_virtual_columns:
     "The Costing Matrix access registry (#267): which tier reads and which band writes each column. The migrations write every row, so a seed would only replace them with whatever the remote held.",
+  opex_reports:
+    "OPEX Reports (#1244): Finance's own project money, read from Odoo. A local stack starts its own and never copies a project's spending.",
+  opex_report_snapshots:
+    "The last Odoo read of an OPEX Report (#1244). Belongs to opex_reports, which the seed leaves out.",
+  opex_report_p0s:
+    "P0s Finance added to an OPEX Report (#1245). Belongs to opex_reports, which the seed leaves out.",
+  opex_typed_costs:
+    "Typed costs of an OPEX Report (#1245). Belongs to opex_reports, which the seed leaves out.",
+  opex_line_prices:
+    "Typed P0 line prices of an OPEX Report (#1245). Belongs to opex_reports, which the seed leaves out.",
+  opex_left_out_expenses:
+    "Left-out expenses of an OPEX Report (#1245). Belongs to opex_reports, which the seed leaves out.",
   push_subscriptions:
     "Real browser push endpoints and keys. A local stack must never push to a colleague's real device.",
   verification_rate_limits:
