@@ -451,7 +451,7 @@ export function stubIpasRpcs({
         !["odoo_copy_changed", "filled_from_odoo", "odoo_changed_since_filing"].includes(e.kind) &&
         !(e.kind === "approvals_cleared" && e.detail?.reason === "PO changed in Odoo"),
     )
-    if (newer) refuse("40001", "ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.")
+    if (newer) refuse("PT409", "ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.")
     return null
   })
 

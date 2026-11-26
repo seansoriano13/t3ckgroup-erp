@@ -3,7 +3,8 @@
  *
  *   - ipas_events is in the supabase_realtime publication (the edit form listens to it)
  *   - ipas_assert_unchanged passes with the newest event time, and with null
- *   - after another change it refuses with 40001 and a sentence telling them to reload
+ *   - after another change it refuses with PT409 (HTTP 409) and a sentence telling them to reload.
+ *     Not 40001: PostgREST retries 40001 forever, and the request never answered (hotfix 2026-11-26).
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { FIXTURE_DOMAIN, ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -54,7 +55,7 @@ describe("IPAS stale-save guard", () => {
         expect((await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { remarks: "Changed by someone" } })).error).toBeNull()
 
         const refused = await rpc("outsider", "ipas_assert_unchanged", { p_ipas_id: ipas.id, p_since: since })
-        expect(refused.error?.code).toBe("40001")
+        expect(refused.error?.code).toBe("PT409")
         expect(refused.error?.message).toMatch(/Reload/)
         expect((await rpc("outsider", "ipas_assert_unchanged", { p_ipas_id: ipas.id, p_since: await newest(ipas.id) })).error).toBeNull()
     })
@@ -80,6 +81,6 @@ describe("IPAS stale-save guard", () => {
 
         expect((await rpc("outsider", "ipas_set_header", { p_ipas_id: ipas.id, p_fields: { remarks: "Real edit" } })).error).toBeNull()
         const refused = await rpc("outsider", "ipas_assert_unchanged", { p_ipas_id: ipas.id, p_since: since })
-        expect(refused.error?.code).toBe("40001")
+        expect(refused.error?.code).toBe("PT409")
     })
 })

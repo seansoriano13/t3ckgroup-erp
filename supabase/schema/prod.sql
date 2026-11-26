@@ -17401,7 +17401,7 @@ begin
        and not (e.kind = 'approvals_cleared' and e.detail ->> 'reason' = 'PO changed in Odoo')
   ) then
     raise exception 'ipas_assert_unchanged: someone else saved this IPAS after you opened it. Nothing was saved. Reload to see their changes; what you typed is still here.'
-      using errcode = '40001';
+      using errcode = 'PT409';
   end if;
 end;
 $function$
