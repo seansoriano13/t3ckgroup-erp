@@ -1,6 +1,18 @@
 [
     {
         "date": "2026-11-26",
+        "title": "New: OPEX Report for Finance",
+        "version": "1.13.0",
+        "changes": [
+            "Finance has a new OPEX Report page, under Finance in the menu. Pick an S0 and it shows what Odoo says the project really spent: its P0 lines and its expenses, against the contract price.",
+            "A report opens in a window over the list, like an IPAS. Contract price, Actual OPEX, Revenue and what needs a look sit at the top.",
+            "Finance can type a missing price, add a P0 or a cost Odoo does not have, or leave an expense out. Each one is marked typed, and the totals follow.",
+            "On the S0 Evaluation, OPEX now reads OPEX (planned), so the estimate made before buying is not mixed up with the real one.",
+            "Only Finance and Super Admins can open the OPEX Report."
+        ]
+    },
+    {
+        "date": "2026-11-26",
         "title": "OPEX Report for Finance",
         "version": "1.12.0",
         "modules": [

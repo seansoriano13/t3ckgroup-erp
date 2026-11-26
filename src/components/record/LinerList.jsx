@@ -90,8 +90,8 @@ function LinerRow({ row }) {
  * `domId` sets the row's element id, so a caller can scroll to it.
  * `subWrap` lets a long sub line wrap instead of cutting it short.
  * `actions` is a node (a status menu) shown in place of the badge; the row's toggle then holds only its text.
- * `groups` (instead of `rows`): `[{ key, title?, count?, rows }]`, each group's title a
- * sub-heading inside the box. `empty` is the one quiet sentence shown, with no
+ * `groups` (instead of `rows`): `[{ key, title?, label?, count?, rows }]`, each group's title a
+ * sub-heading inside the box (`label` names the group when its title is not plain text). `empty` is the one quiet sentence shown, with no
  * box, when there are no rows. `total` (`{ label, value }`) adds a closing
  * row under the rows, for a figure that sums them up.
  */
@@ -102,7 +102,7 @@ export default function LinerList({ rows, groups, empty = "Nothing here yet.", l
   return (
     <div role="group" aria-label={label} className={cn("divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card", className)}>
       {filled.map((group) => (
-        <section key={group.key} aria-label={group.title} data-testid={group.testId}>
+        <section key={group.key} aria-label={group.label ?? (typeof group.title === "string" ? group.title : undefined)} data-testid={group.testId}>
           {group.title && (
             <h4 className="flex items-baseline gap-2 border-b border-border bg-muted/40 px-4 py-1.5 text-xs font-semibold text-muted-foreground">
               {group.title}

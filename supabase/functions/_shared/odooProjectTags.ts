@@ -35,8 +35,13 @@ export async function analyticLinePlanColumn(uid: number, planId: number): Promi
 }
 
 /** An S0's Project tags: accounts in the Projects plan whose name starts with the S0 as a whole word. */
-export async function findProjectTags(uid: number, s0: string): Promise<{ id: number; name: string }[]> {
-  const planId = await findProjectsPlanId(uid);
+export async function findProjectTags(
+  uid: number,
+  s0: string,
+  knownPlanId?: number | null,
+): Promise<{ id: number; name: string }[]> {
+  // A caller that has already looked the plan up passes it in, saving one Odoo call.
+  const planId = knownPlanId === undefined ? await findProjectsPlanId(uid) : knownPlanId;
   if (planId === null) return [];
   const rows: Row[] = await executeKw(uid, "account.analytic.account", "search_read", [
     [["plan_id", "=", planId], ["name", "=ilike", `${s0}%`]],
