@@ -799,10 +799,10 @@ export default function GroupTaskDetailModal({
       tone="destructive"
       onConfirm={() => onDelete({ cancelActivity: alsoCancelActivity })}
     >
-      <label className="flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-sm">
         <Checkbox checked={alsoCancelActivity} onCheckedChange={(v) => setAlsoCancelActivity(!!v)} />
         Also cancel its Calendar entry
-      </label>
+      </div>
     </ConfirmDialog>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <RecordModalContent
