@@ -50,4 +50,83 @@ export const opexReportService = {
     const { error } = await supabase.from("opex_report_snapshots").upsert({ report_id: reportId, ...snapshot });
     if (error) throw error;
   },
+
+  /** Finance's hand edits of one report: { handP0s, typedCosts, linePrices, leftOut }. */
+  async getEdits(reportId) {
+    const one = async (table, order) => {
+      const { data, error } = await supabase.from(table).select("*").eq("report_id", reportId).order(order);
+      if (error) throw error;
+      return data ?? [];
+    };
+    const [handP0s, typedCosts, linePrices, leftOut] = await Promise.all([
+      one("opex_report_p0s", "created_at"),
+      one("opex_typed_costs", "created_at"),
+      one("opex_line_prices", "created_at"),
+      one("opex_left_out_expenses", "created_at"),
+    ]);
+    return { handP0s, typedCosts, linePrices, leftOut };
+  },
+
+  /** Contract price or retention typed by Finance; null goes back to Odoo's figure or the rate. */
+  async setReportField(reportId, field, value) {
+    const { error } = await supabase.from("opex_reports").update({ [field]: value }).eq("id", reportId);
+    if (error) throw error;
+  },
+
+  async addP0(reportId, p0Number) {
+    const { error } = await supabase.from("opex_report_p0s").insert({ report_id: reportId, p0_number: p0Number });
+    if (error && error.code !== "23505") throw error;
+  },
+
+  async removeP0(id) {
+    const { error } = await supabase.from("opex_report_p0s").delete().eq("id", id);
+    if (error) throw error;
+  },
+
+  /** Adds a Typed cost, or changes it when `cost.id` is set. */
+  async saveTypedCost(reportId, cost) {
+    const row = {
+      cost_date: cost.cost_date || null,
+      description: cost.description,
+      amount: cost.amount,
+      note: cost.note || null,
+      cost_group: cost.cost_group || "product",
+    };
+    const query = cost.id
+      ? supabase.from("opex_typed_costs").update(row).eq("id", cost.id)
+      : supabase.from("opex_typed_costs").insert({ report_id: reportId, ...row });
+    const { error } = await query;
+    if (error) throw error;
+  },
+
+  async deleteTypedCost(id) {
+    const { error } = await supabase.from("opex_typed_costs").delete().eq("id", id);
+    if (error) throw error;
+  },
+
+  /** A typed unit price for a zero-price P0 line; null clears it. */
+  async setLinePrice(reportId, odooLineId, unitPrice) {
+    if (unitPrice === null) {
+      const { error } = await supabase.from("opex_line_prices").delete().eq("report_id", reportId).eq("odoo_line_id", odooLineId);
+      if (error) throw error;
+      return;
+    }
+    const { error } = await supabase
+      .from("opex_line_prices")
+      .upsert({ report_id: reportId, odoo_line_id: odooLineId, unit_price: unitPrice }, { onConflict: "report_id,odoo_line_id" });
+    if (error) throw error;
+  },
+
+  /** Leaves an expense out (with an optional note), or puts it back when `leaveOut` is false. */
+  async setLeftOut(reportId, analyticLineId, leaveOut, note = null) {
+    if (!leaveOut) {
+      const { error } = await supabase.from("opex_left_out_expenses").delete().eq("report_id", reportId).eq("analytic_line_id", analyticLineId);
+      if (error) throw error;
+      return;
+    }
+    const { error } = await supabase
+      .from("opex_left_out_expenses")
+      .upsert({ report_id: reportId, analytic_line_id: analyticLineId, note: note || null }, { onConflict: "report_id,analytic_line_id" });
+    if (error) throw error;
+  },
 };
