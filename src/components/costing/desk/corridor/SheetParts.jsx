@@ -207,13 +207,13 @@ export function Waterfall({ fall, dense = false }) {
             <dt className={cn("text-sm", step.sign === -1 ? "pl-3 text-muted-foreground" : "text-foreground")}>
               {step.sign === -1 ? "− " : ""}
               {step.label}
-              {step.opex && <span className="ml-1.5 text-[11px] text-muted-foreground/80">OPEX</span>}
+              {step.opex && <span className="ml-1.5 text-[11px] text-muted-foreground/80">OPEX (planned)</span>}
             </dt>
             <dd className="font-mono text-sm tabular-nums">{money(step.value)}</dd>
           </div>
         ))}
         <div className="flex items-baseline justify-between gap-4 border-t border-dashed border-border/70 px-4 py-1.5 text-sm text-muted-foreground">
-          <dt>OPEX (the four marked)</dt>
+          <dt>OPEX (planned) (the four marked)</dt>
           <dd className="font-mono tabular-nums">{money(fall.opex)}</dd>
         </div>
       </dl>

@@ -132,7 +132,7 @@ function summaryRows(matrix) {
     { key: 'landedCost', label: 'Landed Cost (planned)', hint: 'Final Acquire total', value: cost(summary.landedCost) },
     { key: 'projectExpenses', label: 'Project expenses', hint: 'Other costs', value: expenses(summary.projectExpenses) },
     { key: 'marketing', label: 'Marketing', value: marketingFigure(summary.marketing) },
-    { key: 'opex', label: 'OPEX', hint: 'retention + landed cost + expenses + marketing', value: opexFigure(summary.opex) },
+    { key: 'opex', label: 'OPEX (planned)', hint: 'retention + landed cost + expenses + marketing', value: opexFigure(summary.opex) },
     { key: 'itr', label: `ITR ${rate(rates.itrRate)}`, hint: `of the offer above ${peso(Number(rates.itrAllowance))}`, value: offer(summary.itr) },
     {
       label: 'Revenue',

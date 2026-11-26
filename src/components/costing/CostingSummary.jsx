@@ -186,7 +186,7 @@ export default function CostingSummary({ matrix, writes }) {
         </Row>
         )}
         {show("opex") && (
-        <Row label="OPEX" hint="retention + landed cost + project expenses + marketing" testId="summary-opex">
+        <Row label="OPEX (planned)" hint="retention + landed cost + project expenses + marketing" testId="summary-opex">
           {summary.opex === null || summary.opex === undefined ? (
             dash(opexNote)
           ) : (

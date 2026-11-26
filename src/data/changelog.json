@@ -1,5 +1,13 @@
 [
     {
+        "date": "2026-11-26",
+        "title": "OPEX (planned) on the S0 Evaluation",
+        "version": "1.11.17",
+        "changes": [
+            "The S0 Evaluation now reads \"OPEX (planned)\", because it is an estimate made before buying."
+        ]
+    },
+    {
         "date": "2026-11-25",
         "title": "For payment on payments and charges, Payers list and a quieter Payment column",
         "version": "1.11.16",
