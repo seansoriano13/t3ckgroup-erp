@@ -36,8 +36,8 @@ const DECISION_VERB = {
   HR_RETURNED: 'returned',
 };
 
-export const ACTIVITY_TYPE = { MEETING: 'MEETING', ADMIN_TASK: 'ADMIN_TASK', OPERATIONS_TASK: 'OPERATIONS_TASK', EVENT: 'EVENT' };
-export const ACTIVITY_TYPE_LABEL = { MEETING: 'Meeting', ADMIN_TASK: 'Admin Task', OPERATIONS_TASK: 'Operations Task', EVENT: 'Event' };
+export const ACTIVITY_TYPE = { MEETING: 'MEETING', ADMIN_TASK: 'ADMIN_TASK', OPERATIONS_TASK: 'OPERATIONS_TASK', EVENT: 'EVENT', GROUP_TASK: 'GROUP_TASK' };
+export const ACTIVITY_TYPE_LABEL = { MEETING: 'Meeting', ADMIN_TASK: 'Admin Task', OPERATIONS_TASK: 'Operations Task', EVENT: 'Event', GROUP_TASK: 'Group Task' };
 
 /** Lays the names HR set in Settings > Activities (#1064) over the labels, in place. `types` is settings.types. */
 export function applyActivityTypeNames(types) {
@@ -267,7 +267,7 @@ export const meetingRequestService = {
    * Files an Activity. `startsAt` / `endsAt` are ISO instants (the form builds
    * them from a Manila date and times). Returns the saved request.
    */
-  async fileRequest({ activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, days = null, applicant }) {
+  async fileRequest({ activityType = ACTIVITY_TYPE.MEETING, meetingType = MEETING_TYPE.ONSITE, meetingLink = null, venueId = null, startsAt, endsAt, facilitatorId, purpose, guests = [], participantIds = [], headId = null, days = null, groupTaskId = null, applicant }) {
     const { data: id, error } = await supabase.rpc('file_meeting_request', {
       p_activity_type: activityType,
       p_meeting_type: isMeeting(activityType) ? meetingType : null,
@@ -281,6 +281,7 @@ export const meetingRequestService = {
       ...guestParams(guests),
       p_participant_ids: participantIds,
       p_head_id: headId,
+      p_group_task_id: groupTaskId,
     });
     if (error) {
       if (error.code === EXCLUSION_VIOLATION) {
@@ -366,6 +367,21 @@ export const meetingRequestService = {
     if (error) throw new Error(error.message);
     const events = await loadEvents([id]);
     return { ...data, events };
+  },
+
+  /**
+   * #1250: the Group Task's live Activity (not declined or cancelled; pending and returned count), with its days,
+   * or null. The button in the Group Task window reads this.
+   */
+  async liveGroupTaskActivity(groupTaskId) {
+    const { data, error } = await supabase
+      .from('meeting_requests')
+      .select('id, status, days:meeting_request_days(id, starts_at, ends_at)')
+      .eq('group_task_id', groupTaskId)
+      .not('status', 'in', '(DECLINED,CANCELLED)')
+      .limit(1);
+    if (error) throw new Error(error.message);
+    return data?.[0] ?? null;
   },
 
   /** Requests where the employee is the applicant, the Lead or a Participant, newest first. */

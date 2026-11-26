@@ -17,6 +17,9 @@ import { renderWithProviders } from "@/test/support"
 import GroupTaskDetailModal from "./GroupTaskDetailModal"
 import toast from "react-hot-toast"
 import { groupTaskService } from "@/services/groupTaskService"
+import { meetingRequestService } from "@/services/meetingRequestService"
+import { activitySettingsService } from "@/services/activitySettingsService"
+import { DEFAULT_ACTIVITY_SETTINGS } from "@/utils/activitySettings"
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: { id: "creator-1", name: "Creator" } }),
@@ -61,6 +64,17 @@ vi.mock("@/services/groupTaskTemplateService", () => ({
 vi.mock("@/hooks/useEmployeeAvatarMap", () => ({
   useEmployeeAvatarMap: () => new Map(),
 }))
+
+vi.mock("@/services/meetingRequestService", async (importActual) => ({
+  ...(await importActual()),
+  meetingRequestService: { liveGroupTaskActivity: vi.fn(async () => null) },
+}))
+vi.mock("@/services/activitySettingsService", () => ({ activitySettingsService: { get: vi.fn() } }))
+vi.mock("@/components/calendar/MeetingRequestDialog", () => ({
+  default: ({ initial }) => <div data-testid="activity-form">{JSON.stringify(initial.groupTask)}</div>,
+}))
+const mockNavigate = vi.fn()
+vi.mock("react-router", async (importActual) => ({ ...(await importActual()), useNavigate: () => mockNavigate }))
 
 vi.mock("react-hot-toast", () => ({
   default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), loading: vi.fn() }),
@@ -130,6 +144,8 @@ function renderModal(props = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  meetingRequestService.liveGroupTaskActivity.mockResolvedValue(null)
+  activitySettingsService.get.mockResolvedValue(DEFAULT_ACTIVITY_SETTINGS)
 })
 
 describe("GroupTaskDetailModal read-only gating", () => {
@@ -466,5 +482,41 @@ describe("GroupTaskDetailModal checklist tick", () => {
     expect(screen.getByTestId("shown").textContent).toBe('"\\"ticked\\""')
     await waitFor(() => expect(screen.getByTestId("shown").textContent).toBe(before))
     expect(toast.error).toHaveBeenCalledWith("Save failed")
+  })
+})
+
+describe("GroupTaskDetailModal Calendar button (#1250)", () => {
+  it("offers Add to Calendar, and opens the form filled from the Group Task", async () => {
+    renderModal({ task: task({ start_date: "2031-03-20", due_date: "2031-03-25T00:00:00" }) })
+    fireEvent.click(await screen.findByRole("button", { name: /Add to Calendar/ }))
+    const sent = JSON.parse(screen.getByTestId("activity-form").textContent)
+    expect(sent).toMatchObject({ id: "gtask-1", title: "Quarterly Audit", memberIds: ["creator-1"], startDate: "2031-03-20", dueDate: "2031-03-25" })
+  })
+
+  it("reads Open in Calendar once a live Activity exists, and opens its next day that has not ended", async () => {
+    meetingRequestService.liveGroupTaskActivity.mockResolvedValue({
+      id: "req-1",
+      days: [
+        { id: "day-1", starts_at: "2001-03-10T01:00:00Z", ends_at: "2001-03-10T02:00:00Z" },
+        { id: "day-2", starts_at: "2999-03-12T01:00:00Z", ends_at: "2999-03-12T02:00:00Z" },
+      ],
+    })
+    renderModal()
+    fireEvent.click(await screen.findByRole("button", { name: /Open in Calendar/ }))
+    expect(mockNavigate).toHaveBeenCalledWith("/calendar?entry=meeting:day-2")
+    expect(screen.queryByRole("button", { name: /Add to Calendar/ })).not.toBeInTheDocument()
+  })
+
+  it("shows nothing when the type is off or the Group Task is Cancelled", async () => {
+    const off = { ...DEFAULT_ACTIVITY_SETTINGS, types: { ...DEFAULT_ACTIVITY_SETTINGS.types, GROUP_TASK: { ...DEFAULT_ACTIVITY_SETTINGS.types.GROUP_TASK, active: false } } }
+    activitySettingsService.get.mockResolvedValue(off)
+    const { unmount } = renderModal()
+    await waitFor(() => expect(meetingRequestService.liveGroupTaskActivity).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByRole("button", { name: /Calendar/ })).not.toBeInTheDocument())
+    unmount()
+    activitySettingsService.get.mockResolvedValue(DEFAULT_ACTIVITY_SETTINGS)
+    renderModal({ task: task({ status: "CANCELLED" }) })
+    await waitFor(() => expect(meetingRequestService.liveGroupTaskActivity).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole("button", { name: /Calendar/ })).not.toBeInTheDocument()
   })
 })
