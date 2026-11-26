@@ -1170,6 +1170,7 @@ create table if not exists public."opex_left_out_expenses" (
   "note" text,
   "created_at" timestamp with time zone not null default now()
 );
+
 create table if not exists public."opex_line_prices" (
   "id" uuid not null default gen_random_uuid(),
   "report_id" uuid not null,
@@ -1177,12 +1178,14 @@ create table if not exists public."opex_line_prices" (
   "unit_price" numeric not null,
   "created_at" timestamp with time zone not null default now()
 );
+
 create table if not exists public."opex_report_p0s" (
   "id" uuid not null default gen_random_uuid(),
   "report_id" uuid not null,
   "p0_number" text not null,
   "created_at" timestamp with time zone not null default now()
 );
+
 create table if not exists public."opex_report_snapshots" (
   "report_id" uuid not null,
   "read_at" timestamp with time zone not null default now(),
@@ -1195,6 +1198,7 @@ create table if not exists public."opex_report_snapshots" (
   "revenue" numeric,
   "revenue_percent" numeric
 );
+
 create table if not exists public."opex_reports" (
   "id" uuid not null default gen_random_uuid(),
   "s0_number" text not null,
@@ -1203,6 +1207,7 @@ create table if not exists public."opex_reports" (
   "created_by" uuid default get_employee_id(),
   "created_at" timestamp with time zone not null default now()
 );
+
 create table if not exists public."opex_typed_costs" (
   "id" uuid not null default gen_random_uuid(),
   "report_id" uuid not null,
@@ -1210,7 +1215,7 @@ create table if not exists public."opex_typed_costs" (
   "description" text not null,
   "amount" numeric not null,
   "note" text,
-  "cost_group" text not null default 'product',
+  "cost_group" text not null default 'product'::text,
   "created_at" timestamp with time zone not null default now()
 );
 
