@@ -6,6 +6,7 @@ describe("routeTitle", () => {
     expect(routeTitle("/bug-reports")).toContain("Bug Reports · T3CKGROUP ERP");
     expect(routeTitle("/sors/commission")).toContain("Commission");
     expect(routeTitle("/approvals/ipas")).toContain("IPAS Sign-offs · T3CKGROUP ERP");
+    expect(routeTitle("/finance/opex/S00001")).toContain("OPEX · T3CKGROUP ERP");
     expect(routeTitle("/nope")).toContain("Page not found");
     expect(routeTitle("/")).toContain("Dashboard");
   });
