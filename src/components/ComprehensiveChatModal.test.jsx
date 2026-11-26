@@ -69,6 +69,21 @@ describe("ComprehensiveChatModal — group task thread", () => {
     expect(await screen.findByText(/Group Task\s*•\s*Overview/)).toBeInTheDocument();
     expect(screen.queryByText(/committee/i)).toBeNull();
   });
+
+  // Boss's iPhone, Nov 2026: in a long chat the message box was below the screen.
+  // On a phone the sheet is a flex column whose children never shrink (dialog.jsx
+  // `[&>*]:shrink-0`), so a column without min-h-0 grows as tall as every message
+  // and the sheet clips the message box. jsdom has no layout, so this guards the
+  // class; the layout itself was checked in WebKit and Chromium at 440x897.
+  it("keeps the thread and list columns screen-tall on a phone so the message box shows", async () => {
+    await openThread();
+    const column = (el) => el.closest('[data-slot="dialog-content"] > div').className.split(/\s+/);
+
+    const form = (await screen.findByRole("button", { name: /Send/ })).closest("form");
+    expect(column(form)).toContain("min-h-0");
+    const list = column(screen.getByRole("heading", { name: /Conversations/ }));
+    expect(list).toEqual(expect.arrayContaining(["min-h-0", "max-md:flex-1"]));
+  });
 });
 
 describe("ComprehensiveChatModal — address", () => {
