@@ -131,6 +131,7 @@ verify_jwt = false
 
 [functions.odoo-costing-costs]
 [functions.odoo-document-admin]
+[functions.odoo-opex-report]
 [functions.odoo-po-ipas]
 [functions.odoo-po-rollup]
 [functions.odoo-po-suggest]
