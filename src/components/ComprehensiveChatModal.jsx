@@ -1092,9 +1092,12 @@ export default function ComprehensiveChatModal({
         className="p-0 gap-0 z-100 bg-card border-border shadow-2xl w-[95vw] max-w-[95vw] sm:max-w-[90vw] md:max-w-5xl h-[90vh] md:h-[85vh] rounded-2xl overflow-hidden flex flex-row border-none ring-0 outline-none"
       >
         {/* SIDEBAR: Conversation List */}
+        {/* Phones: the sheet is a flex column whose children never shrink, so each
+            column needs min-h-0 to stay screen-tall; without it the column grows to
+            the height of every row and the list can't scroll. */}
         <div
           className={cn(
-            "w-full md:w-[320px] bg-muted/30 border-r border-border flex flex-col transition-all",
+            "w-full md:w-[320px] max-md:flex-1 min-h-0 bg-muted/30 border-r border-border flex flex-col transition-all",
             !isMobileListVisible && "hidden md:flex",
           )}
         >
@@ -1305,9 +1308,11 @@ export default function ComprehensiveChatModal({
         </div>
 
         {/* MAIN AREA: Chat Thread */}
+        {/* min-h-0: without it a long chat makes this column as tall as all its
+            messages and pushes the message box below the phone screen. */}
         <div
           className={cn(
-            "flex-1 flex flex-col min-w-0 bg-card relative",
+            "flex-1 flex flex-col min-w-0 min-h-0 bg-card relative",
             isMobileListVisible && "hidden md:flex",
           )}
         >
