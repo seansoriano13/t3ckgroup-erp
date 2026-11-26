@@ -18,6 +18,9 @@ import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { opexReportService } from "../../../services/opexReportService";
 import { formatPesos, normalizeS0 } from "../../../utils/opexReport";
+// PROTOTYPE (throwaway): the redesign options, behind ?variant=.
+import PrototypeOpex from "./_prototype/PrototypeOpex";
+import PrototypeSwitcher, { useVariant } from "./_prototype/PrototypeSwitcher";
 
 /**
  * The OPEX page (#1244, spec #1241): every OPEX Report from its saved snapshot, so no row
@@ -143,11 +146,20 @@ function OpexList() {
 
 export default function OpexPage() {
   const { user } = useAuth();
+  const variant = useVariant();
   const { isSuperAdmin, hasFinanceFlow } = getPermissionContext(user);
   if (user && !(isSuperAdmin || hasFinanceFlow)) return <Navigate to="/" replace />;
+  if (import.meta.env.DEV && variant && variant !== "now") {
+    return (
+      <ProtectedRoute>
+        <PrototypeOpex variant={variant} />
+      </ProtectedRoute>
+    );
+  }
   return (
     <ProtectedRoute>
       <OpexList />
+      <PrototypeSwitcher />
     </ProtectedRoute>
   );
 }

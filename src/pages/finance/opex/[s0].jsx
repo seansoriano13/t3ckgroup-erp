@@ -32,6 +32,9 @@ import {
   reportSummary,
   snapshotFrom,
 } from "../../../utils/opexReport";
+// PROTOTYPE (throwaway): the redesign options, behind ?variant=.
+import PrototypeOpex from "./_prototype/PrototypeOpex";
+import PrototypeSwitcher, { useVariant } from "./_prototype/PrototypeSwitcher";
 
 /**
  * One OPEX Report (#1244, spec #1241): the header, the P0 lines, the expenses grouped into
@@ -625,13 +628,22 @@ function OpexReportView({ s0 }) {
 export default function OpexReportPage() {
   const { user } = useAuth();
   const { s0: param } = useParams();
+  const variant = useVariant();
   const { isSuperAdmin, hasFinanceFlow } = getPermissionContext(user);
   if (user && !(isSuperAdmin || hasFinanceFlow)) return <Navigate to="/" replace />;
   const s0 = normalizeS0(param);
   if (!s0) return <Navigate to="/finance/opex" replace />;
+  if (import.meta.env.DEV && variant && variant !== "now") {
+    return (
+      <ProtectedRoute>
+        <PrototypeOpex variant={variant} s0={s0} />
+      </ProtectedRoute>
+    );
+  }
   return (
     <ProtectedRoute>
       <OpexReportView s0={s0} />
+      <PrototypeSwitcher />
     </ProtectedRoute>
   );
 }
