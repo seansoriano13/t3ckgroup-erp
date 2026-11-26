@@ -196,6 +196,40 @@ describe("the title", () => {
         const other = await c.rpc("edit_meeting_request", { ...base, p_purpose: r.purpose, p_activity_type: "EVENT" })
         expect(other.error?.message).toMatch(/cannot be changed/)
     })
+
+    it("a rename sends no notification and leaves an Activity waiting for HR where it was", async () => {
+        await svc().from("activity_type_settings").update({ needs_hr: true }).eq("activity_type", "GROUP_TASK")
+        const task = await newTask()
+        const { id } = await file("ordinary", task)
+        expect((await row(id)).status).toBe("PENDING_HR")
+        const count = async () =>
+            (await svc().from("notifications").select("id", { count: "exact", head: true }).eq("reference_id", id)).count
+        const before = await count()
+        await svc().from("committee_tasks").update({ title: `${MARKER} Renamed again` }).eq("id", task)
+        const r = await row(id)
+        expect(r.purpose).toBe(`${MARKER} Renamed again`)
+        expect(r.status).toBe("PENDING_HR")
+        expect(await count()).toBe(before)
+    })
+
+    it("an edit refuses a meeting type or a meeting link", async () => {
+        const task = await newTask()
+        const { id } = await file("ordinary", task)
+        const r = await row(id)
+        const base = {
+            p_request_id: id,
+            p_venue_id: null,
+            p_starts_at: r.starts_at,
+            p_ends_at: r.ends_at,
+            p_facilitator_id: ids.ordinary,
+            p_participant_ids: [ids.ordinary],
+            p_activity_type: "GROUP_TASK",
+            p_purpose: r.purpose,
+        }
+        const c = await clientFor("ordinary")
+        expect((await c.rpc("edit_meeting_request", { ...base, p_meeting_link: "https://example.com/x" })).error).not.toBeNull()
+        expect((await c.rpc("edit_meeting_request", { ...base, p_meeting_type: "ONLINE" })).error).not.toBeNull()
+    })
 })
 
 describe("the Calendar", () => {
