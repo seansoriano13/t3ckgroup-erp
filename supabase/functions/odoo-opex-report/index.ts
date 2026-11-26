@@ -14,17 +14,26 @@
 //   { success: false, refused: true, message }   caller is not Finance access or a Super Admin
 //   { success: false, message }                  not signed in, bad S0, or Odoo did not answer
 //
+// Each report read logs one line, `opex_read_timing`, with how long each part took
+// (sign-in check, settings, Odoo authenticate, rounds 1–4 and each call in them), so
+// the function logs show where the ~3 s goes (#1266). No figures are logged.
+//
 // Only a signed-in employee with Finance access or Super Admin may read. Deploy with
 // JWT verification ON. Odoo credentials stay in function secrets.
 
 import { callerEmail } from "../_shared/caller.ts";
 import { authenticate, corsHeaders, executeKw, isConfigured, jsonResponse, normalizePoNumber, normalizeReference } from "../_shared/odoo.ts";
 import { readOpexReport } from "../_shared/odooOpexRead.ts";
+import { createStepTimer, type StepTimer } from "../_shared/stepTimer.ts";
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+function logTiming(timer: StepTimer, s0: string, ok: boolean) {
+  console.log(JSON.stringify({ event: "opex_read_timing", s0, ok, ...timer.summary() }));
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -36,15 +45,20 @@ Deno.serve(async (req) => {
     return jsonResponse({ success: false, message: "Invalid request body." });
   }
 
-  const email = await callerEmail(req);
+  const timer = createStepTimer();
+  const timed = timer.time;
+
+  const email = await timed("callerEmail", () => callerEmail(req));
   if (!email) return jsonResponse({ success: false, message: "Not signed in." }, 401);
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  const { data: employee } = await admin
-    .from("employees")
-    .select("id, is_super_admin, has_finance_flow, is_deleted")
-    .eq("email", email)
-    .maybeSingle();
+  const { data: employee } = await timed("employee", async () =>
+    await admin
+      .from("employees")
+      .select("id, is_super_admin, has_finance_flow, is_deleted")
+      .eq("email", email)
+      .maybeSingle()
+  );
   if (!employee || employee.is_deleted || !(employee.is_super_admin || employee.has_finance_flow)) {
     return jsonResponse({ success: false, refused: true, message: "OPEX Reports are for Finance access and Super Admins." });
   }
@@ -69,12 +83,16 @@ Deno.serve(async (req) => {
   if (!isConfigured()) return jsonResponse({ success: false, message: "Odoo is not set up here, so nothing was read." });
 
   try {
-    const { data: settings } = await admin.from("costing_settings").select("vat_divisor").eq("id", 1).maybeSingle();
+    const { data: settings } = await timed("settings", async () =>
+      await admin.from("costing_settings").select("vat_divisor").eq("id", 1).maybeSingle()
+    );
     const vatDivisor = Number(settings?.vat_divisor) || 1.12;
-    const uid = await authenticate();
-    const report = await readOpexReport(uid, { s0, handP0s, vatDivisor });
+    const uid = await timed("authenticate", () => authenticate());
+    const report = await timed("readOpexReport", () => readOpexReport(uid, { s0, handP0s, vatDivisor, timer }));
+    logTiming(timer, s0, true);
     return jsonResponse({ success: true, readAt: new Date().toISOString(), vatDivisor, ...report });
   } catch (e) {
+    logTiming(timer, s0, false);
     return jsonResponse({ success: false, message: `Odoo could not be read: ${(e as Error).message}` });
   }
 });
