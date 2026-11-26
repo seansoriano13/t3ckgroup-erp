@@ -500,19 +500,55 @@ export function offerVsAbc(tenderLines, abc = null, offerSetting = null) {
  * (retention + landed cost + project expenses + marketing) less ITR. A blank input blanks OPEX and
  * Revenue; a blank is never zero. Same sum as the database's costing_planned_revenue.
  */
-function sheetRevenue({ offer, landed, expenses, marketing }, settings) {
+export function sheetRevenue({ offer, landed, expenses, marketing, retention: retentionOverride = null }, settings) {
   const divisor = scaled(settings?.vatDivisor);
   const retentionRate = scaled(settings?.retentionRate);
   const itrRate = scaled(settings?.itrRate);
   const taxed = taxedOffer(offer, extendedCentavos(settings?.itrAllowance, 1));
   const byRate = (centavos, rate) => (centavos === null || rate === null ? null : roundDiv(centavos * rate, MICRO));
   const vatExclusive = offer === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * MICRO, divisor);
-  const retention = byRate(offer, retentionRate);
+  // The OPEX Report passes the retention Finance typed; the S0 Evaluation never does.
+  const retention = retentionOverride ?? byRate(offer, retentionRate);
   const itr = taxed === null || itrRate === null ? null : roundDiv(taxed * itrRate, MICRO);
   const parts = [retention, landed, expenses, marketing];
   const opex = parts.some((p) => p === null) ? null : parts.reduce((sum, p) => sum + p, 0n);
   const revenue = vatExclusive === null || opex === null || itr === null ? null : vatExclusive - opex - itr;
   return { vatExclusive, retention, opex, itr, revenue };
+}
+
+/**
+ * The OPEX Report's summary (#1244, spec #1241): the S0 Evaluation's Revenue maths with the
+ * Contract price where the Final Offer stands, and the Actual OPEX where the planned OPEX was.
+ * `retention` is what Finance typed, or blank to use the usual rate. A blank input gives a
+ * blank figure, never zero. Pesos in, pesos out (null where a figure cannot be worked).
+ */
+export function opexReportSummary({ contractPrice, retention = null, productCost, operationAdmin, marketing }, settings) {
+  const offer = extendedCentavos(contractPrice, 1);
+  const divisor = scaled(settings?.vatDivisor);
+  const taxRate = scaled(settings?.taxRate);
+  const typedRetention = extendedCentavos(retention, 1);
+  const worked = sheetRevenue(
+    {
+      offer,
+      landed: extendedCentavos(productCost, 1),
+      expenses: extendedCentavos(operationAdmin, 1),
+      marketing: extendedCentavos(marketing, 1),
+      retention: typedRetention,
+    },
+    settings,
+  );
+  const tax = offer === null || taxRate === null || divisor === null || divisor <= 0n ? null : roundDiv(offer * taxRate, divisor);
+  const collected = offer === null || tax === null || worked.retention === null ? null : offer - tax - worked.retention;
+  return {
+    vatExclusive: pesosFromCentavos(worked.vatExclusive),
+    tax: pesosFromCentavos(tax),
+    retention: pesosFromCentavos(worked.retention),
+    collected: pesosFromCentavos(collected),
+    actualOpex: pesosFromCentavos(worked.opex),
+    itr: pesosFromCentavos(worked.itr),
+    revenue: pesosFromCentavos(worked.revenue),
+    revenuePercent: percentOf(pesosFromCentavos(worked.revenue), contractPrice),
+  };
 }
 
 /** The part of the offer above the ITR allowance, in centavos (zero at or below it); null while blank. */

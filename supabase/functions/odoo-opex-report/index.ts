@@ -1,0 +1,66 @@
+// Reads one OPEX Report from Odoo (#1244, spec #1241, ADR 0056).
+//
+// Body: { s0: "S06637", handP0s?: ["P02367"] }. The hand-added P0 list is empty
+// until Finance's hand edits (#1245).
+//
+// Answers (always HTTP 200; the browser reads `success`):
+//   { success: true, readAt, s0, tags: [{ id, name }], noProjectTag, projectName,
+//     odooContractPrice, saleOrderFound, vatDivisor,
+//     lines: [{ lineId, p0, supplier, p0State, product, quantity, sharePercent,
+//               pesos, countedPesos, marks }],
+//     expenses: [{ analyticLineId, date, description, account, accountCode, amount,
+//                  group: "operation_admin" | "marketing" }] }
+//   { success: false, refused: true, message }   caller is not Finance access or a Super Admin
+//   { success: false, message }                  not signed in, bad S0, or Odoo did not answer
+//
+// Only a signed-in employee with Finance access or Super Admin may read. Deploy with
+// JWT verification ON. Odoo credentials stay in function secrets.
+
+import { callerEmail } from "../_shared/caller.ts";
+import { authenticate, corsHeaders, isConfigured, jsonResponse, normalizeReference } from "../_shared/odoo.ts";
+import { readOpexReport } from "../_shared/odooOpexRead.ts";
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonResponse({ success: false, message: "Invalid request body." });
+  }
+
+  const email = await callerEmail(req);
+  if (!email) return jsonResponse({ success: false, message: "Not signed in." }, 401);
+
+  const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { data: employee } = await admin
+    .from("employees")
+    .select("id, is_super_admin, has_finance_flow, is_deleted")
+    .eq("email", email)
+    .maybeSingle();
+  if (!employee || employee.is_deleted || !(employee.is_super_admin || employee.has_finance_flow)) {
+    return jsonResponse({ success: false, refused: true, message: "OPEX Reports are for Finance access and Super Admins." });
+  }
+
+  const s0 = normalizeReference(body?.s0);
+  if (!s0) return jsonResponse({ success: false, message: "That is not an S0 number." });
+  const handP0s = Array.isArray(body?.handP0s) ? body.handP0s.map(String) : [];
+
+  if (!isConfigured()) return jsonResponse({ success: false, message: "Odoo is not set up here, so nothing was read." });
+
+  try {
+    const { data: settings } = await admin.from("costing_settings").select("vat_divisor").eq("id", 1).maybeSingle();
+    const vatDivisor = Number(settings?.vat_divisor) || 1.12;
+    const uid = await authenticate();
+    const report = await readOpexReport(uid, { s0, handP0s, vatDivisor });
+    return jsonResponse({ success: true, readAt: new Date().toISOString(), vatDivisor, ...report });
+  } catch (e) {
+    return jsonResponse({ success: false, message: `Odoo could not be read: ${(e as Error).message}` });
+  }
+});

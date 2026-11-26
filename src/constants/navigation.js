@@ -25,6 +25,7 @@ import {
   LayoutDashboard,
   Calculator,
   ClipboardCheck,
+  Banknote,
 } from "lucide-react";
 import { canManageGroupTasks, getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 import { fileableActivityTypes, newActivityLabel } from "@/utils/activityFiling";
@@ -257,6 +258,22 @@ export const NAV_MODULES = {
           ctx.hasLogisticsFlow ||
           ctx.isIpasSigner ||
           ctx.isTransmittalWarehouse,
+      },
+    ],
+  },
+  // Finance (#1244, spec #1241): the OPEX Reports, one per S0, read from Odoo. Finance
+  // access and Super Admins only; the database and the edge function refuse everyone else.
+  finance: {
+    key: "finance",
+    label: "Finance",
+    defaultExpanded: true,
+    links: [
+      {
+        key: "finance.opex",
+        label: "OPEX",
+        link: "/finance/opex",
+        icon: Banknote,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasFinanceFlow,
       },
     ],
   },
