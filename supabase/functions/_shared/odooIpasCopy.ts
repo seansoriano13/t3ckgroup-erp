@@ -14,6 +14,7 @@ import {
   isConfigured,
   normalizePoNumber,
 } from "./odoo.ts";
+import { analyticIds, analyticNames } from "./odooProjectTags.ts";
 
 // The product's Brand. A Studio selection field on product.template, readable
 // through product.product (related, not stored). Read from the live instance
@@ -53,30 +54,6 @@ async function taxNames(uid: number, ids: number[]) {
   if (!ids.length) return names;
   const taxes = await executeKw(uid, "account.tax", "read", [ids, ["name"]]);
   for (const t of taxes) names.set(t.id, String(t.name ?? ""));
-  return names;
-}
-
-/**
- * `analytic_distribution` is `{ "<id>[,<id>...]": percent }`: a key may join
- * several analytic accounts, one per plan. Returns every account id mentioned.
- */
-function analyticIds(distribution: unknown): number[] {
-  if (!distribution || typeof distribution !== "object") return [];
-  const ids = new Set<number>();
-  for (const key of Object.keys(distribution as Row)) {
-    for (const part of key.split(",")) {
-      const id = Number(part);
-      if (Number.isInteger(id) && id > 0) ids.add(id);
-    }
-  }
-  return [...ids];
-}
-
-async function analyticNames(uid: number, ids: number[]) {
-  const names = new Map<number, string>();
-  if (!ids.length) return names;
-  const accounts = await executeKw(uid, "account.analytic.account", "read", [ids, ["name"]]);
-  for (const a of accounts) names.set(a.id, String(a.name ?? ""));
   return names;
 }
 

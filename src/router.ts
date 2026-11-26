@@ -20,6 +20,8 @@ export type Path =
   | `/crm`
   | `/crm/commission`
   | `/crm/commission-formula`
+  | `/finance/opex`
+  | `/finance/opex/:s0`
   | `/flow-versions/:snapshotId`
   | `/group-tasks`
   | `/group-tasks/templates`
@@ -66,6 +68,7 @@ export type Path =
 
 export type Params = {
   '/costing-matrix/:id': { id: string }
+  '/finance/opex/:s0': { s0: string }
   '/flow-versions/:snapshotId': { snapshotId: string }
   '/purchasing/ipas/:id': { id: string }
   '/purchasing/packing-lists/:id': { id: string }

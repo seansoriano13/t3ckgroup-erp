@@ -9,13 +9,14 @@ import {
 import { getActivitySettings, setActivitySettings } from "@/utils/activitySettings";
 
 describe("navigation registry", () => {
-  it("defines the 7 canonical ERP modules adhering to CONTEXT.md", () => {
+  it("defines the 8 canonical ERP modules adhering to CONTEXT.md", () => {
     const moduleKeys = Object.keys(NAV_MODULES);
     expect(moduleKeys).toEqual([
       "workspace",
       "operations",
       "sales",
       "purchasing",
+      "finance",
       "approvals",
       "human_resources",
       "administration",
@@ -276,7 +277,7 @@ describe("navigation registry", () => {
       expect(permitted({ id: "f", can_edit_sales_flows: true })).toBe(true);
       expect(permitted({ id: "a", isSuperAdmin: true })).toBe(true);
     });
-    it("returns all 7 modules for Super Admin", () => {
+    it("returns all 8 modules for Super Admin", () => {
       const superAdminUser = {
         id: "admin-1",
         isSuperAdmin: true,
@@ -289,6 +290,7 @@ describe("navigation registry", () => {
         "operations",
         "sales",
         "purchasing",
+        "finance",
         "approvals",
         "human_resources",
         "administration",
