@@ -57,7 +57,8 @@ export function readP0Line(input: P0LineInput, s0: string): P0LineRead {
   if (counts && sharePercent > 0) {
     if (billedQty <= 0) marks.push("not billed");
     else if (billedQty < input.quantity) marks.push("partly billed");
-    if (pesos === 0) marks.push("zero price");
+    // Priced at zero in Odoo: the total is zero, or the ordered unit price is (even when part was billed).
+    if (pesos === 0 || input.priceUnit === 0) marks.push("zero price");
   }
   const countedPesos = counts ? round2((pesos * sharePercent) / 100) : 0;
   return { sharePercent, pesos, countedPesos, marks };

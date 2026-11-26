@@ -68,6 +68,17 @@ describe("readP0Line", () => {
   });
 });
 
+describe("zero price on a partly billed line", () => {
+  it("flags a counted line whose ordered unit price is zero even when some was billed at zero", () => {
+    const out = read({ priceUnit: 0, quantity: 2, billedQty: 1, billedPesos: 50 });
+    expect(out.marks).toContain("zero price");
+    expect(out.marks).toContain("partly billed");
+  });
+  it("does not flag a priced line", () => {
+    expect(read({}).marks).not.toContain("zero price");
+  });
+});
+
 describe("expenses", () => {
   const plain = { fromPurchaseBill: false, taxLine: false, stockValuation: false };
   it("leaves out P0-bill lines, tax lines, stock entries and zero-amount notes", () => {

@@ -1,6 +1,7 @@
 // Reads one OPEX Report from Odoo (#1244, spec #1241, ADR 0056).
 //
-// Body: { s0: "S06637", handP0s?: ["P02367"] }. The hand-added P0 list is empty
+// Body: { s0: "S06637", handP0s?: ["P02367"] }, or { checkP0: "P02367" } to ask whether Odoo has that P0
+// (answers { success: true, p0, exists }). The hand-added P0 list is empty
 // until Finance's hand edits (#1245).
 //
 // Answers (always HTTP 200; the browser reads `success`):
@@ -17,7 +18,7 @@
 // JWT verification ON. Odoo credentials stay in function secrets.
 
 import { callerEmail } from "../_shared/caller.ts";
-import { authenticate, corsHeaders, isConfigured, jsonResponse, normalizeReference } from "../_shared/odoo.ts";
+import { authenticate, corsHeaders, executeKw, isConfigured, jsonResponse, normalizePoNumber, normalizeReference } from "../_shared/odoo.ts";
 import { readOpexReport } from "../_shared/odooOpexRead.ts";
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
@@ -46,6 +47,19 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!employee || employee.is_deleted || !(employee.is_super_admin || employee.has_finance_flow)) {
     return jsonResponse({ success: false, refused: true, message: "OPEX Reports are for Finance access and Super Admins." });
+  }
+
+  // Does this P0 exist in Odoo? Finance asks before adding one by hand.
+  if (typeof body?.checkP0 === "string") {
+    if (!isConfigured()) return jsonResponse({ success: false, message: "Odoo is not set up here, so the P0 could not be checked." });
+    try {
+      const name = normalizePoNumber(body.checkP0);
+      const uid = await authenticate();
+      const found = await executeKw(uid, "purchase.order", "search_read", [[["name", "=", name]], ["id"]], { limit: 1 });
+      return jsonResponse({ success: true, p0: name, exists: found.length > 0 });
+    } catch (e) {
+      return jsonResponse({ success: false, message: `Odoo could not be read: ${(e as Error).message}` });
+    }
   }
 
   const s0 = normalizeReference(body?.s0);
