@@ -311,7 +311,7 @@ export const SUMMARY_LINES = [
   { key: "landedCost", label: "Landed Cost (planned)" },
   { key: "projectExpenses", label: "Project expenses" },
   { key: "marketing", label: "Marketing" },
-  { key: "opex", label: "OPEX" },
+  { key: "opex", label: "OPEX (planned)" },
   { key: "itr", label: "ITR" },
   { key: "revenuePercent", label: "Revenue ÷ Final Offer" },
 ];
