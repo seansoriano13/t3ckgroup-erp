@@ -1,5 +1,9 @@
 // Reads one OPEX Report from Odoo (#1244, spec #1241): the S0's Project tags,
 // its P0 lines and its expenses. Read-only. The rules live in opexReadMath.ts.
+//
+// Speed: Odoo answers each call in a few hundred milliseconds, so the calls that
+// do not need each other's answers go out together, in four rounds, instead of
+// one after another (about 18 calls). The answer is the same either way.
 
 import { executeKw, normalizePoNumber } from "./odoo.ts";
 import {
@@ -47,11 +51,9 @@ async function readBilled(uid: number, lineIds: number[]) {
       ["purchase_line_id", "quantity", "balance", "move_id"],
     ]);
     const moveTypes = new Map<number, string>();
-    for (const mp of chunks([...new Set(numbers(rows.map((r) => idOf(r.move_id))))])) {
-      for (const m of (await executeKw(uid, "account.move", "read", [mp, ["move_type"]])) as Row[]) {
-        moveTypes.set(m.id as number, String(m.move_type));
-      }
-    }
+    const moveParts = chunks([...new Set(numbers(rows.map((r) => idOf(r.move_id))))]);
+    const moves = await Promise.all(moveParts.map((mp) => executeKw(uid, "account.move", "read", [mp, ["move_type"]]) as Promise<Row[]>));
+    for (const m of moves.flat()) moveTypes.set(m.id as number, String(m.move_type));
     for (const r of rows) {
       const lineId = idOf(r.purchase_line_id);
       if (lineId === null) continue;
@@ -65,40 +67,44 @@ async function readBilled(uid: number, lineIds: number[]) {
   return billed;
 }
 
-async function readExpenses(uid: number, tagIds: number[]) {
-  const planId = await findProjectsPlanId(uid);
-  const column = planId === null ? null : await analyticLinePlanColumn(uid, planId);
+/** `column` is the analytic line's Projects column (x_plan5_id today), looked up by the caller. */
+async function readExpenses(uid: number, tagIds: number[], column: string | null) {
   if (!column) throw new Error("Odoo has no analytic column for the Projects plan.");
   const analytic: Row[] = await executeKw(uid, "account.analytic.line", "search_read", [
     [[column, "in", tagIds]],
     ["id", "date", "name", "amount", "general_account_id", "move_line_id"],
   ]);
 
-  const facts = new Map<number, MoveLineFacts>();
-  for (const part of chunks(numbers(analytic.map((a) => idOf(a.move_line_id))))) {
-    const mls: Row[] = await executeKw(uid, "account.move.line", "read", [part, ["purchase_line_id", "tax_line_id", "move_id"]]);
-    const stock = new Map<number, boolean>();
-    for (const mp of chunks([...new Set(numbers(mls.map((m) => idOf(m.move_id))))])) {
-      for (const mv of (await executeKw(uid, "account.move", "read", [mp, ["stock_move_id"]])) as Row[]) {
-        stock.set(mv.id as number, idOf(mv.stock_move_id) !== null);
+  // Each line's journal facts and each account's code do not need each other: read them together.
+  const readFacts = async () => {
+    const facts = new Map<number, MoveLineFacts>();
+    for (const part of chunks(numbers(analytic.map((a) => idOf(a.move_line_id))))) {
+      const mls: Row[] = await executeKw(uid, "account.move.line", "read", [part, ["purchase_line_id", "tax_line_id", "move_id"]]);
+      const stock = new Map<number, boolean>();
+      const moveParts = chunks([...new Set(numbers(mls.map((m) => idOf(m.move_id))))]);
+      const moves = await Promise.all(moveParts.map((mp) => executeKw(uid, "account.move", "read", [mp, ["stock_move_id"]]) as Promise<Row[]>));
+      for (const mv of moves.flat()) stock.set(mv.id as number, idOf(mv.stock_move_id) !== null);
+      for (const m of mls) {
+        facts.set(m.id as number, {
+          fromPurchaseBill: idOf(m.purchase_line_id) !== null,
+          taxLine: idOf(m.tax_line_id) !== null,
+          stockValuation: stock.get(idOf(m.move_id) ?? -1) ?? false,
+        });
       }
     }
-    for (const m of mls) {
-      facts.set(m.id as number, {
-        fromPurchaseBill: idOf(m.purchase_line_id) !== null,
-        taxLine: idOf(m.tax_line_id) !== null,
-        stockValuation: stock.get(idOf(m.move_id) ?? -1) ?? false,
-      });
+    return facts;
+  };
+  const readCodes = async () => {
+    const codes = new Map<number, string>();
+    const accountIds = [...new Set(numbers(analytic.map((a) => idOf(a.general_account_id))))];
+    if (accountIds.length) {
+      for (const acc of (await executeKw(uid, "account.account", "read", [accountIds, ["code"]])) as Row[]) {
+        codes.set(acc.id as number, String(acc.code ?? ""));
+      }
     }
-  }
-
-  const codes = new Map<number, string>();
-  const accountIds = [...new Set(numbers(analytic.map((a) => idOf(a.general_account_id))))];
-  if (accountIds.length) {
-    for (const acc of (await executeKw(uid, "account.account", "read", [accountIds, ["code"]])) as Row[]) {
-      codes.set(acc.id as number, String(acc.code ?? ""));
-    }
-  }
+    return codes;
+  };
+  const [facts, codes] = await Promise.all([readFacts(), readCodes()]);
 
   return analytic
     .filter((a) => countsAsExpense(Number(a.amount), facts.get(idOf(a.move_line_id) ?? -1) ?? null))
@@ -122,46 +128,59 @@ export async function readOpexReport(uid: number, args: { s0: string; handP0s: s
   const { s0 } = args;
   const handNames = [...new Set(numbersOrNull(args.handP0s))];
 
-  const tags = await findProjectTags(uid, s0);
-  const tagIds = tags.map((t) => t.id);
-
-  // The S0's own price.
-  const sales: Row[] = await executeKw(uid, "sale.order", "search_read", [[["name", "=", s0]], ["id", "name", "amount_untaxed"]], { limit: 1 });
+  // Round 1: the Projects plan, the S0's own price, the P0s whose Source Document names it, the hand-added P0s.
+  const [planId, sales, sourceOrders, handOrders] = await Promise.all([
+    findProjectsPlanId(uid),
+    executeKw(uid, "sale.order", "search_read", [[["name", "=", s0]], ["id", "name", "amount_untaxed"]], { limit: 1 }) as Promise<Row[]>,
+    executeKw(uid, "purchase.order", "search_read", [[["origin", "ilike", s0]], ["id", "origin"]]) as Promise<Row[]>,
+    handNames.length
+      ? (executeKw(uid, "purchase.order", "search_read", [[["name", "in", handNames]], ["id"]]) as Promise<Row[]>)
+      : Promise.resolve([] as Row[]),
+  ]);
   const odooContractPrice = sales.length ? Math.round(Number(sales[0].amount_untaxed) * args.vatDivisor * 100) / 100 : null;
 
-  // P0 lines: tagged to the S0, on a P0 whose Source Document names it, or on a hand-added P0.
-  const taggedLines: Row[] = tagIds.length
-    ? await executeKw(uid, "purchase.order.line", "search_read", [
-        [["analytic_distribution", "in", tagIds], ["display_type", "=", false]],
-        PO_LINE_FIELDS,
-      ])
-    : [];
-  const sourceOrders: Row[] = await executeKw(uid, "purchase.order", "search_read", [[["origin", "ilike", s0]], ["id", "origin"]]);
-  const handOrders: Row[] = handNames.length
-    ? await executeKw(uid, "purchase.order", "search_read", [[["name", "in", handNames]], ["id"]])
-    : [];
+  // Round 2: the S0's Project tags, and the analytic column the expenses are filed under.
+  const [tags, column] = await Promise.all([
+    findProjectTags(uid, s0, planId),
+    planId === null ? Promise.resolve(null) : analyticLinePlanColumn(uid, planId),
+  ]);
+  const tagIds = tags.map((t) => t.id);
   const onReportIds = new Set<number>([
     ...sourceOrders.filter((o) => mentionsS0(o.origin, s0)).map((o) => o.id as number),
     ...handOrders.map((o) => o.id as number),
   ]);
-  const reportOrderLines: Row[] = onReportIds.size
-    ? await executeKw(uid, "purchase.order.line", "search_read", [
-        [["order_id", "in", [...onReportIds]], ["display_type", "=", false]],
-        PO_LINE_FIELDS,
-      ])
-    : [];
+
+  // Round 3: P0 lines tagged to the S0, P0 lines on the P0s above, and the expenses.
+  const [taggedLines, reportOrderLines, expenses] = await Promise.all([
+    tagIds.length
+      ? (executeKw(uid, "purchase.order.line", "search_read", [
+          [["analytic_distribution", "in", tagIds], ["display_type", "=", false]],
+          PO_LINE_FIELDS,
+        ]) as Promise<Row[]>)
+      : Promise.resolve([] as Row[]),
+    onReportIds.size
+      ? (executeKw(uid, "purchase.order.line", "search_read", [
+          [["order_id", "in", [...onReportIds]], ["display_type", "=", false]],
+          PO_LINE_FIELDS,
+        ]) as Promise<Row[]>)
+      : Promise.resolve([] as Row[]),
+    tagIds.length ? readExpenses(uid, tagIds, column) : Promise.resolve([]),
+  ]);
 
   const byId = new Map<number, Row>();
   for (const l of [...taggedLines, ...reportOrderLines]) byId.set(l.id as number, l);
   const allLines = [...byId.values()];
 
+  // Round 4: each line's P0, its tag shares and what was billed on it.
   const orderIds = [...new Set(numbers(allLines.map((l) => idOf(l.order_id))))];
-  const poRows: Row[] = orderIds.length
-    ? await executeKw(uid, "purchase.order", "read", [orderIds, ["name", "state", "partner_id", "currency_rate"]])
-    : [];
+  const [poRows, shares, billed] = await Promise.all([
+    orderIds.length
+      ? (executeKw(uid, "purchase.order", "read", [orderIds, ["name", "state", "partner_id", "currency_rate"]]) as Promise<Row[]>)
+      : Promise.resolve([] as Row[]),
+    sharesForLines(uid, allLines as { id: number; analytic_distribution?: unknown }[]),
+    readBilled(uid, allLines.map((l) => l.id as number)),
+  ]);
   const poById = new Map(poRows.map((p) => [p.id as number, p]));
-  const shares = await sharesForLines(uid, allLines as { id: number; analytic_distribution?: unknown }[]);
-  const billed = await readBilled(uid, allLines.map((l) => l.id as number));
 
   const lines = allLines
     .map((l) => {
@@ -196,8 +215,6 @@ export async function readOpexReport(uid: number, args: { s0: string; handP0s: s
       };
     })
     .sort((a, b) => a.p0.localeCompare(b.p0) || a.lineId - b.lineId);
-
-  const expenses = tagIds.length ? await readExpenses(uid, tagIds) : [];
 
   return {
     s0,

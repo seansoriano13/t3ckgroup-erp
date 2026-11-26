@@ -17,6 +17,30 @@ export const opexReportService = {
     return (data ?? []).map((row) => ({ ...row, snapshot: Array.isArray(row.snapshot) ? (row.snapshot[0] ?? null) : row.snapshot }));
   },
 
+  /**
+   * One report with its saved snapshot and Finance's hand edits, in one request (the window
+   * opens on this): `{ report, snapshot, edits: { handP0s, typedCosts, linePrices, leftOut } }`,
+   * or null when the S0 has no report.
+   */
+  async getReport(s0) {
+    const { data, error } = await supabase
+      .from("opex_reports")
+      .select(
+        "id, s0_number, contract_price, retention, created_at, snapshot:opex_report_snapshots(*), handP0s:opex_report_p0s(*), typedCosts:opex_typed_costs(*), linePrices:opex_line_prices(*), leftOut:opex_left_out_expenses(*)",
+      )
+      .eq("s0_number", s0)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const { snapshot, handP0s, typedCosts, linePrices, leftOut, ...report } = data;
+    const inOrder = (rows) => [...(rows ?? [])].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    return {
+      report,
+      snapshot: Array.isArray(snapshot) ? (snapshot[0] ?? null) : (snapshot ?? null),
+      edits: { handP0s: inOrder(handP0s), typedCosts: inOrder(typedCosts), linePrices: inOrder(linePrices), leftOut: inOrder(leftOut) },
+    };
+  },
+
   async getByS0(s0) {
     const { data, error } = await supabase
       .from("opex_reports")
