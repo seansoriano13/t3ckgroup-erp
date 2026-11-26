@@ -213,7 +213,7 @@ export function Waterfall({ fall, dense = false }) {
           </div>
         ))}
         <div className="flex items-baseline justify-between gap-4 border-t border-dashed border-border/70 px-4 py-1.5 text-sm text-muted-foreground">
-          <dt>OPEX (planned) (the four marked)</dt>
+          <dt>OPEX (planned), the four marked</dt>
           <dd className="font-mono tabular-nums">{money(fall.opex)}</dd>
         </div>
       </dl>
