@@ -25,6 +25,7 @@ const TYPE_ROWS = [
   { activity_type: "ADMIN_TASK", name: "Admin Task", color: "indigo", active: true, who_files: "HEADS", needs_hr: false, multi_day: true },
   { activity_type: "OPERATIONS_TASK", name: "Operations Task", color: "orange", active: true, who_files: "HEADS", needs_hr: false, multi_day: true },
   { activity_type: "EVENT", name: "Event", color: "plum", active: true, who_files: "HEADS", needs_hr: false, multi_day: true },
+  { activity_type: "GROUP_TASK", name: "Group Task", color: "blue", active: true, who_files: "EVERYONE", needs_hr: false, multi_day: true },
 ];
 const GENERAL_ROW = {
   id: true,
@@ -67,12 +68,12 @@ describe("Activities in Settings (#1064)", () => {
   it.each([
     ["HR", makeHrEmployee],
     ["Super Admin", makeSuperAdmin],
-  ])("shows the tab to %s, with the four types", async (_name, make) => {
+  ])("shows the tab to %s, with the four ordinary types and Group Task", async (_name, make) => {
     mocks.user = make({ name: "Boss" });
     renderSettings();
     expect(await screen.findByRole("tab", { name: "Activities" })).toBeInTheDocument();
     expect(await screen.findByDisplayValue("Operations Task")).toBeInTheDocument();
-    expect(screen.getAllByTestId(/^activity-type-/)).toHaveLength(4);
+    expect(screen.getAllByTestId(/^activity-type-/)).toHaveLength(5);
   });
 
   it("hides the tab from an ordinary employee", async () => {
@@ -88,13 +89,13 @@ describe("Activities in Settings (#1064)", () => {
     const card = await screen.findByTestId("activity-type-EVENT");
     await userEvent.click(within(card).getByRole("switch", { name: "Event is on" }));
     await waitFor(() => expect(db.rows("activity_type_settings").find((r) => r.activity_type === "EVENT").active).toBe(false));
-    expect(db.rows("activity_type_settings").filter((r) => r.active)).toHaveLength(3);
+    expect(db.rows("activity_type_settings").filter((r) => r.active)).toHaveLength(4);
     await waitFor(() => expect(db.rows("system_audit_logs").map((r) => r.content)).toContain('Switched off Activity type "Event"'));
   });
 
   it("does not let the last type be switched off", async () => {
     mocks.user = makeHrEmployee({ name: "Boss" });
-    for (const row of TYPE_ROWS.slice(1)) {
+    for (const row of TYPE_ROWS.slice(1, 4)) {
       const saved = db.rows("activity_type_settings").find((r) => r.activity_type === row.activity_type);
       await activitySettingsService.saveType(row.activity_type, { ...row, name: row.name, whoFiles: row.who_files, needsHr: row.needs_hr, multiDay: row.multi_day, active: true, color: row.color }, { active: false }, null);
       expect(saved).toBeTruthy();
@@ -182,5 +183,47 @@ describe("Activities in Settings (#1064)", () => {
     expect(db.rows("system_audit_logs").map((r) => r.content)).toContain('"Operations Task" Also allowed: added Ana Cruz');
     await activitySettingsService.saveType("OPERATIONS_TASK", { ...from, alsoAllowed: [ana.id] }, { alsoAllowed: [] }, null);
     expect(db.rows("system_audit_logs").map((r) => r.content)).toContain('"Operations Task" Also allowed: removed Ana Cruz');
+  });
+
+  describe("the Group Task row (#1255)", () => {
+    it("shows the two fixed cells, with the reason on hover only", async () => {
+      mocks.user = makeHrEmployee({ name: "Boss" });
+      renderSettings();
+      const row = await screen.findByTestId("activity-type-GROUP_TASK");
+      const who = within(row).getByText("Anyone who can open the Group Task");
+      const length = within(row).getByText("Several days");
+      expect(screen.queryByText(/who can open a Group Task can add it/i)).not.toBeInTheDocument();
+      await userEvent.hover(who);
+      expect(await screen.findByText(/Set by the Group Task itself/i)).toBeInTheDocument();
+      await userEvent.unhover(who);
+      await userEvent.hover(length);
+      expect(await screen.findByText(/follow the Group Task's dates/i)).toBeInTheDocument();
+    });
+
+    it("has no control for who files it or the length, but still edits name, colour and Waits for HR", async () => {
+      mocks.user = makeHrEmployee({ name: "Boss" });
+      renderSettings();
+      const row = await openType(userEvent.setup(), "GROUP_TASK");
+      expect(within(row).queryByLabelText("Who can file Group Task")).not.toBeInTheDocument();
+      expect(within(row).queryByRole("switch", { name: "Group Task can run over several days" })).not.toBeInTheDocument();
+      expect(within(row).getByLabelText("Name of Group Task")).toBeInTheDocument();
+      expect(within(row).getByRole("group", { name: "Colour of Group Task" })).toBeInTheDocument();
+      await userEvent.click(within(row).getByRole("switch", { name: "Group Task waits for HR" }));
+      await waitFor(() => expect(db.rows("activity_type_settings").find((r) => r.activity_type === "GROUP_TASK").needs_hr).toBe(true));
+    });
+
+    it("counts only the four ordinary types for 'at least one on'", async () => {
+      mocks.user = makeHrEmployee({ name: "Boss" });
+      for (const row of TYPE_ROWS.slice(1, 4)) {
+        await activitySettingsService.saveType(row.activity_type, { name: row.name, color: row.color, whoFiles: row.who_files, needsHr: row.needs_hr, multiDay: row.multi_day, active: true }, { active: false }, null);
+      }
+      renderSettings();
+      const meeting = await screen.findByTestId("activity-type-MEETING");
+      await waitFor(() => expect(within(meeting).getByRole("switch", { name: "Meeting is on" })).toHaveAttribute("aria-disabled", "true"));
+      expect(screen.getByText("1 of 4 on")).toBeInTheDocument();
+      // Group Task is on, and still can be switched off.
+      const gt = screen.getByTestId("activity-type-GROUP_TASK");
+      expect(within(gt).getByRole("switch", { name: "Group Task is on" })).not.toHaveAttribute("aria-disabled", "true");
+    });
   });
 });
