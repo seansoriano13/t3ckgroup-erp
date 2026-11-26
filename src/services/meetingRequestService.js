@@ -384,6 +384,13 @@ export const meetingRequestService = {
     return data?.[0] ?? null;
   },
 
+  /** True when the signed-in viewer's own read rule on committee_tasks returns this Group Task. */
+  async groupTaskOpenable(groupTaskId) {
+    const { data, error } = await supabase.from('committee_tasks').select('id').eq('id', groupTaskId).limit(1);
+    if (error) throw new Error(error.message);
+    return (data?.length ?? 0) > 0;
+  },
+
   /** Requests where the employee is the applicant, the Lead or a Participant, newest first. */
   async listMine(employeeId) {
     const { data: asParticipant, error: pErr } = await supabase
