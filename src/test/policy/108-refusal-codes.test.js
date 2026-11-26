@@ -28,9 +28,12 @@ const rpc = async (who, name, args) => {
     return (await clientFor(who)).rpc(name, args)
 }
 const THE_THREE = ["42501", "22023", "23505"]
-// ipas_assert_unchanged (#581) refuses a stale save with 40001 (serialization
-// failure) on purpose: the screen keys its "someone else saved" notice on it.
-const STALE_SAVE = { ipas_assert_unchanged: "40001" }
+// ipas_assert_unchanged (#581) refuses a stale save with PT409 (HTTP 409 Conflict).
+// It used 40001 until the 2026-11-26 hotfix; see "nothing raises a code PostgREST retries".
+const STALE_SAVE = { ipas_assert_unchanged: "PT409" }
+// PostgREST retries a transaction that fails with these codes, with no limit. A function
+// that raises one on purpose never answers, and the retry loop keeps running on the server.
+const RETRIED_BY_POSTGREST = ["40001", "40P01"]
 const NOBODY = "00000000-0000-0000-0000-000000000000"
 
 // ── the sweep ─────────────────────────────────────────────────────────────
@@ -77,6 +80,28 @@ describe("the IPAS, Transmittal and Costing functions", () => {
         }
         expect(seen).toBeGreaterThan(200)
         expect(strays).toEqual([])
+    })
+})
+
+describe("every public function", () => {
+    // Hotfix 2026-11-26: ipas_assert_unchanged raised 40001, and three Save all requests
+    // looped on prod for six days, about 950 retries a second, keeping the CPU high.
+    it("nothing raises a code PostgREST retries (40001, 40P01)", async () => {
+        const { rows } = await sql().query(
+            `select p.proname, p.prosrc
+               from pg_proc p
+               join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public'
+                and p.prolang = (select oid from pg_language where lanname = 'plpgsql')
+              order by p.proname`,
+        )
+        expect(rows.length).toBeGreaterThan(100)
+        const looping = rows.flatMap(({ proname, prosrc }) =>
+            refusalsIn(prosrc)
+                .filter((r) => RETRIED_BY_POSTGREST.includes(r.code))
+                .map((r) => `${proname}: ${r.code} | ${r.text}`),
+        )
+        expect(looping).toEqual([])
     })
 })
 
