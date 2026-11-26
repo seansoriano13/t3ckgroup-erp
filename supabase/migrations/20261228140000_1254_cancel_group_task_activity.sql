@@ -1,6 +1,6 @@
 -- #1254 (spec #1246): cancelling a Group Task can cancel its Calendar entry (Activity) too.
 -- cancel_group_task_activity(p_group_task_id): for anyone who may cancel that Group Task, even when someone
--- else filed the Activity. Refused unless the Group Task is already Cancelled. Cancels the way
+-- else filed the Activity (department heads, HR and Super Admins, as the Group Task window offers). Refused unless the Group Task is already Cancelled. Cancels the way
 -- cancel_meeting_request does (#1194 body), with the reason "Group Task cancelled". The caller sends the
 -- notices from the returned jsonb, exactly as it does after cancel_meeting_request.
 create or replace function public.cancel_group_task_activity(p_group_task_id uuid)
@@ -26,8 +26,9 @@ begin
     raise exception 'Group Task not found.' using errcode = 'P0002';
   end if;
 
-  -- The same people the Group Task's own cancel rule lets through.
-  if not (public.can_manage_group_tasks() or public.group_task_is_stage_action(v_task.stage_action_id, v_task.opportunity_id)) then
+  -- Who can cancel a Group Task from the app: department heads, HR and Super Admins (the Cancel button is
+  -- shown to them only). A Stage Action Group Task is no exception here: the app offers it no cancel either.
+  if not public.can_manage_group_tasks() then
     raise exception 'Only department heads, HR and Super Admins can cancel a Group Task''s Calendar entry.' using errcode = '42501';
   end if;
 

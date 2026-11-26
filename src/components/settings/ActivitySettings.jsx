@@ -16,6 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { ACTIVITY_COLORS, ACTIVITY_COLOR_KEYS } from "@/constants/activityColors";
 import { ACTIVITY_SETTINGS_KEY, useActivitySettings } from "@/hooks/useActivitySettings";
+import { ACTIVITY_TYPE } from "@/services/meetingRequestService";
 import { activitySettingsService } from "@/services/activitySettingsService";
 import { ACTIVITY_TYPE_KEYS, ALL_ACTIVITY_TYPE_KEYS, MEETING_TYPE_KEYS, fitDefaults, timeOptions, timesOfDay } from "@/utils/activitySettings";
 
@@ -37,7 +38,7 @@ const TYPE_COLUMNS = "@2xl:grid-cols-[minmax(0,1fr)_10.5rem_7.5rem_7rem]";
 function typeFacts(typeKey, type) {
   const extra = type.alsoAllowed?.length ?? 0;
   // #1255: Group Task's two fixed cells; the reason shows on hover only (CONTEXT.md, Hover detail).
-  if (typeKey === "GROUP_TASK") {
+  if (typeKey === ACTIVITY_TYPE.GROUP_TASK) {
     return {
       who: "Anyone who can open the Group Task",
       whoWhy: "Set by the Group Task itself: whoever can open it can add it to the Calendar.",
@@ -129,7 +130,7 @@ function TypeEditor({ typeKey, type, change, busy, general, saveGeneral, meeting
           ))}
         </div>
       </Row>
-      {typeKey !== "GROUP_TASK" && (
+      {typeKey !== ACTIVITY_TYPE.GROUP_TASK && (
       <div>
         <Row label="Who can file it">
           <SelectField
@@ -164,7 +165,7 @@ function TypeEditor({ typeKey, type, change, busy, general, saveGeneral, meeting
       >
         <Switch checked={type.needsHr} disabled={busy} aria-label={`${type.name} waits for HR`} onCheckedChange={(on) => change({ needsHr: on })} />
       </Row>
-      {typeKey !== "GROUP_TASK" && (
+      {typeKey !== ACTIVITY_TYPE.GROUP_TASK && (
         <Row label="Can run over several days" hint={type.multiDay ? `Up to ${general.maxDays} days, the longest range set below.` : null}>
           <Switch checked={type.multiDay} disabled={busy} aria-label={`${type.name} can run over several days`} onCheckedChange={(on) => change({ multiDay: on })} />
         </Row>
@@ -203,7 +204,7 @@ function TypeRow({ typeKey, type, open, onToggle, onlyOneOn, save, busy, general
   const facts = typeFacts(typeKey, type);
   const editorId = `activity-type-editor-${typeKey}`;
   // Group Task is not one of the ordinary types the rule counts, so it is never the locked one.
-  const lastOne = type.active && onlyOneOn && typeKey !== "GROUP_TASK";
+  const lastOne = type.active && onlyOneOn && typeKey !== ACTIVITY_TYPE.GROUP_TASK;
   const off = !type.active;
   return (
     <li data-testid={`activity-type-${typeKey}`} data-open={open}>
@@ -223,9 +224,11 @@ function TypeRow({ typeKey, type, open, onToggle, onlyOneOn, save, busy, general
               <span className={cn("truncate text-sm font-semibold", off ? "text-muted-foreground" : "text-foreground")}>{type.name}</span>
               {off && <span className="shrink-0 text-xs font-medium text-muted-foreground">Off</span>}
             </div>
-            <p className="col-span-full mt-0.5 pl-5 text-xs text-muted-foreground @2xl:hidden">
-              {[facts.who, type.needsHr ? `Waits for HR${typeKey === "MEETING" ? " with a Venue" : ""}` : null, facts.length].filter(Boolean).join(" · ")}
-            </p>
+            <Tooltip content={[facts.whoWhy, facts.lengthWhy].filter(Boolean).join(" ") || null}>
+              <p className="col-span-full mt-0.5 pl-5 text-xs text-muted-foreground @2xl:hidden">
+                {[facts.who, type.needsHr ? `Waits for HR${typeKey === "MEETING" ? " with a Venue" : ""}` : null, facts.length].filter(Boolean).join(" · ")}
+              </p>
+            </Tooltip>
             <Tooltip content={facts.whoWhy ?? null}>
               <span className={cn("hidden truncate text-[13px] @2xl:block", off ? "text-muted-foreground" : "text-foreground")}>{facts.who}</span>
             </Tooltip>

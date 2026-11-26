@@ -4,10 +4,12 @@
  * New button and the Calendar. The defaults are the rules #1063 and #1056 had in code, so the app is right
  * before the first read and when a read fails.
  */
+import { ACTIVITY_TYPE } from '../services/meetingRequestService';
+
 // The four ordinary types: the ones the New Activity form offers and the settings page lists as ordinary rows.
 export const ACTIVITY_TYPE_KEYS = ['MEETING', 'ADMIN_TASK', 'OPERATIONS_TASK', 'EVENT'];
 // #1250: every type the database knows. Group Task is filed only from a Group Task's Add to Calendar.
-export const ALL_ACTIVITY_TYPE_KEYS = [...ACTIVITY_TYPE_KEYS, 'GROUP_TASK'];
+export const ALL_ACTIVITY_TYPE_KEYS = [...ACTIVITY_TYPE_KEYS, ACTIVITY_TYPE.GROUP_TASK];
 export const MEETING_TYPE_KEYS = ['ONSITE', 'ONLINE', 'HYBRID'];
 
 // Only a Meeting with a Venue waits for HR by default. An Event waits for HR only when HR switches "Waits for HR"
@@ -19,7 +21,7 @@ export const DEFAULT_ACTIVITY_SETTINGS = {
     OPERATIONS_TASK: { name: 'Operations Task', color: 'orange', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true, alsoAllowed: [] },
     EVENT: { name: 'Event', color: 'plum', active: true, whoFiles: 'HEADS', needsHr: false, multiDay: true, alsoAllowed: [] },
     // #1250: filed only from a Group Task's Add to Calendar, by anyone who can open that Group Task.
-    GROUP_TASK: { name: 'Group Task', color: 'blue', active: true, whoFiles: 'EVERYONE', needsHr: false, multiDay: true, alsoAllowed: [] },
+    [ACTIVITY_TYPE.GROUP_TASK]: { name: 'Group Task', color: 'blue', active: true, whoFiles: 'EVERYONE', needsHr: false, multiDay: true, alsoAllowed: [] },
   },
   general: {
     meetingTypes: { ONSITE: true, ONLINE: true, HYBRID: true },

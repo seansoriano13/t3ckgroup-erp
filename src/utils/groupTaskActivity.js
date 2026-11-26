@@ -13,11 +13,12 @@ import { defaultSlot, latestDate } from '@/components/calendar/meetingDraft.js';
  */
 export function groupTaskDays({ startDate, dueDate }, rules, now = new Date()) {
   const today = manilaToday(now);
-  const wanted = startDate && startDate > today ? startDate : today;
+  const limit = latestDate(now);
+  // A Start Date past the one-year limit opens on the limit day, so the form never opens on a day the server refuses.
+  const wanted = startDate && startDate > today ? (startDate > limit ? limit : startDate) : today;
   // "Today" is today only while a slot is left; the form's usual default time rolls to tomorrow otherwise.
   const { date } = defaultSlot(rules, now, wanted);
   const due = dueDate ? String(dueDate).slice(0, 10) : '';
-  const limit = latestDate(now);
   const end = due && due > limit ? limit : due;
   return { date, dateTo: end && end > date ? end : '' };
 }

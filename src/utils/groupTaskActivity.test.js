@@ -22,6 +22,12 @@ describe('groupTaskDays', () => {
   });
 });
 
+describe('groupTaskDays past the limit', () => {
+  it('caps the first day too when the Start Date is beyond one year', () => {
+    expect(groupTaskDays({ startDate: '2035-01-01', dueDate: '2035-02-01' }, rules, now)).toEqual({ date: '2032-03-10', dateTo: '' });
+  });
+});
+
 describe('dayToOpen', () => {
   const days = [
     { id: 'a', starts_at: '2031-03-10T01:00:00Z', ends_at: '2031-03-10T02:00:00Z' },

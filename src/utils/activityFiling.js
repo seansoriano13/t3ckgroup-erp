@@ -1,3 +1,4 @@
+import { ACTIVITY_TYPE } from '../services/meetingRequestService';
 import { ACTIVITY_TYPE_KEYS, ALL_ACTIVITY_TYPE_KEYS, getActivitySettings } from './activitySettings';
 
 /**
@@ -27,7 +28,7 @@ export function fileableActivityTypes(user, settings = getActivitySettings()) {
  */
 export function formTypeOptions(user, editingType = null, settings = getActivitySettings()) {
   // Group Task (#1250) is offered only to an edit of a Group Task Activity, never on a new one.
-  return ALL_ACTIVITY_TYPE_KEYS.filter((t) => t === editingType || (t !== 'GROUP_TASK' && canFileActivityType(user, t, settings)));
+  return ALL_ACTIVITY_TYPE_KEYS.filter((t) => t === editingType || (t !== ACTIVITY_TYPE.GROUP_TASK && canFileActivityType(user, t, settings)));
 }
 
 /** "New Meeting" when one type is the only one the viewer may file, "New Activity" when there are more. */

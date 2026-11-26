@@ -90,6 +90,18 @@ describe("cancel_group_task_activity", () => {
         expect((await row(requestId)).status).toBe("APPROVED")
     })
 
+    it("is refused for a non-manager even on a Stage Action Group Task (the Group Task window offers cancel to managers only)", async () => {
+        const { taskId, requestId } = await setup()
+        const { data: action } = await svc().from("flow_stage_actions").select("id").limit(1).maybeSingle()
+        const { data: opp } = await svc().from("opportunities").select("id").limit(1).maybeSingle()
+        if (!action || !opp) return
+        await svc().from("committee_tasks").update({ stage_action_id: action.id, opportunity_id: opp.id }).eq("id", taskId)
+        await cancelTask(taskId)
+        const { error } = await call("ordinary", taskId)
+        expect(error?.code).toBe("42501")
+        expect((await row(requestId)).status).toBe("APPROVED")
+    })
+
     it("says so when there is no live Activity", async () => {
         const { taskId, requestId } = await setup()
         await svc().from("meeting_requests").update({ status: "DECLINED" }).eq("id", requestId)

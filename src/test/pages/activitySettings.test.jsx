@@ -200,6 +200,18 @@ describe("Activities in Settings (#1064)", () => {
       expect(await screen.findByText(/follow the Group Task's dates/i)).toBeInTheDocument();
     });
 
+    it("also shows the reason on hover in the narrow summary line", async () => {
+      mocks.user = makeHrEmployee({ name: "Boss" });
+      renderSettings();
+      const row = await screen.findByTestId("activity-type-GROUP_TASK");
+      const summary = row.querySelector("p");
+      expect(screen.queryByText(/Set by the Group Task itself/i)).not.toBeInTheDocument();
+      await userEvent.hover(summary);
+     
+      expect(await screen.findByText(/Set by the Group Task itself/i)).toBeInTheDocument();
+      expect(await screen.findByText(/follow the Group Task's dates/i)).toBeInTheDocument();
+    });
+
     it("has no control for who files it or the length, but still edits name, colour and Waits for HR", async () => {
       mocks.user = makeHrEmployee({ name: "Boss" });
       renderSettings();
