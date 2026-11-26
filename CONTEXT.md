@@ -1310,19 +1310,20 @@ _Avoid_: Costing Matrix (the old name), PMS (when meaning only the grid), PMS sh
 
 **Revenue**:
 The S0 Evaluation summary's bottom line, worked the way the sheet works it:
-the VAT-exclusive offer (Final Offer ÷ 1.12) less OPEX less ITR. The bid goes
+the VAT-exclusive offer (Final Offer ÷ 1.12) less OPEX (planned) less ITR. The bid goes
 ahead when Revenue is 20% of the Final Offer or more (the Go line, set in S0
 Evaluation Settings); under it the Bid Decision shows "Revenue ÷ Final Offer"
 with a warning, and a Go is never blocked. A blank input blanks Revenue and the
 summary says why; a blank is never zero.
 _Avoid_: Margin, Profit, Net
 
-**OPEX**:
+**OPEX (planned)**:
 In the S0 Evaluation summary, worked out and never typed: the retention plus
 the Landed Cost (planned) plus the project expenses plus Marketing. Marketing is
-the only part typed on the summary. The old typed OPEX field is gone; its values
-stay in the database but nothing reads them.
-_Avoid_: Operational Expenses (the old line, which was the cost total alone)
+the only part typed on the summary. An estimate made before buying; what was
+really spent is the Actual OPEX on the OPEX Report. The old typed OPEX field is
+gone; its values stay in the database but nothing reads them.
+_Avoid_: OPEX (unqualified), OPEX Forecast, OPEX (Estimated), Operational Expenses (the old line, which was the cost total alone)
 
 **Planned Revenue / Actual Revenue**:
 The S0 Evaluation summary's Revenue worked two ways, side by side, by the same
@@ -1379,7 +1380,7 @@ _Avoid_: Odoo cost, Odoo unit cost
 
 **Final Acquire**:
 The cost Management sets on a Component — the figure the S0 Evaluation summary
-reads as the Landed Cost (planned), and the OPEX and Revenue that follow. It is filled by a rule,
+reads as the Landed Cost (planned), and the OPEX (planned) and Revenue that follow. It is filled by a rule,
 per line, from the Status: Stockable is the Odoo SRP plus or minus a percent
 (the evaluation has one default, starting at minus 20%, and a line may carry its
 own); Source Out is the line's Acquire as is, the attached P0's price when
@@ -1498,6 +1499,61 @@ Evaluation does not apply. Not the retired Project Evaluation, which
 judged whether a deal was worth chasing before anything was costed; this judges
 one priced offer.
 _Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
+
+### Finance
+
+**OPEX Report**:
+Finance's record of what one S0 really cost, read from Odoo: every P0 line and
+every expense carrying that S0's Project tag. One per S0. It stands alone, with
+no link to an SOR, so it lists P0 lines as Odoo has them, not the S0
+Evaluation's tender items. Its bottom line is the Actual OPEX. It never locks:
+it always shows what Odoo says now and when Odoo was last read. Replaces the
+Finance tabs and the DASHBOARD tab of each project's Google Sheet.
+_Avoid_: OPEX Dashboard, Finance Opex (as the record's name)
+
+**Actual OPEX**:
+What a project really spent, worked out on its OPEX Report: the retention the
+client really kept, plus the Product cost, plus Operation & Admin, plus Marketing.
+The counterpart of OPEX (planned); its Revenue is worked the way the S0
+Evaluation works Revenue, so the two compare like for like. The Commission Pool
+is not part of it.
+_Avoid_: Finance Opex, OPEX (unqualified, when the real spending is meant)
+
+**Product cost** (on an OPEX Report):
+What the P0 lines that count for the S0 cost in pesos, as Odoo has them: the
+bill, or the ordered amount while a line is not billed yet. A line counts its
+Project tag's percent for the S0; a line with no tag counts in full when its P0
+names the S0 in its Source Document or Finance added the P0; a draft or
+cancelled P0 never counts. Finance may type a price for a line Odoo has at zero.
+Not the Landed Cost: shipping and import costs count as Typed costs or Odoo
+expenses instead, so nothing is counted twice.
+_Avoid_: Landed Cost (on the OPEX Report), Acquire Cost
+
+**Operation & Admin** / **Marketing** (on an OPEX Report):
+The two groups the OPEX Report sorts Odoo's expenses into. Marketing is
+whatever Odoo books to its Marketing Expense account; Operation & Admin is every
+other expense carrying the S0's Project tag (transportation, meals, delivery,
+fuel, Odoo's own "Admin Expense"). VAT, withholding and costs already counted
+through a P0 are never expenses.
+_Avoid_: Finance Opex, Operation Expenses and Admin Expenses (as two groups)
+
+**Typed cost** (on an OPEX Report):
+A cost Finance adds by hand, with a note, for money Odoo does not show under the
+Project tag, such as a forwarder paid by card. It joins the Product cost unless
+Finance files it under Operation & Admin or Marketing. Always shown as typed.
+
+**Contract price** (on an OPEX Report):
+What the client pays for the S0, VAT included. Filled in from Odoo's S0 (its
+amount before VAT plus 12%) and corrected by Finance to the contract's exact
+figure, since Odoo's rounding can leave it a few centavos off.
+
+**Project tag**:
+Odoo's analytic account in its "Projects" plan, named after one S0 (for example
+"S06637 DRR Life Saving Search and Rescue Equipment"). Staff put it on P0 lines
+and on expenses to say which project a cost belongs to. One line can split its
+cost over several Project tags by percent, which Odoo calls the line's analytic
+distribution.
+_Avoid_: Analytic account, Analytic distribution (on screen), Cost center
 
 ### UI
 

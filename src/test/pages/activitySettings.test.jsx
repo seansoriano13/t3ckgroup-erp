@@ -48,6 +48,15 @@ const renderSettings = () =>
     </MemoryRouter>,
   );
 
+/** Each type is one row; its name, colour and rules open under it. */
+const openType = async (user, typeKey) => {
+  const row = await screen.findByTestId(`activity-type-${typeKey}`);
+  const toggle = within(row).getByRole("button", { expanded: false });
+  await user.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  return row;
+};
+
 describe("Activities in Settings (#1064)", () => {
   beforeEach(() => {
     db.seed("activity_type_settings", TYPE_ROWS);
@@ -92,15 +101,45 @@ describe("Activities in Settings (#1064)", () => {
     }
     renderSettings();
     const card = await screen.findByTestId("activity-type-MEETING");
-    await waitFor(() => expect(within(card).getByRole("switch", { name: "Meeting is on" })).toHaveAttribute("aria-disabled", "true"));
-    expect(within(card).getByText("At least one type must stay on.")).toBeInTheDocument();
+    const toggle = () => within(card).getByRole("switch", { name: "Meeting is on" });
+    await waitFor(() => expect(toggle()).toHaveAttribute("aria-disabled", "true"));
+    // Why it is locked is a Hover detail (CONTEXT.md), not standing text.
+    expect(within(card).queryByText("At least one type must stay on.")).not.toBeInTheDocument();
+    await userEvent.hover(toggle().parentElement);
+    expect(await screen.findByText("At least one type must stay on.")).toBeInTheDocument();
+  });
+
+  it("lists each type on one line with who files it, whether it waits for HR and how long it runs", async () => {
+    mocks.user = makeHrEmployee({ name: "Boss" });
+    renderSettings();
+    const line = async (typeKey) => within(await screen.findByTestId(`activity-type-${typeKey}`)).getByRole("button", { expanded: false });
+    const meeting = await line("MEETING");
+    expect(within(meeting).getByText("Everyone")).toBeInTheDocument();
+    expect(within(meeting).getByText("With a Venue")).toBeInTheDocument();
+    expect(within(meeting).getByText("One day")).toBeInTheDocument();
+    const event = await line("EVENT");
+    expect(within(event).getByText("Department heads")).toBeInTheDocument();
+    expect(within(event).getByText("Several days")).toBeInTheDocument();
+    expect(screen.getByText("4 of 4 on")).toBeInTheDocument();
+  });
+
+  it("keeps the Meeting types inside Meeting", async () => {
+    mocks.user = makeHrEmployee({ name: "Boss" });
+    const user = userEvent.setup();
+    renderSettings();
+    const meeting = await openType(user, "MEETING");
+    await user.click(within(meeting).getByRole("checkbox", { name: "Hybrid" }));
+    await waitFor(() => expect(db.rows("activity_general_settings")[0].meeting_hybrid).toBe(false));
+    const event = await openType(user, "EVENT");
+    expect(within(event).queryByRole("group", { name: "Meeting types" })).not.toBeInTheDocument();
   });
 
   it("renames a type and the rest of the app follows", async () => {
     mocks.user = makeHrEmployee({ name: "Boss" });
     const user = userEvent.setup();
     renderSettings();
-    const input = await screen.findByLabelText("Name of Admin Task");
+    await openType(user, "ADMIN_TASK");
+    const input = screen.getByLabelText("Name of Admin Task");
     await user.clear(input);
     await user.type(input, "Office Duty");
     await user.tab();
@@ -114,7 +153,7 @@ describe("Activities in Settings (#1064)", () => {
     mocks.user = makeHrEmployee({ name: "Boss" });
     const user = userEvent.setup();
     renderSettings();
-    const card = await screen.findByTestId("activity-type-EVENT");
+    const card = await openType(user, "EVENT");
     await user.click(within(card).getByRole("button", { name: "Green" }));
     await waitFor(() => expect(db.rows("activity_type_settings").find((r) => r.activity_type === "EVENT").color).toBe("green"));
     await waitFor(() => expect(ACTIVITY_TYPES.EVENT.dot).toBe("bg-green-9"));
