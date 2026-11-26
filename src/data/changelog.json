@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-11-26",
+        "title": "OPEX Report for Finance",
+        "version": "1.12.0",
+        "modules": [
+            "finance"
+        ],
+        "changes": [
+            "Finance has a new OPEX Report page under Finance. Start one for any S0 and it reads the P0s and expenses from Odoo.",
+            "You can add a P0 by hand, type a missing price, add a cost Odoo does not have, or leave an expense out, and the totals follow.",
+            "The OPEX list shows each report's last figures without asking Odoo."
+        ]
+    },
+    {
+        "date": "2026-11-26",
         "title": "OPEX (planned) on the S0 Evaluation",
         "version": "1.11.17",
         "changes": [

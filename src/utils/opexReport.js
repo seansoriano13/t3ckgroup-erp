@@ -7,14 +7,17 @@ import { opexReportSummary } from "./costingMath";
  */
 
 const cents = (n) => Math.round((Number(n) || 0) * 100);
-const sumPesos = (rows, pick) => rows.reduce((total, row) => total + cents(pick(row)), 0) / 100;
+const sumPesos = (amounts) => amounts.reduce((total, n) => total + cents(n), 0) / 100;
 
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
+/** The three cost groups, named once; every filter and total below reads these keys. */
+export const COST_GROUP = { PRODUCT: "product", OPERATION_ADMIN: "operation_admin", MARKETING: "marketing" };
+export const DEFAULT_COST_GROUP = COST_GROUP.PRODUCT;
 export const COST_GROUPS = [
-  { key: "product", label: "Product cost" },
-  { key: "operation_admin", label: "Operation & Admin" },
-  { key: "marketing", label: "Marketing" },
+  { key: COST_GROUP.PRODUCT, label: "Product cost" },
+  { key: COST_GROUP.OPERATION_ADMIN, label: "Operation & Admin" },
+  { key: COST_GROUP.MARKETING, label: "Marketing" },
 ];
 
 export const NO_EDITS = { handP0s: [], typedCosts: [], linePrices: [], leftOut: [] };
@@ -54,7 +57,7 @@ export function applyEdits(read, edits = NO_EDITS) {
       const out = leftOut.get(Number(e.analyticLineId));
       return out ? { ...e, leftOut: true, leftOutNote: out.note ?? "" } : { ...e, leftOut: false };
     }),
-    typedCosts: (edits.typedCosts ?? []).map((c) => ({ ...c, amount: Number(c.amount), group: c.cost_group ?? "product" })),
+    typedCosts: (edits.typedCosts ?? []).map((c) => ({ ...c, amount: Number(c.amount), group: c.cost_group ?? DEFAULT_COST_GROUP })),
     handP0s: (edits.handP0s ?? []).map((h) => ({ ...h, missing: !lines.some((l) => l.p0 === h.p0_number) })),
     orphans: {
       linePrices: (edits.linePrices ?? []).filter((p) => !lineIds.has(Number(p.odoo_line_id))),
@@ -67,17 +70,12 @@ export function applyEdits(read, edits = NO_EDITS) {
 export function groupTotals(read) {
   const lines = read?.lines ?? [];
   const expenses = (read?.expenses ?? []).filter((e) => !e.leftOut);
-  const typed = (group) => read?.typedCosts?.filter((c) => c.group === group) ?? [];
+  const typed = (group) => (read?.typedCosts ?? []).filter((c) => c.group === group).map((c) => c.amount);
+  const expensesIn = (isGroup) => expenses.filter((e) => isGroup(e.group)).map((e) => e.amount);
   return {
-    productCost: sumPesos([...lines.map((l) => l.countedPesos), ...typed("product").map((c) => c.amount)], (n) => n),
-    operationAdmin: sumPesos(
-      [...expenses.filter((e) => e.group !== "marketing").map((e) => e.amount), ...typed("operation_admin").map((c) => c.amount)],
-      (n) => n,
-    ),
-    marketing: sumPesos(
-      [...expenses.filter((e) => e.group === "marketing").map((e) => e.amount), ...typed("marketing").map((c) => c.amount)],
-      (n) => n,
-    ),
+    productCost: sumPesos([...lines.map((l) => l.countedPesos), ...typed(COST_GROUP.PRODUCT)]),
+    operationAdmin: sumPesos([...expensesIn((g) => g !== COST_GROUP.MARKETING), ...typed(COST_GROUP.OPERATION_ADMIN)]),
+    marketing: sumPesos([...expensesIn((g) => g === COST_GROUP.MARKETING), ...typed(COST_GROUP.MARKETING)]),
   };
 }
 
@@ -89,7 +87,7 @@ export function parseTyped(text) {
 
 /** The Contract price: what Finance typed, else Odoo's. Blank (null) is never zero. */
 export function contractPriceOf(read, report) {
-  const typed = report?.contract_price ?? report?.contractPrice ?? null;
+  const typed = report?.contract_price ?? null;
   return typed ?? read?.odooContractPrice ?? null;
 }
 
@@ -97,11 +95,11 @@ export function contractPriceOf(read, report) {
 export function reportSummary(read, report, settings) {
   const totals = groupTotals(read);
   const contractPrice = contractPriceOf(read, report);
-  const worked = opexReportSummary(
+  const figures = opexReportSummary(
     { contractPrice, retention: report?.retention ?? null, ...totals },
     settings,
   );
-  return { contractPrice, ...totals, ...worked };
+  return { contractPrice, ...totals, ...figures };
 }
 
 /** The snapshot row the list shows, from a read and its summary. */

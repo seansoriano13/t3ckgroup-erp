@@ -1163,6 +1163,57 @@ create table if not exists public."offset_leaves" (
   "meal_break_kept_reason" text
 );
 
+create table if not exists public."opex_left_out_expenses" (
+  "id" uuid not null default gen_random_uuid(),
+  "report_id" uuid not null,
+  "analytic_line_id" bigint not null,
+  "note" text,
+  "created_at" timestamp with time zone not null default now()
+);
+create table if not exists public."opex_line_prices" (
+  "id" uuid not null default gen_random_uuid(),
+  "report_id" uuid not null,
+  "odoo_line_id" bigint not null,
+  "unit_price" numeric not null,
+  "created_at" timestamp with time zone not null default now()
+);
+create table if not exists public."opex_report_p0s" (
+  "id" uuid not null default gen_random_uuid(),
+  "report_id" uuid not null,
+  "p0_number" text not null,
+  "created_at" timestamp with time zone not null default now()
+);
+create table if not exists public."opex_report_snapshots" (
+  "report_id" uuid not null,
+  "read_at" timestamp with time zone not null default now(),
+  "project_name" text,
+  "contract_price" numeric,
+  "product_cost" numeric,
+  "operation_admin" numeric,
+  "marketing" numeric,
+  "actual_opex" numeric,
+  "revenue" numeric,
+  "revenue_percent" numeric
+);
+create table if not exists public."opex_reports" (
+  "id" uuid not null default gen_random_uuid(),
+  "s0_number" text not null,
+  "contract_price" numeric,
+  "retention" numeric,
+  "created_by" uuid default get_employee_id(),
+  "created_at" timestamp with time zone not null default now()
+);
+create table if not exists public."opex_typed_costs" (
+  "id" uuid not null default gen_random_uuid(),
+  "report_id" uuid not null,
+  "cost_date" date,
+  "description" text not null,
+  "amount" numeric not null,
+  "note" text,
+  "cost_group" text not null default 'product',
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."order_ageing_rules" (
   "step" text not null,
   "days" integer,
@@ -2166,6 +2217,12 @@ alter table meeting_requests add constraint "meeting_requests_pkey" PRIMARY KEY 
 alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
 alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
+alter table opex_left_out_expenses add constraint "opex_left_out_expenses_pkey" PRIMARY KEY (id);
+alter table opex_line_prices add constraint "opex_line_prices_pkey" PRIMARY KEY (id);
+alter table opex_report_p0s add constraint "opex_report_p0s_pkey" PRIMARY KEY (id);
+alter table opex_report_snapshots add constraint "opex_report_snapshots_pkey" PRIMARY KEY (report_id);
+alter table opex_reports add constraint "opex_reports_pkey" PRIMARY KEY (id);
+alter table opex_typed_costs add constraint "opex_typed_costs_pkey" PRIMARY KEY (id);
 alter table order_ageing_rules add constraint "order_ageing_rules_pkey" PRIMARY KEY (step);
 alter table order_deadline_setting add constraint "order_deadline_setting_pkey" PRIMARY KEY (id);
 alter table overtime_requests add constraint "overtime_requests_pkey" PRIMARY KEY (id);
@@ -2480,6 +2537,10 @@ END);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
 alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table opex_line_prices add constraint "opex_line_prices_unit_price_check" CHECK ((unit_price >= (0)::numeric));
+alter table opex_report_p0s add constraint "opex_report_p0s_format" CHECK ((p0_number ~ '^[A-Z]+[0-9]+$'::text));
+alter table opex_reports add constraint "opex_reports_s0_format" CHECK ((s0_number ~ '^S[0-9]+$'::text));
+alter table opex_typed_costs add constraint "opex_typed_costs_cost_group_check" CHECK ((cost_group = ANY (ARRAY['product'::text, 'operation_admin'::text, 'marketing'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
 alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'ordered'::text, 'in_production'::text, 'ready_for_shipment'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
@@ -2737,6 +2798,11 @@ alter table offset_leaves add constraint "offset_leaves_employee_id_fkey" FOREIG
 alter table offset_leaves add constraint "offset_leaves_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table opex_left_out_expenses add constraint "opex_left_out_expenses_report_id_fkey" FOREIGN KEY (report_id) REFERENCES opex_reports(id) ON DELETE CASCADE;
+alter table opex_line_prices add constraint "opex_line_prices_report_id_fkey" FOREIGN KEY (report_id) REFERENCES opex_reports(id) ON DELETE CASCADE;
+alter table opex_report_p0s add constraint "opex_report_p0s_report_id_fkey" FOREIGN KEY (report_id) REFERENCES opex_reports(id) ON DELETE CASCADE;
+alter table opex_report_snapshots add constraint "opex_report_snapshots_report_id_fkey" FOREIGN KEY (report_id) REFERENCES opex_reports(id) ON DELETE CASCADE;
+alter table opex_typed_costs add constraint "opex_typed_costs_report_id_fkey" FOREIGN KEY (report_id) REFERENCES opex_reports(id) ON DELETE CASCADE;
 alter table order_ageing_rules add constraint "order_ageing_rules_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table order_deadline_setting add constraint "order_deadline_setting_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
@@ -3054,6 +3120,11 @@ CREATE INDEX odoo_retail_queue_status_idx ON public.odoo_retail_queue USING btre
 CREATE INDEX offset_leaves_company_id_idx ON public.offset_leaves USING btree (company_id);
 CREATE INDEX offset_leaves_head_id_idx ON public.offset_leaves USING btree (head_id);
 CREATE INDEX offset_leaves_leave_group_id_idx ON public.offset_leaves USING btree (leave_group_id);
+CREATE UNIQUE INDEX opex_left_out_expenses_key ON public.opex_left_out_expenses USING btree (report_id, analytic_line_id);
+CREATE UNIQUE INDEX opex_line_prices_key ON public.opex_line_prices USING btree (report_id, odoo_line_id);
+CREATE UNIQUE INDEX opex_report_p0s_key ON public.opex_report_p0s USING btree (report_id, p0_number);
+CREATE UNIQUE INDEX opex_reports_s0_number_key ON public.opex_reports USING btree (s0_number);
+CREATE INDEX opex_typed_costs_report_idx ON public.opex_typed_costs USING btree (report_id);
 CREATE INDEX overtime_requests_company_id_idx ON public.overtime_requests USING btree (company_id);
 CREATE INDEX overtime_requests_head_id_idx ON public.overtime_requests USING btree (head_id);
 CREATE INDEX packing_list_boxes_packing_list_id_idx ON public.packing_list_boxes USING btree (packing_list_id);
@@ -3244,6 +3315,12 @@ alter table public."meeting_requests" enable row level security;
 alter table public."notifications" enable row level security;
 alter table public."odoo_retail_queue" enable row level security;
 alter table public."offset_leaves" enable row level security;
+alter table public."opex_left_out_expenses" enable row level security;
+alter table public."opex_line_prices" enable row level security;
+alter table public."opex_report_p0s" enable row level security;
+alter table public."opex_report_snapshots" enable row level security;
+alter table public."opex_reports" enable row level security;
+alter table public."opex_typed_costs" enable row level security;
 alter table public."order_ageing_rules" enable row level security;
 alter table public."order_deadline_setting" enable row level security;
 alter table public."overtime_requests" enable row level security;
@@ -4390,6 +4467,42 @@ create policy "offset_leaves_withdraw" on public."offset_leaves"
   to authenticated
   using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
   with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "opex_left_out_expenses_finance" on public."opex_left_out_expenses"
+  as permissive
+  for all
+  to authenticated
+  using ((has_finance_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_finance_access() OR COALESCE(is_super_admin(), false)));
+create policy "opex_line_prices_finance" on public."opex_line_prices"
+  as permissive
+  for all
+  to authenticated
+  using ((has_finance_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_finance_access() OR COALESCE(is_super_admin(), false)));
+create policy "opex_report_p0s_finance" on public."opex_report_p0s"
+  as permissive
+  for all
+  to authenticated
+  using ((has_finance_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_finance_access() OR COALESCE(is_super_admin(), false)));
+create policy "opex_report_snapshots_finance" on public."opex_report_snapshots"
+  as permissive
+  for all
+  to authenticated
+  using ((has_finance_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_finance_access() OR COALESCE(is_super_admin(), false)));
+create policy "opex_reports_finance" on public."opex_reports"
+  as permissive
+  for all
+  to authenticated
+  using ((has_finance_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_finance_access() OR COALESCE(is_super_admin(), false)));
+create policy "opex_typed_costs_finance" on public."opex_typed_costs"
+  as permissive
+  for all
+  to authenticated
+  using ((has_finance_access() OR COALESCE(is_super_admin(), false)))
+  with check ((has_finance_access() OR COALESCE(is_super_admin(), false)));
 create policy "order_ageing_rules_insert" on public."order_ageing_rules"
   as permissive
   for insert

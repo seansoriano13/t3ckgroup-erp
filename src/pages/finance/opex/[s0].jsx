@@ -21,7 +21,9 @@ import { opexReportService } from "../../../services/opexReportService";
 import { costingMatrixService } from "../../../services/costingMatrixService";
 import { normalizePoNumber } from "../../../constants/procurement";
 import {
+  COST_GROUP,
   COST_GROUPS,
+  DEFAULT_COST_GROUP,
   NO_EDITS,
   applyEdits,
   formatPesos,
@@ -42,10 +44,7 @@ const HEAD = "text-label font-bold uppercase tracking-wider";
 const when = (value) => new Date(value).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
 const TYPED_MARK = "rounded bg-amber-a3 px-1.5 py-0.5 text-xs font-medium text-amber-11";
 
-const GROUPS = [
-  { key: "operation_admin", label: "Operation & Admin" },
-  { key: "marketing", label: "Marketing" },
-];
+const GROUPS = COST_GROUPS.filter((g) => g.key !== COST_GROUP.PRODUCT);
 const GROUP_OPTIONS = COST_GROUPS.map((g) => ({ value: g.key, label: g.label }));
 const groupLabel = (key) => COST_GROUPS.find((g) => g.key === key)?.label ?? key;
 
@@ -132,7 +131,7 @@ function ExpensesTable({ expenses, onLeaveOut, onPutBack }) {
   return (
     <div className="space-y-4">
       {GROUPS.map(({ key, label }) => {
-        const rows = expenses.filter((e) => (key === "marketing" ? e.group === "marketing" : e.group !== "marketing"));
+        const rows = expenses.filter((e) => (key === COST_GROUP.MARKETING ? e.group === COST_GROUP.MARKETING : e.group !== COST_GROUP.MARKETING));
         return (
           <section key={key} aria-label={label} className="space-y-2">
             <h3 className="text-sm font-semibold">{label}</h3>
@@ -272,7 +271,7 @@ function Summary({ summary, report, onEdit }) {
   );
 }
 
-const blankCost = { id: null, cost_date: "", description: "", amount: "", note: "", cost_group: "product" };
+const blankCost = { id: null, cost_date: "", description: "", amount: "", note: "", cost_group: DEFAULT_COST_GROUP };
 
 function OpexReportView({ s0 }) {
   const queryClient = useQueryClient();
@@ -382,6 +381,21 @@ function OpexReportView({ s0 }) {
       </PageShell>
     );
   }
+
+  // A hand-added P0 must exist in Odoo; nothing is stored when it does not.
+  const addP0 = async () => {
+    const p0 = normalizePoNumber(text);
+    try {
+      if (!(await opexReportService.p0ExistsInOdoo(p0))) {
+        toast.error(`Odoo has no P0 ${p0}, so it was not added.`);
+        return;
+      }
+    } catch (e) {
+      toast.error(`Odoo could not be asked about ${p0}, so it was not added. ${e.message ?? ""}`.trim());
+      return;
+    }
+    await run(() => opexReportService.addP0(reportId, p0), "The P0 could not be added.");
+  };
 
   const typedFigure = parseTyped(text);
   const badFigure = Number.isNaN(typedFigure) || (typedFigure !== null && typedFigure < 0);
@@ -510,7 +524,7 @@ function OpexReportView({ s0 }) {
         title="Add a P0"
         confirmLabel="Add P0"
         confirmDisabled={!/^[A-Z]+\d+$/.test(normalizePoNumber(text))}
-        onConfirm={() => run(() => opexReportService.addP0(reportId, normalizePoNumber(text)), "The P0 could not be added.")}
+        onConfirm={addP0}
       >
         <Input label="P0 number" placeholder="e.g. P02367" value={text} onChange={(e) => setText(e.target.value)} />
       </ConfirmDialog>
@@ -532,7 +546,11 @@ function OpexReportView({ s0 }) {
         confirmDisabled={typedFigure === null || badFigure}
         onConfirm={() => run(() => opexReportService.setLinePrice(reportId, dialog.line.lineId, typedFigure), "The price could not be saved.")}
       >
-        <Input label="Unit price (pesos)" inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} />
+        <Tooltip content="Type the price in pesos. A foreign P0's price is taken in pesos too, not in the P0's own currency.">
+          <div>
+            <Input label="Unit price (pesos)" inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} />
+          </div>
+        </Tooltip>
       </ConfirmDialog>
 
       <ConfirmDialog

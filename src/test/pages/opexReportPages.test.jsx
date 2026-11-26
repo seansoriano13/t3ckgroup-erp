@@ -20,6 +20,7 @@ const service = vi.hoisted(() => ({
   getEdits: vi.fn(),
   setReportField: vi.fn(),
   addP0: vi.fn(),
+  p0ExistsInOdoo: vi.fn(),
   removeP0: vi.fn(),
   saveTypedCost: vi.fn(),
   deleteTypedCost: vi.fn(),
@@ -27,6 +28,8 @@ const service = vi.hoisted(() => ({
   setLeftOut: vi.fn(),
 }));
 const settings = vi.hoisted(() => ({ get: vi.fn() }));
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }));
+vi.mock("react-hot-toast", () => ({ default: toast }));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current, isAuthLoading: false, logout: vi.fn() }),
@@ -96,6 +99,7 @@ beforeEach(() => {
   service.saveSnapshot.mockResolvedValue();
   service.getEdits.mockResolvedValue({ handP0s: [], typedCosts: [], linePrices: [], leftOut: [] });
   for (const k of ["setReportField", "addP0", "removeP0", "saveTypedCost", "deleteTypedCost", "setLinePrice", "setLeftOut"]) service[k].mockResolvedValue();
+  service.p0ExistsInOdoo.mockResolvedValue(true);
   service.list.mockResolvedValue([]);
   settings.get.mockReset();
   settings.get.mockResolvedValue({ vatDivisor: 1.12, taxRate: 0.06, retentionRate: 0.01, itrRate: 0.08, itrAllowance: 250000 });
@@ -252,6 +256,19 @@ describe("OPEX Report hand edits (#1245)", () => {
     expect(service.addP0).toHaveBeenCalledWith("r1", "P02367");
     await vi.waitFor(() => expect(service.readFromOdoo).toHaveBeenCalledWith("S00001", ["P02367"]));
     expect(await screen.findByRole("list", { name: "Added P0s" })).toBeInTheDocument();
+  });
+
+  it("does not store a hand-added P0 that Odoo does not have, and says so", async () => {
+    const user = setupUser();
+    service.p0ExistsInOdoo.mockResolvedValue(false);
+    renderAt("/finance/opex/S00001");
+    await screen.findByText("P00001");
+    await user.click(screen.getByRole("button", { name: /Add P0/ }));
+    await user.type(await screen.findByPlaceholderText("e.g. P02367"), "p09999");
+    await user.click(screen.getByRole("button", { name: "Add P0" }));
+    await vi.waitFor(() => expect(service.p0ExistsInOdoo).toHaveBeenCalledWith("P09999"));
+    expect(service.addP0).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Odoo has no P0 P09999")));
   });
 
   it("shows a hand-added P0 that Odoo no longer has, and lets Finance remove it", async () => {
