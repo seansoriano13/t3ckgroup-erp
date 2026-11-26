@@ -12,6 +12,7 @@ import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
 import PurchaseRequestModal from "./purchase-request/PurchaseRequestModal";
 import toast from "react-hot-toast";
+import { meetingRequestService } from "@/services/meetingRequestService";
 import NoAccessSorSlideOver from "./sor/NoAccessSorSlideOver";
 import { canManageGroupTasks } from "../utils/permissions";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
@@ -258,9 +259,20 @@ export default function GlobalDetailManager() {
   };
 
   const deleteGroupTaskMutation = useMutation({
-    mutationFn: (id) => groupTaskService.cancelGroupTask(id, user?.id),
+    mutationFn: async ({ id, cancelActivity = false }) => {
+      await groupTaskService.cancelGroupTask(id, user?.id);
+      if (!cancelActivity) return;
+      // #1254: the Group Task is cancelled either way; a failure here only means the Calendar entry stays.
+      try {
+        await meetingRequestService.cancelForGroupTask({ groupTaskId: id, actor: user });
+      } catch (err) {
+        console.error(err);
+        toast.error("The Group Task is cancelled, but its Calendar entry is still there.");
+      }
+    },
     onSuccess: () => {
       invalidateGroup();
+      queryClient.invalidateQueries({ queryKey: ["group-task-live-activity"] });
       setActiveItem(null);
       toast.success("Group Task deleted.");
     },
@@ -456,7 +468,7 @@ export default function GlobalDetailManager() {
             onAddAttachment={(memberId, url) => addMemberAttachmentMutation.mutateAsync({ memberId, url })}
             isUploadingAttachment={addMemberAttachmentMutation.isPending}
             onOpenRateModal={() => setIsRateOpen(true)}
-            onDelete={() => deleteGroupTaskMutation.mutate(activeItem.id)}
+            onDelete={(opts) => deleteGroupTaskMutation.mutate({ id: activeItem.id, cancelActivity: !!opts?.cancelActivity })}
             onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
             onUpdateMember={(memberId, payload) => updateMemberMutation.mutateAsync({ memberId, payload })}
             onRemoveMember={(memberId) => removeMemberMutation.mutateAsync(memberId)}

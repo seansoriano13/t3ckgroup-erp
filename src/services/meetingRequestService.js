@@ -474,6 +474,17 @@ export const meetingRequestService = {
   },
 
   /**
+   * #1254: the Group Task is already Cancelled; cancel its live Activity too (anyone who may cancel the
+   * Group Task, whoever filed it). The reason is fixed by the database.
+   */
+  async cancelForGroupTask({ groupTaskId, actor }) {
+    const { data, error } = await supabase.rpc('cancel_group_task_activity', { p_group_task_id: groupTaskId });
+    if (error) throw new Error(error.message);
+    await this.afterChange(data, { note: 'Group Task cancelled', actor });
+    return data;
+  },
+
+  /**
    * Notifications and the audit line for an edit, a resend or a cancel (the event row was written
    * by the database).
    *   - the head, when it lands back with them (HR when it lands at the HR step)
@@ -543,7 +554,19 @@ export const meetingRequestService = {
       });
     }
 
-    const verb = { EDITED: 'edited', RESENT: 'sent again', CANCELLED: 'cancelled', HR_CANCELLED: 'cancelled' }[result.action] ?? 'updated';
+    // #1254: the filer is told too when the Group Task's cancel took their Activity with it.
+    if (result.action === 'GROUP_TASK_CANCELLED' && request.applicant_id !== senderId) {
+      await notificationService.createNotification({
+        recipient_id: request.applicant_id,
+        sender_id: senderId,
+        type: 'MEETING_CANCELLED',
+        title: 'Activity cancelled',
+        message: `${slot}: ${request.purpose}.${withNote}`,
+        reference_id: request.id,
+      });
+    }
+
+    const verb = { EDITED: 'edited', RESENT: 'sent again', CANCELLED: 'cancelled', HR_CANCELLED: 'cancelled', GROUP_TASK_CANCELLED: 'cancelled' }[result.action] ?? 'updated';
     await this.mirrorEvent({
       request,
       action: result.action,

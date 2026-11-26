@@ -32,6 +32,9 @@ import Dropdown from "@/components/ui/Dropdown";
 import { FilterTriggerButton, FilterOptionList } from "@/components/ui/FilterDropdown";
 import StatusBadge from "../../../components/StatusBadge";
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { meetingRequestService } from "@/services/meetingRequestService";
 import { Input } from "@/components/ui/input";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 import GradeSelector from "../../../components/GradeSelector";
@@ -139,6 +142,14 @@ export default function GroupTaskDetailModal({
 
   // --- Inline chat state ---
   const { user } = useAuth();
+  // #1254: the cancel dialog offers to take the Group Task's live Calendar entry with it.
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [alsoCancelActivity, setAlsoCancelActivity] = useState(true);
+  const { data: liveActivity = null } = useQuery({
+    queryKey: ["group-task-live-activity", task?.id],
+    queryFn: () => meetingRequestService.liveGroupTaskActivity(task.id),
+    enabled: !!task?.id,
+  });
   const queryClient = useQueryClient();
   const [checklistOverrides, setChecklistOverrides] = useState({});
   const fileInputRef = useRef(null);
@@ -763,6 +774,11 @@ export default function GroupTaskDetailModal({
 
   const handleDelete = () => {
     if (isReadOnly) return;
+    if (liveActivity) {
+      setAlsoCancelActivity(true);
+      setConfirmCancel(true);
+      return;
+    }
     confirmDeleteToast(
       "Delete Group Task",
       "Are you sure you want to delete this group task? This action cannot be undone.",
@@ -773,6 +789,21 @@ export default function GroupTaskDetailModal({
   };
 
   return (
+    <>
+    <ConfirmDialog
+      open={confirmCancel}
+      onOpenChange={setConfirmCancel}
+      title="Delete Group Task"
+      description="Are you sure you want to delete this group task? This action cannot be undone."
+      confirmLabel="Confirm Deletion"
+      tone="destructive"
+      onConfirm={() => onDelete({ cancelActivity: alsoCancelActivity })}
+    >
+      <label className="flex items-center gap-2 text-sm">
+        <Checkbox checked={alsoCancelActivity} onCheckedChange={(v) => setAlsoCancelActivity(!!v)} />
+        Also cancel its Calendar entry
+      </label>
+    </ConfirmDialog>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <RecordModalContent
         showCloseButton={false}
@@ -1917,5 +1948,6 @@ export default function GroupTaskDetailModal({
         isSaving={saveTemplateMutation.isPending}
       />
     </Dialog>
+    </>
   );
 }
