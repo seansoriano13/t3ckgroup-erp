@@ -31,6 +31,8 @@ export function stubProcurementQueueRpcs({ actorId, canManage = false }) {
       opportunity_id: r.opportunity_id,
       sales_reference: sor?.sales_reference || sor?.opportunity_no || null,
       project_title: sor?.project_title ?? null,
+      pr_number: r.pr_number ?? null,
+      title: r.title ?? null,
       stage_name: stage?.name ?? null,
       sor_status: sor?.status ?? null,
       buyer_id: r.buyer_id ?? null,
