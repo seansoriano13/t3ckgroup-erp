@@ -10,7 +10,7 @@ import DeliveryDeadlineSetting from "./DeliveryDeadlineSetting";
 import ReferenceRates from "./ReferenceRates";
 import LandedAddonDefaults from "./LandedAddonDefaults";
 import RequestUnitsSettings from "./RequestUnitsSettings";
-import { IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
+import { IPAS_OPTION_LIST, IPAS_OPTION_LISTS, IPAS_OPTION_LIST_LABELS } from "../../constants/ipas";
 import { TRANSMITTAL_OPTION_LIST } from "../../constants/transmittals";
 
 /** The sub-tab for the sign-off lists, offered to Super Admins only. */
@@ -38,11 +38,28 @@ const TRANSMITTAL_LISTS = [TRANSMITTAL_OPTION_LIST.PRODUCT, TRANSMITTAL_OPTION_L
  * values, and, for Super Admins, the sign-off lists. Purchasing access and
  * Super Admins add, rename, reorder and deactivate options; they are never
  * deleted, and a deactivated one stays on the rows that used it. The Settings
- * page only offers this tab to Purchasing access and Super Admins, and the
+ * page offers this tab to Purchasing access and Super Admins, and the
  * database refuses everyone else's write.
+ *
+ * `readOnly` (#1258) is the view for the other people who read the IPAS (Finance, Logistics, sign-off
+ * lists): the Compliance kinds list alone, read-only, so they can see what the Compliance Requirement
+ * picker offers. Every other list and setting stays out of their sight.
  */
-export default function PurchasingSettings({ isSuperAdmin = false }) {
+export default function PurchasingSettings({ isSuperAdmin = false, readOnly = false }) {
   const [list, setList] = useState(IPAS_OPTION_LISTS[0]);
+  if (readOnly) {
+    return (
+      <div className="space-y-4" data-testid="purchasing-settings">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">{IPAS_OPTION_LIST_LABELS[IPAS_OPTION_LIST.COMPLIANCE_KIND]}</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            The kinds an order can be asked to comply with, in the order the Your move picker offers them.
+          </p>
+        </div>
+        <IpasOptionListEditor list={IPAS_OPTION_LIST.COMPLIANCE_KIND} readOnly />
+      </div>
+    );
+  }
   const tabs = [
     ...IPAS_OPTION_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),
     ...TRANSMITTAL_LISTS.map((value) => ({ value, label: IPAS_OPTION_LIST_LABELS[value] })),

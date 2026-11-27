@@ -58,8 +58,11 @@ const FILED_HINT = "Used on a filed IPAS. Deactivate it and add a new one instea
  * everyone): deactivate it and add a new one. Writable by
  * Purchasing access and Super Admins (the database decides). On the Document kinds list a
  * Super Admin also sets each kind's "Required before" and the two file switches (#959).
+ *
+ * `readOnly` (#1258) shows the list as it stands, with no add form and no controls, for someone who may read
+ * the IPAS but may not change the lists. The database refuses their writes either way.
  */
-export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
+export default function IpasOptionListEditor({ list, isSuperAdmin = false, readOnly = false }) {
   const queryClient = useQueryClient();
   const noun = IPAS_OPTION_LIST_NOUNS[list] ?? "option";
   const [label, setLabel] = useState("");
@@ -146,7 +149,8 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
 
   return (
     <div className="space-y-4">
-      {isDocumentKind && <IpasFileRulesSwitches isSuperAdmin={isSuperAdmin} />}
+      {isDocumentKind && !readOnly && <IpasFileRulesSwitches isSuperAdmin={isSuperAdmin} />}
+      {!readOnly && (
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {
@@ -185,6 +189,7 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
           Add
         </Button>
       </form>
+      )}
 
       {options.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
@@ -198,6 +203,7 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
               data-testid="ipas-option-row"
               className={`flex items-center gap-3 px-4 py-2.5 ${option.active ? "" : "bg-muted/30"}`}
             >
+              {!readOnly && (
               <div className="flex shrink-0 flex-col">
                 <Button
                   variant="ghost"
@@ -218,6 +224,7 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
                   <ArrowDown />
                 </Button>
               </div>
+              )}
 
               <div className="min-w-0 flex-1">
                 <span
@@ -228,11 +235,11 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
                 >
                   {option.label}
                 </span>
-                {isLocked(option) && <span className="block text-xs text-muted-foreground">{FILED_HINT}</span>}
+                {!readOnly && isLocked(option) && <span className="block text-xs text-muted-foreground">{FILED_HINT}</span>}
               </div>
               {!option.active && <StatusBadge theme="mauve" label="Deactivated" />}
 
-              {isDocumentKind && (
+              {isDocumentKind && !readOnly && (
                 <>
                   <SelectField
                     size="sm"
@@ -266,6 +273,8 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
                 </>
               )}
 
+              {!readOnly && (
+              <>
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -283,18 +292,25 @@ export default function IpasOptionListEditor({ list, isSuperAdmin = false }) {
                 aria-label={`${option.label} is offered`}
                 onCheckedChange={(active) => toggle.mutate({ id: option.id, active })}
               />
+              </>
+              )}
             </li>
           ))}
         </ul>
       )}
 
+      {readOnly && (
+        <p className="text-xs text-muted-foreground" data-testid="ipas-option-readonly-note">
+          You can look at this list, not change it. People with Purchasing access and Super Admins change it.
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">
         A deactivated {noun} is no longer offered for new rows, and stays on the rows that already use it. Options are
         never deleted.
       </p>
 
       <EditValueDialog
-        open={renaming !== null}
+        open={!readOnly && renaming !== null}
         onOpenChange={(open) => !open && setRenaming(null)}
         title={`Rename ${noun}`}
         description="Rows that use it show the new name."

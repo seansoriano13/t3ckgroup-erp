@@ -33,7 +33,7 @@ const odooPo = (name) => ({
 
 const NEW_FIELDS = ["daysWaiting", "late", "nextList", "nextSlip", "nextThing", "owner"]
 const SHAPED_KEYS = [
-  "computationLabel", "computationStatus", "directDelivery", "id", "isCancelled", "isFiled", "landedCost", "number",
+  "compliance", "computationLabel", "computationStatus", "directDelivery", "id", "isCancelled", "isFiled", "landedCost", "number",
   "onHold", "poNumber", "purpose", "signoffs", "state", "status", "statusReachedOn", "supplier",
   ...NEW_FIELDS,
 ].sort()

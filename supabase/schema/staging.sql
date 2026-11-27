@@ -797,7 +797,11 @@ create table if not exists public."ipas" (
   "file_rules_snapshot" jsonb,
   "status" text default 'order_draft'::text,
   "direct_delivery" boolean not null default false,
-  "withholding" text
+  "withholding" text,
+  "compliance_asked" boolean not null default true,
+  "compliance_needed" boolean,
+  "compliance_answered_by" uuid,
+  "compliance_answered_at" timestamp with time zone
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -822,6 +826,18 @@ create table if not exists public."ipas_charges" (
   "updated_at" timestamp with time zone not null default now(),
   "attachment_url" text,
   "ask_id" uuid
+);
+
+create table if not exists public."ipas_compliance_requirements" (
+  "id" uuid not null default gen_random_uuid(),
+  "ipas_id" uuid not null,
+  "kind_id" uuid not null,
+  "done_on" date,
+  "note" text,
+  "done_by" uuid,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."ipas_document_files" (
@@ -2199,6 +2215,7 @@ alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMAR
 alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
 alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KEY (ipas_id);
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_pkey" PRIMARY KEY (id);
 alter table ipas_document_files add constraint "ipas_document_files_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
 alter table ipas_events add constraint "ipas_events_pkey" PRIMARY KEY (id);
@@ -2307,6 +2324,7 @@ alter table flow_form_fields add constraint "flow_form_fields_default_unique" UN
 alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version, version_minor);
 alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flow_id, id);
 alter table ipas add constraint "ipas_number_key" UNIQUE (number);
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_ipas_kind_key" UNIQUE (ipas_id, kind_id);
 alter table ipas_signer_lists add constraint "ipas_signer_lists_key_employee_key" UNIQUE (list_key, employee_id);
 alter table ipas_sors add constraint "ipas_sors_ipas_opportunity_key" UNIQUE (ipas_id, opportunity_id);
 alter table lwop_leaves add constraint "lwop_leaves_verification_token_key" UNIQUE (verification_token);
@@ -2474,6 +2492,8 @@ alter table ipas_bank_details add constraint "ipas_bank_details_account_name_chk
 alter table ipas_bank_details add constraint "ipas_bank_details_account_number_chk" CHECK (((account_number IS NULL) OR (length(account_number) <= 100)));
 alter table ipas_bank_details add constraint "ipas_bank_details_bank_name_chk" CHECK (((bank_name IS NULL) OR (length(bank_name) <= 200)));
 alter table ipas_charges add constraint "ipas_charges_amount_chk" CHECK (((amount_php IS NULL) OR (amount_php > (0)::numeric)));
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_done_chk" CHECK (((done_on IS NOT NULL) OR (note IS NULL)));
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_note_chk" CHECK (((note IS NULL) OR ((btrim(note) <> ''::text) AND (char_length(note) <= 500))));
 alter table ipas_document_files add constraint "ipas_document_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
 alter table ipas_document_files add constraint "ipas_document_files_url_chk" CHECK ((url ~* '^https?://'::text));
 alter table ipas_documents add constraint "ipas_documents_attachment_url_chk" CHECK (((attachment_url IS NULL) OR (attachment_url ~* '^https?://'::text)));
@@ -2485,7 +2505,7 @@ alter table ipas_options add constraint "ipas_options_applies_to_chk" CHECK (((a
 alter table ipas_options add constraint "ipas_options_document_columns_chk" CHECK (((list = 'document_kind'::text) OR ((applies_to IS NULL) AND (used_for IS NULL))));
 alter table ipas_options add constraint "ipas_options_document_kind_marked_chk" CHECK (((list <> 'document_kind'::text) OR ((applies_to IS NOT NULL) AND (used_for IS NOT NULL))));
 alter table ipas_options add constraint "ipas_options_label_chk" CHECK ((length(btrim(label)) > 0));
-alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text, 'transmittal_product'::text, 'transmittal_reference'::text])));
+alter table ipas_options add constraint "ipas_options_list_chk" CHECK ((list = ANY (ARRAY['payment_method'::text, 'charge_kind'::text, 'document_kind'::text, 'freight_service'::text, 'item_location'::text, 'transmittal_product'::text, 'transmittal_reference'::text, 'compliance_kind'::text])));
 alter table ipas_options add constraint "ipas_options_required_before_chk" CHECK (((required_before IS NULL) OR ((list = 'document_kind'::text) AND (required_before = ANY (ARRAY[1, 3, 6])))));
 alter table ipas_options add constraint "ipas_options_system_key_list_chk" CHECK (((system_key IS NULL) OR (list = 'document_kind'::text)));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
@@ -2732,6 +2752,7 @@ alter table group_task_template_members add constraint "group_task_template_memb
 alter table group_task_templates add constraint "group_task_templates_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_actual_checking_by_fkey" FOREIGN KEY (actual_checking_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
+alter table ipas add constraint "ipas_compliance_answered_by_fkey" FOREIGN KEY (compliance_answered_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_delivered_typed_by_fkey" FOREIGN KEY (delivered_typed_by) REFERENCES employees(id);
 alter table ipas add constraint "ipas_freight_service_id_fkey" FOREIGN KEY (freight_service_id) REFERENCES ipas_options(id);
@@ -2743,6 +2764,10 @@ alter table ipas_charges add constraint "ipas_charges_ask_id_fkey" FOREIGN KEY (
 alter table ipas_charges add constraint "ipas_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_charges add constraint "ipas_charges_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_done_by_fkey" FOREIGN KEY (done_by) REFERENCES employees(id);
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
+alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
 alter table ipas_document_files add constraint "ipas_document_files_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_document_files add constraint "ipas_document_files_document_id_fkey" FOREIGN KEY (document_id) REFERENCES ipas_documents(id) ON DELETE CASCADE;
 alter table ipas_documents add constraint "ipas_documents_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
@@ -3066,6 +3091,7 @@ CREATE INDEX group_task_template_members_template_idx ON public.group_task_templ
 CREATE INDEX group_task_templates_active_idx ON public.group_task_templates USING btree (created_at DESC) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX hr_leave_categories_sort_order_key ON public.hr_leave_categories USING btree (sort_order);
 CREATE INDEX ipas_actual_checking_by_idx ON public.ipas USING btree (actual_checking_by);
+CREATE INDEX ipas_compliance_answered_by_idx ON public.ipas USING btree (compliance_answered_by);
 CREATE INDEX ipas_created_by_idx ON public.ipas USING btree (created_by);
 CREATE INDEX ipas_delivered_typed_by_idx ON public.ipas USING btree (delivered_typed_by);
 CREATE INDEX ipas_freight_service_id_idx ON public.ipas USING btree (freight_service_id);
@@ -3078,6 +3104,9 @@ CREATE INDEX ipas_charges_ask_id_idx ON public.ipas_charges USING btree (ask_id)
 CREATE INDEX ipas_charges_created_by_idx ON public.ipas_charges USING btree (created_by);
 CREATE INDEX ipas_charges_ipas_id_idx ON public.ipas_charges USING btree (ipas_id, charged_on);
 CREATE INDEX ipas_charges_kind_id_idx ON public.ipas_charges USING btree (kind_id);
+CREATE INDEX ipas_compliance_requirements_created_by_idx ON public.ipas_compliance_requirements USING btree (created_by);
+CREATE INDEX ipas_compliance_requirements_done_by_idx ON public.ipas_compliance_requirements USING btree (done_by);
+CREATE INDEX ipas_compliance_requirements_kind_id_idx ON public.ipas_compliance_requirements USING btree (kind_id);
 CREATE INDEX ipas_document_files_created_by_idx ON public.ipas_document_files USING btree (created_by);
 CREATE INDEX ipas_document_files_document_id_idx ON public.ipas_document_files USING btree (document_id);
 CREATE INDEX ipas_documents_created_by_idx ON public.ipas_documents USING btree (created_by);
@@ -3300,6 +3329,7 @@ alter table public."hr_leave_categories" enable row level security;
 alter table public."ipas" enable row level security;
 alter table public."ipas_bank_details" enable row level security;
 alter table public."ipas_charges" enable row level security;
+alter table public."ipas_compliance_requirements" enable row level security;
 alter table public."ipas_document_files" enable row level security;
 alter table public."ipas_documents" enable row level security;
 alter table public."ipas_events" enable row level security;
@@ -4229,6 +4259,11 @@ create policy "ipas_bank_details_read" on public."ipas_bank_details"
   to authenticated
   using (ipas_can_read_bank_details());
 create policy "ipas_charges_read" on public."ipas_charges"
+  as permissive
+  for select
+  to authenticated
+  using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_compliance_requirements_read" on public."ipas_compliance_requirements"
   as permissive
   for select
   to authenticated
@@ -6055,6 +6090,45 @@ begin
       'sections', to_jsonb(sections)
     ));
   end if;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_compliance_lock(p_fn text, p_ipas_id uuid)
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.ipas := public._ipas_lock_open(p_fn, p_ipas_id);
+begin
+  if not v_row.compliance_asked then
+    raise exception '%: % does not ask about Compliance Requirements', p_fn, v_row.number using errcode = '22023';
+  end if;
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public._ipas_compliance_writer(p_fn text)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+begin
+  if v_actor is null then
+    raise exception '%: not signed in', p_fn using errcode = '42501';
+  end if;
+  if not (
+    coalesce(public.has_purchasing_access(), false)
+    or coalesce(public.has_logistics_access(), false)
+    or coalesce(public.is_super_admin(), false)
+  ) then
+    raise exception '%: only Purchasing, Logistics or a Super Admin answers Compliance Requirements', p_fn using errcode = '42501';
+  end if;
+  return v_actor;
 end;
 $function$
 ;
@@ -18984,6 +19058,9 @@ AS $function$
   ) or exists (
     select 1 from ipas_documents d join ipas i on i.id = d.ipas_id
      where i.state = 'filed' and d.kind_id = p_option_id
+  ) or exists (
+    select 1 from ipas_compliance_requirements r join ipas i on i.id = r.ipas_id
+     where i.state = 'filed' and r.kind_id = p_option_id
   );
 $function$
 ;
@@ -20067,6 +20144,88 @@ begin
     'approvals_cleared', to_jsonb(v_sections),
     'preparer_ids', to_jsonb(v_preparers)
   );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_set_compliance(p_ipas_id uuid, p_needed boolean, p_kind_ids uuid[] DEFAULT '{}'::uuid[])
+ RETURNS ipas
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_compliance_writer('ipas_set_compliance');
+  v_row public.ipas;
+  v_wanted uuid[];
+  v_kind record;
+  v_before boolean;
+begin
+  if p_needed is null then
+    raise exception 'ipas_set_compliance: answer Yes or No' using errcode = '22023';
+  end if;
+
+  v_row := public._ipas_compliance_lock('ipas_set_compliance', p_ipas_id);
+  v_before := v_row.compliance_needed;
+
+  if p_needed then
+    select coalesce(array_agg(distinct k), '{}') into v_wanted from unnest(coalesce(p_kind_ids, '{}')) k where k is not null;
+    if cardinality(v_wanted) = 0 then
+      raise exception 'ipas_set_compliance: pick at least one kind' using errcode = '22023';
+    end if;
+    -- A kind must be a Compliance Requirement kind. A kind added now must be active; one the IPAS already
+    -- holds may be retired and stays.
+    if exists (
+      select 1 from unnest(v_wanted) w
+       where not exists (
+         select 1 from public.ipas_options o
+          where o.id = w and o.list = 'compliance_kind'
+            and (o.active or exists (
+              select 1 from public.ipas_compliance_requirements r where r.ipas_id = v_row.id and r.kind_id = o.id
+            ))
+       )
+    ) then
+      raise exception 'ipas_set_compliance: pick kinds from the active list' using errcode = '22023';
+    end if;
+  else
+    v_wanted := '{}';
+  end if;
+
+  -- Removing a kind takes it off the IPAS (and its tick with it).
+  for v_kind in
+    select r.id, r.kind_id, o.label
+      from public.ipas_compliance_requirements r
+      join public.ipas_options o on o.id = r.kind_id
+     where r.ipas_id = v_row.id and not (r.kind_id = any (v_wanted))
+     order by o.sort, o.label
+  loop
+    delete from public.ipas_compliance_requirements where id = v_kind.id;
+    perform public._ipas_write_event(v_row.id, v_actor, 'compliance_kind_removed',
+      jsonb_build_object('kind_id', v_kind.kind_id, 'kind', v_kind.label));
+  end loop;
+
+  if v_before is distinct from p_needed then
+    update public.ipas
+       set compliance_needed = p_needed, compliance_answered_by = v_actor, compliance_answered_at = now()
+     where id = v_row.id;
+    perform public._ipas_write_event(v_row.id, v_actor, 'compliance_answered',
+      jsonb_build_object('from', v_before, 'to', p_needed));
+  end if;
+
+  for v_kind in
+    select o.id, o.label
+      from public.ipas_options o
+     where o.id = any (v_wanted)
+       and not exists (select 1 from public.ipas_compliance_requirements r where r.ipas_id = v_row.id and r.kind_id = o.id)
+     order by o.sort, o.label
+  loop
+    insert into public.ipas_compliance_requirements (ipas_id, kind_id, created_by)
+    values (v_row.id, v_kind.id, v_actor);
+    perform public._ipas_write_event(v_row.id, v_actor, 'compliance_kind_added',
+      jsonb_build_object('kind_id', v_kind.id, 'kind', v_kind.label));
+  end loop;
+
+  select * into v_row from public.ipas where id = v_row.id;
+  return v_row;
 end;
 $function$
 ;
@@ -21642,7 +21801,7 @@ end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_summaries_for_sor(p_opportunity_id uuid)
- RETURNS TABLE(ipas_id uuid, number text, po_number text, supplier text, purpose text, state text, computation_status text, signoffs jsonb, landed_cost_total_php numeric, landed_cost_mark text, status text, status_reached_on date, on_hold boolean, direct_delivery boolean)
+ RETURNS TABLE(ipas_id uuid, number text, po_number text, supplier text, purpose text, state text, computation_status text, signoffs jsonb, landed_cost_total_php numeric, landed_cost_mark text, status text, status_reached_on date, on_hold boolean, direct_delivery boolean, compliance jsonb)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public'
@@ -21680,7 +21839,21 @@ AS $function$
     i.status,
     (select st.reached_on from public.ipas_status_steps st where st.ipas_id = i.id and st.step = i.status),
     coalesce(i.on_hold, false),
-    coalesce(i.direct_delivery, false)
+    coalesce(i.direct_delivery, false),
+    -- #1251: null on an IPAS that does not ask; else the answer and each kind with its done day (no note).
+    case when i.compliance_asked then
+      jsonb_build_object(
+        'needed', i.compliance_needed,
+        'kinds', coalesce((
+          select jsonb_agg(
+                   jsonb_build_object('id', r.id, 'kind_id', r.kind_id, 'label', o.label, 'done_on', r.done_on)
+                   order by o.sort, o.label)
+            from public.ipas_compliance_requirements r
+            join public.ipas_options o on o.id = r.kind_id
+           where r.ipas_id = i.id
+        ), '[]'::jsonb)
+      )
+    end
   from public.ipas i
   cross join lateral (
     select coalesce(array_agg(so.section::text || ':' || so.role), '{}'::text[]) as live
@@ -21707,6 +21880,54 @@ AS $function$
   order by
     case i.state when 'open' then 0 when 'filed' then 1 else 2 end,
     i.number;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_tick_compliance(p_requirement_id uuid, p_done_on date DEFAULT NULL::date, p_note text DEFAULT NULL::text)
+ RETURNS ipas_compliance_requirements
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_compliance_writer('ipas_tick_compliance');
+  v_req public.ipas_compliance_requirements;
+  v_ipas public.ipas;
+  v_kind text;
+  v_day date := coalesce(p_done_on, public._ipas_today());
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+begin
+  select * into v_req from public.ipas_compliance_requirements where id = p_requirement_id;
+  if v_req.id is null then
+    raise exception 'ipas_tick_compliance: Compliance Requirement not found' using errcode = '22023';
+  end if;
+
+  v_ipas := public._ipas_compliance_lock('ipas_tick_compliance', v_req.ipas_id);
+  select * into v_req from public.ipas_compliance_requirements where id = p_requirement_id;
+  if v_req.id is null then
+    raise exception 'ipas_tick_compliance: Compliance Requirement not found' using errcode = '22023';
+  end if;
+
+  if v_note is not null and char_length(v_note) > 500 then
+    raise exception 'ipas_tick_compliance: the note is up to 500 characters' using errcode = '22023';
+  end if;
+  perform public._ipas_check_date('ipas_tick_compliance', v_day, 'the done day');
+
+  if v_req.done_on is not distinct from v_day and v_req.note is not distinct from v_note then
+    return v_req;
+  end if;
+
+  select o.label into v_kind from public.ipas_options o where o.id = v_req.kind_id;
+
+  update public.ipas_compliance_requirements
+     set done_on = v_day, note = v_note, done_by = v_actor, updated_at = now()
+   where id = v_req.id
+   returning * into v_req;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'compliance_ticked',
+    jsonb_build_object('requirement_id', v_req.id, 'kind', v_kind, 'done_on', v_day, 'note', v_note));
+
+  return v_req;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.ipas_tick_document(p_document_id uuid, p_side text, p_value boolean)
@@ -21841,6 +22062,47 @@ begin
     'cleared_section_7', to_jsonb(v_cascade),
     'notify_ids', to_jsonb(v_notify)
   );
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_untick_compliance(p_requirement_id uuid)
+ RETURNS ipas_compliance_requirements
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_compliance_writer('ipas_untick_compliance');
+  v_req public.ipas_compliance_requirements;
+  v_ipas public.ipas;
+  v_kind text;
+begin
+  select * into v_req from public.ipas_compliance_requirements where id = p_requirement_id;
+  if v_req.id is null then
+    raise exception 'ipas_untick_compliance: Compliance Requirement not found' using errcode = '22023';
+  end if;
+
+  v_ipas := public._ipas_compliance_lock('ipas_untick_compliance', v_req.ipas_id);
+  select * into v_req from public.ipas_compliance_requirements where id = p_requirement_id;
+  if v_req.id is null then
+    raise exception 'ipas_untick_compliance: Compliance Requirement not found' using errcode = '22023';
+  end if;
+
+  if v_req.done_on is null then
+    return v_req;
+  end if;
+
+  select o.label into v_kind from public.ipas_options o where o.id = v_req.kind_id;
+
+  update public.ipas_compliance_requirements
+     set done_on = null, note = null, done_by = null, updated_at = now()
+   where id = v_req.id
+   returning * into v_req;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'compliance_unticked',
+    jsonb_build_object('requirement_id', v_req.id, 'kind', v_kind));
+
+  return v_req;
 end;
 $function$
 ;

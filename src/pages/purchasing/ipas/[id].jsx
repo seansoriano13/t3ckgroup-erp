@@ -56,6 +56,7 @@ import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage, odooRefreshMoved } from "../../../utils/ipas";
 import { askLine } from "../../../utils/ipasPaymentAsk";
 import IpasStatusControl from "../../../components/ipas/IpasStatusControl";
+import IpasComplianceLine from "../../../components/ipas/IpasComplianceLine";
 import IpasPaymentStatusPill from "../../../components/ipas/IpasPaymentStatusPill";
 import AskForPaymentDialog from "../../../components/ipas/AskForPaymentDialog";
 import IpasStatusGuideButton from "../../../components/ipas/IpasStatusGuide";
@@ -1029,6 +1030,8 @@ function IpasPage({ onClose }) {
       change: canChange,
       pickLocation: canPickLocation,
       statusStep: canSetStatusStep,
+      // Compliance Requirements (#1251): the same people as the IPAS Status, until Filing.
+      compliance: canSetStatusStep,
       record: canRecord,
       tickFinance: canTickFinance,
       // Only Purchasing moves the Computation status; section 3's sign-off is the check.
@@ -1143,6 +1146,7 @@ function IpasPage({ onClose }) {
                 <IpasPaymentStatusPill figures={digest.figures} />
               </div>
             )}
+            <IpasComplianceLine view={digest.compliance?.view} className="text-sm" />
             {/* The IPAS Status (#597): read from the same IPAS figures as the list, so the two never disagree.
                 Putting it On-Hold is More's item; the dialog it opens lives here. */}
             <div data-testid="ipas-record-status" className="empty:hidden [&:not(:has(:not(:empty)))]:hidden">

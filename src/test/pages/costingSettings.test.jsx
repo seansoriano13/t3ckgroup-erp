@@ -45,7 +45,8 @@ describe("S0 Evaluation settings", () => {
     renderCosting();
 
     const rates = await screen.findByTestId("costing-rates");
-    expect(tabNames()).toEqual(["General", "S0 Evaluation"]);
+    // Purchasing opens read-only to IPAS readers for the Compliance kinds list (#1258).
+    expect(tabNames()).toEqual(["General", "Purchasing", "S0 Evaluation"]);
     expect(within(rates).getByLabelText("VAT divisor")).toHaveValue("1.12");
     expect(within(rates).getByLabelText("Tax rate (%)")).toHaveValue("6");
     expect(within(rates).getByLabelText("Retention rate (%)")).toHaveValue("1");

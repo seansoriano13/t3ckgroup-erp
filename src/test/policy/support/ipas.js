@@ -26,6 +26,7 @@ const CHILDREN = [
     ["ipas_sors", "ipas_id"],
     ["ipas_work_marks", "ipas_id"],
     ["ipas_status_steps", "ipas_id"],
+    ["ipas_compliance_requirements", "ipas_id"],
 ]
 
 /**

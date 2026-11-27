@@ -904,6 +904,15 @@ function eventDetail(event) {
         .filter(Boolean)
         .join(" · ");
     }
+    case "compliance_answered":
+      return detail.to ? "Answered Yes" : "Answered No";
+    case "compliance_kind_added":
+    case "compliance_kind_removed":
+      return detail.kind ?? null;
+    case "compliance_ticked":
+      return [detail.kind, detail.done_on ? formatDay(detail.done_on) : null, detail.note ? `“${detail.note}”` : null].filter(Boolean).join(" · ");
+    case "compliance_unticked":
+      return detail.kind ?? null;
     case "status_date_changed":
       return `${IPAS_STATUS_LABELS[detail.step] ?? detail.step}: ${detail.from ? `${formatDay(detail.from)} → ` : ""}${formatDay(detail.to)}`;
     case "direct_delivery_changed":

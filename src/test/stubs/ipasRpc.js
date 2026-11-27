@@ -510,6 +510,19 @@ export function stubIpasRpcs({
             rowsOf("ipas_status_steps").find((st) => st.ipas_id === row.id && st.step === row.status)?.reached_on ?? null,
           on_hold: row.on_hold === true,
           direct_delivery: row.direct_delivery === true,
+          compliance: row.compliance_asked
+            ? {
+                needed: row.compliance_needed ?? null,
+                kinds: rowsOf("ipas_compliance_requirements")
+                  .filter((r) => r.ipas_id === row.id)
+                  .map((r) => ({
+                    id: r.id,
+                    kind_id: r.kind_id,
+                    label: rowsOf("ipas_options").find((o) => o.id === r.kind_id)?.label ?? "",
+                    done_on: r.done_on ?? null,
+                  })),
+              }
+            : null,
         }
       })
   })
@@ -2004,6 +2017,8 @@ export function stubIpasRpcs({
     for (const p of rowsOf("ipas_payments")) if (filed.has(p.ipas_id) && p.method_id) used.add(p.method_id)
     for (const c of rowsOf("ipas_charges")) if (filed.has(c.ipas_id) && c.kind_id) used.add(c.kind_id)
     for (const d of rowsOf("ipas_documents")) if (filed.has(d.ipas_id) && d.kind_id) used.add(d.kind_id)
+    // #1258: a Compliance Requirement holds its kind too.
+    for (const r of rowsOf("ipas_compliance_requirements")) if (filed.has(r.ipas_id) && r.kind_id) used.add(r.kind_id)
     return [...used]
   })
 
@@ -2026,6 +2041,39 @@ export function stubIpasRpcs({
     if (on === (row.direct_delivery === true)) return row
     const updated = updateRow("ipas", row, { direct_delivery: on })
     event(row.id, "direct_delivery_changed", { to: on })
+    return updated
+  })
+
+  // ── Compliance Requirements (#1251, #1256) ───────────────────────────────
+
+  const complianceRequirement = (fn, id) => {
+    if (!purchasing && !logistics && !superAdmin) refuse("42501", `${fn}: only Purchasing, Logistics or a Super Admin may do this`)
+    const requirement = findRow("ipas_compliance_requirements", id)
+    if (!requirement) refuse("22023", `${fn}: that Compliance Requirement does not exist`)
+    const ipas = requireOpenIpas(fn, requirement.ipas_id)
+    const kind = findRow("ipas_options", requirement.kind_id)?.label ?? null
+    return { requirement, ipas, kind }
+  }
+
+  stubRpc("ipas_tick_compliance", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_tick_compliance", args.p_requirement_id)
+    const today = manilaToday()
+    const day = args.p_done_on ?? today
+    if (day > today) refuse("22023", "ipas_tick_compliance: the day cannot be after today")
+    if (day < "2015-01-01") refuse("22023", "ipas_tick_compliance: the day cannot be before January 1, 2015")
+    const note = (args.p_note ?? "").trim() || null
+    if (note && note.length > 500) refuse("22023", "ipas_tick_compliance: the note is up to 500 characters")
+    if (requirement.done_on === day && (requirement.note ?? null) === note) return requirement
+    const updated = updateRow("ipas_compliance_requirements", requirement, { done_on: day, note, done_by: actorId })
+    event(ipas.id, "compliance_ticked", { requirement_id: requirement.id, kind, done_on: day, note })
+    return updated
+  })
+
+  stubRpc("ipas_untick_compliance", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_untick_compliance", args.p_requirement_id)
+    if (!requirement.done_on) return requirement
+    const updated = updateRow("ipas_compliance_requirements", requirement, { done_on: null, note: null, done_by: null })
+    event(ipas.id, "compliance_unticked", { requirement_id: requirement.id, kind })
     return updated
   })
 }
