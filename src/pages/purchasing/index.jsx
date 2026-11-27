@@ -190,9 +190,8 @@ function QueueRow({ row, selected, onOpen, canTake, stageTones, awardedOn, searc
         hairline={direct}
         reference={direct ? undefined : reference}
         word={direct ? reference : undefined}
+        number={row.pr_number || undefined}
         name={title}
-        // Two lines only (reference, name); the PR number rides in the name's tooltip.
-        tooltip={row.pr_number ? `${title} · ${row.pr_number}` : undefined}
         search={search}
       />
       <TableCell>

@@ -187,6 +187,23 @@ describe("Procurement Queue", () => {
     expect(within(sheet).queryByRole("button", { name: /^take$/i })).not.toBeInTheDocument()
   })
 
+  it("shows the PR number after the SOR number, and highlights it when searched", async () => {
+    db.seed("purchase_requests", { opportunity_id: null, title: "Odoo cable", pr_number: "PR_0178", created_by: salesperson.id, buyer_id: null })
+    db.internal.rowsOf("purchase_requests").find((r) => r.id === unassigned.id).pr_number = "PR_0042"
+    renderAt()
+
+    const project = await rowFor("S01001")
+    expect(within(project).getByTestId("identity-number")).toHaveTextContent("PR_0042")
+    const direct = await rowFor("Direct")
+    expect(within(direct).getByTestId("identity-number")).toHaveTextContent("PR_0178")
+
+    const user = setupUser()
+    await user.type(screen.getByPlaceholderText("Search requests"), "pr_0042")
+    await waitFor(() => expect(screen.queryByText("S01002")).not.toBeInTheDocument())
+    const hit = within(await rowFor("S01001")).getByText("PR_0042")
+    expect(hit).toHaveClass("text-amber-11")
+  })
+
   it("marks a Direct row with the word and a left border, and a project row with neither (#572)", async () => {
     db.seed("purchase_requests", { opportunity_id: null, title: "Odoo cable", created_by: salesperson.id, buyer_id: null })
     renderAt()
