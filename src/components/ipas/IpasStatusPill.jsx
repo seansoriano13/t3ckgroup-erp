@@ -1,7 +1,6 @@
 import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { IPAS_STATUS_LABELS } from "../../constants/ipas";
-import { joinMoneyPart } from "../../utils/ipasPaymentAsk";
 
 /**
  * The IPAS Status pill (ADR 0054): the step the order is at, in the team's own words, coloured through
@@ -18,21 +17,20 @@ const HELD_STYLE = "bg-mauve-11 text-mauve-1 border-mauve-11 hover:bg-mauve-12 h
 const SHAPE =
   "inline-block h-5 max-w-full truncate rounded-full border px-2 text-center align-middle text-label font-bold uppercase leading-[18px] tracking-wider whitespace-nowrap shrink-0";
 
-export default function IpasStatusPill({ status, onHold = false, note = null, onClick = null, className = "", money = null }) {
+export default function IpasStatusPill({ status, onHold = false, note = null, onClick = null, className = "" }) {
   if (!status) return null;
   const stepLabel = IPAS_STATUS_LABELS[status] ?? status;
-  const withMoney = (text) => joinMoneyPart(text, money);
 
   if (!onHold) {
     return (
       <span data-testid="ipas-status-pill" data-status={status} className="inline-flex max-w-full">
-        <StatusBadge status={status} label={withMoney(stepLabel)} className={className} title={withMoney(stepLabel)} />
+        <StatusBadge status={status} label={stepLabel} className={className} title={stepLabel} />
       </span>
     );
   }
 
   // A held pill, read-only or a button: the same marks, label and look either way.
-  const label = withMoney(`On-Hold · ${stepLabel}`);
+  const label = `On-Hold · ${stepLabel}`;
   const title = note ? `${label}: ${note}` : label;
   const held = {
     "data-testid": "ipas-status-pill",

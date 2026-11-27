@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-11-27",
+        "title": "For Payment is a Status again",
+        "version": "1.19.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "For Payment is back in the Status dropdown, right after Order-Draft. Picking it keeps where the goods are, with their dates.",
+            "When nothing is asked yet, picking For Payment opens Ask for payment.",
+            "Once no request for payment is left open, the Status goes back by itself to where the goods were, and the Chat says so.",
+            "The Status chip no longer adds For payment (Down payment) by itself, and the Payment column shows the amount and what it is for as plain text, so For payment shows only once."
+        ]
+    },
+    {
+        "date": "2026-11-27",
         "title": "Compliance Requirements move to Documents",
         "version": "1.18.0",
         "modules": [

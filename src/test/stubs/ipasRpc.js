@@ -1573,11 +1573,11 @@ export function stubIpasRpcs({
   stubRpc("ipas_set_typed_status", () => refuse("42501", "permission denied for function ipas_set_typed_status"))
 
   const STATUS_ORDER = [
-    "order_draft", "ordered", "in_production", "ready_for_shipment", "shipped", "in_transit",
+    "order_draft", "for_payment", "ordered", "in_production", "ready_for_shipment", "shipped", "in_transit",
     "customs", "local_hub", "out_for_delivery", "delivered", "done",
   ]
   const STATUS_LABELS = {
-    order_draft: "Order-Draft", ordered: "Ordered",
+    order_draft: "Order-Draft", for_payment: "For Payment", ordered: "Ordered",
     in_production: "In Production", ready_for_shipment: "Ready for Shipment", shipped: "Shipped / Picked Up", in_transit: "In Transit",
     customs: "Customs / Port Hold", local_hub: "Arrived at Local Hub", out_for_delivery: "Out for Delivery",
     delivered: "Delivered", done: "Done",
@@ -1609,16 +1609,26 @@ export function stubIpasRpcs({
       refuse("22023", `ipas_set_status: ${row.number} is a Local IPAS; ${STATUS_LABELS[step]} is for Import only`)
     }
     const previous = row.status ?? null
-    const current = orderOf(row.status) ?? 0
+    // For Payment is a side step (2026-11-27): the goods step under it is where the order is, and picking it
+    // keeps every goods step's row.
+    const goods = previous === "for_payment" ? (row.status_before_payment ?? "order_draft") : previous
+    const current = orderOf(goods) ?? 0
     const existing = stepsOf(row.id).find((s) => s.step === step)
-    const date = args.p_reached_on ?? (wanted <= current ? existing?.reached_on : null) ?? manilaToday()
+    const date =
+      args.p_reached_on ??
+      (step !== "for_payment" && wanted <= current ? existing?.reached_on : null) ??
+      (previous === step ? existing?.reached_on : null) ??
+      manilaToday()
     checkStatusDate("ipas_set_status", date, `the ${STATUS_LABELS[step]} date`)
     if (row.status === step && existing?.reached_on === date) return row
-    const gone = stepsOf(row.id).filter((s) => orderOf(s.step) > wanted)
+    const gone =
+      step === "for_payment" ? [] : stepsOf(row.id).filter((s) => s.step !== "for_payment" && orderOf(s.step) > wanted)
     deleteRows("ipas_status_steps", gone)
-    if (existing) updateRow("ipas_status_steps", existing, { reached_on: date, set_by: actorId, set_at: new Date().toISOString() })
+    if (step !== "for_payment") deleteRows("ipas_status_steps", stepsOf(row.id).filter((s) => s.step === "for_payment"))
+    if (existing && stepsOf(row.id).includes(existing))
+      updateRow("ipas_status_steps", existing, { reached_on: date, set_by: actorId, set_at: new Date().toISOString() })
     else insertRow("ipas_status_steps", { ipas_id: row.id, step, reached_on: date, set_by: actorId })
-    const updated = updateRow("ipas", row, { status: step })
+    const updated = updateRow("ipas", row, { status: step, status_before_payment: step === "for_payment" ? goods : null })
     event(row.id, "status_changed", {
       from: previous,
       to: step,

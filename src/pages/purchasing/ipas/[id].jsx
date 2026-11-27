@@ -54,7 +54,7 @@ import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import { useAuth } from "../../../context/AuthContext";
 import { getPermissionContext } from "../../../utils/permissions";
 import { ipasErrorMessage, odooRefreshMoved } from "../../../utils/ipas";
-import { askLine } from "../../../utils/ipasPaymentAsk";
+import { askLine, askPurposeLocks } from "../../../utils/ipasPaymentAsk";
 import IpasStatusControl from "../../../components/ipas/IpasStatusControl";
 import IpasComplianceLine from "../../../components/ipas/IpasComplianceLine";
 import IpasPaymentStatusPill from "../../../components/ipas/IpasPaymentStatusPill";
@@ -184,6 +184,7 @@ function IpasPage({ onClose }) {
   const [reopening, setReopening] = useState(false);
   const [holding, setHolding] = useState(false);
   const [editingAsk, setEditingAsk] = useState(null); // the open ask being changed from its grey row (#1225)
+  const [askingPayment, setAskingPayment] = useState(false); // opened by picking For Payment (2026-11-27)
   // "Record as paid" on a grey row: the edit form opens on its section with a new row filled from this ask.
   const [recordingAsk, setRecordingAsk] = useState(null); // { section: "payments" | "costs", ask }
   // A failed move, shown at the place it was started (card or drawer footer), with Retry.
@@ -699,6 +700,10 @@ function IpasPage({ onClose }) {
     onSuccess: (_, { step }) => {
       toast.success(`Status set to ${IPAS_STATUS_LABELS[step]}.`);
       changed();
+      // Picking For Payment opens the request form when nothing is asked yet, so the Payment column is never blank
+      // while the Status says For Payment. Closing the form keeps the step.
+      const askOpen = (ipas?.payment_asks ?? []).some((ask) => ask && !ask.closed_at);
+      if (step === IPAS_STATUS.FOR_PAYMENT && canRecord && !askOpen) setAskingPayment(true);
     },
     onError: (error, vars) => {
       failChange(error, () => saveStatus.mutate(vars));
@@ -714,6 +719,15 @@ function IpasPage({ onClose }) {
       refreshIpasList(queryClient);
     },
   });
+  const askPayment = useMutation({
+    mutationFn: (values) => ipasService.askForPayment(id, values),
+    onSuccess: () => {
+      toast.success("Payment asked.");
+      changed();
+      refreshIpasList(queryClient);
+    },
+  });
+
   const withdrawAsk = useMutation({
     mutationFn: (askId) => ipasService.withdrawPaymentAsk(askId),
     onSuccess: () => {
@@ -1099,6 +1113,16 @@ function IpasPage({ onClose }) {
             onEdit={(askId, values) => editAsk.mutateAsync({ askId, ...values })}
             onWithdraw={(askId) => withdrawAsk.mutateAsync(askId)}
           />
+          <AskForPaymentDialog
+            open={askingPayment}
+            onOpenChange={setAskingPayment}
+            number={ipas.number}
+            figures={digest.figures}
+            locks={askPurposeLocks(ipas)}
+            onAsk={(values) => askPayment.mutateAsync(values)}
+            onEdit={(askId, values) => editAsk.mutateAsync({ askId, ...values })}
+            onWithdraw={(askId) => withdrawAsk.mutateAsync(askId)}
+          />
           <div className="space-y-3">
             <RecordHeader reference={ipas.number} name={ipas.supplier} badge={ipasBadge(ipas)} line={ipasLine(ipas)} />
             <PropertyPills
@@ -1143,7 +1167,7 @@ function IpasPage({ onClose }) {
             {digest.figures.paymentStatus && digest.figures.paymentStatus !== "not_due_yet" && (
               <div className="flex items-start gap-2 text-sm text-muted-foreground" data-testid="ipas-record-payment-status">
                 <span>Payment</span>
-                <IpasPaymentStatusPill figures={digest.figures} />
+                <IpasPaymentStatusPill figures={digest.figures} withPriority />
               </div>
             )}
             <IpasComplianceLine view={digest.compliance?.view} className="text-sm" />

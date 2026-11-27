@@ -405,6 +405,7 @@ describe("the page's content", () => {
     expect(status.label).toBe("In Transit")
     expect(status.steps.map((step) => [step.label, step.date, step.current])).toEqual([
       ["Order-Draft", "Sep 2, 2026", false],
+      ["For Payment", null, false],
       ["Ordered", "Sep 3, 2026", false],
       ["In Production", null, false],
       ["Ready for Shipment", null, false],

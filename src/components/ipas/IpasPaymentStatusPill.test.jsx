@@ -34,14 +34,21 @@ describe("IpasPaymentStatusPill", () => {
     expect(within(pill).getByText("Fully paid")).toHaveClass("text-muted-foreground")
   })
 
-  it("shows an amber For payment pill with the amount and a muted note for an open ask", () => {
+  it("shows an open ask as plain text, amount and what for, with no second For payment (2026-11-27)", () => {
     render(<IpasPaymentStatusPill figures={ipasFigures(ipas({ payment_asks: [ask()] }))} />)
     const line = screen.getByTestId("ipas-payment-ask")
-    expect(line).toHaveTextContent("For payment")
     expect(line).toHaveTextContent("3,000.00")
-    expect(line).toHaveTextContent("Down payment · High")
+    expect(line).toHaveTextContent("Down payment")
+    // The list has its own Priority column, and the Status already says For Payment.
+    expect(line).not.toHaveTextContent("High")
+    expect(line).not.toHaveTextContent(/for payment/i)
     expect(line.getAttribute("title")).toContain("30% down")
     expect(screen.getByTestId("ipas-payment-status-pill")).toHaveAttribute("data-payment-status", "for_payment")
+  })
+
+  it("adds the priority on the record header", () => {
+    render(<IpasPaymentStatusPill figures={ipasFigures(ipas({ payment_asks: [ask()] }))} withPriority />)
+    expect(screen.getByTestId("ipas-payment-ask")).toHaveTextContent("Down payment · High")
   })
 
   it("stacks several open asks as one line each, and leaves closed asks out", () => {
@@ -49,7 +56,7 @@ describe("IpasPaymentStatusPill", () => {
     render(<IpasPaymentStatusPill figures={ipasFigures(ipas({ payment_asks: asks }))} />)
     const lines = screen.getAllByTestId("ipas-payment-ask")
     expect(lines).toHaveLength(2)
-    expect(lines[1]).toHaveTextContent("Freight · Medium")
+    expect(lines[1]).toHaveTextContent("Freight")
     expect(screen.queryByRole("table")).not.toBeInTheDocument()
   })
 

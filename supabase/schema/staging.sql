@@ -801,7 +801,8 @@ create table if not exists public."ipas" (
   "compliance_asked" boolean not null default true,
   "compliance_needed" boolean,
   "compliance_answered_by" uuid,
-  "compliance_answered_at" timestamp with time zone
+  "compliance_answered_at" timestamp with time zone,
+  "status_before_payment" text
 );
 
 create table if not exists public."ipas_bank_details" (
@@ -2494,6 +2495,7 @@ alter table ipas add constraint "ipas_retail_multiplier_chk" CHECK (((retail_mul
 alter table ipas add constraint "ipas_sor_warning_checked_chk" CHECK (((sor_warning_checked IS NULL) OR (jsonb_typeof(sor_warning_checked) = 'object'::text)));
 alter table ipas add constraint "ipas_source_chk" CHECK ((source = ANY (ARRAY['import'::text, 'local'::text])));
 alter table ipas add constraint "ipas_state_chk" CHECK ((state = ANY (ARRAY['open'::text, 'filed'::text, 'cancelled'::text])));
+alter table ipas add constraint "ipas_status_before_payment_chk" CHECK (((status_before_payment IS NULL) OR ((_ipas_status_order(status_before_payment) IS NOT NULL) AND (status_before_payment <> 'for_payment'::text))));
 alter table ipas add constraint "ipas_status_chk" CHECK (((status IS NULL) OR (_ipas_status_order(status) IS NOT NULL)));
 alter table ipas add constraint "ipas_supplier_origin_import_chk" CHECK (((source = 'import'::text) OR ((shipped_out_on IS NULL) AND (onboard_on IS NULL) AND (arrived_in_ph_on IS NULL) AND (arrived_in_whs_on IS NULL))));
 alter table ipas add constraint "ipas_wholesale_discount_chk" CHECK (((wholesale_discount_pct >= (0)::numeric) AND (wholesale_discount_pct < (100)::numeric)));
@@ -2582,7 +2584,7 @@ alter table opex_report_p0s add constraint "opex_report_p0s_format" CHECK ((p0_n
 alter table opex_reports add constraint "opex_reports_s0_format" CHECK ((s0_number ~ '^S[0-9]+$'::text));
 alter table opex_typed_costs add constraint "opex_typed_costs_cost_group_check" CHECK ((cost_group = ANY (ARRAY['product'::text, 'operation_admin'::text, 'marketing'::text])));
 alter table order_ageing_rules add constraint "order_ageing_rules_days_chk" CHECK (((days IS NULL) OR (days > 0)));
-alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'ordered'::text, 'in_production'::text, 'ready_for_shipment'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
+alter table order_ageing_rules add constraint "order_ageing_rules_step_chk" CHECK ((step = ANY (ARRAY['order_draft'::text, 'for_payment'::text, 'ordered'::text, 'in_production'::text, 'ready_for_shipment'::text, 'shipped'::text, 'in_transit'::text, 'customs'::text, 'local_hub'::text, 'out_for_delivery'::text, 'delivered'::text, 'no_transmittal'::text, 'check_open'::text, 'section_3_approval'::text, 'ready_to_file'::text])));
 alter table order_deadline_setting add constraint "order_deadline_setting_days_chk" CHECK ((near_days > 0));
 alter table order_deadline_setting add constraint "order_deadline_setting_one_row_chk" CHECK ((id = true));
 alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
@@ -7160,6 +7162,22 @@ AS $function$
           jsonb_build_object('event', p_event, 'ask_id', p_ask_id) || coalesce(p_meta, '{}'::jsonb), clock_timestamp());
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_payment_asks_status_back()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'DELETE' then
+    perform public._ipas_status_back_from_payment(old.ipas_id);
+  elsif old.closed_at is null and new.closed_at is not null then
+    perform public._ipas_status_back_from_payment(new.ipas_id);
+  end if;
+  return null;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_payment_closes_ask()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -7568,6 +7586,48 @@ AS $function$
       or (p_section = 8 and p_role = 'approved');
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._ipas_status_back_from_payment(p_ipas_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.ipas;
+  v_back text;
+begin
+  select * into v_row from public.ipas where id = p_ipas_id for update;
+  if not found or v_row.state <> 'open' or v_row.status is distinct from 'for_payment' then
+    return;
+  end if;
+  if exists (select 1 from public.ipas_payment_asks a where a.ipas_id = p_ipas_id and a.closed_at is null) then
+    return;
+  end if;
+
+  v_back := coalesce(v_row.status_before_payment, 'order_draft');
+  -- A Local IPAS can't sit on an Import-only step (the source may have changed while on For Payment).
+  if v_row.source = 'local' and v_back in ('customs', 'local_hub', 'out_for_delivery') then
+    v_back := 'order_draft';
+  end if;
+
+  delete from public.ipas_status_steps s where s.ipas_id = p_ipas_id and s.step = 'for_payment';
+  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+  values (p_ipas_id, v_back, public._ipas_today(), null, now())
+  on conflict (ipas_id, step) do nothing;
+
+  perform set_config('ipas.status_note', 'Moved back by the app: no payment request is open.', true);
+  update public.ipas set status = v_back, status_before_payment = null where id = p_ipas_id;
+  perform set_config('ipas.status_note', '', true);
+
+  perform public._ipas_write_event(p_ipas_id, public.get_employee_id(), 'status_changed', jsonb_build_object(
+    'from', 'for_payment',
+    'to', v_back,
+    'cleared', '[]'::jsonb,
+    'by', 'app'
+  ));
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._ipas_status_drop_payment_steps(p_ipas_id uuid DEFAULT NULL::uuid)
  RETURNS integer
  LANGUAGE plpgsql
@@ -7631,7 +7691,7 @@ CREATE OR REPLACE FUNCTION public._ipas_status_order(p_step text)
  SET search_path TO 'public'
 AS $function$
   select array_position(array[
-    'order_draft', 'ordered', 'in_production', 'ready_for_shipment',
+    'order_draft', 'for_payment', 'ordered', 'in_production', 'ready_for_shipment',
     'shipped', 'in_transit', 'customs', 'local_hub', 'out_for_delivery', 'delivered', 'done'
   ]::text[], p_step);
 $function$
@@ -7642,7 +7702,7 @@ CREATE OR REPLACE FUNCTION public._ipas_status_step_known(p_step text)
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  select public._ipas_status_order(p_step) is not null or p_step in ('payment_approval', 'for_payment');
+  select public._ipas_status_order(p_step) is not null or p_step = 'payment_approval';
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_status_switch_over(p_ipas_id uuid DEFAULT NULL::uuid)
@@ -7704,6 +7764,7 @@ CREATE OR REPLACE FUNCTION public._ipas_status_to_chat()
 AS $function$
 declare
   v_text text;
+  v_note text := nullif(current_setting('ipas.status_note', true), '');
 begin
   if new.status is not distinct from old.status then
     return null;
@@ -7716,6 +7777,9 @@ begin
   else
     v_text := 'Status set to ' || public._ipas_status_label(new.status)
            || ' (was ' || public._ipas_status_label(old.status) || ').';
+  end if;
+  if v_note is not null then
+    v_text := v_text || ' ' || v_note;
   end if;
 
   insert into public.ipas_messages (ipas_id, author_id, content, metadata)
@@ -21114,6 +21178,7 @@ declare
   v_date date;
   v_cleared text[];
   v_from text;
+  v_goods text;
 begin
   if v_new is null then
     raise exception 'ipas_set_status: % isn''t a status step', coalesce(p_step, 'null') using errcode = '22023';
@@ -21129,11 +21194,14 @@ begin
   end if;
 
   v_from := v_row.status;
-  v_cur := coalesce(public._ipas_status_order(v_row.status), 0);
+  -- On For Payment, the goods step under it is where the order really is.
+  v_goods := case when v_from = 'for_payment' then coalesce(v_row.status_before_payment, 'order_draft') else v_from end;
+  v_cur := coalesce(public._ipas_status_order(v_goods), 0);
   select s.reached_on into v_existing from public.ipas_status_steps s where s.ipas_id = v_row.id and s.step = p_step;
 
   -- Moving back to a step that already has a day keeps that day unless a new one is given.
-  v_date := coalesce(p_reached_on, case when v_new <= v_cur then v_existing end, public._ipas_today());
+  v_date := coalesce(p_reached_on, case when p_step <> 'for_payment' and v_new <= v_cur then v_existing end,
+                     case when v_from = p_step then v_existing end, public._ipas_today());
   perform public._ipas_check_date('ipas_set_status', v_date, 'the ' || public._ipas_status_label(p_step) || ' date');
 
   -- Dates out of order are allowed (#1151 follow-up): the record shows a warning instead of refusing.
@@ -21142,19 +21210,33 @@ begin
     return v_row;
   end if;
 
-  with gone as (
-    delete from public.ipas_status_steps s
-     where s.ipas_id = v_row.id and public._ipas_status_order(s.step) > v_new
-    returning s.step
-  )
-  select array_agg(step order by public._ipas_status_order(step)) into v_cleared from gone;
+  if p_step = 'for_payment' then
+    -- A side step: every goods step keeps its row and day.
+    insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+    values (v_row.id, p_step, v_date, v_actor, now())
+    on conflict (ipas_id, step) do update
+      set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = excluded.set_at;
 
-  insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
-  values (v_row.id, p_step, v_date, v_actor, now())
-  on conflict (ipas_id, step) do update
-    set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = excluded.set_at;
+    update public.ipas set status = p_step, status_before_payment = v_goods
+     where id = v_row.id returning * into v_row;
+  else
+    with gone as (
+      delete from public.ipas_status_steps s
+       where s.ipas_id = v_row.id and s.step <> 'for_payment' and public._ipas_status_order(s.step) > v_new
+      returning s.step
+    )
+    select array_agg(step order by public._ipas_status_order(step)) into v_cleared from gone;
 
-  update public.ipas set status = p_step where id = v_row.id returning * into v_row;
+    delete from public.ipas_status_steps s where s.ipas_id = v_row.id and s.step = 'for_payment';
+
+    insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by, set_at)
+    values (v_row.id, p_step, v_date, v_actor, now())
+    on conflict (ipas_id, step) do update
+      set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = excluded.set_at;
+
+    update public.ipas set status = p_step, status_before_payment = null
+     where id = v_row.id returning * into v_row;
+  end if;
 
   perform public._ipas_write_event(v_row.id, v_actor, 'status_changed', jsonb_build_object(
     'from', v_from,
@@ -21887,29 +21969,37 @@ declare
 begin
   if new.state is distinct from old.state then
     if new.state = 'filed' then
+      delete from public.ipas_status_steps where ipas_id = new.id and step = 'for_payment';
       insert into public.ipas_status_steps (ipas_id, step, reached_on, set_by)
       values (new.id, 'done', public._ipas_today(), public.get_employee_id())
       on conflict (ipas_id, step) do update set reached_on = excluded.reached_on, set_by = excluded.set_by, set_at = now();
       new.status := 'done';
+      new.status_before_payment := null;
     elsif old.state = 'filed' and new.state = 'open' then
       delete from public.ipas_status_steps where ipas_id = new.id and step = 'done';
       select s.step into v_last from public.ipas_status_steps s
-       where s.ipas_id = new.id and public._ipas_status_order(s.step) is not null
+       where s.ipas_id = new.id and s.step <> 'for_payment' and public._ipas_status_order(s.step) is not null
        order by public._ipas_status_order(s.step) desc limit 1;
       new.status := coalesce(v_last, 'order_draft');
     elsif new.state = 'cancelled' then
       new.status := null;
+      new.status_before_payment := null;
     end if;
   end if;
 
   if new.source is distinct from old.source and new.source = 'local' then
     delete from public.ipas_status_steps
      where ipas_id = new.id and step in ('customs', 'local_hub', 'out_for_delivery');
-    if new.status in ('customs', 'local_hub', 'out_for_delivery') then
+    if new.status in ('customs', 'local_hub', 'out_for_delivery')
+       or new.status_before_payment in ('customs', 'local_hub', 'out_for_delivery') then
       select s.step into v_last from public.ipas_status_steps s
-       where s.ipas_id = new.id and public._ipas_status_order(s.step) is not null
+       where s.ipas_id = new.id and s.step <> 'for_payment' and public._ipas_status_order(s.step) is not null
        order by public._ipas_status_order(s.step) desc limit 1;
-      new.status := coalesce(v_last, 'order_draft');
+      if new.status = 'for_payment' then
+        new.status_before_payment := coalesce(v_last, 'order_draft');
+      else
+        new.status := coalesce(v_last, 'order_draft');
+      end if;
     end if;
   end if;
 
@@ -34474,6 +34564,7 @@ CREATE TRIGGER ipas_options_required_before_guard BEFORE INSERT OR UPDATE ON pub
 CREATE TRIGGER ipas_options_system_key_guard BEFORE INSERT OR UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION ipas_options_system_key_guard();
 CREATE TRIGGER ipas_options_updated_at BEFORE UPDATE ON public.ipas_options FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
 CREATE TRIGGER ipas_payment_asks_notify_payers AFTER INSERT ON public.ipas_payment_asks FOR EACH ROW EXECUTE FUNCTION _ipas_payers_notify_ask();
+CREATE TRIGGER ipas_payment_asks_status_back AFTER DELETE OR UPDATE OF closed_at ON public.ipas_payment_asks FOR EACH ROW EXECUTE FUNCTION _ipas_payment_asks_status_back();
 CREATE TRIGGER ipas_payment_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_payment_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
 CREATE TRIGGER ipas_payment_closes_ask AFTER INSERT OR UPDATE OF ask_id ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION _ipas_payment_closes_ask();
 CREATE TRIGGER ipas_payments_file_link BEFORE INSERT OR UPDATE OF proof_url ON public.ipas_payments FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('proof_url');
