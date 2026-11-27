@@ -608,3 +608,36 @@ describe('Activity form', () => {
     });
   });
 });
+
+describe('Group Task Activity form (#1250)', () => {
+  const groupTask = { id: 'gt1', title: 'Trade show stand', memberIds: ['fac'], startDate: '2031-03-20', dueDate: '2031-03-22' };
+
+  it('opens on the Start Date to the Due Date, type fixed, title read-only, no Venue', async () => {
+    meetingRequestService.fileRequest.mockResolvedValue({});
+    renderForm([], { groupTask });
+    expect(await screen.findByTestId('group-task-title')).toHaveTextContent('Trade show stand');
+    expect(screen.getByTestId('activity-type-fixed')).toHaveTextContent('Group Task');
+    expect(screen.queryByText('Venue')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('What is the Activity for?')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Send request/ }));
+    await waitFor(() => expect(meetingRequestService.fileRequest).toHaveBeenCalled());
+    const sent = meetingRequestService.fileRequest.mock.calls.at(-1)[0];
+    expect(sent).toMatchObject({ activityType: 'GROUP_TASK', groupTaskId: 'gt1', purpose: 'Trade show stand' });
+    expect(sent.days.map((d) => d.startsAt.slice(0, 10))).toEqual(['2031-03-20', '2031-03-21', '2031-03-22']);
+  });
+
+  it('starts today when the Start Date has passed', async () => {
+    meetingRequestService.fileRequest.mockResolvedValue({});
+    renderForm([], { groupTask: { ...groupTask, startDate: '2030-12-01', dueDate: '2031-01-02' } });
+    await screen.findByTestId('group-task-title');
+    await userEvent.click(screen.getByRole('button', { name: /Send request/ }));
+    await waitFor(() => expect(meetingRequestService.fileRequest).toHaveBeenCalled());
+    expect(meetingRequestService.fileRequest.mock.calls.at(-1)[0].days[0].startsAt.slice(0, 10)).toBe('2031-01-01');
+  });
+
+  it('the ordinary form does not list Group Task', async () => {
+    renderForm([]);
+    await screen.findByText('Activity type');
+    expect(screen.queryByText('Group Task')).not.toBeInTheDocument();
+  });
+});

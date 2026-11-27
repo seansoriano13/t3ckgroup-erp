@@ -16,8 +16,9 @@ import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { ACTIVITY_COLORS, ACTIVITY_COLOR_KEYS } from "@/constants/activityColors";
 import { ACTIVITY_SETTINGS_KEY, useActivitySettings } from "@/hooks/useActivitySettings";
+import { ACTIVITY_TYPE } from "@/services/meetingRequestService";
 import { activitySettingsService } from "@/services/activitySettingsService";
-import { ACTIVITY_TYPE_KEYS, MEETING_TYPE_KEYS, fitDefaults, timeOptions, timesOfDay } from "@/utils/activitySettings";
+import { ACTIVITY_TYPE_KEYS, ALL_ACTIVITY_TYPE_KEYS, MEETING_TYPE_KEYS, fitDefaults, timeOptions, timesOfDay } from "@/utils/activitySettings";
 
 const WHO_OPTIONS = [
   { value: "EVERYONE", label: "Everyone" },
@@ -36,6 +37,16 @@ const TYPE_COLUMNS = "@2xl:grid-cols-[minmax(0,1fr)_10.5rem_7.5rem_7rem]";
 /** What one type allows, in the words the columns use. */
 function typeFacts(typeKey, type) {
   const extra = type.alsoAllowed?.length ?? 0;
+  // #1255: Group Task's two fixed cells; the reason shows on hover only (CONTEXT.md, Hover detail).
+  if (typeKey === ACTIVITY_TYPE.GROUP_TASK) {
+    return {
+      who: "Anyone who can open the Group Task",
+      whoWhy: "Set by the Group Task itself: whoever can open it can add it to the Calendar.",
+      hr: type.needsHr ? "Yes" : "No",
+      length: "Several days",
+      lengthWhy: "The days follow the Group Task's dates.",
+    };
+  }
   const who = type.whoFiles === "EVERYONE" ? "Everyone" : extra ? `Department heads + ${extra}` : "Department heads";
   // Only a Meeting with a Venue waits (CONTEXT.md, Activity type), so the list says so.
   const hr = !type.needsHr ? "No" : typeKey === "MEETING" ? "With a Venue" : "Yes";
@@ -119,6 +130,7 @@ function TypeEditor({ typeKey, type, change, busy, general, saveGeneral, meeting
           ))}
         </div>
       </Row>
+      {typeKey !== ACTIVITY_TYPE.GROUP_TASK && (
       <div>
         <Row label="Who can file it">
           <SelectField
@@ -146,15 +158,18 @@ function TypeEditor({ typeKey, type, change, busy, general, saveGeneral, meeting
           </div>
         )}
       </div>
+      )}
       <Row
         label="Waits for HR"
         hint={typeKey === "MEETING" ? "Only a Meeting with a Venue waits. Never when HR or a Super Admin files it." : "Never when HR or a Super Admin files it."}
       >
         <Switch checked={type.needsHr} disabled={busy} aria-label={`${type.name} waits for HR`} onCheckedChange={(on) => change({ needsHr: on })} />
       </Row>
-      <Row label="Can run over several days" hint={type.multiDay ? `Up to ${general.maxDays} days, the longest range set below.` : null}>
-        <Switch checked={type.multiDay} disabled={busy} aria-label={`${type.name} can run over several days`} onCheckedChange={(on) => change({ multiDay: on })} />
-      </Row>
+      {typeKey !== ACTIVITY_TYPE.GROUP_TASK && (
+        <Row label="Can run over several days" hint={type.multiDay ? `Up to ${general.maxDays} days, the longest range set below.` : null}>
+          <Switch checked={type.multiDay} disabled={busy} aria-label={`${type.name} can run over several days`} onCheckedChange={(on) => change({ multiDay: on })} />
+        </Row>
+      )}
       {typeKey === "MEETING" && (
         <Row label="Meeting types" hint="The ones a Meeting can be.">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2" role="group" aria-label="Meeting types">
@@ -188,7 +203,8 @@ function TypeRow({ typeKey, type, open, onToggle, onlyOneOn, save, busy, general
   const change = (changes) => save.mutate({ typeKey, from: type, changes });
   const facts = typeFacts(typeKey, type);
   const editorId = `activity-type-editor-${typeKey}`;
-  const lastOne = type.active && onlyOneOn;
+  // Group Task is not one of the ordinary types the rule counts, so it is never the locked one.
+  const lastOne = type.active && onlyOneOn && typeKey !== ACTIVITY_TYPE.GROUP_TASK;
   const off = !type.active;
   return (
     <li data-testid={`activity-type-${typeKey}`} data-open={open}>
@@ -208,12 +224,18 @@ function TypeRow({ typeKey, type, open, onToggle, onlyOneOn, save, busy, general
               <span className={cn("truncate text-sm font-semibold", off ? "text-muted-foreground" : "text-foreground")}>{type.name}</span>
               {off && <span className="shrink-0 text-xs font-medium text-muted-foreground">Off</span>}
             </div>
-            <p className="col-span-full mt-0.5 pl-5 text-xs text-muted-foreground @2xl:hidden">
-              {[facts.who, type.needsHr ? `Waits for HR${typeKey === "MEETING" ? " with a Venue" : ""}` : null, facts.length].filter(Boolean).join(" · ")}
-            </p>
-            <span className={cn("hidden truncate text-[13px] @2xl:block", off ? "text-muted-foreground" : "text-foreground")}>{facts.who}</span>
+            <Tooltip content={[facts.whoWhy, facts.lengthWhy].filter(Boolean).join(" ") || null}>
+              <p className="col-span-full mt-0.5 pl-5 text-xs text-muted-foreground @2xl:hidden">
+                {[facts.who, type.needsHr ? `Waits for HR${typeKey === "MEETING" ? " with a Venue" : ""}` : null, facts.length].filter(Boolean).join(" · ")}
+              </p>
+            </Tooltip>
+            <Tooltip content={facts.whoWhy ?? null}>
+              <span className={cn("hidden truncate text-[13px] @2xl:block", off ? "text-muted-foreground" : "text-foreground")}>{facts.who}</span>
+            </Tooltip>
             <span className={cn("hidden text-[13px] @2xl:block", !type.needsHr || off ? "text-muted-foreground" : "font-medium text-foreground")}>{facts.hr}</span>
-            <span className={cn("hidden text-[13px] @2xl:block", off ? "text-muted-foreground" : "text-foreground")}>{facts.length}</span>
+            <Tooltip content={facts.lengthWhy ?? null}>
+              <span className={cn("hidden text-[13px] @2xl:block", off ? "text-muted-foreground" : "text-foreground")}>{facts.length}</span>
+            </Tooltip>
           </div>
         </Button>
         <div className="flex w-10 shrink-0 justify-end">
@@ -308,7 +330,7 @@ export default function ActivitySettings() {
           <span className="w-10 shrink-0 text-right text-label font-bold uppercase tracking-wider text-muted-foreground">On</span>
         </div>
         <ul className="divide-y divide-border">
-          {ACTIVITY_TYPE_KEYS.map((key) => (
+          {ALL_ACTIVITY_TYPE_KEYS.map((key) => (
             <TypeRow
               key={key}
               typeKey={key}

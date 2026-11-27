@@ -6,6 +6,7 @@ import { SlideOverBody } from '@/components/ui/SlideOver';
 import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailParts';
 import { ACTIVITY_TYPE_LABEL, MEETING_STATUS_LABEL, MEETING_TYPE_LABEL, guestList, guestText, safeLink } from '@/services/meetingRequestService';
 import MeetingActions from './MeetingActions.jsx';
+import GroupTaskLink from './GroupTaskLink.jsx';
 
 const dayText = (ymd) => format(parseManilaDate(ymd), 'EEE, MMM d, yyyy');
 
@@ -68,6 +69,7 @@ export default function MeetingDetail({ entry }) {
           <DetailRow label="Guests"><span className="break-words">{guests.length ? guests.map(guestText).join(', ') : 'None'}</span></DetailRow>
         </dl>
       </DetailSection>
+      {d.group_task_id && <GroupTaskLink groupTaskId={d.group_task_id} />}
       <MeetingActions request={{ id: d.request_id ?? entry.group_id ?? entry.id, status: d.stage, startsAt: d.last_day_starts_at ?? entry.starts_at, applicantId: person.id, hasVenue: Boolean(d.venue ?? entry.venue) }} />
     </SlideOverBody>
   );

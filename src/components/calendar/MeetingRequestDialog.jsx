@@ -23,6 +23,7 @@ import { PURPOSE_MAX, activityFingerprint, defaultSlot, draftProblems, latestDat
 import { useActivitySettings } from '@/hooks/useActivitySettings';
 import { enabledMeetingTypes, timeOptions } from '@/utils/activitySettings';
 import ActivityDayRows from './ActivityDayRows.jsx';
+import { groupTaskDays } from '@/utils/groupTaskActivity';
 import { daysFromSaved, daysPayload, keptDays } from './activityDays.js';
 import { clashMessage, findClash, rangeWarnings, venueMeetings } from './meetingPreview.js';
 
@@ -94,7 +95,9 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
 
   // Once Send is pressed the new entry reaches this form's own preview (realtime refresh), and would show as a clash with itself. The preview stops refetching from then on.
   const [sending, setSending] = useState(false);
-  const [activityType, setActivityType] = useState(editing?.activity_type ?? ACTIVITY_TYPE.MEETING);
+  // #1250: a Group Task Activity (new from Add to Calendar, or an edit) has its type fixed and takes its title from the Group Task.
+  const groupTask = initial.groupTask ?? (editing?.activity_type === ACTIVITY_TYPE.GROUP_TASK ? { id: editing.group_task_id, title: editing.purpose } : null);
+  const [activityType, setActivityType] = useState(groupTask ? ACTIVITY_TYPE.GROUP_TASK : editing?.activity_type ?? ACTIVITY_TYPE.MEETING);
   const [meetingType, setMeetingType] = useState(editing?.meeting_type ?? (meetingTypeKeys.includes(MEETING_TYPE.ONSITE) ? MEETING_TYPE.ONSITE : meetingTypeKeys[0] ?? MEETING_TYPE.ONSITE));
   const [meetingLink, setMeetingLink] = useState(editing?.meeting_link ?? '');
   const [venuePick, setVenueId] = useState(editing?.venue_id ?? initial.venueId ?? '');
@@ -102,8 +105,10 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const saved = useMemo(() => (editing ? daysFromSaved(requestDays(editing)) : null), [editing]);
   // A new Activity opens on a time that can still be filed: the default start, the next slot today, or tomorrow.
   const [slot] = useState(() => defaultSlot(rules, clock(), initial.date));
-  const [date, setDate] = useState(() => saved?.from ?? (initial.start ? initial.date : undefined) ?? slot.date);
-  const [dateTo, setDateTo] = useState(() => saved?.to ?? '');
+  // A new Group Task Activity runs from the Group Task's Start Date (or today) to its Due Date.
+  const [groupRange] = useState(() => (initial.groupTask && !editing ? groupTaskDays(initial.groupTask, rules, clock()) : null));
+  const [date, setDate] = useState(() => saved?.from ?? groupRange?.date ?? (initial.start ? initial.date : undefined) ?? slot.date);
+  const [dateTo, setDateTo] = useState(() => saved?.to ?? groupRange?.dateTo ?? '');
   const [dayEdits, setDayEdits] = useState(() => saved?.edits ?? {});
   const [start, setStart] = useState(saved?.start ?? initial.start ?? slot.start);
   const [end, setEnd] = useState(saved?.end ?? initial.end ?? slot.end);
@@ -112,13 +117,13 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
   const frozenDates = NO_DATES;
   const [facilitatorPick, setFacilitatorId] = useState(editing?.facilitator_id ?? '');  // the Lead
   const [participants, setParticipants] = useState(() =>
-    (editing?.participants ?? []).map((p) => ({ type: SELECTOR_TYPES.EMPLOYEE, id: p.employee_id })),
+    (editing ? (editing.participants ?? []).map((p) => p.employee_id) : initial.groupTask?.memberIds ?? []).map((id) => ({ type: SELECTOR_TYPES.EMPLOYEE, id })),
   );
   const [guests, setGuests] = useState(() => guestList(editing?.guests, editing?.guest_emails));
   const [guestDraft, setGuestDraft] = useState('');
   const [guestEmailDraft, setGuestEmailDraft] = useState('');
   const [guestNote, setGuestNote] = useState('');
-  const [purpose, setPurpose] = useState(editing?.purpose ?? '');
+  const [purpose, setPurpose] = useState(editing?.purpose ?? [...(groupTask?.title ?? '').trim()].slice(0, PURPOSE_MAX).join(''));
 
   // Anything typed or picked since the form opened: closing then asks first (#1086). An untouched form closes at once.
   const draftNow = JSON.stringify([activityType, meetingType, meetingLink, venuePick, date, dateTo, dayEdits, start, end, facilitatorPick, participants, guests, guestDraft, guestEmailDraft, purpose]);
@@ -252,6 +257,7 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         purpose,
         guests,
         participantIds,
+        groupTaskId: groupTask?.id ?? null,
         applicant: user,
       });
     },
@@ -282,7 +288,11 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <FieldBox label="Activity type" className="mb-1.5 block" />
-          <SelectField value={activityType} onChange={setActivityType} options={typeOptions} className="w-full" />
+          {groupTask ? (
+            <p className="text-sm" data-testid="activity-type-fixed">{settings.types.GROUP_TASK?.name ?? 'Group Task'}</p>
+          ) : (
+            <SelectField value={activityType} onChange={setActivityType} options={typeOptions} className="w-full" />
+          )}
         </div>
         {isMeeting && (
           <div className="sm:col-span-2">
@@ -451,18 +461,22 @@ function MeetingRequestForm({ onClose, initial = {}, editing = null, resend = fa
         </div>
         )}
         <div className="sm:col-span-2">
-          <FieldBox label="Purpose" className="mb-1.5 block" />
-          <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the Activity for?" />
+          <FieldBox label={groupTask ? 'Title' : 'Purpose'} className="mb-1.5 block" />
+          {groupTask ? (
+            <p className="whitespace-pre-wrap break-words text-sm" data-testid="group-task-title">{purpose}</p>
+          ) : (
+            <Textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={3} placeholder="What is the Activity for?" />
+          )}
           <div className="mt-1 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <FieldProblem field="purpose" message={problemAt('purpose')} />
             </div>
-            <p
+            {!groupTask && <p
               className={`ml-auto shrink-0 text-xs ${purposeLength > PURPOSE_MAX ? 'text-destructive' : 'text-muted-foreground'}`}
               data-testid="purpose-counter"
             >
               {purposeLength} / {PURPOSE_MAX}
-            </p>
+            </p>}
           </div>
         </div>
       </div>

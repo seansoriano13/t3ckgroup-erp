@@ -4,6 +4,8 @@
 // Speed: Odoo answers each call in a few hundred milliseconds, so the calls that
 // do not need each other's answers go out together, in four rounds, instead of
 // one after another (about 18 calls). The answer is the same either way.
+// Each call and each round is timed (stepTimer.ts) so the function logs show
+// which part is slow (#1266).
 
 import { executeKw, normalizePoNumber } from "./odoo.ts";
 import {
@@ -20,6 +22,7 @@ import {
   readP0Line,
   type MoveLineFacts,
 } from "./opexReadMath.ts";
+import { createStepTimer, type StepTimer } from "./stepTimer.ts";
 
 type Row = Record<string, unknown>;
 
@@ -124,26 +127,36 @@ async function readExpenses(uid: number, tagIds: number[], column: string | null
     .sort((x, y) => String(x.date).localeCompare(String(y.date)) || x.analyticLineId - y.analyticLineId);
 }
 
-export async function readOpexReport(uid: number, args: { s0: string; handP0s: string[]; vatDivisor: number }) {
+export async function readOpexReport(
+  uid: number,
+  args: { s0: string; handP0s: string[]; vatDivisor: number; timer?: StepTimer },
+) {
   const { s0 } = args;
+  const timed = (args.timer ?? createStepTimer()).time;
   const handNames = [...new Set(numbersOrNull(args.handP0s))];
 
   // Round 1: the Projects plan, the S0's own price, the P0s whose Source Document names it, the hand-added P0s.
-  const [planId, sales, sourceOrders, handOrders] = await Promise.all([
-    findProjectsPlanId(uid),
-    executeKw(uid, "sale.order", "search_read", [[["name", "=", s0]], ["id", "name", "amount_untaxed"]], { limit: 1 }) as Promise<Row[]>,
-    executeKw(uid, "purchase.order", "search_read", [[["origin", "ilike", s0]], ["id", "origin"]]) as Promise<Row[]>,
-    handNames.length
-      ? (executeKw(uid, "purchase.order", "search_read", [[["name", "in", handNames]], ["id"]]) as Promise<Row[]>)
-      : Promise.resolve([] as Row[]),
-  ]);
+  const [planId, sales, sourceOrders, handOrders] = await timed("round1", () =>
+    Promise.all([
+      timed("r1.projectsPlan", () => findProjectsPlanId(uid)),
+      timed("r1.saleOrder", () =>
+        executeKw(uid, "sale.order", "search_read", [[["name", "=", s0]], ["id", "name", "amount_untaxed"]], { limit: 1 }) as Promise<Row[]>,
+      ),
+      timed("r1.sourceP0s", () => executeKw(uid, "purchase.order", "search_read", [[["origin", "ilike", s0]], ["id", "origin"]]) as Promise<Row[]>),
+      handNames.length
+        ? timed("r1.handP0s", () => executeKw(uid, "purchase.order", "search_read", [[["name", "in", handNames]], ["id"]]) as Promise<Row[]>)
+        : Promise.resolve([] as Row[]),
+    ]),
+  );
   const odooContractPrice = sales.length ? Math.round(Number(sales[0].amount_untaxed) * args.vatDivisor * 100) / 100 : null;
 
   // Round 2: the S0's Project tags, and the analytic column the expenses are filed under.
-  const [tags, column] = await Promise.all([
-    findProjectTags(uid, s0, planId),
-    planId === null ? Promise.resolve(null) : analyticLinePlanColumn(uid, planId),
-  ]);
+  const [tags, column] = await timed("round2", () =>
+    Promise.all([
+      timed("r2.projectTags", () => findProjectTags(uid, s0, planId)),
+      planId === null ? Promise.resolve(null) : timed("r2.planColumn", () => analyticLinePlanColumn(uid, planId)),
+    ]),
+  );
   const tagIds = tags.map((t) => t.id);
   const onReportIds = new Set<number>([
     ...sourceOrders.filter((o) => mentionsS0(o.origin, s0)).map((o) => o.id as number),
@@ -151,21 +164,27 @@ export async function readOpexReport(uid: number, args: { s0: string; handP0s: s
   ]);
 
   // Round 3: P0 lines tagged to the S0, P0 lines on the P0s above, and the expenses.
-  const [taggedLines, reportOrderLines, expenses] = await Promise.all([
-    tagIds.length
-      ? (executeKw(uid, "purchase.order.line", "search_read", [
-          [["analytic_distribution", "in", tagIds], ["display_type", "=", false]],
-          PO_LINE_FIELDS,
-        ]) as Promise<Row[]>)
-      : Promise.resolve([] as Row[]),
-    onReportIds.size
-      ? (executeKw(uid, "purchase.order.line", "search_read", [
-          [["order_id", "in", [...onReportIds]], ["display_type", "=", false]],
-          PO_LINE_FIELDS,
-        ]) as Promise<Row[]>)
-      : Promise.resolve([] as Row[]),
-    tagIds.length ? readExpenses(uid, tagIds, column) : Promise.resolve([]),
-  ]);
+  const [taggedLines, reportOrderLines, expenses] = await timed("round3", () =>
+    Promise.all([
+      tagIds.length
+        ? timed("r3.taggedLines", () =>
+            executeKw(uid, "purchase.order.line", "search_read", [
+              [["analytic_distribution", "in", tagIds], ["display_type", "=", false]],
+              PO_LINE_FIELDS,
+            ]) as Promise<Row[]>,
+          )
+        : Promise.resolve([] as Row[]),
+      onReportIds.size
+        ? timed("r3.reportLines", () =>
+            executeKw(uid, "purchase.order.line", "search_read", [
+              [["order_id", "in", [...onReportIds]], ["display_type", "=", false]],
+              PO_LINE_FIELDS,
+            ]) as Promise<Row[]>,
+          )
+        : Promise.resolve([] as Row[]),
+      tagIds.length ? timed("r3.expenses", () => readExpenses(uid, tagIds, column)) : Promise.resolve([]),
+    ]),
+  );
 
   const byId = new Map<number, Row>();
   for (const l of [...taggedLines, ...reportOrderLines]) byId.set(l.id as number, l);
@@ -173,13 +192,17 @@ export async function readOpexReport(uid: number, args: { s0: string; handP0s: s
 
   // Round 4: each line's P0, its tag shares and what was billed on it.
   const orderIds = [...new Set(numbers(allLines.map((l) => idOf(l.order_id))))];
-  const [poRows, shares, billed] = await Promise.all([
-    orderIds.length
-      ? (executeKw(uid, "purchase.order", "read", [orderIds, ["name", "state", "partner_id", "currency_rate"]]) as Promise<Row[]>)
-      : Promise.resolve([] as Row[]),
-    sharesForLines(uid, allLines as { id: number; analytic_distribution?: unknown }[]),
-    readBilled(uid, allLines.map((l) => l.id as number)),
-  ]);
+  const [poRows, shares, billed] = await timed("round4", () =>
+    Promise.all([
+      orderIds.length
+        ? timed("r4.p0s", () =>
+            executeKw(uid, "purchase.order", "read", [orderIds, ["name", "state", "partner_id", "currency_rate"]]) as Promise<Row[]>,
+          )
+        : Promise.resolve([] as Row[]),
+      timed("r4.shares", () => sharesForLines(uid, allLines as { id: number; analytic_distribution?: unknown }[])),
+      timed("r4.billed", () => readBilled(uid, allLines.map((l) => l.id as number))),
+    ]),
+  );
   const poById = new Map(poRows.map((p) => [p.id as number, p]));
 
   const lines = allLines

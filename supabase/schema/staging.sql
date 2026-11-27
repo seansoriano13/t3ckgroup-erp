@@ -1084,7 +1084,8 @@ create table if not exists public."meeting_requests" (
   "meeting_link" text,
   "guest_emails" text[] not null default '{}'::text[],
   "activity_type" text not null default 'MEETING'::text,
-  "cancelled_at" timestamp with time zone
+  "cancelled_at" timestamp with time zone,
+  "group_task_id" uuid
 );
 
 create table if not exists public."notifications" (
@@ -2351,7 +2352,7 @@ alter table activity_general_settings add constraint "activity_general_settings_
 alter table activity_general_settings add constraint "activity_general_settings_time_step_minutes_check" CHECK ((time_step_minutes = ANY (ARRAY[15, 30, 60])));
 alter table activity_general_settings add constraint "activity_general_step_chk" CHECK (((mod(((EXTRACT(epoch FROM earliest_start) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0) AND (mod(((EXTRACT(epoch FROM latest_end) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0) AND (mod(((EXTRACT(epoch FROM default_start) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0) AND (mod(((EXTRACT(epoch FROM default_end) / (60)::numeric))::integer, (time_step_minutes)::integer) = 0)));
 alter table activity_general_settings add constraint "activity_general_window_chk" CHECK ((earliest_start < latest_end));
-alter table activity_type_settings add constraint "activity_type_settings_activity_type_check" CHECK ((activity_type = ANY (ARRAY['MEETING'::text, 'ADMIN_TASK'::text, 'OPERATIONS_TASK'::text, 'EVENT'::text])));
+alter table activity_type_settings add constraint "activity_type_settings_activity_type_check" CHECK ((activity_type = ANY (ARRAY['MEETING'::text, 'ADMIN_TASK'::text, 'OPERATIONS_TASK'::text, 'EVENT'::text, 'GROUP_TASK'::text])));
 alter table activity_type_settings add constraint "activity_type_settings_color_check" CHECK ((color = ANY (ARRAY['teal'::text, 'indigo'::text, 'orange'::text, 'plum'::text, 'blue'::text, 'green'::text, 'pink'::text, 'amber'::text, 'violet'::text])));
 alter table activity_type_settings add constraint "activity_type_settings_name_check" CHECK (((btrim(name) <> ''::text) AND (char_length(name) <= 40)));
 alter table activity_type_settings add constraint "activity_type_settings_who_files_check" CHECK ((who_files = ANY (ARRAY['EVERYONE'::text, 'HEADS'::text])));
@@ -2521,8 +2522,9 @@ alter table lwop_leaves add constraint "lwop_leaves_status_check" CHECK ((status
 alter table meeting_request_days add constraint "meeting_request_days_end_after_start" CHECK ((ends_at > starts_at));
 alter table meeting_request_days add constraint "meeting_request_days_quarter_hours" CHECK (((mod((EXTRACT(epoch FROM starts_at))::bigint, (900)::bigint) = 0) AND (mod((EXTRACT(epoch FROM ends_at))::bigint, (900)::bigint) = 0)));
 alter table meeting_request_days add constraint "meeting_request_days_same_manila_day" CHECK ((((starts_at AT TIME ZONE 'Asia/Manila'::text))::date = ((ends_at AT TIME ZONE 'Asia/Manila'::text))::date));
-alter table meeting_requests add constraint "meeting_requests_activity_type_check" CHECK ((activity_type = ANY (ARRAY['MEETING'::text, 'ADMIN_TASK'::text, 'OPERATIONS_TASK'::text, 'EVENT'::text])));
+alter table meeting_requests add constraint "meeting_requests_activity_type_check" CHECK ((activity_type = ANY (ARRAY['MEETING'::text, 'ADMIN_TASK'::text, 'OPERATIONS_TASK'::text, 'EVENT'::text, 'GROUP_TASK'::text])));
 alter table meeting_requests add constraint "meeting_requests_end_after_start" CHECK ((ends_at > starts_at));
+alter table meeting_requests add constraint "meeting_requests_group_task_link" CHECK (((activity_type = 'GROUP_TASK'::text) OR (group_task_id IS NULL)));
 alter table meeting_requests add constraint "meeting_requests_guest_emails_aligned" CHECK ((COALESCE(array_length(guest_emails, 1), 0) = COALESCE(array_length(guests, 1), 0)));
 alter table meeting_requests add constraint "meeting_requests_link_not_blank" CHECK (((meeting_link IS NULL) OR (btrim(meeting_link) <> ''::text)));
 alter table meeting_requests add constraint "meeting_requests_quarter_hours" CHECK (((mod((EXTRACT(epoch FROM starts_at))::bigint, (900)::bigint) = 0) AND (mod((EXTRACT(epoch FROM ends_at))::bigint, (900)::bigint) = 0)));
@@ -2787,6 +2789,7 @@ alter table meeting_request_participants add constraint "meeting_request_partici
 alter table meeting_requests add constraint "meeting_requests_applicant_id_fkey" FOREIGN KEY (applicant_id) REFERENCES employees(id);
 alter table meeting_requests add constraint "meeting_requests_cancelled_by_fkey" FOREIGN KEY (cancelled_by) REFERENCES employees(id);
 alter table meeting_requests add constraint "meeting_requests_facilitator_id_fkey" FOREIGN KEY (facilitator_id) REFERENCES employees(id);
+alter table meeting_requests add constraint "meeting_requests_group_task_id_fkey" FOREIGN KEY (group_task_id) REFERENCES committee_tasks(id) ON DELETE SET NULL;
 alter table meeting_requests add constraint "meeting_requests_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id);
 alter table meeting_requests add constraint "meeting_requests_hr_decided_by_fkey" FOREIGN KEY (hr_decided_by) REFERENCES employees(id);
 alter table meeting_requests add constraint "meeting_requests_returned_by_fkey" FOREIGN KEY (returned_by) REFERENCES employees(id);
@@ -3119,6 +3122,7 @@ CREATE INDEX meeting_request_events_request_idx ON public.meeting_request_events
 CREATE INDEX meeting_request_participants_employee_idx ON public.meeting_request_participants USING btree (employee_id);
 CREATE INDEX meeting_requests_applicant_idx ON public.meeting_requests USING btree (applicant_id);
 CREATE INDEX meeting_requests_head_idx ON public.meeting_requests USING btree (head_id) WHERE (head_id IS NOT NULL);
+CREATE UNIQUE INDEX meeting_requests_one_live_per_group_task ON public.meeting_requests USING btree (group_task_id) WHERE ((group_task_id IS NOT NULL) AND (status <> ALL (ARRAY['DECLINED'::text, 'CANCELLED'::text])));
 CREATE INDEX meeting_requests_starts_at_idx ON public.meeting_requests USING btree (starts_at);
 CREATE INDEX odoo_retail_queue_created_at_idx ON public.odoo_retail_queue USING btree (created_at DESC);
 CREATE INDEX odoo_retail_queue_status_idx ON public.odoo_retail_queue USING btree (status);
@@ -9497,7 +9501,7 @@ CREATE OR REPLACE FUNCTION public.activity_fields_check(p_activity_type text, p_
  SET search_path TO ''
 AS $function$
 begin
-  if p_activity_type not in ('MEETING', 'ADMIN_TASK', 'OPERATIONS_TASK', 'EVENT') then
+  if p_activity_type not in ('MEETING', 'ADMIN_TASK', 'OPERATIONS_TASK', 'EVENT', 'GROUP_TASK') then
     raise exception 'Choose an Activity type.' using errcode = '22023';
   end if;
   if p_activity_type = 'MEETING' then
@@ -9588,7 +9592,10 @@ AS $function$
 begin
   new.updated_at := now();
   if new.active = false and old.active
-     and not exists (select 1 from public.activity_type_settings t where t.active and t.activity_type <> new.activity_type) then
+     and not exists (
+       select 1 from public.activity_type_settings t
+       where t.active and t.activity_type <> new.activity_type and t.activity_type <> 'GROUP_TASK'
+     ) then
     raise exception 'At least one Activity type must stay on.' using errcode = '22023';
   end if;
   return new;
@@ -9849,6 +9856,7 @@ begin
         'purpose', m.purpose,
         'venue', v.name,
         'activity_type', m.activity_type,
+        'group_task_id', m.group_task_id,
         'meeting_type', m.meeting_type,
         'meeting_link', m.meeting_link,
         'facilitator', jsonb_build_object('id', f.id, 'name', f.name),
@@ -10032,6 +10040,78 @@ AS $function$
         )
       )
     );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.cancel_group_task_activity(p_group_task_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_task public.committee_tasks%rowtype;
+  v_req public.meeting_requests%rowtype;
+  v_reason constant text := 'Group Task cancelled';
+  v_left_end timestamptz;
+  v_over boolean;
+begin
+  if v_actor is null then
+    raise exception 'Sign in to cancel an Activity.' using errcode = '42501';
+  end if;
+
+  select * into v_task from public.committee_tasks where id = p_group_task_id;
+  if not found then
+    raise exception 'Group Task not found.' using errcode = 'P0002';
+  end if;
+
+  -- The same people the Group Task's own cancel rule lets through.
+  if not (public.can_manage_group_tasks() or public.group_task_is_stage_action(v_task.stage_action_id, v_task.opportunity_id)) then
+    raise exception 'Only department heads, HR and Super Admins can cancel a Group Task''s Calendar entry.' using errcode = '42501';
+  end if;
+
+  if v_task.status is distinct from 'CANCELLED' then
+    raise exception 'Cancel the Group Task first.' using errcode = '22023';
+  end if;
+
+  select * into v_req from public.meeting_requests
+   where group_task_id = p_group_task_id and status not in ('DECLINED', 'CANCELLED')
+   for update;
+  if not found then
+    raise exception 'This Group Task has no live Activity on the Calendar.' using errcode = 'P0002';
+  end if;
+
+  v_over := not exists (select 1 from public.meeting_request_days where request_id = v_req.id and starts_at > now());
+
+  if exists (select 1 from public.meeting_request_days where request_id = v_req.id and starts_at <= now()) then
+    delete from public.meeting_request_days where request_id = v_req.id and starts_at > now();
+    select max(ends_at) into v_left_end from public.meeting_request_days where request_id = v_req.id;
+  end if;
+
+  update public.meeting_requests set
+    status = 'CANCELLED',
+    cancel_reason = v_reason,
+    cancelled_by = v_actor,
+    cancelled_at = case when v_req.status = 'APPROVED' and not v_over then now() else null end,
+    ends_at = coalesce(v_left_end, ends_at)
+  where id = v_req.id;
+
+  perform public.log_meeting_request_event(v_req.id, v_actor, 'GROUP_TASK_CANCELLED', v_req.status, 'CANCELLED', null, v_reason);
+
+  return jsonb_build_object(
+    'id', v_req.id,
+    'action', 'GROUP_TASK_CANCELLED',
+    'from_status', v_req.status,
+    'to_status', 'CANCELLED',
+    'after_day', v_over,
+    'head_id', v_req.head_id,
+    'applicant_id', v_req.applicant_id,
+    'facilitator_id', v_req.facilitator_id,
+    'participant_ids', coalesce((
+      select jsonb_agg(mp.employee_id) from public.meeting_request_participants mp where mp.request_id = v_req.id
+    ), '[]'::jsonb)
+  );
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.cancel_lwop_leave(p_leave_id uuid, p_employee_id uuid)
@@ -11064,6 +11144,48 @@ begin
       where c2.status <> 'CANCELLED' and c2.opportunity_id = p_opportunity_id
         and c2.stage_action_id = p_action_id and c2.stage_visit_id = p_visit_id
         and m2.employee_id = sor_stage_participants.employee_id);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.committee_task_readable(p_task_id uuid, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.committee_tasks t
+    where t.id = p_task_id
+      and p_employee_id is not null
+      and (
+        (select public.is_super_admin())
+        or t.evaluator_id = p_employee_id
+        or exists (select 1 from public.committee_task_members m where m.committee_task_id = t.id and m.employee_id = p_employee_id)
+        or (
+          t.created_by = p_employee_id
+          and (
+            t.opportunity_id is null
+            or (t.stage_visit_id is not null
+                and t.stage_visit_id in (select public.sor_visible_visit_ids(t.opportunity_id)))
+            or (t.stage_visit_id is null
+                and public.sor_access_level(t.opportunity_id) = any (array['full'::text, 'participant'::text]))
+          )
+        )
+      )
+  );
+$function$
+;
+CREATE OR REPLACE FUNCTION public.committee_task_title_to_activities()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  update public.meeting_requests
+     set purpose = left(btrim(new.title), 500)
+   where group_task_id = new.id and purpose is distinct from left(btrim(new.title), 500);
+  return new;
 end;
 $function$
 ;
@@ -15660,6 +15782,13 @@ begin
   v_after := exists (select 1 from public.meeting_request_days where request_id = p_request_id and starts_at <= now());
 
   v_atype := upper(coalesce(p_activity_type, v_req.activity_type));
+  -- #1250: a Group Task Activity keeps its type and its Group Task, and its title is the Group Task's.
+  if (v_atype = 'GROUP_TASK') <> (v_req.activity_type = 'GROUP_TASK') then
+    raise exception 'The type of a Group Task Activity cannot be changed.' using errcode = '22023';
+  end if;
+  if v_req.activity_type = 'GROUP_TASK' and btrim(coalesce(p_purpose, '')) <> v_req.purpose then
+    raise exception 'The title of a Group Task Activity is the Group Task''s title and cannot be changed here.' using errcode = '22023';
+  end if;
   if v_atype = 'MEETING' and v_type is null then
     v_type := 'ONSITE';
   end if;
@@ -15942,7 +16071,7 @@ BEGIN
 END;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb)
+CREATE OR REPLACE FUNCTION public.file_meeting_request(p_venue_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_facilitator_id uuid, p_purpose text, p_guests text[] DEFAULT '{}'::text[], p_participant_ids uuid[] DEFAULT '{}'::uuid[], p_head_id uuid DEFAULT NULL::uuid, p_meeting_type text DEFAULT NULL::text, p_meeting_link text DEFAULT NULL::text, p_guest_emails text[] DEFAULT '{}'::text[], p_activity_type text DEFAULT 'MEETING'::text, p_days jsonb DEFAULT NULL::jsonb, p_group_task_id uuid DEFAULT NULL::uuid)
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -15962,11 +16091,20 @@ declare
   v_first_start timestamptz;
   v_first_end timestamptz;
   v_last_end timestamptz;
+  v_purpose text := btrim(coalesce(p_purpose, ''));
+  v_task public.committee_tasks%rowtype;
 begin
   if v_applicant is null then
     raise exception 'Sign in to file an Activity.' using errcode = '42501';
   end if;
 
+  -- #1250: the type is GROUP_TASK exactly when a Group Task is given.
+  if v_atype = 'GROUP_TASK' and p_group_task_id is null then
+    raise exception 'A Group Task Activity needs a Group Task.' using errcode = '22023';
+  end if;
+  if p_group_task_id is not null and v_atype <> 'GROUP_TASK' then
+    raise exception 'Only a Group Task Activity can link to a Group Task.' using errcode = '22023';
+  end if;
   if v_atype = 'MEETING' and v_type is null then
     v_type := 'ONSITE';
   end if;
@@ -15984,7 +16122,24 @@ begin
     raise exception 'An Activity cannot be more than one year ahead.' using errcode = '22023';
   end if;
 
-  if not public.activity_can_file(v_applicant, v_atype) then
+  if v_atype = 'GROUP_TASK' then
+    -- Anyone who can open the Group Task may file it (the same rule as committee_tasks_read; this function
+    -- runs with raised rights, so the rule is checked here). The title is the Group Task's, never the browser's.
+    select * into v_task from public.committee_tasks t where t.id = p_group_task_id;
+    if not found or not public.committee_task_readable(p_group_task_id, v_applicant) then
+      raise exception 'You cannot open that Group Task, so you cannot put it on the Calendar.' using errcode = '42501';
+    end if;
+    if v_task.status = 'CANCELLED' then
+      raise exception 'A cancelled Group Task cannot be put on the Calendar.' using errcode = '22023';
+    end if;
+    if exists (
+      select 1 from public.meeting_requests m
+      where m.group_task_id = p_group_task_id and m.status not in ('DECLINED', 'CANCELLED')
+    ) then
+      raise exception 'This Group Task is already on the Calendar.' using errcode = '22023';
+    end if;
+    v_purpose := left(btrim(v_task.title), 500);
+  elsif not public.activity_can_file(v_applicant, v_atype) then
     raise exception 'Only a department head can file the % type.', public.activity_type_phrase(v_atype) using errcode = '42501';
   end if;
 
@@ -15999,10 +16154,10 @@ begin
     raise exception 'Choose a Lead.' using errcode = '22023';
   end if;
 
-  if coalesce(btrim(p_purpose), '') = '' then
+  if v_purpose = '' then
     raise exception 'Write the purpose of the Activity.' using errcode = '22023';
   end if;
-  if char_length(btrim(p_purpose)) > 500 then
+  if char_length(v_purpose) > 500 then
     raise exception 'The purpose can be at most 500 characters.' using errcode = '22023';
   end if;
 
@@ -16024,10 +16179,10 @@ begin
   -- the other days follow, then the parent's end moves to the last day's end.
   insert into public.meeting_requests (
     applicant_id, venue_id, starts_at, ends_at, facilitator_id, purpose, guests, guest_emails, status, head_id,
-    meeting_type, meeting_link, activity_type
+    meeting_type, meeting_link, activity_type, group_task_id
   ) values (
-    v_applicant, p_venue_id, v_first_start, v_first_end, p_facilitator_id, btrim(p_purpose), v_guests, v_emails, v_status, v_head,
-    v_type, v_link, v_atype
+    v_applicant, p_venue_id, v_first_start, v_first_end, p_facilitator_id, v_purpose, v_guests, v_emails, v_status, v_head,
+    v_type, v_link, v_atype, p_group_task_id
   ) returning id into v_id;
 
   insert into public.meeting_request_days (request_id, starts_at, ends_at)
@@ -16046,7 +16201,7 @@ begin
 
   perform public.log_meeting_request_event(
     v_id, v_applicant, 'FILED', null, v_status,
-    jsonb_build_object('activity_type', v_atype, 'meeting_type', v_type, 'venue_id', p_venue_id, 'starts_at', v_first_start, 'ends_at', v_last_end,
+    jsonb_build_object('activity_type', v_atype, 'group_task_id', p_group_task_id, 'meeting_type', v_type, 'venue_id', p_venue_id, 'starts_at', v_first_start, 'ends_at', v_last_end,
                        'days', v_days, 'facilitator_id', p_facilitator_id, 'head_id', v_head),
     null
   );
@@ -33758,6 +33913,7 @@ $function$
 CREATE TRIGGER activity_general_settings_touch BEFORE UPDATE ON public.activity_general_settings FOR EACH ROW EXECUTE FUNCTION activity_general_settings_touch();
 CREATE TRIGGER activity_type_settings_guard BEFORE UPDATE ON public.activity_type_settings FOR EACH ROW EXECUTE FUNCTION activity_type_settings_guard();
 CREATE TRIGGER trg_committee_task_activity_update_guard BEFORE UPDATE ON public.committee_task_activity FOR EACH ROW EXECUTE FUNCTION chat_message_update_guard();
+CREATE TRIGGER committee_task_title_to_activities AFTER UPDATE OF title ON public.committee_tasks FOR EACH ROW WHEN ((old.title IS DISTINCT FROM new.title)) EXECUTE FUNCTION committee_task_title_to_activities();
 CREATE TRIGGER committee_tasks_cancel_closes_windows AFTER UPDATE OF status ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_cancel_closes_windows();
 CREATE TRIGGER trg_committee_tasks_guard_manage BEFORE UPDATE ON public.committee_tasks FOR EACH ROW EXECUTE FUNCTION committee_tasks_guard_manage();
 CREATE TRIGGER costing_events_write AFTER INSERT OR DELETE OR UPDATE ON public.costing_bid_decisions FOR EACH ROW EXECUTE FUNCTION costing_write_events();
