@@ -13,12 +13,17 @@ import { formatCount } from "../../utils/retailFormat";
  * orders on screen, by Odoo salesperson. `orders` is whatever the Retail report
  * is showing — already narrowed to the time range and any filters — so this
  * section moves with them. Read-only; each order opens in Odoo, where the
- * salesperson fixes the Income Note.
+ * salesperson fixes the Income Note. `allOrders` is every order, so a shared
+ * Marketplace Order ID is found even when its partner is outside the range.
  */
-export default function IncomeChaseList({ orders }) {
+export default function IncomeChaseList({ orders, allOrders = orders }) {
   const headingId = useId();
   const [expanded, toggle] = useToggleSet();
-  const list = useMemo(() => chaseList(orders), [orders]);
+  const list = useMemo(() => chaseList(orders, allOrders), [orders, allOrders]);
+  const notes = useMemo(
+    () => new Map([...list.sharedWith].map(([id, others]) => [id, `Same Marketplace Order ID as ${others.join(", ")}`])),
+    [list],
+  );
 
   return (
     <section aria-labelledby={headingId}>
@@ -28,6 +33,7 @@ export default function IncomeChaseList({ orders }) {
       <p className="mt-0.5 text-sm text-muted-foreground">
         By salesperson. Missing: no Order Income. Suspect: Order Income above the Order Amount, or a Marketplace
         Fee at least the Order Amount.
+        Orders sharing a Marketplace Order ID are listed too; both stay in the totals.
       </p>
       {list.count > 0 && (
         <p className="mt-1 text-sm font-semibold text-foreground">
@@ -63,7 +69,7 @@ export default function IncomeChaseList({ orders }) {
 
                   {isOpen && (
                     <div className="bg-muted/10 px-4 pb-3">
-                      <RetailOrderTable orders={group.orders} odoo />
+                      <RetailOrderTable orders={group.orders} odoo notes={notes} />
                     </div>
                   )}
                 </div>

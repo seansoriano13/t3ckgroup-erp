@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-11-27",
+        "title": "Retail report fixes",
+        "version": "1.16.0",
+        "modules": [
+            "sales.retail"
+        ],
+        "changes": [
+            "Retail now shows one row for each Odoo order, so an order is no longer counted twice.",
+            "The Marketplace Order ID column shows only real marketplace IDs. Notes that held a name or a place are cleared.",
+            "Orders that share a Marketplace Order ID are listed under Missing / Suspect income, each naming the other order. Both stay in the totals.",
+            "A Custom range with From after To now says so under the dates and keeps the figures you had."
+        ]
+    },
+    {
+        "date": "2026-11-27",
         "title": "Compliance Requirements on the IPAS",
         "version": "1.15.0",
         "modules": [

@@ -15,7 +15,7 @@ import { BLANK, formatDateOrDash, formatPHPOrDash } from "../../utils/retailForm
  * Income Note). Pass `arrivals` (the set from `useRetailArrivals`) to flash the
  * row while the order is new.
  */
-export default function RetailOrderRow({ order, salesperson = false, odoo = false, arrivals }) {
+export default function RetailOrderRow({ order, salesperson = false, odoo = false, arrivals, note }) {
   const odooUrl = odoo ? odooSaleOrderUrl(order.odoo_so_id) : null;
   return (
     <TableRow
@@ -26,7 +26,10 @@ export default function RetailOrderRow({ order, salesperson = false, odoo = fals
         <Package size={11} className="shrink-0 text-muted-foreground" />
         {order.odoo_so_number}
       </TableCell>
-      <TableCell className="py-1.5 font-mono text-foreground">{order.marketplace_order_id || BLANK}</TableCell>
+      <TableCell className="py-1.5 font-mono text-foreground">
+        {order.marketplace_order_id || BLANK}
+        {note && <span className="block font-sans text-xs text-muted-foreground">{note}</span>}
+      </TableCell>
       <TableCell className="py-1.5 text-foreground">{order.buyer_name || BLANK}</TableCell>
       {salesperson && (
         <TableCell className="py-1.5 text-foreground">{order.odoo_salesperson_name || BLANK}</TableCell>
@@ -63,7 +66,7 @@ export default function RetailOrderRow({ order, salesperson = false, odoo = fals
 }
 
 /** The orders as a table: header plus a `RetailOrderRow` each. Same flags as the row. */
-export function RetailOrderTable({ orders, salesperson = false, odoo = false, arrivals }) {
+export function RetailOrderTable({ orders, salesperson = false, odoo = false, arrivals, notes }) {
   return (
     <Table stackOnPhone>
       <TableHeader>
@@ -82,7 +85,7 @@ export function RetailOrderTable({ orders, salesperson = false, odoo = false, ar
       </TableHeader>
       <TableBody>
         {orders.map((order) => (
-          <RetailOrderRow key={order.id} order={order} salesperson={salesperson} odoo={odoo} arrivals={arrivals} />
+          <RetailOrderRow key={order.id} order={order} salesperson={salesperson} odoo={odoo} arrivals={arrivals} note={notes?.get(order.id)} />
         ))}
       </TableBody>
     </Table>

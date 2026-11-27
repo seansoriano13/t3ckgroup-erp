@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import Spinner from "../ui/Spinner";
@@ -20,6 +20,7 @@ import {
   monthMarketplaceGroups,
   monthlySeries,
   applyFilters,
+  isBackwardsRange,
   isSearching,
   rangeBounds,
   summarize,
@@ -30,27 +31,35 @@ import { useIsPhone } from "@/hooks/useScreenBand";
 export function RetailRangeControl({ range, onRangeChange, custom, onCustomChange }) {
   // Five pills do not fit a phone (Custom was cut off): there it is a Select.
   const phone = useIsPhone();
+  const backwards = range === "custom" && isBackwardsRange(custom);
   return (
     <>
       {range === "custom" && (
-        <>
-          <Input
-            type="date"
-            aria-label="From date"
-            value={custom.from}
-            max={custom.to || undefined}
-            onChange={(e) => onCustomChange((c) => ({ ...c, from: e.target.value }))}
-            containerClassName="w-40"
-          />
-          <Input
-            type="date"
-            aria-label="To date"
-            value={custom.to}
-            min={custom.from || undefined}
-            onChange={(e) => onCustomChange((c) => ({ ...c, to: e.target.value }))}
-            containerClassName="w-40"
-          />
-        </>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Input
+              type="date"
+              aria-label="From date"
+              value={custom.from}
+              max={custom.to || undefined}
+              onChange={(e) => onCustomChange((c) => ({ ...c, from: e.target.value }))}
+              containerClassName="w-40"
+            />
+            <Input
+              type="date"
+              aria-label="To date"
+              value={custom.to}
+              min={custom.from || undefined}
+              onChange={(e) => onCustomChange((c) => ({ ...c, to: e.target.value }))}
+              containerClassName="w-40"
+            />
+          </div>
+          {backwards && (
+            <p role="alert" className="text-sm font-semibold text-foreground">
+              From is after To. Swap the dates to see orders.
+            </p>
+          )}
+        </div>
       )}
       {phone ? (
         <SelectField
@@ -95,9 +104,16 @@ export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_F
   // The counted orders in the range that pass every filter: the one list every
   // figure and block below reads (headline, Missing line, chart, month groups,
   // breakdown and chase list), so they all follow the same controls.
+  // A backwards Custom range keeps the last good one until it is fixed.
+  const backwards = range === "custom" && isBackwardsRange(custom);
+  const [lastGoodCustom, setLastGoodCustom] = useState(custom);
+  if (!backwards && (lastGoodCustom.from !== custom.from || lastGoodCustom.to !== custom.to)) {
+    setLastGoodCustom(custom);
+  }
+  const effectiveCustom = backwards ? lastGoodCustom : custom;
   const inRange = useMemo(
-    () => applyFilters(orders, filters, rangeBounds(range, new Date(), custom)),
-    [orders, filters, range, custom],
+    () => applyFilters(orders, filters, rangeBounds(range, new Date(), effectiveCustom)),
+    [orders, filters, range, effectiveCustom],
   );
   const summary = useMemo(() => summarize(inRange), [inRange]);
   const series = useMemo(() => monthlySeries(inRange), [inRange]);
@@ -138,7 +154,7 @@ export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_F
           and finds few orders: say so, and open the months holding them. */}
       <OrdersByMonth groups={groups} empty={empty} arrivals={arrivals} searching={isSearching(filters)} />
 
-      <IncomeChaseList orders={inRange} />
+      <IncomeChaseList orders={inRange} allOrders={orders} />
     </div>
   );
 }

@@ -7,15 +7,15 @@ describe("parseIncomeNote", () => {
   const cases = [
     {
       name: "SHIPPING FEE is not the Marketplace Fee",
-      note: "ORDER ID: 12345\nSHIPPING FEE: 50\nFEE: 100\nOI: 900",
+      note: "ORDER ID: 12345678\nSHIPPING FEE: 50\nFEE: 100\nOI: 900",
       amount: 1000,
-      want: { marketplaceOrderId: "12345", marketplaceFee: 100, orderIncome: 900 },
+      want: { marketplaceOrderId: "12345678", marketplaceFee: 100, orderIncome: 900 },
     },
     {
       name: "only a SHIPPING FEE gives no Marketplace Fee",
-      note: "ORDER ID: 12345\nSHIPPING FEE: 50\nOI: 900",
+      note: "ORDER ID: 12345678\nSHIPPING FEE: 50\nOI: 900",
       amount: 1000,
-      want: { marketplaceOrderId: "12345", marketplaceFee: null, orderIncome: 900 },
+      want: { marketplaceOrderId: "12345678", marketplaceFee: null, orderIncome: 900 },
     },
     {
       name: "Shopee template with fee + income",
@@ -31,27 +31,27 @@ describe("parseIncomeNote", () => {
     },
     {
       name: "CLIENT DETAILS template with &amp;nbsp; glued labels",
-      note: "<p>CLIENT DETAILS:</p><p>NAME:&amp;nbsp;Ana</p><p>ORDER&amp;nbsp;ID:&amp;nbsp;ABC123</p><p>FEE:&amp;nbsp;50</p><p>ORDER&amp;nbsp;INCOME:&amp;nbsp;450</p>",
+      note: "<p>CLIENT DETAILS:</p><p>NAME:&amp;nbsp;Ana</p><p>ORDER&amp;nbsp;ID:&amp;nbsp;ABC12345</p><p>FEE:&amp;nbsp;50</p><p>ORDER&amp;nbsp;INCOME:&amp;nbsp;450</p>",
       amount: 500,
-      want: { marketplaceOrderId: "ABC123", marketplaceFee: 50, orderIncome: 450 },
+      want: { marketplaceOrderId: "ABC12345", marketplaceFee: 50, orderIncome: 450 },
     },
     {
       name: "&nbsp; entities decode",
-      note: "<p>ORDER&nbsp;ID:&nbsp;ZZ9</p><p>OI:&nbsp;10</p>",
+      note: "<p>ORDER&nbsp;ID:&nbsp;ZZ900001</p><p>OI:&nbsp;10</p>",
       amount: 10,
-      want: { marketplaceOrderId: "ZZ9", marketplaceFee: null, orderIncome: 10 },
+      want: { marketplaceOrderId: "ZZ900001", marketplaceFee: null, orderIncome: 10 },
     },
     {
       name: "DATE: variant, no colon after labels, lowercase",
-      note: "date: 1/2/26\norder id 555\nfee 10\norder income 90",
+      note: "date: 1/2/26\norder id 55555555\nfee 10\norder income 90",
       amount: 100,
-      want: { marketplaceOrderId: "555", marketplaceFee: 10, orderIncome: 90 },
+      want: { marketplaceOrderId: "55555555", marketplaceFee: 10, orderIncome: 90 },
     },
     {
       name: "prefixed SHOPEE AND LAZADA ORDER ID",
-      note: "SHOPEE AND LAZADA ORDER ID: 24680\nOI: 5",
+      note: "SHOPEE AND LAZADA ORDER ID: 24680135\nOI: 5",
       amount: 5,
-      want: { marketplaceOrderId: "24680", marketplaceFee: null, orderIncome: 5 },
+      want: { marketplaceOrderId: "24680135", marketplaceFee: null, orderIncome: 5 },
     },
     {
       name: "adjacent <pre> blocks with a blank date",
@@ -84,6 +84,42 @@ describe("parseIncomeNote", () => {
       want: { marketplaceOrderId: null, marketplaceFee: null, orderIncome: 50 },
     },
     {
+      name: "a lone digit is not a Marketplace Order ID",
+      note: "ORDER ID: 2\nFEE: 10\nOI: 90",
+      amount: 100,
+      want: { marketplaceOrderId: null, marketplaceFee: 10, orderIncome: 90 },
+    },
+    {
+      name: "a short code is not a Marketplace Order ID",
+      note: "ORDER ID: ABC1234\nOI: 90",
+      amount: 100,
+      want: { marketplaceOrderId: null, marketplaceFee: null, orderIncome: 90 },
+    },
+    {
+      name: "a place name is not a Marketplace Order ID",
+      note: "ORDER ID: Metro Manila\nOI: 90",
+      amount: 100,
+      want: { marketplaceOrderId: null, marketplaceFee: null, orderIncome: 90 },
+    },
+    {
+      name: "a long word with no digit is not a Marketplace Order ID",
+      note: "ORDER ID: Marinduque\nOI: 90",
+      amount: 100,
+      want: { marketplaceOrderId: null, marketplaceFee: null, orderIncome: 90 },
+    },
+    {
+      name: "a 16-digit Lazada ID is kept",
+      note: "ORDER ID: 1234567890123456\nOI: 90",
+      amount: 100,
+      want: { marketplaceOrderId: "1234567890123456", marketplaceFee: null, orderIncome: 90 },
+    },
+    {
+      name: "a Shopee ID with letters and digits is kept",
+      note: "ORDER ID: 2609180ABCDEFG\nOI: 90",
+      amount: 100,
+      want: { marketplaceOrderId: "2609180ABCDEFG", marketplaceFee: null, orderIncome: 90 },
+    },
+    {
       name: "income without fee",
       note: "ORDER INCOME: 700",
       amount: 800,
@@ -91,15 +127,15 @@ describe("parseIncomeNote", () => {
     },
     {
       name: "fee without income",
-      note: "ORDER ID: X1\nFEE: 70",
+      note: "ORDER ID: X1000001\nFEE: 70",
       amount: 800,
-      want: { marketplaceOrderId: "X1", marketplaceFee: 70, orderIncome: null },
+      want: { marketplaceOrderId: "X1000001", marketplaceFee: 70, orderIncome: null },
     },
     {
       name: "TOTAL BUYER AMOUNT reconciles, so it is income",
-      note: "ORDER ID: X2\nFEE: 100\nTOTAL BUYER AMOUNT: 900",
+      note: "ORDER ID: X2000002\nFEE: 100\nTOTAL BUYER AMOUNT: 900",
       amount: 1000,
-      want: { marketplaceOrderId: "X2", marketplaceFee: 100, orderIncome: 900 },
+      want: { marketplaceOrderId: "X2000002", marketplaceFee: 100, orderIncome: 900 },
     },
     {
       name: "TOTAL BUYER AMOUNT within 0.05",
@@ -157,9 +193,9 @@ describe("parseIncomeNote", () => {
     },
     {
       name: "a pasted screenshot beside the typed figures is ignored",
-      note: `<p>ORDER ID: ABC123</p><p><img src="data:image/png;base64,${"iVBORw0KGgo".repeat(5000)}" style="width: 100%;"></p><p>FEE: 50</p><p>OI: 450</p>`,
+      note: `<p>ORDER ID: ABC12345</p><p><img src="data:image/png;base64,${"iVBORw0KGgo".repeat(5000)}" style="width: 100%;"></p><p>FEE: 50</p><p>OI: 450</p>`,
       amount: 500,
-      want: { marketplaceOrderId: "ABC123", marketplaceFee: 50, orderIncome: 450 },
+      want: { marketplaceOrderId: "ABC12345", marketplaceFee: 50, orderIncome: 450 },
     },
     { name: "empty note", note: "", amount: 100, want: NONE },
   ];

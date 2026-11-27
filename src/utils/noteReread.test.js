@@ -197,25 +197,25 @@ describe("foldNoteFacts", () => {
   const fold = (...notes) => notes.reduce((facts, note) => foldNoteFacts(facts, note, AMOUNT), undefined);
 
   it("keeps the Marketplace Order ID and fee from a note that has no Order Income", () => {
-    expect(fold("ORDER ID: 2410ABC\nFEE: 120.50")).toEqual({
+    expect(fold("ORDER ID: 2410ABC123\nFEE: 120.50")).toEqual({
       buyer: null,
-      marketplaceOrderId: "2410ABC",
+      marketplaceOrderId: "2410ABC123",
       marketplaceFee: 120.5,
       orderIncome: null,
     });
   });
 
   it("keeps a lone Marketplace Order ID, with the fee and income left null", () => {
-    expect(fold("ORDER ID: 2410ABC")).toMatchObject({
-      marketplaceOrderId: "2410ABC",
+    expect(fold("ORDER ID: 2410ABC123")).toMatchObject({
+      marketplaceOrderId: "2410ABC123",
       marketplaceFee: null,
       orderIncome: null,
     });
   });
 
   it("still reads all three from a full Income Note", () => {
-    expect(fold("ORDER ID: 2410ABC\nFEE: 100\nORDER INCOME: 900")).toMatchObject({
-      marketplaceOrderId: "2410ABC",
+    expect(fold("ORDER ID: 2410ABC123\nFEE: 100\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "2410ABC123",
       marketplaceFee: 100,
       orderIncome: 900,
     });
@@ -232,48 +232,48 @@ describe("foldNoteFacts", () => {
   });
 
   it("fills the ID from one note and the fee from another when neither has income", () => {
-    expect(fold("ORDER ID: A1", "FEE: 30")).toMatchObject({ marketplaceOrderId: "A1", marketplaceFee: 30 });
+    expect(fold("ORDER ID: A1000001", "FEE: 30")).toMatchObject({ marketplaceOrderId: "A1000001", marketplaceFee: 30 });
   });
 
   it("keeps the first ID and the first fee across notes without income", () => {
-    expect(fold("ORDER ID: A1\nFEE: 30", "ORDER ID: B2\nFEE: 99")).toMatchObject({
-      marketplaceOrderId: "A1",
+    expect(fold("ORDER ID: A1000001\nFEE: 30", "ORDER ID: B2000002\nFEE: 99")).toMatchObject({
+      marketplaceOrderId: "A1000001",
       marketplaceFee: 30,
     });
   });
 
   it("lets the first note that yields an Order Income supply the fee, over an earlier partial note", () => {
-    expect(fold("ORDER ID: A1\nFEE: 30", "ORDER ID: B2\nFEE: 100\nORDER INCOME: 900")).toMatchObject({
-      marketplaceOrderId: "B2",
+    expect(fold("ORDER ID: A1000001\nFEE: 30", "ORDER ID: B2000002\nFEE: 100\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "B2000002",
       marketplaceFee: 100,
       orderIncome: 900,
     });
   });
 
   it("does not let an income note without a fee inherit another note's fee, so totals stay as before", () => {
-    expect(fold("FEE: 30", "ORDER ID: B2\nORDER INCOME: 900")).toMatchObject({
-      marketplaceOrderId: "B2",
+    expect(fold("FEE: 30", "ORDER ID: B2000002\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "B2000002",
       marketplaceFee: null,
       orderIncome: 900,
     });
   });
 
   it("keeps an earlier ID when the income note has none", () => {
-    expect(fold("ORDER ID: A1", "FEE: 100\nORDER INCOME: 900")).toMatchObject({
-      marketplaceOrderId: "A1",
+    expect(fold("ORDER ID: A1000001", "FEE: 100\nORDER INCOME: 900")).toMatchObject({
+      marketplaceOrderId: "A1000001",
       marketplaceFee: 100,
     });
   });
 
   it("ignores a later note once an income has been read", () => {
     expect(
-      fold("ORDER ID: A1\nFEE: 100\nORDER INCOME: 900", "ORDER ID: B2\nFEE: 5\nORDER INCOME: 10"),
-    ).toMatchObject({ marketplaceOrderId: "A1", marketplaceFee: 100, orderIncome: 900 });
+      fold("ORDER ID: A1000001\nFEE: 100\nORDER INCOME: 900", "ORDER ID: B2000002\nFEE: 5\nORDER INCOME: 10"),
+    ).toMatchObject({ marketplaceOrderId: "A1000001", marketplaceFee: 100, orderIncome: 900 });
   });
 
   it("ignores non-string note content", () => {
     expect(foldNoteFacts(undefined, false, AMOUNT)).toBeUndefined();
-    expect(fold("ORDER ID: A1")).toMatchObject({ marketplaceOrderId: "A1" });
+    expect(fold("ORDER ID: A1000001")).toMatchObject({ marketplaceOrderId: "A1000001" });
   });
 });
 
@@ -292,8 +292,8 @@ describe("a re-read of a Missing order (#456)", () => {
   };
 
   it("backfills the ID and fee, and leaves income null, so the order stays Missing", () => {
-    const changes = reread("ORDER ID: 2410ABC\nFEE: 120.50");
-    expect(changes).toEqual({ marketplace_order_id: "2410ABC", marketplace_fee: 120.5 });
+    const changes = reread("ORDER ID: 2410ABC123\nFEE: 120.50");
+    expect(changes).toEqual({ marketplace_order_id: "2410ABC123", marketplace_fee: 120.5 });
     expect(incomeStatus({ ...missing, ...changes })).toBe("missing");
   });
 
