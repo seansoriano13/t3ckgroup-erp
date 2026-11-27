@@ -571,6 +571,40 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         expect(await screen.findByTestId("payment-ask-liner")).toHaveTextContent(/PHP\s?3,000\.00|₱\s?3,000\.00/);
       });
 
+      it("greys Full payment with its note once a request is open (#1280)", async () => {
+        const taken = ipas({ po_number: "P02610", created_by: purchaser.id });
+        seedAsk(taken, { purpose: "balance" });
+        const user = setupUser();
+        renderDetail(taken.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        expect(within(ask).getByTestId("ask-purpose-note")).toHaveTextContent("There's already a payment or an open request. Use Balance for the rest.");
+        await user.click(within(ask).getByRole("combobox", { name: /^What for/ }));
+        expect(await screen.findByRole("option", { name: "Full payment" })).toHaveAttribute("aria-disabled", "true");
+      });
+
+      it("greys Down payment and Balance while a Full payment request is open (#1280)", async () => {
+        const asked = ipas({ po_number: "P02611", created_by: purchaser.id });
+        seedAsk(asked, { purpose: "full_payment", amount: 9000 });
+        const user = setupUser();
+        renderDetail(asked.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        expect(within(ask).getAllByTestId("ask-purpose-note").map((n) => n.textContent)).toContain("A Full payment is already asked.");
+      });
+
+      it("Record as paid on a Full payment request fills the kind Full payment (#1280)", async () => {
+        const asked = ipas({ po_number: "P02612", created_by: purchaser.id });
+        seedAsk(asked, { purpose: "full_payment", amount: 9000 });
+        const user = setupUser();
+        renderDetail(asked.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).getByRole("combobox", { name: /^Kind/ })).toHaveTextContent("Full payment");
+      });
+
       it("shows no switch on a peso PO (#1277)", async () => {
         const row = ipas({ po_number: "P02602", created_by: purchaser.id });
         const user = setupUser();

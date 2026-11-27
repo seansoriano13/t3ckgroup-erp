@@ -46,7 +46,7 @@ import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimit
 import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
 import { pesosFromRate } from "@/utils/landedCost";
 import { formatRateNumber, rateTypo } from "@/utils/referenceRate";
-import { askLine, chargeAsks, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
+import { askLine, askPurposeLocks, chargeAsks, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
 import { Field, GroupTitle, PickField, ReadValue, RequiredMark, Tick } from "./FormFields";
 import { AskDraftFields, AskLiners, ChargeAskFields, PaidOrAskChoice } from "./AskRows";
 import { sectionDomId } from "@/components/record/sectionDom";
@@ -326,7 +326,7 @@ function PaysAskField({ ipas, id, row, rows, disabled, onPatch, source = payable
 }
 
 /** What a payment can be asked for from here; Freight asks belong to Charges (#1227). */
-const ASK_PURPOSES_ON_PAYMENTS = ["down_payment", "balance"];
+const ASK_PURPOSES_ON_PAYMENTS = ["down_payment", "balance", "full_payment"];
 
 function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPatch, onRemove }) {
   const { isPhp } = form;
@@ -377,6 +377,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
           id={id}
           row={row}
           purposes={ASK_PURPOSES_ON_PAYMENTS}
+          locks={askPurposeLocks(ipas)}
           currencyLabel={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
           prefix={isPhp ? "PHP" : currency}
           base={base}
