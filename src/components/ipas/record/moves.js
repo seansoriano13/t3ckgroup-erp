@@ -11,7 +11,6 @@ import {
   IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionNo,
 } from "@/constants/ipas";
-import { complianceViewOfIpas } from "@/utils/ipasCompliance";
 import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { hintFor } from "./moveCopy";
 
@@ -199,23 +198,6 @@ export function cardMovesFor(ctx, digest) {
   const [first, ...also] = parts;
   const moves = all.filter((item) => item.section === first);
   return { moves, costs, returns, bySection, all, also };
-}
-
-/**
- * The Compliance Requirement block of section 5 · Documents (#1251, spec #1247; moved by #1286). Null when
- * the IPAS does not ask (an old IPAS shows no block). Everyone who can open the IPAS gets the view; it is
- * `readOnly`, with no buttons, for anyone without `ctx.can.compliance` (Purchasing access, Logistics access
- * or a Super Admin) and on a filed or cancelled IPAS.
- *   state      "unanswered" | "none" | "kinds" (see complianceViewOfIpas)
- *   open       the kinds still open, in list order
- *   kinds      every kind the IPAS holds: `{ id, kindId, label, doneOn, note }`
- *   readOnly   true when nobody may change it here
- */
-export function complianceFor(ctx) {
-  const ipas = ctx.ipas;
-  if (!ipas?.compliance_asked) return null;
-  const readOnly = !ctx.can?.compliance || ipas.state !== "open";
-  return { ...complianceViewOfIpas(ipas), readOnly };
 }
 
 /**

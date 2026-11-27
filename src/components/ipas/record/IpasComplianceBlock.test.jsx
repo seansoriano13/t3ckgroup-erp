@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
 import IpasComplianceBlock from "./IpasComplianceBlock"
-import { complianceFor } from "./moves"
+import { complianceFor } from "@/utils/ipasCompliance"
 
 const service = vi.hoisted(() => ({
   complianceKinds: vi.fn(),

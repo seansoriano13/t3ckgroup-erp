@@ -1465,7 +1465,7 @@ _Avoid_: Compliant (as a status name), Conformity, Spec match
 
 **Compliance Requirement**:
 A government clearance (DENR, MARINA, OMB, NTC, FDA) that an order needs before
-the goods move or are handed over. Each IPAS asks once, in Your move, whether its
+the goods move or are handed over. Each IPAS asks once, in section 5 · Documents, whether its
 order needs one; a Yes picks the kinds, and each kind stays a to-do until it is
 ticked done. It blocks nothing: Filing only warns while a kind is open. Distinct
 from **Compliance**, whether our offer matches the client's specification; screens

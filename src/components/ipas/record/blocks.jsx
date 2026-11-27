@@ -17,7 +17,7 @@ import {
 } from "@/components/ipas/IpasSections";
 
 import SignoffList from "./SignoffList";
-import { complianceFor } from "./moves";
+import { complianceFor } from "@/utils/ipasCompliance";
 
 export function buildBlocks(ctx) {
   const { ipas, can, on, rights } = ctx;
@@ -47,8 +47,6 @@ export function buildBlocks(ctx) {
       onTick={on.tickDocument}
       onAttach={on.attach}
       onRemoveAttachment={on.removeAttachment}
-      onAdd={on.addDocument}
-      onSuggest={on.suggestDocuments}
       onRemove={on.removeDocument}
     />
   );

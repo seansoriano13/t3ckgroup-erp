@@ -175,7 +175,7 @@ function ReadOnlyBlock({ compliance }) {
 }
 
 /**
- * `compliance` is `complianceFor(ctx)` (moves.js), never null here. The database decides in the end who may
+ * `compliance` is `complianceFor(ctx)` (utils/ipasCompliance.js), never null here. The database decides in the end who may
  * answer; the buttons are only shown to people it will let.
  */
 export default function IpasComplianceBlock({ ipas, compliance }) {

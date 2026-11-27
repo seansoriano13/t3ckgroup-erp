@@ -22,7 +22,7 @@ import IpasComplianceBlock from "./record/IpasComplianceBlock";
  * belongs to Purchasing and Finance has it to Finance; neither ticks for the
  * other (the database refuses it, and the page only offers each person their own).
  *
- *   compliance      the Compliance Requirement view (moves.js `complianceFor`), or null
+ *   compliance      the Compliance Requirement view (utils/ipasCompliance.js `complianceFor`), or null
  *   canChange       Purchasing on an open IPAS: adds, attaches and removes rows,
  *                   and ticks Purchasing has it
  *   canTickFinance  Finance access on an open IPAS: ticks Finance has it
