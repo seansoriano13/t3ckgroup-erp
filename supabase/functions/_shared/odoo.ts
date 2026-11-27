@@ -13,6 +13,8 @@
 // `auth='user'` report routes with this key — see the portal access_token route
 // used by odoo-quotation-link instead.
 
+import { onceUntilFailure } from "./onceUntilFailure.ts";
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -53,6 +55,16 @@ const WAREHOUSE_READ_CONCURRENCY = 5;
 // fail with a readable message if the reply still is not JSON.
 const ODOO_MAX_ATTEMPTS = 5;
 
+// Retries since this function started, and the time spent waiting before them
+// (#1266: is a slow OPEX read Odoo's rate limit?). One warm function can serve
+// several requests at once, so a caller reads this before and after and takes
+// the difference; requests running side by side can show in each other's count.
+const retryStats = { retries: 0, waitMs: 0 };
+
+export function odooRetryStats() {
+  return { ...retryStats };
+}
+
 export async function odooCall(service, method, args) {
   for (let attempt = 1; ; attempt++) {
     const res = await fetch(`${ODOO_URL}/jsonrpc`, {
@@ -73,6 +85,8 @@ export async function odooCall(service, method, args) {
       if (res.status === 429 && attempt < ODOO_MAX_ATTEMPTS) {
         const retryAfter = Number(res.headers.get("Retry-After"));
         const wait = retryAfter > 0 ? retryAfter * 1000 : 500 * 2 ** (attempt - 1);
+        retryStats.retries += 1;
+        retryStats.waitMs += wait;
         await new Promise((resolve) => setTimeout(resolve, wait));
         continue;
       }
@@ -105,6 +119,14 @@ export async function authenticate() {
   }
   return uid;
 }
+
+/**
+ * Same as authenticate(), but signs in once per warm function and reuses the
+ * Odoo user id after that (#1266: the sign-in cost about 0.46 s per read).
+ * A failed sign-in is not remembered. A changed ODOO_API_KEY means a redeploy,
+ * which starts a fresh function and signs in again.
+ */
+export const authenticateOnce = onceUntilFailure(authenticate);
 
 // Odoo methods that only read. Anything else counts as a write.
 const ODOO_READ_METHODS = new Set([

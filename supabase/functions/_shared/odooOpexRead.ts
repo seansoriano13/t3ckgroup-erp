@@ -23,6 +23,7 @@ import {
   type MoveLineFacts,
 } from "./opexReadMath.ts";
 import { createStepTimer, type StepTimer } from "./stepTimer.ts";
+import { onceUntilFailure } from "./onceUntilFailure.ts";
 
 type Row = Record<string, unknown>;
 
@@ -36,6 +37,19 @@ const chunks = <T>(list: T[], size = 200): T[][] => {
 const numbers = (list: (number | null)[]): number[] => list.filter((v): v is number => v !== null);
 
 const PO_LINE_FIELDS = ["id", "order_id", "name", "product_id", "product_qty", "price_unit", "analytic_distribution"];
+
+// Odoo lets through about 5 calls a second and queues the rest (#1266), so each
+// call saved is about 0.2 s. The Projects plan and its analytic column do not
+// change while a function is warm: look them up once. Every read in one function
+// signs in as the same Odoo user (authenticateOnce), so the first caller's uid is used.
+let projectsPlan: (() => Promise<{ planId: number | null; column: string | null }>) | null = null;
+function projectsPlanOnce(uid: number) {
+  projectsPlan ??= onceUntilFailure(async () => {
+    const planId = await findProjectsPlanId(uid);
+    return { planId, column: planId === null ? null : await analyticLinePlanColumn(uid, planId) };
+  });
+  return projectsPlan();
+}
 
 /** "S06637 DRR Life Saving ..." -> "DRR Life Saving ..." */
 export function projectNameFromTag(tag: string, s0: string): string {
@@ -51,16 +65,13 @@ async function readBilled(uid: number, lineIds: number[]) {
         ["parent_state", "=", "posted"],
         ["move_id.move_type", "in", ["in_invoice", "in_refund"]],
       ],
-      ["purchase_line_id", "quantity", "balance", "move_id"],
+      // move_type is the bill's type, carried on its lines, so no second call is needed.
+      ["purchase_line_id", "quantity", "balance", "move_type"],
     ]);
-    const moveTypes = new Map<number, string>();
-    const moveParts = chunks([...new Set(numbers(rows.map((r) => idOf(r.move_id))))]);
-    const moves = await Promise.all(moveParts.map((mp) => executeKw(uid, "account.move", "read", [mp, ["move_type"]]) as Promise<Row[]>));
-    for (const m of moves.flat()) moveTypes.set(m.id as number, String(m.move_type));
     for (const r of rows) {
       const lineId = idOf(r.purchase_line_id);
       if (lineId === null) continue;
-      const sign = moveTypes.get(idOf(r.move_id) ?? -1) === "in_refund" ? -1 : 1;
+      const sign = r.move_type === "in_refund" ? -1 : 1;
       const cur = billed.get(lineId) ?? { qty: 0, pesos: 0 };
       cur.qty += sign * Number(r.quantity || 0);
       cur.pesos += Number(r.balance || 0);
@@ -136,9 +147,9 @@ export async function readOpexReport(
   const handNames = [...new Set(numbersOrNull(args.handP0s))];
 
   // Round 1: the Projects plan, the S0's own price, the P0s whose Source Document names it, the hand-added P0s.
-  const [planId, sales, sourceOrders, handOrders] = await timed("round1", () =>
+  const [{ planId, column }, sales, sourceOrders, handOrders] = await timed("round1", () =>
     Promise.all([
-      timed("r1.projectsPlan", () => findProjectsPlanId(uid)),
+      timed("r1.projectsPlan", () => projectsPlanOnce(uid)),
       timed("r1.saleOrder", () =>
         executeKw(uid, "sale.order", "search_read", [[["name", "=", s0]], ["id", "name", "amount_untaxed"]], { limit: 1 }) as Promise<Row[]>,
       ),
@@ -150,13 +161,8 @@ export async function readOpexReport(
   );
   const odooContractPrice = sales.length ? Math.round(Number(sales[0].amount_untaxed) * args.vatDivisor * 100) / 100 : null;
 
-  // Round 2: the S0's Project tags, and the analytic column the expenses are filed under.
-  const [tags, column] = await timed("round2", () =>
-    Promise.all([
-      timed("r2.projectTags", () => findProjectTags(uid, s0, planId)),
-      planId === null ? Promise.resolve(null) : timed("r2.planColumn", () => analyticLinePlanColumn(uid, planId)),
-    ]),
-  );
+  // Round 2: the S0's Project tags.
+  const tags = await timed("round2", () => findProjectTags(uid, s0, planId));
   const tagIds = tags.map((t) => t.id);
   const onReportIds = new Set<number>([
     ...sourceOrders.filter((o) => mentionsS0(o.origin, s0)).map((o) => o.id as number),
@@ -164,6 +170,9 @@ export async function readOpexReport(
   ]);
 
   // Round 3: P0 lines tagged to the S0, P0 lines on the P0s above, and the expenses.
+  // Tried and taken back (#1266): reading the expenses alongside round 4 sent more
+  // calls at once, Odoo started answering "try again in 1 second", and a 3 s read
+  // took 6–9 s. Keep the expenses here unless Odoo's rate limit is known to allow more.
   const [taggedLines, reportOrderLines, expenses] = await timed("round3", () =>
     Promise.all([
       tagIds.length
