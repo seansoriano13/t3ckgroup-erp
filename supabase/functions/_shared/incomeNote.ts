@@ -46,6 +46,10 @@ function parseAmount(raw: string): number | null {
 const LABELS =
   /\b(ORDER\s+ID|ORDER\s+INCOME|OI|(?<!(?:SHIPPING|TRANSACTION|SERVICE|COMMISSION|VOUCHER|DELIVERY)\s)FEE|TOTAL\s+BUYER\s+AMOUNT|BUYER\s+PAYMENT|PROOF\s+OF\s+PAYMENT|DELIVERY\s+DETAILS|DATE\s+OF\s+PAYMENT|DATE|PAID|PENALTY|REMARKS|LOCATION|NAME)\b/gi;
 
+// Shopee like 2609180ABCDEFG, Lazada 16 digits. The migration that clears stored
+// ids uses the same shape.
+const MARKETPLACE_ORDER_ID = /^(?=.*\d)[0-9A-Za-z]{8,}$/;
+
 const RECONCILE_TOLERANCE = 0.05;
 
 /**
@@ -66,9 +70,10 @@ export function parseIncomeNote(note: string | null | undefined, orderAmount: nu
       const label = m[1].toUpperCase().replace(/\s+/g, " ");
       const value = text.slice(m.index! + m[0].length, found[i + 1]?.index ?? text.length).trim();
       if (label === "ORDER ID") {
-        // An id carries a digit; "ORDER ID: Bulacan" is a place typed in the wrong field.
+        // A real id is letters and digits, at least 8 long, with a digit in it.
+        // "ORDER ID: 2" or "ORDER ID: Bulacan" is something else typed in the wrong field.
         const token = value.replace(/^:/, "").trim().match(/^[^\s,]+/)?.[0];
-        if (marketplaceOrderId === null && token && /\d/.test(token)) marketplaceOrderId = token;
+        if (marketplaceOrderId === null && token && MARKETPLACE_ORDER_ID.test(token)) marketplaceOrderId = token;
       } else if (label === "ORDER INCOME" || label === "OI") {
         if (orderIncome === null) orderIncome = parseAmount(value);
       } else if (label === "FEE") {
