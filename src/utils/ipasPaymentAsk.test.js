@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ipasFigures } from "./ipasFigures";
-import { askLine, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
+import { askLine, askPurposeLocks, askWhat, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, firstOpenPurpose, joinMoneyPart, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
 
 const withAsk = (ask) => ({ figures: { paymentAsk: ask } });
 
@@ -15,6 +15,50 @@ describe("the kind Record as paid fills (#1225)", () => {
     expect(paidKindForAsk({ purpose: "balance", amount: 999.99 }, 1000)).toBe("payment");
     expect(paidKindForAsk({ purpose: "balance", amount: 500 }, null)).toBe("payment");
     expect(paidKindForAsk({ purpose: "balance", amount: 500 }, 0)).toBe("payment");
+  });
+
+  it("never compares a Balance asked in pesos with the PO-currency balance left", () => {
+    expect(paidKindForAsk({ purpose: "balance", amount: 56000, currency: "PHP" }, 1000)).toBe("payment");
+    expect(paidKindForAsk({ purpose: "balance", amount: 56000, currency: "PHP" }, 100)).toBe("payment");
+    expect(paidKindForAsk({ purpose: "balance", amount: 1000, currency: null }, 1000)).toBe("full_payment");
+  });
+});
+
+describe("where a new request starts, and the Status chip words", () => {
+  it("starts on the first What for that is not greyed out", () => {
+    const purposes = ["down_payment", "balance", "full_payment"];
+    expect(firstOpenPurpose(purposes, { full_payment: "x", down_payment: null, balance: null })).toBe("down_payment");
+    expect(firstOpenPurpose(purposes, { down_payment: "x", balance: "x", full_payment: null })).toBe("full_payment");
+    expect(firstOpenPurpose(purposes, { down_payment: "x", balance: "x", full_payment: "x" })).toBeNull();
+  });
+
+  it("joins the step and the money part with a dot, or keeps the step alone", () => {
+    expect(joinMoneyPart("In Transit", "For payment (2)")).toBe("In Transit · For payment (2)");
+    expect(joinMoneyPart("In Transit", null)).toBe("In Transit");
+    expect(joinMoneyPart(null, "For payment (2)")).toBeNull();
+  });
+});
+
+describe("Full payment requests (#1280)", () => {
+  it("is labelled Full payment and Record as paid fills the kind Full payment", () => {
+    expect(askWhat({ purpose: "full_payment" })).toBe("Full payment");
+    expect(paidKindForAsk({ purpose: "full_payment", amount: 100 }, 1000)).toBe("full_payment");
+  });
+
+  it("greys Full payment once anything is paid or asked, never for withdrawn or Charge asks", () => {
+    expect(askPurposeLocks({ payments: [], payment_asks: [] })).toEqual({ full_payment: null, down_payment: null, balance: null });
+    expect(askPurposeLocks({ payments: [{ id: "p" }], payment_asks: [] }).full_payment).toMatch(/Use Balance for the rest/);
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "balance", closed_at: null }] }).full_payment).toMatch(/already a payment or an open request/);
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "down_payment", closed_reason: "withdrawn" }] }).full_payment).toBeNull();
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "charge", closed_at: null }] }).full_payment).toBeNull();
+  });
+
+  it("greys Down payment and Balance while a Full payment ask is open or paid, not once withdrawn", () => {
+    const open = askPurposeLocks({ payments: [], payment_asks: [{ purpose: "full_payment", closed_at: null }] });
+    expect(open.down_payment).toBe("A Full payment is already asked.");
+    expect(open.balance).toBe("A Full payment is already asked.");
+    expect(askPurposeLocks({ payments: [{ id: "p" }], payment_asks: [{ purpose: "full_payment", closed_reason: "paid" }] }).balance).not.toBeNull();
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "full_payment", closed_reason: "withdrawn" }] }).balance).toBeNull();
   });
 });
 

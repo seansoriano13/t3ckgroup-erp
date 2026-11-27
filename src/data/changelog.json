@@ -2,7 +2,7 @@
     {
         "date": "2026-11-27",
         "title": "Compliance Requirements move to Documents",
-        "version": "1.17.0",
+        "version": "1.18.0",
         "modules": [
             "purchasing"
         ],
@@ -12,6 +12,20 @@
             "Your move no longer shows the Compliance Requirement card. The line at the top of the IPAS, the SOR's IPAS summary and the warning at Filing stay as they were.",
             "Section 5 is quieter. The Required files box is gone, a red star after a document's name marks it as required, and the Add buttons show only while you edit.",
             "New IPAS no longer get a Compliance (Local) document. Older IPAS keep theirs."
+        ]
+    },
+    {
+        "date": "2026-11-27",
+        "title": "Requests in pesos and Full payment",
+        "version": "1.17.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "On an order in a foreign currency, a request for payment can now be asked in pesos. Pick PHP next to Asked in.",
+            "A payment now has a Pesos taken from the bank box. Type the pesos from the bank paper and the rate is worked out for you.",
+            "Full payment is now a choice when you ask for payment. It is 100% of the order and is only offered while nothing else has been paid or asked.",
+            "The Status chip now says For payment when a request is open, for example For payment (Down payment)."
         ]
     },
     {
@@ -2349,4 +2363,4 @@
             "Established standard practice for recording version control updates."
         ]
     }
-]
+]

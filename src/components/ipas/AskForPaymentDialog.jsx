@@ -13,7 +13,9 @@ import {
   IPAS_ASK_PURPOSE_LABELS,
 } from "@/constants/ipas";
 import { ipasErrorMessage } from "@/utils/ipas";
+import { isPhpCurrency } from "@/utils/landedCost";
 import { parseAmountInput } from "@/utils/ipasPayments";
+import { AskCurrencySwitch } from "@/components/ipas/record/AskRows";
 import { askLine, askPriorityOptions } from "@/utils/ipasPaymentAsk";
 import { amountFromPercent, parsePercentInput, percentBase, PERCENT_ERROR } from "@/utils/ipasPaymentPercent";
 
@@ -43,15 +45,20 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
   const [note, setNote] = useState(only?.note ?? "");
   const [priority, setPriority] = useState(only?.priority ?? IPAS_ASK_DEFAULT_PRIORITY);
   const [percent, setPercent] = useState(only?.percent_of_order ? String(Number(only.percent_of_order)) : "");
+  const [pesos, setPesos] = useState(only?.currency === "PHP"); // a supplier ask in pesos (#1277)
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState(null);
 
   // A Charge ask has no % of order (it applies to a supplier ask only).
   const isCharge = editing?.purpose === "charge";
+  // A supplier ask on a foreign-currency PO can be in pesos; on a peso PO there is nothing to switch.
+  const poCurrency = figures?.currency ?? null;
+  const canSwitch = !isCharge && Boolean(poCurrency) && !isPhpCurrency(poCurrency);
+  const inPesos = canSwitch && pesos;
   const parsed = parseAmountInput(amount);
   const percentRead = parsePercentInput(percent);
-  const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && (isCharge || percentRead.ok) && Boolean(priority);
-  const askCurrency = editing?.currency ?? figures?.currency;
+  const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && (isCharge || inPesos || percentRead.ok) && Boolean(priority);
+  const askCurrency = inPesos ? "PHP" : (isCharge ? editing?.currency : null) ?? figures?.currency;
   const currency = askCurrency ? ` (${askCurrency})` : "";
   // The same base as a payment's percent: the P.I/QT Amount, else the P0 total.
   const base = percentBase({ piQtAmount: figures?.piAmount, poTotal: figures?.poTotal });
@@ -78,6 +85,7 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
     setPriority(ask.priority ?? IPAS_ASK_DEFAULT_PRIORITY);
     setNote(ask.note ?? "");
     setPercent(ask.percent_of_order ? String(Number(ask.percent_of_order)) : "");
+    setPesos(ask.currency === "PHP");
     setFailure(null);
   };
 
@@ -94,7 +102,7 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
     }
   };
 
-  const values = { amount: parsed.value, note: note.trim() || null, priority, percent: isCharge ? null : percentRead.value };
+  const values = { amount: parsed.value, note: note.trim() || null, priority, percent: isCharge || inPesos ? null : percentRead.value, currency: inPesos ? "PHP" : null };
   const title = only ? `Change the ask on ${number}` : openAsks.length > 0 ? `Payment asks on ${number}` : `Ask for payment on ${number}`;
   return (
     <ModalShell
@@ -150,12 +158,24 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
             ? "Add another ask below. Each one closes when a payment saved as paying it is recorded, or when you withdraw it."
             : "The Payers see this IPAS as For payment until the payment that pays it is recorded or you withdraw the ask."}
       </p>
-      {!isCharge && (
+      {canSwitch && (
+        <AskCurrencySwitch
+          id="ask-currency"
+          poCurrency={poCurrency}
+          value={pesos ? "PHP" : ""}
+          disabled={saving}
+          onChange={(v) => {
+            setPesos(v === "PHP");
+            if (v === "PHP") setPercent("");
+          }}
+        />
+      )}
+      {!isCharge && !inPesos && (
         <FieldBox label={base ? `% of order (optional, of the ${base.label})` : "% of order (optional)"} htmlFor="ask-percent" bare>
           <Input id="ask-percent" inputMode="decimal" value={percent} onChange={(e) => typePercent(e.target.value)} placeholder="e.g. 40" />
         </FieldBox>
       )}
-      {!isCharge && !percentRead.ok && (
+      {!isCharge && !inPesos && !percentRead.ok && (
         <p role="alert" className="text-xs text-red-11">
           {PERCENT_ERROR}
         </p>

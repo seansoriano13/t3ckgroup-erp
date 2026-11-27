@@ -2522,12 +2522,13 @@ alter table ipas_options add constraint "ipas_options_required_before_chk" CHECK
 alter table ipas_options add constraint "ipas_options_system_key_list_chk" CHECK (((system_key IS NULL) OR (list = 'document_kind'::text)));
 alter table ipas_options add constraint "ipas_options_used_for_chk" CHECK (((used_for IS NULL) OR (used_for = ANY (ARRAY['documentation'::text, 'filing'::text, 'both'::text]))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_amount_chk" CHECK ((amount > (0)::numeric));
-alter table ipas_payment_asks add constraint "ipas_payment_asks_charge_chk" CHECK ((((purpose = 'charge'::text) AND (charge_kind_id IS NOT NULL) AND (currency IS NOT NULL)) OR ((purpose <> 'charge'::text) AND (charge_kind_id IS NULL) AND (currency IS NULL))));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_charge_chk" CHECK ((((purpose = 'charge'::text) AND (charge_kind_id IS NOT NULL) AND (currency IS NOT NULL)) OR ((purpose <> 'charge'::text) AND (charge_kind_id IS NULL) AND ((currency IS NULL) OR (currency = 'PHP'::text)))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_chk" CHECK (((closed_at IS NULL) = (closed_reason IS NULL)));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_closed_reason_chk" CHECK (((closed_reason IS NULL) OR (closed_reason = ANY (ARRAY['withdrawn'::text, 'paid'::text]))));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_percent_chk" CHECK (((percent_of_order IS NULL) OR ((percent_of_order > (0)::numeric) AND (percent_of_order <= (1000)::numeric))));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_php_percent_chk" CHECK (((purpose = 'charge'::text) OR (currency IS NULL) OR (percent_of_order IS NULL)));
 alter table ipas_payment_asks add constraint "ipas_payment_asks_priority_chk" CHECK ((priority = ANY (ARRAY['very_high'::text, 'high'::text, 'medium'::text])));
-alter table ipas_payment_asks add constraint "ipas_payment_asks_purpose_chk" CHECK ((purpose = ANY (ARRAY['down_payment'::text, 'balance'::text, 'charge'::text])));
+alter table ipas_payment_asks add constraint "ipas_payment_asks_purpose_chk" CHECK ((purpose = ANY (ARRAY['down_payment'::text, 'balance'::text, 'full_payment'::text, 'charge'::text])));
 alter table ipas_payment_files add constraint "ipas_payment_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
 alter table ipas_payment_files add constraint "ipas_payment_files_url_chk" CHECK ((url ~* '^https?://'::text));
 alter table ipas_payments add constraint "ipas_payments_amount_chk" CHECK ((amount > (0)::numeric));
@@ -5652,7 +5653,7 @@ CREATE OR REPLACE FUNCTION public._ipas_ask_purpose_label(p_purpose text)
  IMMUTABLE
  SET search_path TO 'public'
 AS $function$
-  select case p_purpose when 'down_payment' then 'Down payment' when 'balance' then 'Balance' when 'charge' then 'Charge' when 'freight' then 'Freight' else p_purpose end;
+  select case p_purpose when 'down_payment' then 'Down payment' when 'balance' then 'Balance' when 'full_payment' then 'Full payment' when 'charge' then 'Charge' when 'freight' then 'Freight' else p_purpose end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public._ipas_can_sign_section(p_section integer, p_employee_id uuid)
@@ -7168,6 +7169,7 @@ AS $function$
 declare
   v_meta jsonb;
   v_ask public.ipas_payment_asks;
+  v_pay_currency text;
 begin
   if new.ask_id is null then
     return null;
@@ -7186,7 +7188,7 @@ begin
   if v_ask.closed_at is not null then
     raise exception 'that ask for payment is already closed' using errcode = '22023';
   end if;
-  if v_ask.purpose not in ('down_payment', 'balance') then
+  if v_ask.purpose not in ('down_payment', 'balance', 'full_payment') then
     raise exception 'a payment cannot pay a Charge ask; record a charge instead' using errcode = '22023';
   end if;
 
@@ -7196,11 +7198,14 @@ begin
    where id = v_ask.id;
 
   v_meta := public._ipas_ask_meta(v_ask);
+  -- The ask keeps its own currency (a request in pesos); the payment is in the PO's currency, which is its own.
+  select coalesce(nullif(i.odoo_copy -> 'po' ->> 'currency', ''), '') into v_pay_currency
+    from public.ipas i where i.id = new.ipas_id;
   perform public._ipas_payment_ask_to_chat(
     new.ipas_id, 'payment_ask_closed',
     'Paid the ask for payment: ' || (v_meta ->> 'purpose_label') || ' '
       || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(v_ask.amount, 'FM999G999G999G990.00')))
-      || ' (payment of ' || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(new.amount, 'FM999G999G999G990.00'))) || ' recorded).',
+      || ' (payment of ' || btrim(coalesce(v_pay_currency, '') || ' ' || trim(to_char(new.amount, 'FM999G999G999G990.00'))) || ' recorded).',
     v_ask.id,
     v_meta || jsonb_build_object('reason', 'paid', 'payment_id', new.id, 'paid_amount', new.amount)
   );
@@ -18257,8 +18262,8 @@ begin
   if p_amount is null or p_amount <= 0 then
     raise exception 'ipas_ask_for_payment: the amount must be more than zero' using errcode = '22023';
   end if;
-  if p_purpose is null or p_purpose not in ('down_payment', 'balance', 'charge') then
-    raise exception 'ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge' using errcode = '22023';
+  if p_purpose is null or p_purpose not in ('down_payment', 'balance', 'full_payment', 'charge') then
+    raise exception 'ipas_ask_for_payment: the purpose must be Down payment, Balance, Full payment or Charge' using errcode = '22023';
   end if;
   if p_priority is null or p_priority not in ('very_high', 'high', 'medium') then
     raise exception 'ipas_ask_for_payment: the priority must be Very High, High or Medium' using errcode = '22023';
@@ -18270,6 +18275,21 @@ begin
     raise exception 'ipas_ask_for_payment: a Charge ask has no %% of order (it applies to a supplier ask only)' using errcode = '22023';
   end if;
 
+  -- Full payment is the whole order in one go (#1280): refused once anything is paid or asked, and Down payment
+  -- and Balance are refused while a Full payment ask is open or paid. A withdrawn ask counts for nothing.
+  if p_purpose = 'full_payment' then
+    if exists (select 1 from public.ipas_payments where ipas_id = v_ipas.id)
+       or exists (select 1 from public.ipas_payment_asks
+                   where ipas_id = v_ipas.id and purpose <> 'charge' and closed_reason is distinct from 'withdrawn') then
+      raise exception 'ipas_ask_for_payment: there''s already a payment or an open request; use Balance for the rest' using errcode = '22023';
+    end if;
+  elsif p_purpose in ('down_payment', 'balance') then
+    if exists (select 1 from public.ipas_payment_asks
+                where ipas_id = v_ipas.id and purpose = 'full_payment' and closed_reason is distinct from 'withdrawn') then
+      raise exception 'ipas_ask_for_payment: a Full payment is already asked' using errcode = '22023';
+    end if;
+  end if;
+
   if p_purpose = 'charge' then
     if p_charge_kind_id is null then
       raise exception 'ipas_ask_for_payment: pick the kind of charge' using errcode = '22023';
@@ -18279,6 +18299,20 @@ begin
     v_currency := upper(btrim(coalesce(nullif(btrim(p_currency), ''), 'PHP')));
     if v_currency !~ '^[A-Z]{3}$' then
       raise exception 'ipas_ask_for_payment: the currency must be a three-letter code like PHP' using errcode = '22023';
+    end if;
+  else
+    -- A supplier ask is in the PO's currency (null) or in pesos (#1277).
+    v_currency := nullif(upper(btrim(coalesce(p_currency, ''))), '');
+    if v_currency is not null and v_currency <> 'PHP' then
+      raise exception 'ipas_ask_for_payment: a supplier ask is in the PO currency or in PHP' using errcode = '22023';
+    end if;
+    if v_currency = 'PHP' then
+      if upper(btrim(coalesce(v_ipas.odoo_copy #>> '{po,currency}', ''))) in ('', 'PHP') then
+        raise exception 'ipas_ask_for_payment: this PO is already in pesos, so the ask needs no PHP switch' using errcode = '22023';
+      end if;
+      if p_percent is not null then
+        raise exception 'ipas_ask_for_payment: an ask in PHP has no %% of order' using errcode = '22023';
+      end if;
     end if;
   end if;
 
@@ -18479,7 +18513,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_edit_payment_ask(p_ask_id uuid, p_amount numeric, p_priority text, p_note text DEFAULT NULL::text, p_percent numeric DEFAULT NULL::numeric)
+CREATE OR REPLACE FUNCTION public.ipas_edit_payment_ask(p_ask_id uuid, p_amount numeric, p_priority text, p_note text DEFAULT NULL::text, p_percent numeric DEFAULT NULL::numeric, p_currency text DEFAULT NULL::text)
  RETURNS ipas_payment_asks
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -18525,22 +18559,41 @@ begin
     raise exception 'ipas_edit_payment_ask: a Charge ask has no %% of order (it applies to a supplier ask only)' using errcode = '22023';
   end if;
 
+  if v_ask.purpose = 'charge' then
+    -- A Charge ask keeps the currency it was made in.
+    v_currency := v_ask.currency;
+  else
+    v_currency := nullif(upper(btrim(coalesce(p_currency, ''))), '');
+    if v_currency is not null and v_currency <> 'PHP' then
+      raise exception 'ipas_edit_payment_ask: a supplier ask is in the PO currency or in PHP' using errcode = '22023';
+    end if;
+    if v_currency = 'PHP' then
+      if upper(btrim(coalesce(v_ipas.odoo_copy #>> '{po,currency}', ''))) in ('', 'PHP') then
+        raise exception 'ipas_edit_payment_ask: this PO is already in pesos, so the ask needs no PHP switch' using errcode = '22023';
+      end if;
+      if p_percent is not null then
+        raise exception 'ipas_edit_payment_ask: an ask in PHP has no %% of order' using errcode = '22023';
+      end if;
+    end if;
+  end if;
+
   if v_ask.amount = p_amount and v_ask.priority = p_priority
-     and v_ask.note is not distinct from v_note and v_ask.percent_of_order is not distinct from p_percent then
+     and v_ask.note is not distinct from v_note and v_ask.percent_of_order is not distinct from p_percent
+     and v_ask.currency is not distinct from v_currency then
     return v_ask;
   end if;
 
   update public.ipas_payment_asks
-     set amount = p_amount, priority = p_priority, note = v_note, percent_of_order = p_percent
+     set amount = p_amount, priority = p_priority, note = v_note, percent_of_order = p_percent, currency = v_currency
    where id = v_ask.id
   returning * into v_row;
 
   v_meta := public._ipas_ask_meta(v_row);
   v_changes := public._ipas_diff(
     jsonb_build_object('amount', v_ask.amount, 'priority', public._ipas_ask_priority_label(v_ask.priority),
-                       'note', v_ask.note, 'percent_of_order', v_ask.percent_of_order),
+                       'note', v_ask.note, 'percent_of_order', v_ask.percent_of_order, 'currency', v_ask.currency),
     jsonb_build_object('amount', v_row.amount, 'priority', public._ipas_ask_priority_label(v_row.priority),
-                       'note', v_row.note, 'percent_of_order', v_row.percent_of_order));
+                       'note', v_row.note, 'percent_of_order', v_row.percent_of_order, 'currency', v_row.currency));
   perform public._ipas_payment_ask_to_chat(
     v_ipas.id, 'payment_ask_edited',
     'Changed the ask for payment (' || (v_meta ->> 'purpose_label') || ' ' || btrim((v_meta ->> 'currency') || ' '
@@ -19887,7 +19940,7 @@ begin
 end;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric, p_method_other text DEFAULT NULL::text, p_proof_urls text[] DEFAULT NULL::text[], p_ask_id uuid DEFAULT NULL::uuid)
+CREATE OR REPLACE FUNCTION public.ipas_save_payment(p_ipas_id uuid, p_payment_id uuid, p_kind text, p_paid_on date, p_amount numeric, p_forex_rate numeric, p_doc_stamp_php numeric, p_misc_fee_php numeric, p_charge_fee_php numeric, p_method_id uuid, p_check_no text, p_proof_url text, p_percent_of_order numeric DEFAULT NULL::numeric, p_method_other text DEFAULT NULL::text, p_proof_urls text[] DEFAULT NULL::text[], p_ask_id uuid DEFAULT NULL::uuid, p_php_debited numeric DEFAULT NULL::numeric)
  RETURNS ipas_payments
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -19922,7 +19975,18 @@ begin
   elsif v_rate is not null and v_rate <= 0 then
     raise exception 'ipas_save_payment: the forex rate must be more than zero' using errcode = '22023';
   end if;
-  v_pesos := case when v_rate is null then null else round(p_amount * v_rate, 2) end;
+  if v_php then
+    v_pesos := null;
+  elsif p_php_debited is not null then
+    -- Pesos typed from the bank paper (#1278): they are the payment's rate. No rate is stored beside them.
+    if p_php_debited <= 0 then
+      raise exception 'ipas_save_payment: the pesos taken from the bank must be more than zero, or left blank' using errcode = '22023';
+    end if;
+    v_pesos := round(p_php_debited, 2);
+    v_rate := null;
+  else
+    v_pesos := case when v_rate is null then null else round(p_amount * v_rate, 2) end;
+  end if;
 
   -- The method: Others needs what it was; any other method keeps no typed text.
   select lower(btrim(label)) into v_label from public.ipas_options where id = p_method_id;

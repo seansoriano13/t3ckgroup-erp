@@ -1174,7 +1174,10 @@ export function stubIpasRpcs({
       ? findRow("ipas", findRow("ipas_payments", args.p_payment_id)?.ipas_id)
       : findRow("ipas", args.p_ipas_id)
     if (!ipas) refuse("22023", "ipas_save_payment: payment not found")
-    const rate = isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
+    // #1278: pesos typed from the bank paper are stored as they are, with no rate beside them.
+    const typedPesos = isPhpCopy(ipas.odoo_copy) || args.p_php_debited == null ? null : round2(Number(args.p_php_debited))
+    if (typedPesos !== null && !(typedPesos > 0)) refuse("22023", "ipas_save_payment: the pesos taken from the bank must be more than zero, or left blank")
+    const rate = typedPesos !== null || isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
     if (rate !== null && !(rate > 0)) refuse("22023", "ipas_save_payment: the forex rate must be more than zero")
     // Others needs what the method was; any other method keeps no typed text (#1211).
     const methodLabel = String(optionOf(args.p_method_id)?.label ?? "").trim().toLowerCase()
@@ -1187,7 +1190,7 @@ export function stubIpasRpcs({
       p_kind: args.p_kind,
       p_paid_on: args.p_paid_on,
       p_amount: args.p_amount,
-      p_php_debited: rate === null ? null : round2(Number(args.p_amount) * rate),
+      p_php_debited: typedPesos !== null ? typedPesos : rate === null ? null : round2(Number(args.p_amount) * rate),
       p_charge_fee_php: args.p_charge_fee_php,
       p_method_id: args.p_method_id,
       p_check_no: args.p_check_no,
@@ -1214,7 +1217,7 @@ export function stubIpasRpcs({
       if (!ask) refuse("22023", "that ask for payment was not found")
       if (ask.ipas_id !== saved.ipas_id) refuse("22023", "that ask for payment is on another IPAS")
       if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
-      if (!["down_payment", "balance"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
+      if (!["down_payment", "balance", "full_payment"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
       updateRow("ipas_payments", findRow("ipas_payments", saved.id), { ask_id: ask.id })
       updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_payment_id: saved.id })
     }
@@ -1229,13 +1232,19 @@ export function stubIpasRpcs({
     requireAsker("ipas_ask_for_payment")
     const ipas = requireOpenIpas("ipas_ask_for_payment", args.p_ipas_id)
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_ask_for_payment: the amount must be more than zero")
-    if (!["down_payment", "balance", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge")
+    if (!["down_payment", "balance", "full_payment", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance, Full payment or Charge")
+    const supplierAsks = rowsOf("ipas_payment_asks").filter((a) => a.ipas_id === ipas.id && a.purpose !== "charge" && a.closed_reason !== "withdrawn")
+    if (args.p_purpose === "full_payment" && (rowsOf("ipas_payments").some((pay) => pay.ipas_id === ipas.id) || supplierAsks.length > 0)) refuse("22023", "ipas_ask_for_payment: there's already a payment or an open request; use Balance for the rest")
+    if (["down_payment", "balance"].includes(args.p_purpose) && supplierAsks.some((a) => a.purpose === "full_payment")) refuse("22023", "ipas_ask_for_payment: a Full payment is already asked")
     if (args.p_purpose === "charge" && !args.p_charge_kind_id) refuse("22023", "ipas_ask_for_payment: pick the kind of charge")
     if (args.p_purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: a Charge ask has no % of order (it applies to a supplier ask only)")
     const isCharge = args.p_purpose === "charge"
+    const supplierCurrency = isCharge ? null : String(args.p_currency || "").trim().toUpperCase() || null
+    if (supplierCurrency && supplierCurrency !== "PHP") refuse("22023", "ipas_ask_for_payment: a supplier ask is in the PO currency or in PHP")
+    if (supplierCurrency && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: an ask in PHP has no % of order")
     return insertRow("ipas_payment_asks", {
       charge_kind_id: isCharge ? args.p_charge_kind_id : null,
-      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : null,
+      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : supplierCurrency,
       ipas_id: ipas.id,
       amount: args.p_amount,
       purpose: args.p_purpose,
@@ -1254,11 +1263,14 @@ export function stubIpasRpcs({
     if (ask.closed_at) refuse("22023", "ipas_edit_payment_ask: that ask is closed and can't be edited")
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_edit_payment_ask: the amount must be more than zero")
     if (ask.purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: a Charge ask has no % of order (it applies to a supplier ask only)")
+    const editCurrency = ask.purpose === "charge" ? ask.currency : String(args.p_currency || "").trim().toUpperCase() || null
+    if (ask.purpose !== "charge" && editCurrency && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: an ask in PHP has no % of order")
     return updateRow("ipas_payment_asks", ask, {
       amount: args.p_amount,
       priority: args.p_priority,
       note: args.p_note ?? null,
       percent_of_order: args.p_percent ?? null,
+      currency: editCurrency,
     })
   })
   stubRpc("ipas_withdraw_payment_ask", (args) => {

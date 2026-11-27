@@ -55,7 +55,7 @@ import {
   shapeBankDetails,
   shapeIpas,
 } from "../utils/ipas";
-import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
+import { isIsoDate, parseAmountInput, pesosReplaceRate, shapePayment } from "../utils/ipasPayments";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "../utils/ipasPaymentPercent";
 import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
@@ -696,13 +696,14 @@ export const ipasService = {
   },
 
   /** Changes one open ask (amount, priority, note, % of order), by the ask's own id (#1224). A closed ask is refused. */
-  async editPaymentAsk(askId, { amount, priority, note = null, percent = null }) {
+  async editPaymentAsk(askId, { amount, priority, note = null, percent = null, currency = null }) {
     const { data, error } = await supabase.rpc("ipas_edit_payment_ask", {
       p_ask_id: askId,
       p_amount: amount,
       p_priority: priority,
       p_note: note,
       p_percent: percent,
+      p_currency: currency,
     });
     if (error) throw error;
     return data;
@@ -2017,7 +2018,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, phpDebited, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -2035,6 +2036,14 @@ function paymentArgs(payment, isPhpPo) {
   if (!isPhpPo && rateRead.value !== null && rateRead.value <= 0) {
     throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be more than zero, or left blank until the bank statement arrives.");
   }
+
+  // Pesos typed from the bank paper (#1278) are stored as they are and replace any stored rate.
+  const pesosRead = parseAmountInput(phpDebited);
+  if (!pesosRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The pesos taken from the bank must be a number.");
+  if (!isPhpPo && pesosRead.value !== null && pesosRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "The pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
+  }
+  const kept = pesosReplaceRate(phpDebited, forexRate);
 
   const fees = [
     ["The bank charge", chargeFeePhp],
@@ -2058,7 +2067,8 @@ function paymentArgs(payment, isPhpPo) {
     p_paid_on: paidOn,
     p_amount: amountRead.value,
     p_percent_of_order: percentRead.value,
-    p_forex_rate: isPhpPo ? null : rateRead.value,
+    p_forex_rate: isPhpPo ? null : kept.rate,
+    p_php_debited: isPhpPo ? null : kept.pesos,
     p_doc_stamp_php: fees[1],
     p_misc_fee_php: fees[2],
     // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).
