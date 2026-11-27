@@ -71,7 +71,7 @@ The report held up well. Every total on screen matched the database to the centa
 
 ## Watch list (not ticketed)
 
-- **No Shopee orders after 29 October.** `retail_orders` (staging and prod) has Lazada orders up to 24 November but no Shopee order after 29 October. The sync reads 37 changed orders on every run and finds nothing new to write, so Odoo probably has none. Worth asking Sales whether Shopee orders are still entered in Odoo.
+- **No Shopee orders after 29 October: expected.** `retail_orders` (staging and prod) has Lazada orders up to 24 November but no Shopee order after 29 October. Sean confirmed on 2026-11-27 that the Shopee shop was banned or suspended, so there are no Shopee sales. Not a bug.
 - **Lazada Suspects.** 5 of the 7 Suspect orders in the last 3 months are Lazada orders whose Order Income is a little above the Order Amount, with no fee (for example S08891). If Lazada's payout includes the shipping the buyer paid, these are not wrong. Ask Sales before changing anything.
 - **The parked queue still works through the API.** A Sales person with the Retail right can still save changes to a pending row in `odoo_retail_queue` and call `approve_retail_queue_item`, which creates a hidden Retail SOR. This is on purpose for now (the queue is parked so it can come back, and policy test `822-sales-reference-back-doors` checks that approve still works). If the queue is not coming back, remove both.
 - **The whole table is read on every visit** (1,536 rows today, two requests). Fine now; worth a server-side summary if it reaches tens of thousands.
@@ -81,7 +81,7 @@ The report held up well. Every total on screen matched the database to the centa
 
 None of these changes who can do what.
 
-1. The report keeps counting every confirmed Odoo order. It does not guess which of two orders sharing a Marketplace Order ID is the wrong one; it shows the pair so a person fixes Odoo (A1).
+1. The report keeps counting both orders of a pair in the totals (**confirmed by Sean, 2026-11-27**). It does not guess which of two orders sharing a Marketplace Order ID is the wrong one; it shows the pair so a person fixes Odoo (A1).
 2. A pair sharing a Marketplace Order ID is not called "Suspect" (Suspect keeps its meaning in `CONTEXT.md`). It gets a plain line in the Missing / Suspect section. **To confirm with Sean** before building, since it adds something new to that section.
 3. `retail_orders` holds one row per Odoo order: the Odoo id is unique, and the sync matches on it (A2).
 4. A Marketplace Order ID that does not look like one is stored blank, not stored wrong (A3).
