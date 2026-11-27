@@ -52,15 +52,16 @@ afterAll(async () => {
     await purgeFixtureIpas(`%@${FIXTURE_DOMAIN}`)
 })
 
-describe("the two steps are refused", () => {
-    it.each(["payment_approval", "for_payment"])("refuses %s from ipas_set_status", async (step) => {
+// For Payment came back on 2026-11-27 (see ipas-status-for-payment-back.test.js); Payment Approval stays retired.
+describe("Payment Approval is refused", () => {
+    it.each(["payment_approval"])("refuses %s from ipas_set_status", async (step) => {
         const ipas = await raise()
         const refused = await rpc("outsider", "ipas_set_status", { p_ipas_id: ipas.id, p_step: step, p_reached_on: null })
         expect(refused.error?.code).toBe("22023")
         expect(await statusOf(ipas.id)).toBe("order_draft")
     })
 
-    it.each(["payment_approval", "for_payment"])("refuses %s as a stored status", async (step) => {
+    it.each(["payment_approval"])("refuses %s as a stored status", async (step) => {
         const ipas = await raise()
         await expect(sql().query(`update public.ipas set status = $2 where id = $1`, [ipas.id, step])).rejects.toMatchObject({ code: "23514" })
     })
@@ -138,11 +139,11 @@ describe("step dates already stored are kept", () => {
 })
 
 describe("Order Monitoring", () => {
-    it("has no Ageing rule on the two steps, and refuses to add one", async () => {
-        const rules = await svc().from("order_ageing_rules").select("step").in("step", ["payment_approval", "for_payment"])
+    it("has no Ageing rule on Payment Approval, and refuses to add one", async () => {
+        const rules = await svc().from("order_ageing_rules").select("step").in("step", ["payment_approval"])
         expect(rules.error).toBeNull()
         expect(rules.data).toEqual([])
-        for (const step of ["payment_approval", "for_payment"]) {
+        for (const step of ["payment_approval"]) {
             const refused = await svc().from("order_ageing_rules").insert({ step })
             expect(refused.error?.code).toBe("23514")
         }

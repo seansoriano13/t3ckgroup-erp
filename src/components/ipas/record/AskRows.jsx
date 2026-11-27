@@ -12,7 +12,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 import { RequiredMark } from "@/components/ui/RequiredMark";
 import { IPAS_ASK_PURPOSE_LABELS } from "@/constants/ipas";
 import { cn } from "@/lib/utils";
-import { askLine, askPriorityOptions, askWhat } from "@/utils/ipasPaymentAsk";
+import { askLine, askPriorityOptions, askWhat, lockNoteLines } from "@/utils/ipasPaymentAsk";
 import { afterPercentEdit, parsePercentInput } from "@/utils/ipasPaymentPercent";
 import { parseAmountInput } from "@/utils/ipasPayments";
 import { Field, NeededTag, PickField } from "./FormFields";
@@ -113,7 +113,7 @@ export function AskDraftFields({ id, row, purposes, locks = {}, currencyLabel, p
   const amount = parseAmountInput(row.amount);
   const percent = parsePercentInput(row.percentOfOrder);
   const purposeOptions = purposes.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value], disabled: Boolean(locks[value]) }));
-  const lockNotes = [...new Set(purposes.map((value) => locks[value]).filter(Boolean))];
+  const lockNotes = lockNoteLines(purposes, locks);
   const priorityOptions = askPriorityOptions();
   return (
     <div className="space-y-3" data-testid="payment-ask-fields">
