@@ -88,13 +88,13 @@ describe("purchaseRequestService — Requested Items", () => {
   it("lists a new product as an Other request, with no SOR line", async () => {
     const images = [{ url: "https://res.cloudinary.com/demo/bracket.jpg", name: "bracket.jpg", type: "image/jpeg", bytes: 2048 }]
 
-    await purchaseRequestService.addNewItem(request.id, {
+    await purchaseRequestService.addItems(request.id, [{
       name: "Custom mounting bracket",
       quantity: 4,
       unit: "pc",
       description: "Stainless, per the client's drawing",
       images,
-    })
+    }])
 
     const other = (await purchaseRequestService.listItems(request.id)).find((i) => i.name === "Custom mounting bracket")
     expect(other).toMatchObject({
@@ -110,30 +110,32 @@ describe("purchaseRequestService — Requested Items", () => {
   })
 
   it("posts an added Other request in the request", async () => {
-    await purchaseRequestService.addNewItem(request.id, { name: "Custom mounting bracket", quantity: 1 })
+    await purchaseRequestService.addItems(request.id, [{ name: "Custom mounting bracket", quantity: 1 }])
 
     const other = (await purchaseRequestService.listItems(request.id)).find((i) => i.name === "Custom mounting bracket")
     const posts = db.rows("purchase_request_messages").filter((m) => m.request_id === request.id)
     expect(posts.map((m) => m.metadata)).toEqual([{ event: "item_added", item_id: other.id, source: "new" }])
   })
 
-  it("sends a new product's fields as the RPC names them", async () => {
+  it("sends every product in one call, with an Odoo pick's id", async () => {
     let sent
-    stubRpc("purchase_request_add_new_item", (args) => {
+    stubRpc("purchase_request_add_items", (args) => {
       sent = args
-      return "item-1"
+      return ["item-1", "item-2"]
     })
 
-    const id = await purchaseRequestService.addNewItem("r1", { name: "Bracket", quantity: "3" })
+    const ids = await purchaseRequestService.addItems("r1", [
+      { name: "Bracket", quantity: "3" },
+      { name: "Cable tie", quantity: 10, unit: "pack", purpose: "job", odooProductId: 42 },
+    ])
 
-    expect(id).toBe("item-1")
+    expect(ids).toEqual(["item-1", "item-2"])
     expect(sent).toEqual({
       p_request_id: "r1",
-      p_name: "Bracket",
-      p_quantity: 3,
-      p_unit: null,
-      p_description: null,
-      p_images: [],
+      p_items: [
+        { name: "Bracket", quantity: 3, unit: null, description: null, images: [], purpose: "client" },
+        { name: "Cable tie", quantity: 10, unit: "pack", description: null, images: [], purpose: "job", odoo_product_id: 42 },
+      ],
     })
   })
 })
@@ -154,15 +156,14 @@ describe("purchaseRequestService — a new product's fields, on every path", () 
   const fields = { name: "Bracket", quantity: "3", unit: "", description: "" }
 
   it("sends the same name, quantity, unit and description on both", async () => {
-    const added = sentTo("purchase_request_add_new_item")
+    const added = sentTo("purchase_request_add_items")
     const opened = sentTo("purchase_request_open")
 
-    await purchaseRequestService.addNewItem("r1", fields)
+    await purchaseRequestService.addItems("r1", [fields])
     await purchaseRequestService.openDirect("Office", [fields])
 
     const expected = { name: "Bracket", quantity: 3, unit: null, description: null }
-    const args = { p_name: "Bracket", p_quantity: 3, p_unit: null, p_description: null, p_images: [] }
-    expect(added).toEqual([{ p_request_id: "r1", ...args }])
+    expect(added).toEqual([{ p_request_id: "r1", p_items: [{ ...expected, images: [], purpose: "client" }] }])
     // A Direct request's items go as one list, and carry no images.
     expect(opened).toEqual([{ p_title: "Office", p_items: [expected], p_for_opportunity_id: null }])
   })

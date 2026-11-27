@@ -14,7 +14,7 @@ import { SampleAuthProvider } from "@/context/AuthContext"
 import { renderWithProviders, setupUser, chooseOption } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { stubRpc } from "@/test/msw/server"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { stubPurchaseRequestItemRpcs } from "@/test/stubs/purchaseRequestItemRpc"
 import { syncRequestItems } from "@/test/stubs/sorItemSync"
 import { opportunityService } from "@/services/opportunityService"
@@ -183,8 +183,8 @@ describe("RequestedItems", () => {
 
     await user.click(await screen.findByRole("button", { name: "Ask for a product" }))
     await user.type(screen.getByLabelText("What do you need?"), "Custom mounting bracket")
-    await user.clear(screen.getByLabelText("Quantity"))
-    await user.type(screen.getByLabelText("Quantity"), "4")
+    await user.clear(screen.getByLabelText(/^Quantity/))
+    await user.type(screen.getByLabelText(/^Quantity/), "4")
     await user.type(screen.getByLabelText("Description"), "Stainless, per the client's drawing")
     await user.upload(
       document.body.querySelector('input[type="file"]'),
@@ -205,6 +205,50 @@ describe("RequestedItems", () => {
     const item = db.rows("purchase_request_items").find((i) => i.name === "Custom mounting bracket")
     expect(item).toMatchObject({ purpose: "job", status: "not_checked" })
     expect(item.images).toEqual([expect.objectContaining({ name: "bracket.png", url: expect.stringMatching(/^https:\/\//) })])
+  })
+
+  it("adds several products in one go, one picked from Odoo and one typed, each with its own Chat line", async () => {
+    stubEdgeFunction("odoo-product-search", () => ({
+      success: true,
+      products: [{ id: 555, name: "Full Body Harness XL", code: "FBH-XL" }],
+    }))
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    await user.click(await screen.findByRole("button", { name: "Ask for a product" }))
+    await user.type(screen.getByRole("combobox", { name: "What do you need?" }), "harness")
+    await user.click(await screen.findByRole("button", { name: /Full Body Harness XL/ }))
+    expect(screen.getByText("From Odoo")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Add another product" }))
+    const second = screen.getByRole("group", { name: "Product 2" })
+    await user.type(within(second).getByRole("combobox", { name: "What do you need?" }), "Green tarpaulin")
+    await user.clear(within(second).getByLabelText(/^Quantity/))
+    await user.type(within(second).getByLabelText(/^Quantity/), "3")
+    await user.click(screen.getByRole("button", { name: "Send 2 requests" }))
+
+    const other = screen.getByRole("region", { name: "Other requests" })
+    await waitFor(() => expect(within(other).getAllByTestId("requested-item")).toHaveLength(2))
+    const picked = db.rows("purchase_request_items").find((i) => i.name === "Full Body Harness XL")
+    const typed = db.rows("purchase_request_items").find((i) => i.name === "Green tarpaulin")
+    expect(picked).toMatchObject({ odoo_product_id: 555, quantity: 1, status: "not_checked" })
+    expect(typed).toMatchObject({ odoo_product_id: null, quantity: 3, status: "not_checked" })
+    const added = db.rows("purchase_request_messages").filter((m) => m.metadata?.event === "item_added")
+    expect(added.map((m) => m.metadata.item_id)).toEqual(expect.arrayContaining([picked.id, typed.id]))
+  })
+
+  it("drops a product row with Remove, and keeps Send off while a row is empty", async () => {
+    const user = setupUser()
+    renderWithProviders(<RequestedItems request={request} />)
+
+    await user.click(await screen.findByRole("button", { name: "Ask for a product" }))
+    await user.type(screen.getByRole("combobox", { name: "What do you need?" }), "Cable ties")
+    await user.click(screen.getByRole("button", { name: "Add another product" }))
+    expect(screen.getByRole("button", { name: "Send 2 requests" })).toBeDisabled()
+
+    await user.click(screen.getByRole("button", { name: "Remove Product 2" }))
+    expect(screen.queryByRole("group", { name: "Product 2" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Send request" })).toBeEnabled()
   })
 
   it("offers no way to add to someone who may not", async () => {
