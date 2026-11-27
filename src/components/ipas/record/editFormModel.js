@@ -119,7 +119,8 @@ const draftKey = () => `new-${(draftCounter += 1)}`;
 export const PAYMENT_MODE = { PAID: "paid", ASK: "ask" };
 
 /** The ask's own boxes on a row picked as For payment. The amount and % of order share the row's own boxes. */
-const askDraftFields = () => ({ askPurpose: "down_payment", askPriority: IPAS_ASK_DEFAULT_PRIORITY, askNote: "" });
+// `askCurrency` is "" for the PO's currency or "PHP" for a request in pesos (#1277); only a foreign-currency PO offers PHP.
+const askDraftFields = () => ({ askPurpose: "down_payment", askPriority: IPAS_ASK_DEFAULT_PRIORITY, askNote: "", askCurrency: "" });
 
 export const paymentDraft = (payment) => ({
   key: payment.id,
@@ -429,9 +430,12 @@ function paymentProblem(p, isPhp) {
   return null;
 }
 
-function askProblem(p) {
+/** True when a payment row asks in pesos on a foreign-currency PO (#1277). */
+export const asksInPesos = (p, isPhpPo) => !isPhpPo && p.askCurrency === "PHP";
+
+function askProblem(p, isPhpPo) {
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
-  if (!parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
+  if (!asksInPesos(p, isPhpPo) && !parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
   if (!p.askPriority) return "Pick the priority.";
   return null;
 }
@@ -472,13 +476,17 @@ function documentProblem(d) {
 }
 
 /** A row picked as For payment, as the ask RPC takes it. */
-const askValues = (p) => ({
-  amount: parseAmountInput(p.amount).value,
-  purpose: p.askPurpose,
-  priority: p.askPriority,
-  note: blank(p.askNote) ? null : p.askNote.trim(),
-  percent: parsePercentInput(p.percentOfOrder).value,
-});
+const askValues = (p, isPhpPo) => {
+  const pesos = asksInPesos(p, isPhpPo);
+  return {
+    amount: parseAmountInput(p.amount).value,
+    purpose: p.askPurpose,
+    priority: p.askPriority,
+    note: blank(p.askNote) ? null : p.askNote.trim(),
+    percent: pesos ? null : parsePercentInput(p.percentOfOrder).value,
+    currency: pesos ? "PHP" : null,
+  };
+};
 
 /** A charge row picked as For payment, as the ask RPC takes it: a Charge ask of that kind, in that currency. */
 const chargeAskValues = (c) => ({
@@ -600,9 +608,9 @@ export function planSave(form, base) {
   ]) {
     for (const row of rows) {
       if (row.mode === PAYMENT_MODE.ASK) {
-        const askIssue = askProblem(row);
+        const askIssue = askProblem(row, form.isPhp);
         if (askIssue) fail(`Payment ${form.payments.indexOf(row) + 1}: ${askIssue}`);
-        plan.asks.add.push({ key: row.key, values: askValues(row) });
+        plan.asks.add.push({ key: row.key, values: askValues(row, form.isPhp) });
         continue;
       }
       const problem = paymentProblem(row, form.isPhp);

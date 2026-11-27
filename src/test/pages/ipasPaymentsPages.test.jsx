@@ -545,6 +545,42 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         expect(liner).toHaveTextContent(/Supplier wants it Friday/);
       });
 
+      it("offers a USD | PHP switch only on a foreign-currency PO and shows the duties hint (#1277)", async () => {
+        const foreign = ipas({ po_number: "P02601", odoo_copy: poCopy("P02601", { currency: "USD" }), created_by: purchaser.id });
+        stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02601", { currency: "USD" }) });
+        db.seed("currency_rate_currencies", { currency: "USD" });
+        stubRpc("reference_rate", () => [{ currency: "USD", rate_date: "2000-01-01", php_per_unit: 56, source: "test", overridden: false, divergence_pct: 0 }]);
+        const user = setupUser();
+        renderDetail(foreign.id, "payments", "edit");
+        expect(await screen.findByTestId("payment-duties-hint")).toHaveTextContent("Paying duties, taxes or brokerage? Use 3 · Costs, which is in pesos.");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        const toggle = within(ask).getByTestId("ask-currency-switch");
+        expect(within(toggle).getByRole("radio", { name: "USD" })).toHaveAttribute("aria-checked", "true");
+        expect(within(ask).getByRole("textbox", { name: /^% of order/ })).toBeInTheDocument();
+        await user.click(within(toggle).getByRole("radio", { name: "PHP" }));
+        expect(within(ask).queryByRole("textbox", { name: /^% of order/ })).not.toBeInTheDocument();
+        await user.type(within(ask).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "3000");
+        await user.click(within(toggle).getByRole("radio", { name: "USD" }));
+        expect(within(ask).getByRole("textbox", { name: /^% of order/ })).toBeInTheDocument();
+        await user.click(within(toggle).getByRole("radio", { name: "PHP" }));
+        await saveAll(user);
+        await waitFor(() => expect(db.rows("ipas_payment_asks")).toHaveLength(1));
+        expect(db.rows("ipas_payment_asks")[0]).toMatchObject({ amount: 3000, currency: "PHP", percent_of_order: null });
+        expect(await screen.findByTestId("payment-ask-liner")).toHaveTextContent(/PHP\s?3,000\.00|₱\s?3,000\.00/);
+      });
+
+      it("shows no switch on a peso PO (#1277)", async () => {
+        const row = ipas({ po_number: "P02602", created_by: purchaser.id });
+        const user = setupUser();
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        expect(within(ask).queryByTestId("ask-currency-switch")).not.toBeInTheDocument();
+      });
+
       it("shows each open ask as a grey row with no payments yet, with its priority and note", async () => {
         const row = ipas({ po_number: "P02552", created_by: purchaser.id });
         seedAsk(row, { note: "Before the vessel leaves", priority: "very_high" });
