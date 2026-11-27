@@ -5,6 +5,7 @@ import IpasStatusPill from "./IpasStatusPill";
 import OnHoldDialog from "./OnHoldDialog";
 import { ipasKey, markIpasListStale } from "./ipasKeys";
 import { ipasService } from "../../services/ipasService";
+import { askMoneyPart } from "../../utils/ipasPaymentAsk";
 import { IPAS_STATE } from "../../constants/ipas";
 
 /**
@@ -42,7 +43,7 @@ export default function IpasStatusControl({ ipas, figures, canSet = false, askin
   const settable = canSet === true && ipas.state === IPAS_STATE.OPEN;
   return (
     <span className="inline-flex">
-      {showPill && <IpasStatusPill status={status} onHold={figures.onHold} note={figures.onHoldNote} className={className} />}
+      {showPill && <IpasStatusPill status={status} onHold={figures.onHold} note={figures.onHoldNote} className={className} money={askMoneyPart(figures)} />}
       {settable && (
         <OnHoldDialog
           open={asking}

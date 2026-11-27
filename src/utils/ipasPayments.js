@@ -26,6 +26,16 @@ export function parseAmountInput(raw) {
   return Number.isFinite(value) ? { ok: true, value } : { ok: false };
 }
 
+/**
+ * Pesos typed from the bank paper replace any stored rate (#1278). Reads both boxes as numbers:
+ * `pesos` is the typed pesos (null when blank or not above zero), `rate` the stored rate, null once pesos are typed.
+ */
+export function pesosReplaceRate(phpDebited, forexRate) {
+  const typed = parseAmountInput(phpDebited).value;
+  const pesos = typed !== null && typed > 0 ? typed : null;
+  return { pesos, rate: pesos !== null ? null : parseAmountInput(forexRate).value };
+}
+
 // Moved to the shared date helpers; re-exported so IPAS callers keep their import.
 export { isIsoDate };
 

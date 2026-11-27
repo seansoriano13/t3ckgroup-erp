@@ -15,7 +15,7 @@
 import { IPAS_SIGNOFF_ROLE, ipasSectionNo } from "../constants/ipas";
 import { pesosFromRate, sumPesos } from "./landedCost";
 import { shapeIpas } from "./ipas";
-import { parseAmountInput } from "./ipasPayments";
+import { parseAmountInput, pesosReplaceRate } from "./ipasPayments";
 import { parsePercentInput, percentApplies } from "./ipasPaymentPercent";
 
 /** The rows `reshapeIpas` needs, as `ipasService.get` read them. */
@@ -80,8 +80,9 @@ function mapRows(key, id, edit) {
 /** A payment form's values as the stored row's columns. */
 function paymentColumns(values, isPhpPo) {
   const amount = parseAmountInput(values.amount).value;
-  const rate = parseAmountInput(values.forexRate).value;
-  const php = rate === null ? null : pesosFromRate(amount, rate);
+  // Pesos typed from the bank paper replace any stored rate (#1278).
+  const { pesos: typed, rate } = pesosReplaceRate(values.phpDebited, values.forexRate);
+  const php = typed !== null ? typed : rate === null ? null : pesosFromRate(amount, rate);
   const bank = parseAmountInput(values.chargeFeePhp).value ?? 0;
   const stamp = parseAmountInput(values.docStampPhp).value ?? 0;
   const misc = parseAmountInput(values.miscFeePhp).value ?? 0;
@@ -97,7 +98,7 @@ function paymentColumns(values, isPhpPo) {
     doc_stamp_php: stamp,
     misc_fee_php: misc,
     bank_charge_php: bank,
-    rate: isPhpPo ? null : rate,
+    rate: isPhpPo ? null : (rate ?? (php !== null && amount > 0 ? php / amount : null)),
     method_id: values.methodId,
     check_no: (values.checkNo || "").trim() || null,
     method_other: values.methodIsOthers ? (values.methodOther || "").trim() || null : null,

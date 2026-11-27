@@ -35,7 +35,7 @@ describe("journeyFor: Finance (#937)", () => {
   const missingProof = digest({ docs: { missingByPart: { purchasing: ["Proforma Invoice"], finance: ["Proof of payment of Oct 1, 2026"], costing: [], filing: [] } } });
   const foreign = ipasOf({ currency: "USD", payments: [{ forex_rate: null }] });
 
-  it("gives payments, proof and the forex rate to Finance, and the other files to Purchasing", () => {
+  it("gives payments, proof and the pesos taken from the bank to Finance, and the other files to Purchasing", () => {
     const journey = run({ ipas: foreign, dig: missingProof });
     for (const key of ["charges", "proof", "forex"]) expect(item(journey, key).who.names).toBe("Finance");
     expect(item(journey, "files").who.names).not.toBe("Finance");
@@ -48,6 +48,14 @@ describe("journeyFor: Finance (#937)", () => {
     expect(item(journey, "files").action).toBeNull();
     expect(journey.mine.map((entry) => entry.key)).not.toContain("files");
     expect(journey.headline).toMatch(/^Your turn: /);
+  });
+
+  it("counts a payment with typed pesos and no stored rate as filled (#1278)", () => {
+    const typed = ipasOf({ currency: "USD", payments: [{ amount: 640, forex_rate: null, php_debited: 36160 }] });
+    const journey = run({ ipas: typed, dig: missingProof });
+    expect(item(journey, "forex").done).toBe(true);
+    expect(item(journey, "forex").label).toBe("Fill the Pesos taken from the bank");
+    expect(item(journey, "forex").line).toBe("Every payment has its pesos.");
   });
 
   it("tells Finance who they are waiting on when nothing is theirs", () => {

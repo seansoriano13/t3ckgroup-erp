@@ -1,6 +1,6 @@
 import { IPAS_ASK_PRIORITIES, IPAS_ASK_PRIORITY_LABELS, IPAS_ASK_PURPOSE_LABELS, IPAS_PAYMENT_KIND } from "../constants/ipas";
 import { formatAmount } from "./ipas";
-import { toCents } from "./landedCost";
+import { isPhpCurrency, toCents } from "./landedCost";
 import { formatPercent } from "./ipasPaymentPercent";
 
 /** Where an ask sorts: Very High 0, High 1, Medium 2; anything else last. */
@@ -42,8 +42,21 @@ export const askWhat = (ask) =>
     ? (ask.charge_kind?.label ?? IPAS_ASK_PURPOSE_LABELS.charge)
     : (IPAS_ASK_PURPOSE_LABELS[ask?.purpose] ?? ask?.purpose);
 
-/** A Charge ask is billed in its own currency (#1227); the others use the P0's. */
-export const askCurrency = (ask, fallback) => (ask?.purpose === "charge" && ask.currency ? ask.currency : fallback);
+/**
+ * The money part the Status chip carries beside the goods step (ADR 0055, 2026-11-27): "For payment (Down payment)"
+ * for one open ask, "For payment (2)" for several, null when none is open. Worked out from the figures, never stored.
+ */
+export function askMoneyPart(figures) {
+  const asks = figures?.paymentAsks ?? [];
+  if (asks.length === 0) return null;
+  return asks.length === 1 ? `For payment (${askWhat(asks[0])})` : `For payment (${asks.length})`;
+}
+
+/** "Goods step · money part": the money part follows the step when there is one (the Status chip, ADR 0055). */
+export const joinMoneyPart = (step, money) => (step && money ? `${step} · ${money}` : step);
+
+/** A Charge ask is billed in its own currency (#1227); a supplier ask in PHP says so (#1277); the rest use the P0's. */
+export const askCurrency = (ask, fallback) => (ask?.currency ? ask.currency : fallback);
 
 /** "Down payment · €5,600.00 · 40% of the order · High priority (30% down)" for one ask. */
 export function askLine(ask, currency) {
@@ -69,16 +82,41 @@ export const chargeAsks = (ipas) => openAsksByAge(ipas, (ask) => ask.purpose ===
 
 /**
  * The kind "Record as paid" fills for an ask (#1225): Down payment fills Down payment; Balance fills Full payment
- * when the asked amount pays off what is left, otherwise Payment. Any of it can be changed before saving.
+ * when the asked amount pays off what is left, otherwise Payment. A Balance asked in pesos is never compared with the
+ * PO-currency balance left: it starts on Payment (#1277). Any of it can be changed before saving.
  */
 export function paidKindForAsk(ask, remainingBalance) {
   if (ask?.purpose === "down_payment") return IPAS_PAYMENT_KIND.DOWN_PAYMENT;
+  if (ask?.purpose === "full_payment") return IPAS_PAYMENT_KIND.FULL_PAYMENT;
   const left = Number(remainingBalance);
-  if (ask?.purpose === "balance" && Number.isFinite(left) && left > 0 && toCents(Number(ask.amount)) >= toCents(left)) {
+  if (ask?.purpose === "balance" && !isPhpCurrency(ask.currency) && Number.isFinite(left) && left > 0 && toCents(Number(ask.amount)) >= toCents(left)) {
     return IPAS_PAYMENT_KIND.FULL_PAYMENT;
   }
   return IPAS_PAYMENT_KIND.PAYMENT;
 }
+
+export const FULL_PAYMENT_TAKEN_NOTE = "There's already a payment or an open request. Use Balance for the rest.";
+export const FULL_PAYMENT_ASKED_NOTE = "A Full payment is already asked.";
+
+/**
+ * Which "What for" choices are greyed out on a new request (#1280), each with its note, else null:
+ *   Full payment   once the IPAS has any recorded payment or any open or paid supplier request.
+ *   Down payment / Balance   while a Full payment request is open or paid.
+ * Withdrawn requests and Charge requests count for nothing. The database refuses the same.
+ */
+export function askPurposeLocks(ipas) {
+  const asks = (ipas?.payment_asks ?? []).filter((ask) => ask && ask.purpose !== "charge" && ask.closed_reason !== "withdrawn");
+  const anyPayment = (ipas?.payments ?? []).length > 0;
+  const fullAsked = asks.some((ask) => ask.purpose === "full_payment");
+  return {
+    full_payment: anyPayment || asks.length > 0 ? FULL_PAYMENT_TAKEN_NOTE : null,
+    down_payment: fullAsked ? FULL_PAYMENT_ASKED_NOTE : null,
+    balance: fullAsked ? FULL_PAYMENT_ASKED_NOTE : null,
+  };
+}
+
+/** The first of `purposes` that `locks` leaves open, so a new request never starts on a greyed choice; null when all are locked. */
+export const firstOpenPurpose = (purposes, locks) => purposes.find((value) => !locks?.[value]) ?? null;
 
 /** One line per open ask, most urgent first, or null when none is open. */
 export function paymentAskHover(figures) {

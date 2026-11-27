@@ -15,7 +15,7 @@ import {
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
-import { isIsoDate, isOthersMethod, paymentProofFiles, parseAmountInput } from "@/utils/ipasPayments";
+import { isIsoDate, isOthersMethod, paymentProofFiles, parseAmountInput, pesosReplaceRate } from "@/utils/ipasPayments";
 import { ipasDateIssue } from "@/utils/ipasDateLimits";
 import { IPAS_LIMITS, amountSizeIssue, textLengthIssue } from "@/utils/ipasLimits";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
@@ -119,7 +119,8 @@ const draftKey = () => `new-${(draftCounter += 1)}`;
 export const PAYMENT_MODE = { PAID: "paid", ASK: "ask" };
 
 /** The ask's own boxes on a row picked as For payment. The amount and % of order share the row's own boxes. */
-const askDraftFields = () => ({ askPurpose: "down_payment", askPriority: IPAS_ASK_DEFAULT_PRIORITY, askNote: "" });
+// `askCurrency` is "" for the PO's currency or "PHP" for a request in pesos (#1277); only a foreign-currency PO offers PHP.
+const askDraftFields = () => ({ askPurpose: "down_payment", askPriority: IPAS_ASK_DEFAULT_PRIORITY, askNote: "", askCurrency: "" });
 
 export const paymentDraft = (payment) => ({
   key: payment.id,
@@ -128,7 +129,9 @@ export const paymentDraft = (payment) => ({
   paidOn: payment.paid_on ?? "",
   amount: text(payment.amount),
   percentOfOrder: payment.percent_of_order ? text(payment.percent_of_order) : "",
-  forexRate: payment.rate ? text(payment.rate) : "",
+  // A stored rate stays as it is until pesos are typed (#1278); pesos kept without a rate show in the pesos box.
+  forexRate: payment.forex_rate ? text(payment.forex_rate) : "",
+  phpDebited: !payment.forex_rate && payment.php_debited ? text(payment.php_debited) : "",
   chargeFeePhp: payment.bank_charge_php ? text(payment.bank_charge_php) : "",
   docStampPhp: payment.doc_stamp_php ? text(payment.doc_stamp_php) : "",
   miscFeePhp: payment.misc_fee_php ? text(payment.misc_fee_php) : "",
@@ -151,6 +154,7 @@ export const newPaymentDraft = (askId = "", mode = "") => ({
   amount: "",
   percentOfOrder: "",
   forexRate: "",
+  phpDebited: "",
   chargeFeePhp: "",
   docStampPhp: "",
   miscFeePhp: "",
@@ -416,8 +420,8 @@ function paymentProblem(p, isPhp) {
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
   if (percentApplies(p.kind) && !parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
   // Blank is fine (#604); a figure that is given has to be a number above zero.
-  if (!isPhp && !blank(p.forexRate) && !positive(p.forexRate))
-    return "Forex rate paid must be a number more than zero, or left blank.";
+  if (!isPhp && !blank(p.phpDebited) && !positive(p.phpDebited))
+    return "Pesos taken from the bank must be a number more than zero, or left blank.";
   if (!parseAmountInput(p.chargeFeePhp).ok)
     return "Bank charge must be a number.";
   if (!parseAmountInput(p.docStampPhp).ok)
@@ -429,9 +433,12 @@ function paymentProblem(p, isPhp) {
   return null;
 }
 
-function askProblem(p) {
+/** True when a payment row asks in pesos on a foreign-currency PO (#1277). */
+export const asksInPesos = (p, isPhpPo) => !isPhpPo && p.askCurrency === "PHP";
+
+function askProblem(p, isPhpPo) {
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
-  if (!parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
+  if (!asksInPesos(p, isPhpPo) && !parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
   if (!p.askPriority) return "Pick the priority.";
   return null;
 }
@@ -472,13 +479,17 @@ function documentProblem(d) {
 }
 
 /** A row picked as For payment, as the ask RPC takes it. */
-const askValues = (p) => ({
-  amount: parseAmountInput(p.amount).value,
-  purpose: p.askPurpose,
-  priority: p.askPriority,
-  note: blank(p.askNote) ? null : p.askNote.trim(),
-  percent: parsePercentInput(p.percentOfOrder).value,
-});
+const askValues = (p, isPhpPo) => {
+  const pesos = asksInPesos(p, isPhpPo);
+  return {
+    amount: parseAmountInput(p.amount).value,
+    purpose: p.askPurpose,
+    priority: p.askPriority,
+    note: blank(p.askNote) ? null : p.askNote.trim(),
+    percent: pesos ? null : parsePercentInput(p.percentOfOrder).value,
+    currency: pesos ? "PHP" : null,
+  };
+};
 
 /** A charge row picked as For payment, as the ask RPC takes it: a Charge ask of that kind, in that currency. */
 const chargeAskValues = (c) => ({
@@ -491,12 +502,16 @@ const chargeAskValues = (c) => ({
   percent: null,
 });
 
+// Typed pesos replace a stored rate (#1278): the rate is left out of what is saved.
+const keptRateText = (p) => (pesosReplaceRate(p.phpDebited, p.forexRate).rate === null ? "" : p.forexRate);
+
 const paymentValues = (p) => ({
   kind: p.kind,
   paidOn: p.paidOn,
   amount: p.amount,
   percentOfOrder: percentApplies(p.kind) ? p.percentOfOrder : "",
-  forexRate: p.forexRate,
+  forexRate: keptRateText(p),
+  phpDebited: p.phpDebited,
   chargeFeePhp: p.chargeFeePhp,
   docStampPhp: p.docStampPhp,
   miscFeePhp: p.miscFeePhp,
@@ -600,9 +615,9 @@ export function planSave(form, base) {
   ]) {
     for (const row of rows) {
       if (row.mode === PAYMENT_MODE.ASK) {
-        const askIssue = askProblem(row);
+        const askIssue = askProblem(row, form.isPhp);
         if (askIssue) fail(`Payment ${form.payments.indexOf(row) + 1}: ${askIssue}`);
-        plan.asks.add.push({ key: row.key, values: askValues(row) });
+        plan.asks.add.push({ key: row.key, values: askValues(row, form.isPhp) });
         continue;
       }
       const problem = paymentProblem(row, form.isPhp);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { blendedRate, forexRate, isLandedCostEstimate, landedCostEstimateNote, landedCostMarkLabel, paymentRate, pesosFromRate } from "./landedCost"
+import { blendedRate, forexRate, isLandedCostEstimate, landedCostEstimateNote, landedCostMarkLabel, paymentPesos, paymentRate, pesosFromRate } from "./landedCost"
 
 // What `ipas_landed_cost` returns, trimmed to what the marks read (#604).
 const provisional = { status: "provisional", estimate: false, estimates: [] }
@@ -60,6 +60,13 @@ describe("the rate of a payment, and the blend of several (#708)", () => {
     expect(paymentRate({ amount: 640, php_debited: null })).toBeNull()
     expect(blendedRate([...p01714, { amount: 100, php_debited: null }])).toBeCloseTo(blendedRate(p01714), 10)
     expect(blendedRate([])).toBeNull()
+  })
+
+  it("reads typed pesos with no stored rate as pesos / amount, and costs the payment at those pesos (#1278)", () => {
+    const typed = { amount: 21679.75, forex_rate: null, php_debited: 468642.36 }
+    expect(paymentRate(typed)).toBeCloseTo(468642.36 / 21679.75, 10)
+    expect(paymentPesos(typed)).toBe(468642.36)
+    expect(forexRate([typed], "USD").estimate).toBe(false)
   })
 
   it("works pesos out as amount x rate, to the centavo", () => {
