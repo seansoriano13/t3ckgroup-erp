@@ -3,7 +3,7 @@
  * Yes / No answer, the kind picker, the open-kind lines and changing the answer.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
 import IpasComplianceMove from "./IpasComplianceMove"
 import { complianceFor } from "./moves"
@@ -11,6 +11,8 @@ import { complianceFor } from "./moves"
 const service = vi.hoisted(() => ({
   complianceKinds: vi.fn(),
   setCompliance: vi.fn(),
+  tickCompliance: vi.fn(),
+  untickCompliance: vi.fn(),
 }))
 vi.mock("@/services/ipasService", () => ({ ipasService: service }))
 
@@ -33,6 +35,8 @@ function show(ipas) {
 beforeEach(() => {
   service.complianceKinds.mockReset().mockResolvedValue(KINDS)
   service.setCompliance.mockReset().mockResolvedValue({})
+  service.tickCompliance.mockReset().mockResolvedValue({})
+  service.untickCompliance.mockReset().mockResolvedValue({})
 })
 
 describe("an unanswered IPAS", () => {
@@ -82,7 +86,99 @@ describe("after Yes", () => {
   it("lists one line per open kind and none for a done kind", () => {
     show({ compliance_needed: true, compliance_requirements: [requirement("FDA"), requirement("NTC"), requirement("DENR", "2026-11-20")] })
     const lines = screen.getAllByTestId("ipas-compliance-open-kind").map((line) => line.textContent)
-    expect(lines).toEqual(["NTCopen", "FDAopen"])
+    expect(lines).toEqual(["NTCopenMark done", "FDAopenMark done"])
+  })
+
+  it("Mark done opens a step with today's day and no note, and saves them", async () => {
+    const user = setupUser()
+    show({ compliance_needed: true, compliance_requirements: [requirement("NTC")] })
+    await user.click(screen.getByRole("button", { name: "Mark NTC done" }))
+
+    const step = screen.getByTestId("ipas-compliance-step-r-NTC")
+    const today = within(step).getByLabelText("Done on")
+    expect(today.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(today.max).toBe(today.value)
+
+    await user.type(within(step).getByLabelText("Note (optional)"), "Permit 123")
+    await user.click(within(step).getByRole("button", { name: "Mark done" }))
+    await waitFor(() => expect(service.tickCompliance).toHaveBeenCalledWith("r-NTC", today.value, "Permit 123"))
+  })
+
+  it("takes an earlier day", async () => {
+    const user = setupUser()
+    show({ compliance_needed: true, compliance_requirements: [requirement("NTC")] })
+    await user.click(screen.getByRole("button", { name: "Mark NTC done" }))
+    const step = screen.getByTestId("ipas-compliance-step-r-NTC")
+
+    fireEvent.change(within(step).getByLabelText("Done on"), { target: { value: "2026-01-05" } })
+    expect(within(step).getByRole("button", { name: "Mark done" })).toBeEnabled()
+    await user.click(within(step).getByRole("button", { name: "Mark done" }))
+    await waitFor(() => expect(service.tickCompliance).toHaveBeenCalledWith("r-NTC", "2026-01-05", ""))
+
+  })
+
+  it("refuses a future day before anything is sent", async () => {
+    const user = setupUser()
+    show({ compliance_needed: true, compliance_requirements: [requirement("NTC")] })
+    await user.click(screen.getByRole("button", { name: "Mark NTC done" }))
+    const step = screen.getByTestId("ipas-compliance-step-r-NTC")
+    fireEvent.change(within(step).getByLabelText("Done on"), { target: { value: "2099-01-01" } })
+    expect(within(step).getByText("The day cannot be after today.")).toBeInTheDocument()
+    expect(within(step).getByRole("button", { name: "Mark done" })).toBeDisabled()
+    expect(service.tickCompliance).not.toHaveBeenCalled()
+  })
+
+  it("refuses a note over 500 characters", async () => {
+    const user = setupUser()
+    show({ compliance_needed: true, compliance_requirements: [requirement("NTC")] })
+    await user.click(screen.getByRole("button", { name: "Mark NTC done" }))
+    const step = screen.getByTestId("ipas-compliance-step-r-NTC")
+    fireEvent.change(within(step).getByLabelText("Note (optional)"), { target: { value: "x".repeat(501) } })
+    expect(within(step).getByRole("button", { name: "Mark done" })).toBeDisabled()
+    expect(within(step).getByText("501/500")).toBeInTheDocument()
+  })
+
+  it("says why a tick failed, with Retry", async () => {
+    const user = setupUser()
+    service.tickCompliance.mockRejectedValueOnce({ code: "22023", message: "ipas_tick_compliance: TGIPAS_1 is filed; a Super Admin reopens it first" })
+    show({ compliance_needed: true, compliance_requirements: [requirement("NTC")] })
+    await user.click(screen.getByRole("button", { name: "Mark NTC done" }))
+    await user.click(screen.getByRole("button", { name: "Mark done" }))
+    expect(await screen.findByText(/is filed/)).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Retry" }))
+    await waitFor(() => expect(service.tickCompliance).toHaveBeenCalledTimes(2))
+  })
+
+  it("lists the done kinds in the change step, with their day and note, and can undo a tick", async () => {
+    const user = setupUser()
+    show({
+      compliance_needed: true,
+      compliance_requirements: [{ ...requirement("DENR", "2026-11-20"), note: "Permit 9" }, requirement("FDA")],
+    })
+    await user.click(screen.getByRole("button", { name: "Change answer or kinds" }))
+    const done = await screen.findByTestId("ipas-compliance-done")
+    expect(within(done).getByText("DENR")).toBeInTheDocument()
+    expect(within(done).getByText("done 20 Nov 2026")).toBeInTheDocument()
+    expect(within(done).getByText("Permit 9")).toBeInTheDocument()
+    expect(within(done).queryByText("FDA")).toBeNull()
+
+    await user.click(within(done).getByRole("button", { name: "Undo DENR tick" }))
+    await waitFor(() => expect(service.untickCompliance).toHaveBeenCalledWith("r-DENR"))
+  })
+
+  it("changes the note of a done kind, keeping its day", async () => {
+    const user = setupUser()
+    show({ compliance_needed: true, compliance_requirements: [{ ...requirement("DENR", "2026-11-20"), note: "Permit 9" }] })
+    await user.click(screen.getByRole("button", { name: "Change answer or kinds" }))
+    await user.click(await screen.findByRole("button", { name: "Edit DENR day and note" }))
+    const step = screen.getByTestId("ipas-compliance-step-r-DENR")
+    expect(within(step).getByRole("button", { name: "Save" })).toBeDisabled()
+
+    const note = within(step).getByLabelText("Note (optional)")
+    await user.clear(note)
+    await user.type(note, "Permit 10")
+    await user.click(within(step).getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(service.tickCompliance).toHaveBeenCalledWith("r-DENR", "2026-11-20", "Permit 10"))
   })
 
   it("changes the kinds from the picker, starting with the current ones picked", async () => {
