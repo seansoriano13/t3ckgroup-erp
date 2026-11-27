@@ -33,6 +33,18 @@ export function formatReferenceRate(rate, today) {
 }
 
 /**
+ * The typo check on a paid payment (#1278): the rate worked out from the pesos and the foreign amount is under a
+ * tenth or over ten times the day's Reference Rate. Null when either is missing. It never blocks and the
+ * Reference Rate is never named to the user: this is for a missing or extra zero only.
+ */
+export function rateTypo(workedRate, rate) {
+  const worked = Number(workedRate);
+  const reference = Number(rate?.php_per_unit);
+  if (!(worked > 0) || !(reference > 0)) return null;
+  return worked < reference / 10 || worked > reference * 10 ? { rate: worked } : null;
+}
+
+/**
  * How far a typed rate sits from the Reference Rate, and whether that is beyond the
  * currency's threshold. Null when either number is missing. It flags; it never blocks.
  */

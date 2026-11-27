@@ -851,10 +851,11 @@ _Avoid_: Quote, Bid, Supplier Response
 The PHP value of one unit of a foreign currency on a given day, fetched once a
 day and always shown with the day it is for and its source: the BSP's
 reference rate for US dollars, the European Central Bank's for every other currency. It pre-fills an
-Offer's comparison rate, and nowhere else does it fill anything: on an IPAS
-payment it is shown beside the typed rate as context and flags a wide
-divergence, so a fat-fingered rate is caught without an estimate ever being
-saved as the fact. The rate that reaches a final Landed Cost is always the one
+Offer's comparison rate, and nowhere else does it fill anything. It is not
+shown on an IPAS payment any more (the team pays at their own bank's rate, and
+ours is not argued with); it is used only for the blank-pesos estimate and for a
+quiet typo check that warns when a payment's worked-out rate is under a tenth or
+over ten times it. The rate that reaches a final Landed Cost is always the one
 actually paid (the IPAS's Forex rate); until a foreign-currency payment's pesos are
 recorded, its Landed Cost may be shown at the Reference Rate, marked as an estimate
 and never stored.
@@ -985,7 +986,11 @@ Reference Rate and the Landed Cost is an estimate. The Computation status may
 still reach LC Odoo Done with an estimate, and a payment can still be added or
 blanked at LC Odoo Done; it is Filing that waits for the pesos (it names each
 payment still blank), and only then does Landed Cost go final. A PHP payment has
-no such figure, since its amount is already pesos.
+no such figure, since its amount is already pesos. It is typed on the paid form
+beside USD sent (#1278), and the payment's rate comes from it (pesos divided by
+the amount, shown read-only): there is no rate box. Typed pesos are stored with
+no rate; an old payment with a stored rate and blank pesos shows its pesos as
+amount times that rate, and keeps that rate until pesos are typed.
 _Avoid_: PHP debited (the old label), Peso equivalent, Converted amount
 
 **Payment scheme**:
@@ -1263,8 +1268,9 @@ payments paid, so a bigger payment weighs more (300 at 50 and 700 at 51 is
 50.70, not 50.50). The Landed Cost uses it. It moves as payments are recorded;
 a payment whose pesos are still blank counts at its day's Reference Rate, and the
 rate is marked as an estimate until every payment has its pesos. Replaces the
-team's old sheet habit of copying the 1st payment's rate down. A PHP IPAS has
-none.
+team's old sheet habit of copying the 1st payment's rate down. A payment's own
+rate is never typed either: it comes from the pesos taken from the bank (#1278).
+A PHP IPAS has none.
 _Avoid_: Exchange rate (unqualified), Fixed rate, Average rate, Reference Rate
 (the daily figure used only for a payment with no pesos yet)
 

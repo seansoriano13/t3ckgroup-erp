@@ -17,7 +17,7 @@ export function orderProgress(ipas) {
   return { done: missing.length === 0, missing, detail: missing.length === 0 ? "Filled in" : `Needs ${missing.join(", ")}` };
 }
 
-/** Payments is done when every payment has its proof (and, on a foreign PO, its Forex Rate Paid). */
+/** Payments is done when every payment has its proof (and, on a foreign PO, its Pesos taken from the bank). */
 export function paymentsProgress(ipas) {
   const payments = ipas?.payments ?? [];
   const foreign = !isPhpCurrency(ipas?.currency);
@@ -28,7 +28,7 @@ export function paymentsProgress(ipas) {
   let detail = "No payments yet";
   if (payments.length > 0) {
     detail = `${withProof} of ${payments.length} with proof`;
-    if (foreign && noRate > 0) detail += `, ${noRate} without Forex Rate Paid`;
+    if (foreign && noRate > 0) detail += `, ${noRate} without Pesos taken from the bank`;
   }
   return { done, total: payments.length, withProof, noRate, detail };
 }

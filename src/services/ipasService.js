@@ -1996,7 +1996,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, phpDebited, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -2014,6 +2014,14 @@ function paymentArgs(payment, isPhpPo) {
   if (!isPhpPo && rateRead.value !== null && rateRead.value <= 0) {
     throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be more than zero, or left blank until the bank statement arrives.");
   }
+
+  // Pesos typed from the bank paper (#1278) are stored as they are and replace any stored rate.
+  const pesosRead = parseAmountInput(phpDebited);
+  if (!pesosRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The pesos taken from the bank must be a number.");
+  if (!isPhpPo && pesosRead.value !== null && pesosRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "The pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
+  }
+  const typedPesos = !isPhpPo && pesosRead.value !== null;
 
   const fees = [
     ["The bank charge", chargeFeePhp],
@@ -2037,7 +2045,8 @@ function paymentArgs(payment, isPhpPo) {
     p_paid_on: paidOn,
     p_amount: amountRead.value,
     p_percent_of_order: percentRead.value,
-    p_forex_rate: isPhpPo ? null : rateRead.value,
+    p_forex_rate: isPhpPo || typedPesos ? null : rateRead.value,
+    p_php_debited: typedPesos ? pesosRead.value : null,
     p_doc_stamp_php: fees[1],
     p_misc_fee_php: fees[2],
     // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).
