@@ -828,6 +828,15 @@ create table if not exists public."ipas_charges" (
   "ask_id" uuid
 );
 
+create table if not exists public."ipas_compliance_requirement_files" (
+  "id" uuid not null default gen_random_uuid(),
+  "requirement_id" uuid not null,
+  "url" text not null,
+  "file_name" text not null,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."ipas_compliance_requirements" (
   "id" uuid not null default gen_random_uuid(),
   "ipas_id" uuid not null,
@@ -2215,6 +2224,7 @@ alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMAR
 alter table ipas add constraint "ipas_pkey" PRIMARY KEY (id);
 alter table ipas_bank_details add constraint "ipas_bank_details_pkey" PRIMARY KEY (ipas_id);
 alter table ipas_charges add constraint "ipas_charges_pkey" PRIMARY KEY (id);
+alter table ipas_compliance_requirement_files add constraint "ipas_compliance_requirement_files_pkey" PRIMARY KEY (id);
 alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_pkey" PRIMARY KEY (id);
 alter table ipas_document_files add constraint "ipas_document_files_pkey" PRIMARY KEY (id);
 alter table ipas_documents add constraint "ipas_documents_pkey" PRIMARY KEY (id);
@@ -2492,6 +2502,8 @@ alter table ipas_bank_details add constraint "ipas_bank_details_account_name_chk
 alter table ipas_bank_details add constraint "ipas_bank_details_account_number_chk" CHECK (((account_number IS NULL) OR (length(account_number) <= 100)));
 alter table ipas_bank_details add constraint "ipas_bank_details_bank_name_chk" CHECK (((bank_name IS NULL) OR (length(bank_name) <= 200)));
 alter table ipas_charges add constraint "ipas_charges_amount_chk" CHECK (((amount_php IS NULL) OR (amount_php > (0)::numeric)));
+alter table ipas_compliance_requirement_files add constraint "ipas_compliance_requirement_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
+alter table ipas_compliance_requirement_files add constraint "ipas_compliance_requirement_files_url_chk" CHECK ((url ~* '^https?://'::text));
 alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_done_chk" CHECK (((done_on IS NOT NULL) OR (note IS NULL)));
 alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_note_chk" CHECK (((note IS NULL) OR ((btrim(note) <> ''::text) AND (char_length(note) <= 500))));
 alter table ipas_document_files add constraint "ipas_document_files_name_chk" CHECK (((btrim(file_name) <> ''::text) AND (char_length(file_name) <= 200)));
@@ -2765,6 +2777,8 @@ alter table ipas_charges add constraint "ipas_charges_ask_id_fkey" FOREIGN KEY (
 alter table ipas_charges add constraint "ipas_charges_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_charges add constraint "ipas_charges_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
 alter table ipas_charges add constraint "ipas_charges_kind_id_fkey" FOREIGN KEY (kind_id) REFERENCES ipas_options(id);
+alter table ipas_compliance_requirement_files add constraint "ipas_compliance_requirement_files_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
+alter table ipas_compliance_requirement_files add constraint "ipas_compliance_requirement_files_requirement_id_fkey" FOREIGN KEY (requirement_id) REFERENCES ipas_compliance_requirements(id) ON DELETE CASCADE;
 alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_done_by_fkey" FOREIGN KEY (done_by) REFERENCES employees(id);
 alter table ipas_compliance_requirements add constraint "ipas_compliance_requirements_ipas_id_fkey" FOREIGN KEY (ipas_id) REFERENCES ipas(id) ON DELETE CASCADE;
@@ -3105,6 +3119,8 @@ CREATE INDEX ipas_charges_ask_id_idx ON public.ipas_charges USING btree (ask_id)
 CREATE INDEX ipas_charges_created_by_idx ON public.ipas_charges USING btree (created_by);
 CREATE INDEX ipas_charges_ipas_id_idx ON public.ipas_charges USING btree (ipas_id, charged_on);
 CREATE INDEX ipas_charges_kind_id_idx ON public.ipas_charges USING btree (kind_id);
+CREATE INDEX ipas_compliance_requirement_files_created_by_idx ON public.ipas_compliance_requirement_files USING btree (created_by);
+CREATE INDEX ipas_compliance_requirement_files_requirement_id_idx ON public.ipas_compliance_requirement_files USING btree (requirement_id);
 CREATE INDEX ipas_compliance_requirements_created_by_idx ON public.ipas_compliance_requirements USING btree (created_by);
 CREATE INDEX ipas_compliance_requirements_done_by_idx ON public.ipas_compliance_requirements USING btree (done_by);
 CREATE INDEX ipas_compliance_requirements_kind_id_idx ON public.ipas_compliance_requirements USING btree (kind_id);
@@ -3331,6 +3347,7 @@ alter table public."hr_leave_categories" enable row level security;
 alter table public."ipas" enable row level security;
 alter table public."ipas_bank_details" enable row level security;
 alter table public."ipas_charges" enable row level security;
+alter table public."ipas_compliance_requirement_files" enable row level security;
 alter table public."ipas_compliance_requirements" enable row level security;
 alter table public."ipas_document_files" enable row level security;
 alter table public."ipas_documents" enable row level security;
@@ -4261,6 +4278,11 @@ create policy "ipas_bank_details_read" on public."ipas_bank_details"
   to authenticated
   using (ipas_can_read_bank_details());
 create policy "ipas_charges_read" on public."ipas_charges"
+  as permissive
+  for select
+  to authenticated
+  using (( SELECT ipas_can_read() AS ipas_can_read));
+create policy "ipas_compliance_requirement_files_read" on public."ipas_compliance_requirement_files"
   as permissive
   for select
   to authenticated
@@ -18020,6 +18042,53 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.ipas_add_compliance_file(p_requirement_id uuid, p_url text, p_file_name text DEFAULT NULL::text)
+ RETURNS ipas_compliance_requirement_files
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_compliance_writer('ipas_add_compliance_file');
+  v_req public.ipas_compliance_requirements;
+  v_ipas public.ipas;
+  v_kind text;
+  v_url text := nullif(btrim(p_url), '');
+  v_name text;
+  v_row public.ipas_compliance_requirement_files;
+begin
+  select * into v_req from public.ipas_compliance_requirements where id = p_requirement_id;
+  if v_req.id is null then
+    raise exception 'ipas_add_compliance_file: Compliance Requirement not found' using errcode = '22023';
+  end if;
+
+  v_ipas := public._ipas_compliance_lock('ipas_add_compliance_file', v_req.ipas_id);
+  select * into v_req from public.ipas_compliance_requirements where id = p_requirement_id;
+  if v_req.id is null then
+    raise exception 'ipas_add_compliance_file: Compliance Requirement not found' using errcode = '22023';
+  end if;
+
+  if v_url is null or v_url !~* '^https?://' then
+    raise exception 'ipas_add_compliance_file: the file must be a link to the uploaded file' using errcode = '22023';
+  end if;
+  if not public._ipas_is_own_file_link(v_url) then
+    raise exception 'ipas_file_link: attach a file you uploaded here, not a link to another site' using errcode = '22023';
+  end if;
+
+  v_name := left(coalesce(nullif(btrim(p_file_name), ''), public._ipas_file_name_from_url(v_url)), 200);
+  select o.label into v_kind from public.ipas_options o where o.id = v_req.kind_id;
+
+  insert into public.ipas_compliance_requirement_files (requirement_id, url, file_name, created_by)
+  values (v_req.id, v_url, v_name, v_actor)
+  returning * into v_row;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'compliance_file_added',
+    jsonb_build_object('requirement_id', v_req.id, 'kind', v_kind, 'file_id', v_row.id, 'file_name', v_row.file_name));
+
+  return v_row;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.ipas_add_document(p_ipas_id uuid, p_kind_id uuid, p_label text, p_attachment_url text)
  RETURNS ipas_documents
  LANGUAGE plpgsql
@@ -19599,6 +19668,40 @@ begin
   ));
 
   perform public._ipas_money_charge_chat('charge_removed', v_ipas.id, v_row.id, v_snap, null);
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.ipas_remove_compliance_file(p_file_id uuid)
+ RETURNS ipas_compliance_requirement_files
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public._ipas_compliance_writer('ipas_remove_compliance_file');
+  v_row public.ipas_compliance_requirement_files;
+  v_req public.ipas_compliance_requirements;
+  v_ipas public.ipas;
+  v_kind text;
+begin
+  select * into v_row from public.ipas_compliance_requirement_files where id = p_file_id;
+  if v_row.id is null then
+    raise exception 'ipas_remove_compliance_file: file % not found', p_file_id using errcode = '22023';
+  end if;
+  select * into v_req from public.ipas_compliance_requirements where id = v_row.requirement_id;
+
+  v_ipas := public._ipas_compliance_lock('ipas_remove_compliance_file', v_req.ipas_id);
+
+  delete from public.ipas_compliance_requirement_files where id = v_row.id returning * into v_row;
+  if v_row.id is null then
+    raise exception 'ipas_remove_compliance_file: file % not found', p_file_id using errcode = '22023';
+  end if;
+  select o.label into v_kind from public.ipas_options o where o.id = v_req.kind_id;
+
+  perform public._ipas_write_event(v_ipas.id, v_actor, 'compliance_file_removed',
+    jsonb_build_object('requirement_id', v_req.id, 'kind', v_kind, 'file_id', v_row.id, 'file_name', v_row.file_name));
 
   return v_row;
 end;
@@ -34354,6 +34457,7 @@ CREATE TRIGGER ipas_charges_file_link BEFORE INSERT OR UPDATE OF attachment_url 
 CREATE TRIGGER ipas_charges_freeze BEFORE INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_children_freeze_guard();
 CREATE TRIGGER ipas_charges_lc_clear AFTER INSERT OR DELETE OR UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION ipas_lc_money_changed();
 CREATE TRIGGER ipas_charges_updated_at BEFORE UPDATE ON public.ipas_charges FOR EACH ROW EXECUTE FUNCTION set_ipas_updated_at();
+CREATE TRIGGER ipas_compliance_requirement_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_compliance_requirement_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
 CREATE TRIGGER ipas_document_files_file_link BEFORE INSERT OR UPDATE OF url ON public.ipas_document_files FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('url');
 CREATE TRIGGER ipas_documents_file_link BEFORE INSERT OR UPDATE OF attachment_url ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION ipas_file_link_guard('attachment_url');
 CREATE TRIGGER ipas_documents_first_file AFTER INSERT ON public.ipas_documents FOR EACH ROW EXECUTE FUNCTION _ipas_document_first_file();

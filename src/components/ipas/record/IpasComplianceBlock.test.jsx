@@ -5,8 +5,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
-import IpasComplianceMove from "./IpasComplianceMove"
-import { complianceFor } from "./moves"
+import IpasComplianceBlock from "./IpasComplianceBlock"
+import { complianceFor } from "@/utils/ipasCompliance"
 
 const service = vi.hoisted(() => ({
   complianceKinds: vi.fn(),
@@ -29,7 +29,7 @@ const requirement = (label, doneOn = null) => ({
 function show(ipas) {
   const row = { id: "ipas-1", state: "open", compliance_asked: true, compliance_needed: null, compliance_requirements: [], ...ipas }
   const compliance = complianceFor({ can: { compliance: true }, ipas: row })
-  return renderWithProviders(<IpasComplianceMove ipas={row} compliance={compliance} />)
+  return renderWithProviders(<IpasComplianceBlock ipas={row} compliance={compliance} />)
 }
 
 beforeEach(() => {
@@ -86,7 +86,7 @@ describe("after Yes", () => {
   it("lists one line per open kind and none for a done kind", () => {
     show({ compliance_needed: true, compliance_requirements: [requirement("FDA"), requirement("NTC"), requirement("DENR", "2026-11-20")] })
     const lines = screen.getAllByTestId("ipas-compliance-open-kind").map((line) => line.textContent)
-    expect(lines).toEqual(["NTCopenMark done", "FDAopenMark done"])
+    expect(lines).toEqual(["NTCopenMark doneAttach", "FDAopenMark doneAttach"])
   })
 
   it("Mark done opens a step with today's day and no note, and saves them", async () => {

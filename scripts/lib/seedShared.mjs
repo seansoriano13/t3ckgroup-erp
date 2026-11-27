@@ -133,6 +133,9 @@ export const SEED_TABLES = [
   // Each IPAS's Compliance Requirement kinds and when each was done (#1251): facts about the
   // work, pointing at ipas / ipas_options and employees above.
   "ipas_compliance_requirements",
+  // The papers of each Compliance Requirement kind (#1287): facts about the work, pointing at
+  // ipas_compliance_requirements and employees above.
+  "ipas_compliance_requirement_files",
   // Sign-offs (#247) point at ipas and employees. Seeded with the lists beside
   // them: an approval and who gave it are facts about the work, and the restore
   // runs in replica mode, so the paid-before-approval flags it carries are kept

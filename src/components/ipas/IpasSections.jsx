@@ -913,6 +913,9 @@ function eventDetail(event) {
       return [detail.kind, detail.done_on ? formatDay(detail.done_on) : null, detail.note ? `“${detail.note}”` : null].filter(Boolean).join(" · ");
     case "compliance_unticked":
       return detail.kind ?? null;
+    case "compliance_file_added":
+    case "compliance_file_removed":
+      return [detail.kind, detail.file_name].filter(Boolean).join(" · ");
     case "status_date_changed":
       return `${IPAS_STATUS_LABELS[detail.step] ?? detail.step}: ${detail.from ? `${formatDay(detail.from)} → ` : ""}${formatDay(detail.to)}`;
     case "direct_delivery_changed":

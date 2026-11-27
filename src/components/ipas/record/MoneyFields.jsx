@@ -763,16 +763,18 @@ function SavedDocumentRow({ document, row, required, canChange, canTickFinance, 
       <div className="min-w-[10rem] flex-1">
         <span className="text-sm font-medium text-foreground">
           {document.label}
-          {required && <RequiredMark />}
+          {required && (
+            <>
+              <RequiredMark />
+              <span className="sr-only"> (required)</span>
+            </>
+          )}
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
           {document.byHand ? (
             <span className="text-xs text-muted-foreground">Added by hand</span>
           ) : (
-            <>
-              <span className="text-xs text-muted-foreground">{IPAS_DOCUMENT_APPLIES_TO_LABELS[document.appliesTo] ?? ""}</span>
-              {document.isFiling && <StatusBadge theme="blue" label="Filing item" />}
-            </>
+            <span className="text-xs text-muted-foreground">{IPAS_DOCUMENT_APPLIES_TO_LABELS[document.appliesTo] ?? ""}</span>
           )}
         </span>
       </div>
@@ -909,9 +911,6 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
               </>
             );
           })()
-        )}
-        {SHOW_HAS_TICKS && (
-          <p className="text-xs text-muted-foreground">Each department ticks its own box. A filing item ticked here is already ticked at Filing.</p>
         )}
       </Titled>
     </div>

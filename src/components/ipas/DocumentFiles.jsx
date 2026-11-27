@@ -28,9 +28,10 @@ async function uploadPicked(files) {
  *   files     `[{ id, url, fileName }]`
  *   onAdd     `(picked: [{ url, fileName }]) => Promise` called once per pick
  *   onRemove  `(file) => void`, one file at a time
+ *   align     "end" (default) or "start"
  *   canChange false hides Attach and the remove buttons
  */
-export function DocumentFiles({ label, files = [], canChange, onAdd, onRemove, missing = false }) {
+export function DocumentFiles({ label, files = [], canChange, onAdd, onRemove, missing = false, align = "end" }) {
   const [uploading, setUploading] = useState(false);
   const attach = async (picked) => {
     setUploading(true);
@@ -42,7 +43,7 @@ export function DocumentFiles({ label, files = [], canChange, onAdd, onRemove, m
     }
   };
   return (
-    <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs" data-testid="ipas-document-files">
+    <span className={`flex min-w-0 flex-wrap items-center ${align === "start" ? "justify-start" : "justify-end"} gap-x-3 gap-y-1 text-xs`} data-testid="ipas-document-files">
       {files.map((file) => (
         <span key={file.id ?? file.url} className="inline-flex min-w-0 max-w-full items-center gap-1" data-testid="ipas-document-file">
           <ExternalLink href={file.url} className="inline-flex min-w-0 items-center gap-1 font-medium text-foreground underline underline-offset-2">

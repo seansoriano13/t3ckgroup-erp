@@ -80,7 +80,7 @@ const IPAS_SELECT =
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
 // The kinds an IPAS needs and where each stands (#1251). Read on the record only, not on the list.
 const COMPLIANCE_SELECT =
-  ", compliance_requirements:ipas_compliance_requirements(id, kind_id, done_on, note, done_by, kind:ipas_options!ipas_compliance_requirements_kind_id_fkey(id, label, sort, active))";
+  ", compliance_requirements:ipas_compliance_requirements(id, kind_id, done_on, note, done_by, kind:ipas_options!ipas_compliance_requirements_kind_id_fkey(id, label, sort, active), files:ipas_compliance_requirement_files(id, url, file_name, created_at))";
 const LIST_COLUMNS = [
   "id", "number", "po_number", "odoo_po_id", "priority", "source", "purpose", "remarks", "odoo_fetched_at",
   "state", "cancel_reason", "cancelled_by", "cancelled_at", "filed_at", "created_by", "created_at", "updated_at",
@@ -1049,6 +1049,27 @@ export const ipasService = {
   /** Takes a ticked kind back to open. Returns the requirement row. */
   async untickCompliance(requirementId) {
     const { data, error } = await supabase.rpc("ipas_untick_compliance", { p_requirement_id: requirementId });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Adds one file to a Compliance Requirement kind (#1287): `{ url, fileName }`, the link from the upload.
+   * Marking done is separate; a kind holds any number of files. Returns the file row.
+   */
+  async addComplianceFile(requirementId, { url = "", fileName = "" } = {}) {
+    const { data, error } = await supabase.rpc("ipas_add_compliance_file", {
+      p_requirement_id: requirementId,
+      p_url: (url || "").trim(),
+      p_file_name: (fileName || "").trim() || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes one file of a Compliance Requirement kind; its other files stay. Returns the removed row. */
+  async removeComplianceFile(fileId) {
+    const { data, error } = await supabase.rpc("ipas_remove_compliance_file", { p_file_id: fileId });
     if (error) throw error;
     return data;
   },

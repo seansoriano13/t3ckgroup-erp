@@ -108,8 +108,31 @@ describe("IPAS page: documents, the IPAS Status steps and the buyer facts", () =
       const rowEl = waybill.closest("[data-testid=ipas-document-row]");
       expect(within(rowEl).getByRole("button", { name: "Attach a file to Waybill" })).toBeInTheDocument();
       expect(within(section).queryByText("Quotation (Local)")).not.toBeInTheDocument();
-      expect(within(section).getByRole("button", { name: "Add document" })).toBeInTheDocument();
+      // The Add buttons, the Required files box and the usage tags are gone from the view
+      expect(within(section).queryByRole("button", { name: "Add document" })).not.toBeInTheDocument();
+      expect(within(section).queryByRole("button", { name: /^Add \d+ suggested/ })).not.toBeInTheDocument();
+      expect(within(section).queryByText("Required files")).not.toBeInTheDocument();
+      expect(within(section).queryByText(/Filing item/i)).not.toBeInTheDocument();
+      expect(within(section).queryByText(/Documentation and filing/i)).not.toBeInTheDocument();
+      expect(within(section).queryByText(/already ticked at Filing/)).not.toBeInTheDocument();
       expect(within(section).queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
+    });
+
+    it("marks a required document with an asterisk after its name that a screen reader hears", async () => {
+      const row = ipas({ source: "import", created_by: purchaser.id });
+      giveDocuments(row);
+
+      renderDetail(row.id, "documents");
+
+      const section = await screen.findByRole("region", { name: "5 · Documents" });
+      // BL or Waybill is "Required before" section 3 in the seeded rules: it carries the asterisk and the screen-reader text.
+      const waybill = (await within(section).findByText("BL or Waybill")).closest("[data-testid=ipas-document-row]");
+      expect(within(waybill).getByText("(required)")).toBeInTheDocument();
+      expect(within(waybill).getByText("*")).toBeInTheDocument();
+      // BIR 2307 is not required by any rule: no marker.
+      const bir = (await within(section).findByText("BIR 2307")).closest("[data-testid=ipas-document-row]");
+      expect(within(bir).queryByText("(required)")).not.toBeInTheDocument();
+      expect(within(section).queryByText("Missing")).not.toBeInTheDocument();
     });
 
     // #1153: a document holds several files, each listed by its file name and removable on its own.
@@ -138,7 +161,22 @@ describe("IPAS page: documents, the IPAS Status steps and the buyer facts", () =
       expect(within(rowEl).getByRole("link", { name: "page-3.pdf" })).toBeInTheDocument();
     });
 
-    it.skipIf(!SHOW_HAS_TICKS)("lists the documents for the Source, each with two ticks and a filing mark on filing items", async () => {
+    it("shows the Add buttons in Edit mode, and still no usage tags or filing-item sentence", async () => {
+      const row = ipas({ source: "import", created_by: purchaser.id });
+      giveDocuments(row);
+      db.seed("ipas_options", { list: "document_kind", label: "Insurance Certificate", sort: 500, active: true, applies_to: "import", used_for: "documentation" });
+
+      renderDetail(row.id, "documents", "edit");
+
+      const section = await screen.findByTestId("ipas-documents");
+      expect(await within(section).findByRole("button", { name: "Add document" })).toBeInTheDocument();
+      expect(within(section).getByRole("button", { name: /^Add \d+ suggested/ })).toBeInTheDocument();
+      expect(within(section).queryByText(/Filing item/i)).not.toBeInTheDocument();
+      expect(within(section).queryByText(/Documentation and filing/i)).not.toBeInTheDocument();
+      expect(within(section).queryByText(/already ticked at Filing/)).not.toBeInTheDocument();
+    });
+
+    it.skipIf(!SHOW_HAS_TICKS)("lists the documents for the Source, each with two ticks", async () => {
       const row = ipas({ source: "import", created_by: purchaser.id });
       giveDocuments(row);
 
@@ -148,7 +186,7 @@ describe("IPAS page: documents, the IPAS Status steps and the buyer facts", () =
       expect(within(section).getByText("BL or Waybill")).toBeInTheDocument();
       expect(within(section).queryByText("Quotation (Local)")).not.toBeInTheDocument();
       const bir = await documentRow("BIR 2307");
-      expect(within(bir).getByText("Filing item")).toBeInTheDocument();
+      expect(within(bir).queryByText("Filing item")).not.toBeInTheDocument();
       expect(within(bir).getByRole("checkbox", { name: /Purchasing has it: BIR 2307/ })).toBeInTheDocument();
       expect(within(bir).getByRole("checkbox", { name: /Finance has it: BIR 2307/ })).toBeInTheDocument();
     });

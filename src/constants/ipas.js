@@ -730,6 +730,8 @@ export const IPAS_EVENT_LABELS = {
   compliance_kind_removed: "Compliance Requirement removed",
   compliance_ticked: "Compliance Requirement done",
   compliance_unticked: "Compliance Requirement reopened",
+  compliance_file_added: "Compliance Requirement file attached",
+  compliance_file_removed: "Compliance Requirement file removed",
 };
 
 /** The words screens use for the whole feature: never "Compliance" on its own (CONTEXT.md). */

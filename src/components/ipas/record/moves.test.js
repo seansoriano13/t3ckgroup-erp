@@ -1,38 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canEditSection, cardMovesFor, complianceFor, footerMovesFor } from "./moves";
-
-describe("complianceFor: the Compliance Requirement group of Your move", () => {
-  const kind = (id, label, sort, doneOn = null) => ({ id: `r-${id}`, kind_id: id, done_on: doneOn, note: null, kind: { id, label, sort } });
-  const ctx = (ipas, can = true) => ({
-    can: { compliance: can },
-    ipas: { state: "open", compliance_asked: true, compliance_needed: null, compliance_requirements: [], ...ipas },
-  });
-
-  it("asks the question on a new IPAS, to people with the rights", () => {
-    expect(complianceFor(ctx({}))).toMatchObject({ state: "unanswered", open: [] });
-  });
-
-  it("shows nothing to anyone without the rights, on an IPAS that does not ask, or one that is filed or cancelled", () => {
-    expect(complianceFor(ctx({}, false))).toBeNull();
-    expect(complianceFor(ctx({ compliance_asked: false }))).toBeNull();
-    expect(complianceFor(ctx({ state: "filed" }))).toBeNull();
-    expect(complianceFor(ctx({ state: "cancelled", compliance_needed: true, compliance_requirements: [kind("a", "FDA", 5)] }))).toBeNull();
-  });
-
-  it("lists the open kinds in list order after Yes, and drops the done ones", () => {
-    const group = complianceFor(
-      ctx({ compliance_needed: true, compliance_requirements: [kind("f", "FDA", 50), kind("n", "NTC", 40), kind("d", "DENR", 10, "2026-11-20")] }),
-    );
-    expect(group.state).toBe("kinds");
-    expect(group.open.map((item) => item.label)).toEqual(["NTC", "FDA"]);
-    expect(group.kinds.map((item) => item.label)).toEqual(["DENR", "NTC", "FDA"]);
-  });
-
-  it("has no to-do after No", () => {
-    expect(complianceFor(ctx({ compliance_needed: false }))).toMatchObject({ state: "none", open: [] });
-  });
-});
+import { canEditSection, cardMovesFor, footerMovesFor } from "./moves";
 
 const none = { canApprove: false, canPrepare: false, returnMode: null };
 const noRole = { canGive: false };
