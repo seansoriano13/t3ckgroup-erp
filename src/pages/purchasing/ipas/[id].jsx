@@ -1029,6 +1029,8 @@ function IpasPage({ onClose }) {
       change: canChange,
       pickLocation: canPickLocation,
       statusStep: canSetStatusStep,
+      // Compliance Requirements (#1251): the same people as the IPAS Status, until Filing.
+      compliance: canSetStatusStep,
       record: canRecord,
       tickFinance: canTickFinance,
       // Only Purchasing moves the Computation status; section 3's sign-off is the check.

@@ -78,6 +78,9 @@ const IPAS_SELECT =
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
+// The kinds an IPAS needs and where each stands (#1251). Read on the record only, not on the list.
+const COMPLIANCE_SELECT =
+  ", compliance_requirements:ipas_compliance_requirements(id, kind_id, done_on, note, done_by, kind:ipas_options!ipas_compliance_requirements_kind_id_fkey(id, label, sort, active))";
 const LIST_COLUMNS = [
   "id", "number", "po_number", "odoo_po_id", "priority", "source", "purpose", "remarks", "odoo_fetched_at",
   "state", "cancel_reason", "cancelled_by", "cancelled_at", "filed_at", "created_by", "created_at", "updated_at",
@@ -331,7 +334,7 @@ export const ipasService = {
     if (!id) return null;
     const outcome = refresh ? await ipasService.refresh(id) : null;
 
-    const { data: row, error } = await supabase.from("ipas").select(IPAS_SELECT).eq("id", id).maybeSingle();
+    const { data: row, error } = await supabase.from("ipas").select(IPAS_SELECT + COMPLIANCE_SELECT).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!row) return null;
 
@@ -1002,6 +1005,49 @@ export const ipasService = {
       p_ipas_id: id,
       p_option_id: optionId || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  // -- Compliance Requirements (#1251, spec #1247) ------------------------
+
+  /** The active Compliance Requirement kinds, in list order: what the Yes picker offers. */
+  async complianceKinds() {
+    return ipasService.listOptions(IPAS_OPTION_LIST.COMPLIANCE_KIND, { includeInactive: false });
+  },
+
+  /**
+   * Answers "Does this order need a Compliance Requirement?" (Purchasing access, Logistics access or a
+   * Super Admin, until Filing). `needed` true needs at least one kind id; false removes the kinds. A kind
+   * left out of `kindIds` is removed. Returns the IPAS row.
+   */
+  async setCompliance(id, needed, kindIds = []) {
+    if (typeof needed !== "boolean") throw new IpasError(IPAS_ERROR.INVALID, "Answer Yes or No.");
+    const kinds = needed ? [...new Set((kindIds ?? []).filter(Boolean))] : [];
+    if (needed && kinds.length === 0) throw new IpasError(IPAS_ERROR.INVALID, "Pick at least one kind.");
+    const { data, error } = await supabase.rpc("ipas_set_compliance", { p_ipas_id: id, p_needed: needed, p_kind_ids: kinds });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Ticks a kind done: the day (`YYYY-MM-DD`, today when left out) and an optional note. Returns the requirement row. */
+  async tickCompliance(requirementId, doneOn = null, note = "") {
+    const day = (doneOn ?? "").trim();
+    if (day !== "" && !isIsoDate(day)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
+    const text = (note ?? "").trim();
+    if (text.length > 500) throw new IpasError(IPAS_ERROR.INVALID, "The note is up to 500 characters.");
+    const { data, error } = await supabase.rpc("ipas_tick_compliance", {
+      p_requirement_id: requirementId,
+      p_done_on: day === "" ? null : day,
+      p_note: text === "" ? null : text,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Takes a ticked kind back to open. Returns the requirement row. */
+  async untickCompliance(requirementId) {
+    const { data, error } = await supabase.rpc("ipas_untick_compliance", { p_requirement_id: requirementId });
     if (error) throw error;
     return data;
   },

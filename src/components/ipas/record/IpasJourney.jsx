@@ -13,7 +13,8 @@ import { CHROME } from "@/components/record/sectionChrome";
 import { useMoveConfirm } from "@/components/record/useMoveConfirm";
 import { Button } from "@/components/ui/button";
 import { isSignAction } from "./journey";
-import { movesFor } from "./moves";
+import IpasComplianceMove from "./IpasComplianceMove";
+import { complianceFor, movesFor } from "./moves";
 
 function Item({ item, number, locked, onAct, onGo, busy }) {
   const { done, action } = item;
@@ -75,6 +76,8 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, onGoToSignof
   const [showReady, setShowReady] = useState(false);
   const { run, dialog } = useMoveConfirm({ restate: (section) => digest.lines[section], viewer, origin: CHROME.CARD });
   const { returns } = movesFor(ctx, digest);
+  // The Compliance Requirement group (#1251): its own group, beside the sign-offs.
+  const compliance = complianceFor(ctx);
   const working = Boolean(busy.signoff || busy.give);
   const { ready, readyDone, sign } = journey;
 
@@ -134,6 +137,8 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, onGoToSignof
           </ol>
         </>
       )}
+
+      {compliance && <IpasComplianceMove ipas={ctx.ipas} compliance={compliance} />}
 
       {returns.length > 0 && (
         <ul className="mt-4 border-t border-border pt-3">

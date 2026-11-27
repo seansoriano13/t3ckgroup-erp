@@ -22,6 +22,7 @@ import {
  * Costing Matrix's money tier and null for everyone else.
  */
 export const IPAS_SUMMARY_KEYS = [
+  "compliance",
   "computation_status",
   "direct_delivery",
   "ipas_id",
@@ -82,6 +83,20 @@ export function signoffProgress(signoffs) {
 }
 
 /** One `ipas_summaries_for_sor` row as the SOR's IPAS section reads it, or null. */
+/** The Compliance Requirements of a summary row: `{ needed, kinds: [{ id, kindId, label, doneOn }] }`, or null when the IPAS does not ask. */
+function shapeSummaryCompliance(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    needed: typeof value.needed === "boolean" ? value.needed : null,
+    kinds: (Array.isArray(value.kinds) ? value.kinds : []).map((kind) => ({
+      id: kind.id,
+      kindId: kind.kind_id,
+      label: kind.label ?? "",
+      doneOn: kind.done_on ?? null,
+    })),
+  };
+}
+
 export function shapeIpasSummary(row) {
   if (!row || typeof row !== "object" || !row.ipas_id) return null;
   return {
@@ -96,6 +111,8 @@ export function shapeIpasSummary(row) {
     statusReachedOn: row.status_reached_on ?? null,
     onHold: row.on_hold === true,
     directDelivery: row.direct_delivery === true,
+    // #1251: null on an IPAS that does not ask; else the answer and each kind with its done day.
+    compliance: shapeSummaryCompliance(row.compliance),
     computationStatus: row.computation_status ?? null,
     computationLabel:
       IPAS_COMPUTATION_STATUS_LABELS[row.computation_status] ??

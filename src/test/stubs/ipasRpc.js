@@ -510,6 +510,19 @@ export function stubIpasRpcs({
             rowsOf("ipas_status_steps").find((st) => st.ipas_id === row.id && st.step === row.status)?.reached_on ?? null,
           on_hold: row.on_hold === true,
           direct_delivery: row.direct_delivery === true,
+          compliance: row.compliance_asked
+            ? {
+                needed: row.compliance_needed ?? null,
+                kinds: rowsOf("ipas_compliance_requirements")
+                  .filter((r) => r.ipas_id === row.id)
+                  .map((r) => ({
+                    id: r.id,
+                    kind_id: r.kind_id,
+                    label: rowsOf("ipas_options").find((o) => o.id === r.kind_id)?.label ?? "",
+                    done_on: r.done_on ?? null,
+                  })),
+              }
+            : null,
         }
       })
   })
