@@ -49,6 +49,8 @@ import { formatRateDay, formatRateNumber, rateDivergence, rateSourceLabel } from
 import { askLine, chargeAsks, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
 import { Field, GroupTitle, PickField, ReadValue, RequiredMark, Tick } from "./FormFields";
 import { AskDraftFields, AskLiners, ChargeAskFields, PaidOrAskChoice } from "./AskRows";
+import { sectionDomId } from "@/components/record/sectionDom";
+import { scrollToSection } from "./useSectionsOpen";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, PAYMENT_MODE, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
 
@@ -392,6 +394,8 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
           currencyLabel={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
           prefix={isPhp ? "PHP" : currency}
           base={base}
+          poCurrency={ipas.currency}
+          switchable={!isPhp}
           disabled={disabled}
           onPatch={onPatch}
         />
@@ -519,8 +523,10 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
   // "Record as paid" opens a new payment row filled from the ask and linked to it (#1225); any box can still change.
   const recordAsk = (ask) => {
     const kind = paidKindForAsk(ask, ipasFigures(ipas).remainingBalance);
+    // A request in pesos is not in the PO's currency: its amount is not copied into the payment's PO-currency box.
+    const inPesosAsk = ask.currency === "PHP" && !form.isPhp;
     const percent = percentApplies(kind) && ask.percent_of_order ? formatPercent(ask.percent_of_order) : "";
-    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: String(Number(ask.amount)), percentOfOrder: percent });
+    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: inPesosAsk ? "" : String(Number(ask.amount)), percentOfOrder: percent });
   };
   useTakeRecordRequest("payments", recordingAsk, onRecordingHandled, recordAsk);
   // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
@@ -547,6 +553,20 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
           </AddButton>
         )
       }>
+      <p className="text-xs text-muted-foreground" data-testid="payment-duties-hint">
+        Paying duties, taxes or brokerage? Use{" "}
+        <a
+          href={`#${sectionDomId("costs")}`}
+          className="font-medium underline underline-offset-2 hover:text-foreground"
+          onClick={(event) => {
+            event.preventDefault();
+            scrollToSection("costs");
+          }}
+        >
+          3 · Costs
+        </a>
+        , which is in pesos.
+      </p>
       <div className={GRID}>
         <ReadValue label="DP">{sum.downPayment > 0 ? formatAmount(sum.downPayment, currency) : null}</ReadValue>
         <ReadValue label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</ReadValue>

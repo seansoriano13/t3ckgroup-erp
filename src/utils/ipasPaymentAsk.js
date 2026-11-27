@@ -42,8 +42,8 @@ export const askWhat = (ask) =>
     ? (ask.charge_kind?.label ?? IPAS_ASK_PURPOSE_LABELS.charge)
     : (IPAS_ASK_PURPOSE_LABELS[ask?.purpose] ?? ask?.purpose);
 
-/** A Charge ask is billed in its own currency (#1227); the others use the P0's. */
-export const askCurrency = (ask, fallback) => (ask?.purpose === "charge" && ask.currency ? ask.currency : fallback);
+/** A Charge ask is billed in its own currency (#1227); a supplier ask in PHP says so (#1277); the rest use the P0's. */
+export const askCurrency = (ask, fallback) => (ask?.currency ? ask.currency : fallback);
 
 /** "Down payment · €5,600.00 · 40% of the order · High priority (30% down)" for one ask. */
 export function askLine(ask, currency) {

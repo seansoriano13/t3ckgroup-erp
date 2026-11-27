@@ -113,7 +113,7 @@ describe("asking for a Charge", () => {
 
     it("keeps no kind and no currency on a Down payment or Balance ask", async () => {
         const ipas = await raise()
-        const supplier = await ask("outsider", ipas.id, { p_charge_kind_id: await kindId("Brokerage Fee"), p_currency: "USD" })
+        const supplier = await ask("outsider", ipas.id, { p_charge_kind_id: await kindId("Brokerage Fee") })
         expect(supplier.data).toMatchObject({ purpose: "down_payment", charge_kind_id: null, currency: null })
     })
 

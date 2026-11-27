@@ -1233,9 +1233,12 @@ export function stubIpasRpcs({
     if (args.p_purpose === "charge" && !args.p_charge_kind_id) refuse("22023", "ipas_ask_for_payment: pick the kind of charge")
     if (args.p_purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: a Charge ask has no % of order (it applies to a supplier ask only)")
     const isCharge = args.p_purpose === "charge"
+    const supplierCurrency = isCharge ? null : String(args.p_currency || "").trim().toUpperCase() || null
+    if (supplierCurrency && supplierCurrency !== "PHP") refuse("22023", "ipas_ask_for_payment: a supplier ask is in the PO currency or in PHP")
+    if (supplierCurrency && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: an ask in PHP has no % of order")
     return insertRow("ipas_payment_asks", {
       charge_kind_id: isCharge ? args.p_charge_kind_id : null,
-      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : null,
+      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : supplierCurrency,
       ipas_id: ipas.id,
       amount: args.p_amount,
       purpose: args.p_purpose,
@@ -1254,11 +1257,14 @@ export function stubIpasRpcs({
     if (ask.closed_at) refuse("22023", "ipas_edit_payment_ask: that ask is closed and can't be edited")
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_edit_payment_ask: the amount must be more than zero")
     if (ask.purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: a Charge ask has no % of order (it applies to a supplier ask only)")
+    const editCurrency = ask.purpose === "charge" ? ask.currency : String(args.p_currency || "").trim().toUpperCase() || null
+    if (ask.purpose !== "charge" && editCurrency && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: an ask in PHP has no % of order")
     return updateRow("ipas_payment_asks", ask, {
       amount: args.p_amount,
       priority: args.p_priority,
       note: args.p_note ?? null,
       percent_of_order: args.p_percent ?? null,
+      currency: editCurrency,
     })
   })
   stubRpc("ipas_withdraw_payment_ask", (args) => {

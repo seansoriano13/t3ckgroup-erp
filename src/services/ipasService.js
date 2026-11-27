@@ -696,13 +696,14 @@ export const ipasService = {
   },
 
   /** Changes one open ask (amount, priority, note, % of order), by the ask's own id (#1224). A closed ask is refused. */
-  async editPaymentAsk(askId, { amount, priority, note = null, percent = null }) {
+  async editPaymentAsk(askId, { amount, priority, note = null, percent = null, currency = null }) {
     const { data, error } = await supabase.rpc("ipas_edit_payment_ask", {
       p_ask_id: askId,
       p_amount: amount,
       p_priority: priority,
       p_note: note,
       p_percent: percent,
+      p_currency: currency,
     });
     if (error) throw error;
     return data;

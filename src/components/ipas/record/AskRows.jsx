@@ -67,10 +67,49 @@ export function PaidOrAskChoice({ id, value, disabled, onChange }) {
 }
 
 /**
+ * The USD | PHP switch (#1277): a request on a foreign-currency PO is in the PO's currency or in pesos.
+ * `value` is "" for the PO's currency, "PHP" for pesos. Shown only on a foreign-currency PO.
+ */
+export function AskCurrencySwitch({ id, poCurrency, value, disabled, onChange }) {
+  const choices = [
+    { value: "", label: poCurrency || "PO currency" },
+    { value: "PHP", label: "PHP" },
+  ];
+  return (
+    <FieldBox label="Asked in" bare>
+      <div id={id} role="radiogroup" aria-label="Currency of the request" data-testid="ask-currency-switch" className="inline-flex rounded-md border border-border p-0.5">
+        {choices.map((choice) => {
+          const checked = (value || "") === choice.value;
+          return (
+            <Button
+              key={choice.label}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              disabled={disabled}
+              size="sm"
+              variant={checked ? "secondary" : "ghost"}
+              className={cn("h-8 min-w-14 px-3", checked ? "font-semibold ring-1 ring-foreground" : "text-muted-foreground")}
+              onClick={() => onChange(choice.value)}
+            >
+              {choice.label}
+            </Button>
+          );
+        })}
+      </div>
+    </FieldBox>
+  );
+}
+
+/**
  * What an ask takes (#1225). `row` holds `amount`, `percentOfOrder`, `askPurpose`, `askPriority`, `askNote`;
  * `purposes` are the "what for" values on offer; `base` is where a % is taken from (null: the % cannot fill the amount).
  */
-export function AskDraftFields({ id, row, purposes, currencyLabel, prefix, base, disabled, onPatch }) {
+export function AskDraftFields({ id, row, purposes, currencyLabel, prefix, base, poCurrency, switchable = false, disabled, onPatch }) {
+  // On a foreign-currency PO the request can be in pesos: only a pesos box is left (no % of order).
+  const inPesos = switchable && row.askCurrency === "PHP";
+  const label = inPesos ? "Amount (PHP)" : currencyLabel;
+  const amountPrefix = inPesos ? "PHP" : prefix;
   const amount = parseAmountInput(row.amount);
   const percent = parsePercentInput(row.percentOfOrder);
   const purposeOptions = purposes.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
@@ -79,7 +118,7 @@ export function AskDraftFields({ id, row, purposes, currencyLabel, prefix, base,
     <div className="space-y-3" data-testid="payment-ask-fields">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <PickField id={id("askPurpose")} label="What for" required options={purposeOptions} value={row.askPurpose} disabled={disabled} onChange={(v) => onPatch({ askPurpose: v })} />
-        <div className="min-w-0">
+        {!inPesos && <div className="min-w-0">
           <Field
             id={id("percentOfOrder")}
             label="% of order"
@@ -92,12 +131,21 @@ export function AskDraftFields({ id, row, purposes, currencyLabel, prefix, base,
           <p className="mt-1 pl-1 text-xs text-muted-foreground">
             {base ? `Worked out from the ${base.label}. Type a different amount and the % is cleared.` : "No P.I/QT Amount or PO total yet, so the % can't fill the amount."}
           </p>
-        </div>
+        </div>}
+        {switchable && (
+          <AskCurrencySwitch
+            id={id("askCurrency")}
+            poCurrency={poCurrency}
+            value={row.askCurrency}
+            disabled={disabled}
+            onChange={(v) => onPatch(v === "PHP" ? { askCurrency: "PHP", percentOfOrder: "" } : { askCurrency: "" })}
+          />
+        )}
         <Field
           id={id("amount")}
-          label={currencyLabel}
+          label={label}
           kind="amount"
-          prefix={prefix}
+          prefix={amountPrefix}
           required
           value={row.amount}
           disabled={disabled}
