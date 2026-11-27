@@ -37,12 +37,6 @@ function fakeOdoo(model, method, args) {
       return [{ id: 10, name: "P00010", state: "purchase", partner_id: [3, "Supplier A"], currency_rate: 1 }];
     case "account.move.line.search_read":
       return [{ purchase_line_id: [200, "x"], quantity: 2, balance: 200, move_id: [600, "BILL/1"], move_type: "in_invoice" }];
-    case "account.move.line.read":
-      return [{ id: 400, purchase_line_id: false, tax_line_id: false, move_id: [500, "MISC/1"] }];
-    case "account.move.read":
-      return [{ id: 500, stock_move_id: false }];
-    case "account.account.read":
-      return [{ id: 7, code: "6100" }];
     default:
       throw new Error(`fake Odoo has no answer for ${key}`);
   }
@@ -59,7 +53,7 @@ function stubOdoo() {
       const [, , , model, odooMethod, odooArgs] = args;
       calls.push(`${model}.${odooMethod}`);
       if (model === "account.analytic.line" && odooMethod === "search_read") {
-        result = [{ id: 300, date: "2026-11-01", name: "Fuel", amount: -500, general_account_id: [7, "Fuel"], move_line_id: [400, "x"] }];
+        result = [{ id: 300, date: "2026-11-01", name: "Fuel", amount: -500, general_account_id: [7, "6100 Fuel"] }];
       } else {
         result = fakeOdoo(model, odooMethod, odooArgs);
       }
@@ -85,13 +79,12 @@ describe("readOpexReport", () => {
     expect(calls).not.toContain("account.analytic.line.fields_get");
   });
 
-  it("reads the bill type with the bill lines, not in a call of its own", async () => {
+  it("reads the bill type with the bill lines, and the expenses in one call", async () => {
     calls = [];
     await readOpexReport(1, { s0: "S00001", handP0s: [], vatDivisor: 1.12 });
 
-    // One account.move read is left: the expenses' stock check.
-    expect(calls.filter((c) => c === "account.move.read")).toHaveLength(1);
-    expect(calls).toHaveLength(12);
+    expect(calls).not.toContain("account.move.read");
+    expect(calls).toHaveLength(9);
   });
 
   it("reads the P0 lines and the expenses of one S0", async () => {

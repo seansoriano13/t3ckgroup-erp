@@ -64,19 +64,32 @@ export function readP0Line(input: P0LineInput, s0: string): P0LineRead {
   return { sharePercent, pesos, countedPesos, marks };
 }
 
-export type MoveLineFacts = {
-  /** The journal item comes from a P0's bill. */
-  fromPurchaseBill: boolean;
-  /** A tax line (VAT or withholding). */
-  taxLine: boolean;
-  /** Part of a stock valuation entry. */
-  stockValuation: boolean;
-} | null;
+/**
+ * Which analytic lines are expenses of the report (the four exclusions of the spec),
+ * as an Odoo search filter so Odoo leaves the others out itself (#1266: this was two
+ * extra calls, reading each journal item and then its entry). Kept: a line with no
+ * journal item and a non-zero amount (a zero one is a project note), or a line whose
+ * journal item is not from a P0's bill, not a tax line (VAT or withholding) and not
+ * part of a stock valuation entry.
+ */
+export const EXPENSE_DOMAIN: unknown[] = [
+  "|",
+  "&",
+  ["move_line_id", "=", false],
+  ["amount", "!=", 0],
+  "&",
+  "&",
+  "&",
+  ["move_line_id", "!=", false],
+  ["move_line_id.purchase_line_id", "=", false],
+  ["move_line_id.tax_line_id", "=", false],
+  ["move_line_id.move_id.stock_move_id", "=", false],
+];
 
-/** Whether an analytic line is an expense of the report (the four exclusions of the spec). */
-export function countsAsExpense(amount: number, move: MoveLineFacts): boolean {
-  if (!move) return Number(amount) !== 0; // a zero-amount project note has no journal item
-  return !(move.fromPurchaseBill || move.taxLine || move.stockValuation);
+/** "623010 Fuel Expenses" -> "623010". Odoo shows an account as its code, then its name. */
+export function codeFromAccountLabel(label: unknown): string {
+  const match = /^(\S*\d\S*)\s/.exec(String(label ?? ""));
+  return match ? match[1] : "";
 }
 
 export type ExpenseGroup = "marketing" | "operation_admin";
