@@ -13,6 +13,8 @@
 // `auth='user'` report routes with this key — see the portal access_token route
 // used by odoo-quotation-link instead.
 
+import { onceUntilFailure } from "./onceUntilFailure.ts";
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -105,6 +107,14 @@ export async function authenticate() {
   }
   return uid;
 }
+
+/**
+ * Same as authenticate(), but signs in once per warm function and reuses the
+ * Odoo user id after that (#1266: the sign-in cost about 0.46 s per read).
+ * A failed sign-in is not remembered. A changed ODOO_API_KEY means a redeploy,
+ * which starts a fresh function and signs in again.
+ */
+export const authenticateOnce = onceUntilFailure(authenticate);
 
 // Odoo methods that only read. Anything else counts as a write.
 const ODOO_READ_METHODS = new Set([
