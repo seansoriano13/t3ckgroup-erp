@@ -46,7 +46,6 @@ export function IpasDocuments({
   // In the drawer the two ticks read as text; the edit view keeps the boxes.
   const inDrawer = useInDrawer();
   const documents = ipas.documents ?? [];
-  const suggested = ipas.suggestedDocuments ?? [];
   // The kinds a sign-off waits on for this Source get a red asterisk, as in the edit view.
   const requiredKindIds = new Set(Object.values(requiredKindsByPart(fileRulesOf(ipas), ipas.source)).flat().map((kind) => kind.id));
   const requiredIds = new Set(documents.filter((d) => !d.byHand && requiredKindIds.has(d.kind_id)).map((d) => d.id));
