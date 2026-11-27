@@ -1174,7 +1174,10 @@ export function stubIpasRpcs({
       ? findRow("ipas", findRow("ipas_payments", args.p_payment_id)?.ipas_id)
       : findRow("ipas", args.p_ipas_id)
     if (!ipas) refuse("22023", "ipas_save_payment: payment not found")
-    const rate = isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
+    // #1278: pesos typed from the bank paper are stored as they are, with no rate beside them.
+    const typedPesos = isPhpCopy(ipas.odoo_copy) || args.p_php_debited == null ? null : round2(Number(args.p_php_debited))
+    if (typedPesos !== null && !(typedPesos > 0)) refuse("22023", "ipas_save_payment: the pesos taken from the bank must be more than zero, or left blank")
+    const rate = typedPesos !== null || isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
     if (rate !== null && !(rate > 0)) refuse("22023", "ipas_save_payment: the forex rate must be more than zero")
     // Others needs what the method was; any other method keeps no typed text (#1211).
     const methodLabel = String(optionOf(args.p_method_id)?.label ?? "").trim().toLowerCase()
@@ -1187,7 +1190,7 @@ export function stubIpasRpcs({
       p_kind: args.p_kind,
       p_paid_on: args.p_paid_on,
       p_amount: args.p_amount,
-      p_php_debited: rate === null ? null : round2(Number(args.p_amount) * rate),
+      p_php_debited: typedPesos !== null ? typedPesos : rate === null ? null : round2(Number(args.p_amount) * rate),
       p_charge_fee_php: args.p_charge_fee_php,
       p_method_id: args.p_method_id,
       p_check_no: args.p_check_no,

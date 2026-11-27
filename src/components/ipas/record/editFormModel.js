@@ -129,7 +129,9 @@ export const paymentDraft = (payment) => ({
   paidOn: payment.paid_on ?? "",
   amount: text(payment.amount),
   percentOfOrder: payment.percent_of_order ? text(payment.percent_of_order) : "",
-  forexRate: payment.rate ? text(payment.rate) : "",
+  // A stored rate stays as it is until pesos are typed (#1278); pesos kept without a rate show in the pesos box.
+  forexRate: payment.forex_rate ? text(payment.forex_rate) : "",
+  phpDebited: !payment.forex_rate && payment.php_debited ? text(payment.php_debited) : "",
   chargeFeePhp: payment.bank_charge_php ? text(payment.bank_charge_php) : "",
   docStampPhp: payment.doc_stamp_php ? text(payment.doc_stamp_php) : "",
   miscFeePhp: payment.misc_fee_php ? text(payment.misc_fee_php) : "",
@@ -152,6 +154,7 @@ export const newPaymentDraft = (askId = "", mode = "") => ({
   amount: "",
   percentOfOrder: "",
   forexRate: "",
+  phpDebited: "",
   chargeFeePhp: "",
   docStampPhp: "",
   miscFeePhp: "",
@@ -417,8 +420,8 @@ function paymentProblem(p, isPhp) {
   if (!positive(p.amount)) return "Amount must be a number more than zero.";
   if (percentApplies(p.kind) && !parsePercentInput(p.percentOfOrder).ok) return PERCENT_ERROR;
   // Blank is fine (#604); a figure that is given has to be a number above zero.
-  if (!isPhp && !blank(p.forexRate) && !positive(p.forexRate))
-    return "Forex rate paid must be a number more than zero, or left blank.";
+  if (!isPhp && !blank(p.phpDebited) && !positive(p.phpDebited))
+    return "Pesos taken from the bank must be a number more than zero, or left blank.";
   if (!parseAmountInput(p.chargeFeePhp).ok)
     return "Bank charge must be a number.";
   if (!parseAmountInput(p.docStampPhp).ok)
@@ -505,6 +508,7 @@ const paymentValues = (p) => ({
   amount: p.amount,
   percentOfOrder: percentApplies(p.kind) ? p.percentOfOrder : "",
   forexRate: p.forexRate,
+  phpDebited: p.phpDebited,
   chargeFeePhp: p.chargeFeePhp,
   docStampPhp: p.docStampPhp,
   miscFeePhp: p.miscFeePhp,

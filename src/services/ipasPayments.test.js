@@ -129,6 +129,20 @@ describe("ipasService: payments, charges and Landed Cost", () => {
       expect(kinds()).toEqual(["created"])
     })
 
+    it("stores typed pesos as php_debited with no rate, and typing pesos over a stored rate clears the rate (#1278)", async () => {
+      const ipas = await raise({ currency: "USD" })
+      const payment = await ipasService.addPayment(ipas.id, peso({ kind: "down_payment", amount: "640", forexRate: "56.5" }), { isPhpPo: false })
+      expect(db.rows("ipas_payments")[0]).toMatchObject({ php_debited: 36160, forex_rate: 56.5 })
+      // No pesos typed: the stored rate is kept.
+      await ipasService.updatePayment(payment.id, peso({ kind: "down_payment", amount: "640", forexRate: "56.5", phpDebited: "" }), { isPhpPo: false })
+      expect(db.rows("ipas_payments")[0]).toMatchObject({ php_debited: 36160, forex_rate: 56.5 })
+      await ipasService.updatePayment(payment.id, peso({ kind: "down_payment", amount: "640", forexRate: "56.5", phpDebited: "36,200.50" }), { isPhpPo: false })
+      expect(db.rows("ipas_payments")[0]).toMatchObject({ php_debited: 36200.5, forex_rate: null })
+      await expect(
+        ipasService.updatePayment(payment.id, peso({ kind: "down_payment", amount: "640", phpDebited: "0" }), { isPhpPo: false }),
+      ).rejects.toThrow(/pesos taken from the bank must be more than zero/)
+    })
+
     it("works the pesos out as amount x rate, and stores the rate and the three fees on a foreign payment (#708)", async () => {
       const ipas = await raise({ currency: "USD" })
 

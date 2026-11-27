@@ -94,6 +94,12 @@ describe("IPAS edit form model", () => {
       proof_url: null,
     };
 
+    it("starts an old payment with a stored rate on that rate and blank pesos, and a pesos-only payment on its pesos (#1278)", () => {
+      const form = formFromIpas(ipas({ payments: [{ ...saved, id: "a", forex_rate: 56.5, php_debited: 470362.5 }, { ...saved, id: "b", forex_rate: null, php_debited: 468642.36 }] }));
+      expect(form.payments[0]).toMatchObject({ forexRate: "56.5", phpDebited: "" });
+      expect(form.payments[1]).toMatchObject({ forexRate: "", phpDebited: "468642.36" });
+    });
+
     it("starts from the stored payments, charges, documents, bank details, freight and spread", () => {
       const form = formFromIpas(
         ipas({
@@ -220,9 +226,9 @@ describe("IPAS edit form model", () => {
       // Pesos taken from the bank may be left blank on a foreign PO (#604); a given figure must be above zero.
       const noPhp = { ...newPaymentDraft("", "paid"), amount: "5", methodId: "m-1" };
       expect(planSave({ ...foreign, payments: [noPhp] }, foreign).error).toBeNull();
-      const zeroPhp = { ...noPhp, forexRate: "0" };
+      const zeroPhp = { ...noPhp, phpDebited: "0" };
       expect(planSave({ ...foreign, payments: [zeroPhp] }, foreign).error).toBe(
-        "Payment 1: Forex rate paid must be a number more than zero, or left blank.",
+        "Payment 1: Pesos taken from the bank must be a number more than zero, or left blank.",
       );
       expect(planSave({ ...base, charges: [newChargeDraft("", "paid")] }, base).error).toBe("Charge 1: Pick the kind of charge.");
     });
