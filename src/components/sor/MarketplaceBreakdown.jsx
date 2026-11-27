@@ -55,7 +55,7 @@ export default function MarketplaceBreakdown({ orders }) {
                     {formatPHPOrDash(row.averageIncome)}
                   </TableCell>
                   <TableCell className="py-1.5 text-right tabular-nums text-foreground">
-                    {formatPHP(row.totalFees)}
+                    {formatPHPOrDash(row.totalFees)}
                   </TableCell>
                   <TableCell className="py-1.5 text-right tabular-nums text-foreground">
                     {formatFeeRate(row.feeRate)}

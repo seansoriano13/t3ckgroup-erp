@@ -122,6 +122,10 @@ _Avoid_: Unverified, Incomplete
 A Retail Order whose Order Income exceeds its Order Amount, or whose Marketplace Fee is at least its Order Amount — a sign the Income Note belongs to another order.
 _Avoid_: Mismatch, Unreconciled
 
+**Shared Marketplace Order ID**:
+Two or more counted Retail Orders carrying the same Marketplace Order ID, usually one sale entered twice in Odoo. Both stay in the totals; the Retail report lists each under its salesperson to chase, as "Same Marketplace Order ID as S0xxxx". Not Suspect Income.
+_Avoid_: Duplicate, Double entry
+
 **Company**:
 The organization an SOR is being sold to — the account, not a human. Verified against Odoo's commercial partner whenever the SOR carries a Sales Reference.
 _Avoid_: Client, Client Name, Customer, Account

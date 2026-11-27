@@ -19,6 +19,10 @@ export default function IncomeChaseList({ orders }) {
   const headingId = useId();
   const [expanded, toggle] = useToggleSet();
   const list = useMemo(() => chaseList(orders), [orders]);
+  const notes = useMemo(
+    () => new Map([...list.sharedWith].map(([id, others]) => [id, `Same Marketplace Order ID as ${others.join(", ")}`])),
+    [list],
+  );
 
   return (
     <section aria-labelledby={headingId}>
@@ -28,6 +32,7 @@ export default function IncomeChaseList({ orders }) {
       <p className="mt-0.5 text-sm text-muted-foreground">
         By salesperson. Missing: no Order Income. Suspect: Order Income above the Order Amount, or a Marketplace
         Fee at least the Order Amount.
+        Orders sharing a Marketplace Order ID are listed too; both stay in the totals.
       </p>
       {list.count > 0 && (
         <p className="mt-1 text-sm font-semibold text-foreground">
@@ -63,7 +68,7 @@ export default function IncomeChaseList({ orders }) {
 
                   {isOpen && (
                     <div className="bg-muted/10 px-4 pb-3">
-                      <RetailOrderTable orders={group.orders} odoo />
+                      <RetailOrderTable orders={group.orders} odoo notes={notes} />
                     </div>
                   )}
                 </div>
