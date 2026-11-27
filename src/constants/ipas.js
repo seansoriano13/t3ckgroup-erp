@@ -291,7 +291,7 @@ export const IPAS_OPTION_LIST = {
   FREIGHT_SERVICE: "freight_service",
   DOCUMENT_KIND: "document_kind",
   ITEM_LOCATION: "item_location",
-  // #1251: DENR, MARINA, OMB, NTC, FDA. Edited from its own settings tab (#1258), not part of IPAS_OPTION_LISTS yet.
+  // #1251: DENR, MARINA, OMB, NTC, FDA. Edited on its own Settings > Purchasing tab (#1258).
   COMPLIANCE_KIND: "compliance_kind",
 };
 
@@ -302,6 +302,7 @@ export const IPAS_OPTION_LISTS = [
   IPAS_OPTION_LIST.FREIGHT_SERVICE,
   IPAS_OPTION_LIST.DOCUMENT_KIND,
   IPAS_OPTION_LIST.ITEM_LOCATION,
+  IPAS_OPTION_LIST.COMPLIANCE_KIND,
 ];
 
 /**

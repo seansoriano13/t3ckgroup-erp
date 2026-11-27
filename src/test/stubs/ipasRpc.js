@@ -2017,6 +2017,8 @@ export function stubIpasRpcs({
     for (const p of rowsOf("ipas_payments")) if (filed.has(p.ipas_id) && p.method_id) used.add(p.method_id)
     for (const c of rowsOf("ipas_charges")) if (filed.has(c.ipas_id) && c.kind_id) used.add(c.kind_id)
     for (const d of rowsOf("ipas_documents")) if (filed.has(d.ipas_id) && d.kind_id) used.add(d.kind_id)
+    // #1258: a Compliance Requirement holds its kind too.
+    for (const r of rowsOf("ipas_compliance_requirements")) if (filed.has(r.ipas_id) && r.kind_id) used.add(r.kind_id)
     return [...used]
   })
 
