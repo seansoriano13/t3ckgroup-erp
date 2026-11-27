@@ -43,7 +43,7 @@ describe('entry-kind registry', () => {
 
   it('gives each Activity type its own colour, falling back to Meeting', () => {
     const dots = Object.values(ACTIVITY_TYPES).map((t) => t.dot);
-    expect(new Set(dots).size).toBe(4);
+    expect(new Set(dots).size).toBe(5);
     expect(styleOf({ kind: 'MEETING', details: { activity_type: 'EVENT' } }).label).toBe('Event');
     expect(styleOf({ kind: 'MEETING', details: {} }).dot).toBe(ACTIVITY_TYPES.MEETING.dot);
     expect(styleOf({ kind: 'SIL' }).dot).toBe(ENTRY_KINDS.SIL.dot);

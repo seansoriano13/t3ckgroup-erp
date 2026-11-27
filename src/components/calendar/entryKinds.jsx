@@ -1,4 +1,4 @@
-import { CalendarCheck, CalendarClock, CalendarDays, CalendarOff, ClipboardList, Hourglass, PartyPopper, Timer, Users, Wrench } from 'lucide-react';
+import { CalendarCheck, ListChecks, CalendarClock, CalendarDays, CalendarOff, ClipboardList, Hourglass, PartyPopper, Timer, Users, Wrench } from 'lucide-react';
 import MeetingDetail from './MeetingDetail.jsx';
 import SorDateDetail from './SorDateDetail.jsx';
 import { ACTIVITY_COLORS } from '@/constants/activityColors';
@@ -107,6 +107,7 @@ export const ACTIVITY_TYPES = {
   ADMIN_TASK: { icon: ClipboardList, ...ACTIVITY_COLORS.indigo, label: 'Admin Task' },
   OPERATIONS_TASK: { icon: Wrench, ...ACTIVITY_COLORS.orange, label: 'Operations Task' },
   EVENT: { icon: PartyPopper, ...ACTIVITY_COLORS.plum, label: 'Event' },
+  GROUP_TASK: { icon: ListChecks, ...ACTIVITY_COLORS.blue, label: 'Group Task' },
 };
 
 /**
