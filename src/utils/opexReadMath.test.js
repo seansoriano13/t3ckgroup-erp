@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costFromAnalyticAmount, countsAsExpense, expenseGroup, readP0Line } from "../../supabase/functions/_shared/opexReadMath.ts";
+import { codeFromAccountLabel, costFromAnalyticAmount, EXPENSE_DOMAIN, expenseGroup, readP0Line } from "../../supabase/functions/_shared/opexReadMath.ts";
 import { sharesFromDistribution } from "../../supabase/functions/_shared/projectTagMath.ts";
 
 // Made-up figures only.
@@ -80,14 +80,41 @@ describe("zero price on a partly billed line", () => {
 });
 
 describe("expenses", () => {
-  const plain = { fromPurchaseBill: false, taxLine: false, stockValuation: false };
+  // A tiny Odoo-domain reader (prefix "&" / "|", "=" / "!=" on dotted paths), enough to
+  // check that EXPENSE_DOMAIN keeps and leaves out the right analytic lines.
+  const valueAt = (record, path) => path.split(".").reduce((v, k) => (v == null || v === false ? false : v[k] ?? false), record);
+  function matches(domain, record) {
+    const items = [...domain];
+    const next = () => {
+      const item = items.shift();
+      if (item === "&") return [next(), next()].every(Boolean);
+      if (item === "|") return [next(), next()].some(Boolean);
+      const [path, op, want] = item;
+      const got = valueAt(record, path);
+      return op === "=" ? got === want : got !== want;
+    };
+    const results = [];
+    while (items.length) results.push(next());
+    return results.every(Boolean);
+  }
+  const plain = { purchase_line_id: false, tax_line_id: false, move_id: { stock_move_id: false } };
+  const line = (amount, move_line_id) => ({ amount, move_line_id });
+
   it("leaves out P0-bill lines, tax lines, stock entries and zero-amount notes", () => {
-    expect(countsAsExpense(-100, plain)).toBe(true);
-    expect(countsAsExpense(-100, { ...plain, fromPurchaseBill: true })).toBe(false);
-    expect(countsAsExpense(-100, { ...plain, taxLine: true })).toBe(false);
-    expect(countsAsExpense(-100, { ...plain, stockValuation: true })).toBe(false);
-    expect(countsAsExpense(0, null)).toBe(false);
-    expect(countsAsExpense(-5, null)).toBe(true);
+    expect(matches(EXPENSE_DOMAIN, line(-100, plain))).toBe(true);
+    expect(matches(EXPENSE_DOMAIN, line(0, plain))).toBe(true);
+    expect(matches(EXPENSE_DOMAIN, line(-100, { ...plain, purchase_line_id: 7 }))).toBe(false);
+    expect(matches(EXPENSE_DOMAIN, line(-100, { ...plain, tax_line_id: 3 }))).toBe(false);
+    expect(matches(EXPENSE_DOMAIN, line(-100, { ...plain, move_id: { stock_move_id: 9 } }))).toBe(false);
+    expect(matches(EXPENSE_DOMAIN, line(0, false))).toBe(false);
+    expect(matches(EXPENSE_DOMAIN, line(-5, false))).toBe(true);
+  });
+
+  it("takes the account code from Odoo's account label", () => {
+    expect(codeFromAccountLabel("623010 Fuel Expenses")).toBe("623010");
+    expect(codeFromAccountLabel("620001 Marketing Expense")).toBe("620001");
+    expect(codeFromAccountLabel("Fuel Expenses")).toBe("");
+    expect(codeFromAccountLabel("")).toBe("");
   });
 
   it("groups Marketing by account 620001 and everything else as Operation & Admin", () => {

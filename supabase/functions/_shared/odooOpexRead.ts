@@ -15,13 +15,7 @@ import {
   mentionsS0,
   sharesForLines,
 } from "./odooProjectTags.ts";
-import {
-  costFromAnalyticAmount,
-  countsAsExpense,
-  expenseGroup,
-  readP0Line,
-  type MoveLineFacts,
-} from "./opexReadMath.ts";
+import { codeFromAccountLabel, costFromAnalyticAmount, EXPENSE_DOMAIN, expenseGroup, readP0Line } from "./opexReadMath.ts";
 import { createStepTimer, type StepTimer } from "./stepTimer.ts";
 import { onceUntilFailure } from "./onceUntilFailure.ts";
 
@@ -84,47 +78,16 @@ async function readBilled(uid: number, lineIds: number[]) {
 /** `column` is the analytic line's Projects column (x_plan5_id today), looked up by the caller. */
 async function readExpenses(uid: number, tagIds: number[], column: string | null) {
   if (!column) throw new Error("Odoo has no analytic column for the Projects plan.");
+  // One call (#1266): Odoo leaves out the lines that are not expenses (EXPENSE_DOMAIN),
+  // and each account's code is the start of its label, so no further reads are needed.
   const analytic: Row[] = await executeKw(uid, "account.analytic.line", "search_read", [
-    [[column, "in", tagIds]],
-    ["id", "date", "name", "amount", "general_account_id", "move_line_id"],
+    [[column, "in", tagIds], ...EXPENSE_DOMAIN],
+    ["id", "date", "name", "amount", "general_account_id"],
   ]);
 
-  // Each line's journal facts and each account's code do not need each other: read them together.
-  const readFacts = async () => {
-    const facts = new Map<number, MoveLineFacts>();
-    for (const part of chunks(numbers(analytic.map((a) => idOf(a.move_line_id))))) {
-      const mls: Row[] = await executeKw(uid, "account.move.line", "read", [part, ["purchase_line_id", "tax_line_id", "move_id"]]);
-      const stock = new Map<number, boolean>();
-      const moveParts = chunks([...new Set(numbers(mls.map((m) => idOf(m.move_id))))]);
-      const moves = await Promise.all(moveParts.map((mp) => executeKw(uid, "account.move", "read", [mp, ["stock_move_id"]]) as Promise<Row[]>));
-      for (const mv of moves.flat()) stock.set(mv.id as number, idOf(mv.stock_move_id) !== null);
-      for (const m of mls) {
-        facts.set(m.id as number, {
-          fromPurchaseBill: idOf(m.purchase_line_id) !== null,
-          taxLine: idOf(m.tax_line_id) !== null,
-          stockValuation: stock.get(idOf(m.move_id) ?? -1) ?? false,
-        });
-      }
-    }
-    return facts;
-  };
-  const readCodes = async () => {
-    const codes = new Map<number, string>();
-    const accountIds = [...new Set(numbers(analytic.map((a) => idOf(a.general_account_id))))];
-    if (accountIds.length) {
-      for (const acc of (await executeKw(uid, "account.account", "read", [accountIds, ["code"]])) as Row[]) {
-        codes.set(acc.id as number, String(acc.code ?? ""));
-      }
-    }
-    return codes;
-  };
-  const [facts, codes] = await Promise.all([readFacts(), readCodes()]);
-
   return analytic
-    .filter((a) => countsAsExpense(Number(a.amount), facts.get(idOf(a.move_line_id) ?? -1) ?? null))
     .map((a) => {
-      const accountId = idOf(a.general_account_id);
-      const code = accountId === null ? "" : codes.get(accountId) ?? "";
+      const code = codeFromAccountLabel(labelOf(a.general_account_id));
       return {
         analyticLineId: a.id as number,
         date: a.date ? String(a.date) : null,
