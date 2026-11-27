@@ -15,12 +15,14 @@ import { useEditable, useInDrawer } from "@/components/record/sectionChrome";
 import { fileRulesOf, requiredKindsByPart } from "../../utils/ipasDocuments";
 import { RequiredMark } from "@/components/ui/RequiredMark";
 import { DocumentFiles } from "./DocumentFiles";
+import IpasComplianceBlock from "./record/IpasComplianceBlock";
 
 /**
  * Section 3's documents (#246): one list, two ticks per row. Purchasing has it
  * belongs to Purchasing and Finance has it to Finance; neither ticks for the
  * other (the database refuses it, and the page only offers each person their own).
  *
+ *   compliance      the Compliance Requirement view (moves.js `complianceFor`), or null
  *   canChange       Purchasing on an open IPAS: adds, attaches and removes rows,
  *                   and ticks Purchasing has it
  *   canTickFinance  Finance access on an open IPAS: ticks Finance has it
@@ -31,6 +33,7 @@ import { DocumentFiles } from "./DocumentFiles";
  */
 export function IpasDocuments({
   ipas,
+  compliance = null,
   canChange: changeGranted = false,
   canTickFinance: tickGranted = false,
   onTick,
@@ -59,6 +62,8 @@ export function IpasDocuments({
   return (
     <div className="mt-5 space-y-3" data-testid="ipas-documents">
       <SectionHeader title={`Documents · ${documents.length}`} className="border-b-0 pb-2" />
+
+      {compliance && <IpasComplianceBlock ipas={ipas} compliance={compliance} />}
 
       <LinerList
         label="Documents"

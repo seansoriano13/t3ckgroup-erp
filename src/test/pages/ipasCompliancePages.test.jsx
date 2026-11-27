@@ -160,15 +160,57 @@ describe("Compliance Requirements on the IPAS page", () => {
     });
   });
 
-  describe("in Your move", () => {
-    it("asks first, above Get it ready, without scrolling past the steps", async () => {
+  describe("in section 5 · Documents", () => {
+    it("asks under the Documents heading, not in Your move", async () => {
       const row = asking(null);
-      renderDetail(row.id);
+      renderDetail(row.id, "documents");
 
-      const card = await screen.findByTestId("ipas-compliance-move");
-      const getReady = screen.getByRole("heading", { name: /1\. Get it ready/ });
-      expect(card).toHaveTextContent("Does this order need a Compliance Requirement?");
-      expect(card.compareDocumentPosition(getReady) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const section = await screen.findByRole("region", { name: "5 · Documents" });
+      const block = await within(section).findByTestId("ipas-compliance-block");
+      expect(block).toHaveTextContent("Does this order need a Compliance Requirement?");
+      const heading = within(section).getByText(/^Documents · /);
+      expect(heading.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(within(screen.getByRole("region", { name: "Your move" })).queryByTestId("ipas-compliance-block")).not.toBeInTheDocument();
+    });
+
+    it("marks a kind done without Edit mode", async () => {
+      const row = asking(true, [["DENR"]]);
+      const user = setupUser();
+      renderDetail(row.id, "documents");
+
+      await user.click(await screen.findByRole("button", { name: "Mark DENR done" }));
+      await user.click(await screen.findByRole("button", { name: "Mark done" }));
+      await waitFor(() => expect(db.rows("ipas_compliance_requirements").find((item) => item.ipas_id === row.id).done_on).toBeTruthy());
+    });
+
+    it("reads without buttons for Finance", async () => {
+      const finance = makeEmployee({ name: "Fin Ance", has_finance_flow: true });
+      const row = asking(true, [["DENR", "2020-11-02", "ECC no. 5"], ["MARINA"]]);
+      signIn(finance);
+      renderDetail(row.id, "documents");
+
+      const block = await screen.findByTestId("ipas-compliance-block");
+      expect(block).toHaveTextContent("DENR");
+      expect(block).toHaveTextContent("ECC no. 5");
+      expect(block).toHaveTextContent("MARINA");
+      expect(within(block).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("reads without buttons on a filed IPAS", async () => {
+      const row = asking(true, [["DENR", "2020-11-02"]], { state: "filed" });
+      renderDetail(row.id, "documents");
+
+      const block = await screen.findByTestId("ipas-compliance-block");
+      expect(block).toHaveTextContent("DENR");
+      expect(within(block).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("shows no block on an old IPAS", async () => {
+      const row = ipas({ compliance_asked: false });
+      renderDetail(row.id, "documents");
+
+      await screen.findByRole("region", { name: "5 · Documents" });
+      expect(screen.queryByTestId("ipas-compliance-block")).not.toBeInTheDocument();
     });
   });
 

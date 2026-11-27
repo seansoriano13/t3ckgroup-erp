@@ -17,6 +17,7 @@ import {
 } from "@/components/ipas/IpasSections";
 
 import SignoffList from "./SignoffList";
+import { complianceFor } from "./moves";
 
 export function buildBlocks(ctx) {
   const { ipas, can, on, rights } = ctx;
@@ -40,6 +41,7 @@ export function buildBlocks(ctx) {
   const documents = (
     <IpasDocuments
       ipas={ipas}
+      compliance={complianceFor(ctx)}
       canChange={can.change}
       canTickFinance={can.tickFinance}
       onTick={on.tickDocument}
