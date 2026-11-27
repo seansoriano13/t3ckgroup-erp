@@ -108,8 +108,26 @@ describe("IPAS page: documents, the IPAS Status steps and the buyer facts", () =
       const rowEl = waybill.closest("[data-testid=ipas-document-row]");
       expect(within(rowEl).getByRole("button", { name: "Attach a file to Waybill" })).toBeInTheDocument();
       expect(within(section).queryByText("Quotation (Local)")).not.toBeInTheDocument();
-      expect(within(section).getByRole("button", { name: "Add document" })).toBeInTheDocument();
+      // The Add buttons, the Required files box and the usage tags are gone from the view
+      expect(within(section).queryByRole("button", { name: "Add document" })).not.toBeInTheDocument();
+      expect(within(section).queryByRole("button", { name: /^Add \d+ suggested/ })).not.toBeInTheDocument();
+      expect(within(section).queryByText("Required files")).not.toBeInTheDocument();
+      expect(within(section).queryByText(/Filing item/i)).not.toBeInTheDocument();
+      expect(within(section).queryByText(/Documentation and filing/i)).not.toBeInTheDocument();
+      expect(within(section).queryByText(/already ticked at Filing/)).not.toBeInTheDocument();
       expect(within(section).queryByRole("button", { name: /^Remove/ })).not.toBeInTheDocument();
+    });
+
+    it("marks a required document with an asterisk after its name that a screen reader hears", async () => {
+      const row = ipas({ source: "import", created_by: purchaser.id });
+      giveDocuments(row);
+
+      renderDetail(row.id, "documents");
+
+      const section = await screen.findByRole("region", { name: "5 · Documents" });
+      const required = within(section).queryAllByText("(required)");
+      for (const hint of required) expect(hint.closest("[data-testid=ipas-document-row]")).not.toBeNull();
+      expect(within(section).queryByText("Missing")).not.toBeInTheDocument();
     });
 
     // #1153: a document holds several files, each listed by its file name and removable on its own.
