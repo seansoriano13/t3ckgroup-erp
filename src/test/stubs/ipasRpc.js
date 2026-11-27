@@ -510,6 +510,19 @@ export function stubIpasRpcs({
             rowsOf("ipas_status_steps").find((st) => st.ipas_id === row.id && st.step === row.status)?.reached_on ?? null,
           on_hold: row.on_hold === true,
           direct_delivery: row.direct_delivery === true,
+          compliance: row.compliance_asked
+            ? {
+                needed: row.compliance_needed ?? null,
+                kinds: rowsOf("ipas_compliance_requirements")
+                  .filter((r) => r.ipas_id === row.id)
+                  .map((r) => ({
+                    id: r.id,
+                    kind_id: r.kind_id,
+                    label: rowsOf("ipas_options").find((o) => o.id === r.kind_id)?.label ?? "",
+                    done_on: r.done_on ?? null,
+                  })),
+              }
+            : null,
         }
       })
   })
@@ -1161,7 +1174,10 @@ export function stubIpasRpcs({
       ? findRow("ipas", findRow("ipas_payments", args.p_payment_id)?.ipas_id)
       : findRow("ipas", args.p_ipas_id)
     if (!ipas) refuse("22023", "ipas_save_payment: payment not found")
-    const rate = isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
+    // #1278: pesos typed from the bank paper are stored as they are, with no rate beside them.
+    const typedPesos = isPhpCopy(ipas.odoo_copy) || args.p_php_debited == null ? null : round2(Number(args.p_php_debited))
+    if (typedPesos !== null && !(typedPesos > 0)) refuse("22023", "ipas_save_payment: the pesos taken from the bank must be more than zero, or left blank")
+    const rate = typedPesos !== null || isPhpCopy(ipas.odoo_copy) || args.p_forex_rate == null ? null : Math.round(Number(args.p_forex_rate) * 1e6) / 1e6
     if (rate !== null && !(rate > 0)) refuse("22023", "ipas_save_payment: the forex rate must be more than zero")
     // Others needs what the method was; any other method keeps no typed text (#1211).
     const methodLabel = String(optionOf(args.p_method_id)?.label ?? "").trim().toLowerCase()
@@ -1174,7 +1190,7 @@ export function stubIpasRpcs({
       p_kind: args.p_kind,
       p_paid_on: args.p_paid_on,
       p_amount: args.p_amount,
-      p_php_debited: rate === null ? null : round2(Number(args.p_amount) * rate),
+      p_php_debited: typedPesos !== null ? typedPesos : rate === null ? null : round2(Number(args.p_amount) * rate),
       p_charge_fee_php: args.p_charge_fee_php,
       p_method_id: args.p_method_id,
       p_check_no: args.p_check_no,
@@ -1201,7 +1217,7 @@ export function stubIpasRpcs({
       if (!ask) refuse("22023", "that ask for payment was not found")
       if (ask.ipas_id !== saved.ipas_id) refuse("22023", "that ask for payment is on another IPAS")
       if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
-      if (!["down_payment", "balance"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
+      if (!["down_payment", "balance", "full_payment"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
       updateRow("ipas_payments", findRow("ipas_payments", saved.id), { ask_id: ask.id })
       updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_payment_id: saved.id })
     }
@@ -1216,13 +1232,19 @@ export function stubIpasRpcs({
     requireAsker("ipas_ask_for_payment")
     const ipas = requireOpenIpas("ipas_ask_for_payment", args.p_ipas_id)
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_ask_for_payment: the amount must be more than zero")
-    if (!["down_payment", "balance", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge")
+    if (!["down_payment", "balance", "full_payment", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance, Full payment or Charge")
+    const supplierAsks = rowsOf("ipas_payment_asks").filter((a) => a.ipas_id === ipas.id && a.purpose !== "charge" && a.closed_reason !== "withdrawn")
+    if (args.p_purpose === "full_payment" && (rowsOf("ipas_payments").some((pay) => pay.ipas_id === ipas.id) || supplierAsks.length > 0)) refuse("22023", "ipas_ask_for_payment: there's already a payment or an open request; use Balance for the rest")
+    if (["down_payment", "balance"].includes(args.p_purpose) && supplierAsks.some((a) => a.purpose === "full_payment")) refuse("22023", "ipas_ask_for_payment: a Full payment is already asked")
     if (args.p_purpose === "charge" && !args.p_charge_kind_id) refuse("22023", "ipas_ask_for_payment: pick the kind of charge")
     if (args.p_purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: a Charge ask has no % of order (it applies to a supplier ask only)")
     const isCharge = args.p_purpose === "charge"
+    const supplierCurrency = isCharge ? null : String(args.p_currency || "").trim().toUpperCase() || null
+    if (supplierCurrency && supplierCurrency !== "PHP") refuse("22023", "ipas_ask_for_payment: a supplier ask is in the PO currency or in PHP")
+    if (supplierCurrency && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: an ask in PHP has no % of order")
     return insertRow("ipas_payment_asks", {
       charge_kind_id: isCharge ? args.p_charge_kind_id : null,
-      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : null,
+      currency: isCharge ? String(args.p_currency || "PHP").trim().toUpperCase() : supplierCurrency,
       ipas_id: ipas.id,
       amount: args.p_amount,
       purpose: args.p_purpose,
@@ -1241,11 +1263,14 @@ export function stubIpasRpcs({
     if (ask.closed_at) refuse("22023", "ipas_edit_payment_ask: that ask is closed and can't be edited")
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_edit_payment_ask: the amount must be more than zero")
     if (ask.purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: a Charge ask has no % of order (it applies to a supplier ask only)")
+    const editCurrency = ask.purpose === "charge" ? ask.currency : String(args.p_currency || "").trim().toUpperCase() || null
+    if (ask.purpose !== "charge" && editCurrency && args.p_percent != null) refuse("22023", "ipas_edit_payment_ask: an ask in PHP has no % of order")
     return updateRow("ipas_payment_asks", ask, {
       amount: args.p_amount,
       priority: args.p_priority,
       note: args.p_note ?? null,
       percent_of_order: args.p_percent ?? null,
+      currency: editCurrency,
     })
   })
   stubRpc("ipas_withdraw_payment_ask", (args) => {
@@ -2004,6 +2029,8 @@ export function stubIpasRpcs({
     for (const p of rowsOf("ipas_payments")) if (filed.has(p.ipas_id) && p.method_id) used.add(p.method_id)
     for (const c of rowsOf("ipas_charges")) if (filed.has(c.ipas_id) && c.kind_id) used.add(c.kind_id)
     for (const d of rowsOf("ipas_documents")) if (filed.has(d.ipas_id) && d.kind_id) used.add(d.kind_id)
+    // #1258: a Compliance Requirement holds its kind too.
+    for (const r of rowsOf("ipas_compliance_requirements")) if (filed.has(r.ipas_id) && r.kind_id) used.add(r.kind_id)
     return [...used]
   })
 
@@ -2027,6 +2054,64 @@ export function stubIpasRpcs({
     const updated = updateRow("ipas", row, { direct_delivery: on })
     event(row.id, "direct_delivery_changed", { to: on })
     return updated
+  })
+
+  // ── Compliance Requirements (#1251, #1256) ───────────────────────────────
+
+  const complianceRequirement = (fn, id) => {
+    if (!purchasing && !logistics && !superAdmin) refuse("42501", `${fn}: only Purchasing, Logistics or a Super Admin may do this`)
+    const requirement = findRow("ipas_compliance_requirements", id)
+    if (!requirement) refuse("22023", `${fn}: that Compliance Requirement does not exist`)
+    const ipas = requireOpenIpas(fn, requirement.ipas_id)
+    const kind = findRow("ipas_options", requirement.kind_id)?.label ?? null
+    return { requirement, ipas, kind }
+  }
+
+  stubRpc("ipas_tick_compliance", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_tick_compliance", args.p_requirement_id)
+    const today = manilaToday()
+    const day = args.p_done_on ?? today
+    if (day > today) refuse("22023", "ipas_tick_compliance: the day cannot be after today")
+    if (day < "2015-01-01") refuse("22023", "ipas_tick_compliance: the day cannot be before January 1, 2015")
+    const note = (args.p_note ?? "").trim() || null
+    if (note && note.length > 500) refuse("22023", "ipas_tick_compliance: the note is up to 500 characters")
+    if (requirement.done_on === day && (requirement.note ?? null) === note) return requirement
+    const updated = updateRow("ipas_compliance_requirements", requirement, { done_on: day, note, done_by: actorId })
+    event(ipas.id, "compliance_ticked", { requirement_id: requirement.id, kind, done_on: day, note })
+    return updated
+  })
+
+  stubRpc("ipas_untick_compliance", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_untick_compliance", args.p_requirement_id)
+    if (!requirement.done_on) return requirement
+    const updated = updateRow("ipas_compliance_requirements", requirement, { done_on: null, note: null, done_by: null })
+    event(ipas.id, "compliance_unticked", { requirement_id: requirement.id, kind })
+    return updated
+  })
+
+  // #1287: the papers of one kind. Same rights and refusals as ticking; marking done is separate.
+  stubRpc("ipas_add_compliance_file", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_add_compliance_file", args.p_requirement_id)
+    const url = clean(args.p_url)
+    if (!url || !/^https?:\/\//i.test(url)) refuse("22023", "ipas_add_compliance_file: the file must be a link to the uploaded file")
+    const row = insertRow("ipas_compliance_requirement_files", {
+      requirement_id: requirement.id,
+      url,
+      file_name: clean(args.p_file_name) ?? url.split("?")[0].split("/").pop(),
+      created_by: actorId,
+    })
+    event(ipas.id, "compliance_file_added", { requirement_id: requirement.id, kind, file_id: row.id, file_name: row.file_name })
+    return row
+  })
+
+  stubRpc("ipas_remove_compliance_file", (args) => {
+    const file = findRow("ipas_compliance_requirement_files", args.p_file_id)
+    if (!file) refuse("22023", `ipas_remove_compliance_file: file ${args.p_file_id} not found`)
+    const { requirement, ipas, kind } = complianceRequirement("ipas_remove_compliance_file", file.requirement_id)
+    const rows = rowsOf("ipas_compliance_requirement_files")
+    rows.splice(rows.indexOf(file), 1)
+    event(ipas.id, "compliance_file_removed", { requirement_id: requirement.id, kind, file_id: file.id, file_name: file.file_name })
+    return file
   })
 }
 

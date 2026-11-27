@@ -195,6 +195,7 @@ describe("the summary of an SOR's IPAS", () => {
     it("has exactly the agreed key set: the IPAS Status and its day, no payment or bank column, Landed Cost only as total and mark (#283, #1157)", async () => {
         const [row] = await summaries("dealOwner", sorA)
         expect(Object.keys(row).sort()).toEqual([
+            "compliance",
             "computation_status",
             "direct_delivery",
             "ipas_id",
@@ -213,6 +214,24 @@ describe("the summary of an SOR's IPAS", () => {
         expect(Object.keys(row.signoffs).sort()).toEqual(["1", "3", "6", "7"])
         expect(Object.keys(row.signoffs["1"]).sort()).toEqual(["approved", "prepared"])
         expect(Object.keys(row.signoffs["7"]).sort()).toEqual(["approved", "checked", "noted", "received"])
+    })
+
+    it("carries the Compliance Requirements: each kind in list order, whether done and the day, never the note (#1257)", async () => {
+        const kind = async (label) => (await svc().from("ipas_options").select("id").eq("list", "compliance_kind").eq("label", label).single()).data.id
+        const [denr, marina] = [await kind("DENR"), await kind("MARINA")]
+        await ok(rpc("outsider", "ipas_set_compliance", { p_ipas_id: onlyA.id, p_needed: true, p_kind_ids: [marina, denr] }), "ipas_set_compliance")
+        const { data: held } = await svc().from("ipas_compliance_requirements").select("id, kind_id").eq("ipas_id", onlyA.id)
+        const marinaRow = held.find((r) => r.kind_id === marina)
+        await ok(rpc("outsider", "ipas_tick_compliance", { p_requirement_id: marinaRow.id, p_done_on: "2026-11-02", p_note: "SECRET-NOTE-1257" }), "ipas_tick_compliance")
+
+        const rows = await summaries("dealOwner", sorA)
+        const mine = rows.find((r) => r.ipas_id === onlyA.id).compliance
+        expect(mine.needed).toBe(true)
+        expect(mine.kinds.map((k) => [k.label, k.done_on])).toEqual([["DENR", null], ["MARINA", "2026-11-02"]])
+        expect(Object.keys(mine.kinds[0]).sort()).toEqual(["done_on", "id", "kind_id", "label"])
+        expect(JSON.stringify(rows)).not.toContain("SECRET-NOTE-1257")
+        // An unanswered IPAS says so; the question itself is the data.
+        expect(rows.find((r) => r.ipas_id === both.id).compliance).toMatchObject({ needed: null, kinds: [] })
     })
 
     it("carries none of the IPAS's money or bank values, whatever is on file", async () => {

@@ -231,6 +231,11 @@ async function fetchOrdersWithTouchedNotes(uid: number, odooIds: number[], since
   return touched;
 }
 
+/** A real Odoo order name looks like S01234. */
+export function isRealOrderName(name: unknown): name is string {
+  return typeof name === "string" && /^S\d+$/.test(name);
+}
+
 /** Every order already in `retail_orders`, with the columns this function writes. */
 async function loadStoredOrders(): Promise<any[]> {
   const stored: any[] = [];
@@ -303,7 +308,8 @@ async function runSync(
   }
 
   const stored = await loadStoredOrders();
-  const known = new Map<string, any>(stored.map((row) => [row.odoo_so_number, row]));
+  // Stored rows are matched on the Odoo id: one row per Odoo order.
+  const knownById = new Map<number, any>(stored.filter((row) => row.odoo_so_id != null).map((row) => [row.odoo_so_id, row]));
   const touched =
     mode === "full"
       ? await fetchOrdersWithTouchedNotes(
@@ -327,16 +333,18 @@ async function runSync(
   // it has — the sync never un-excludes an order somebody dismissed.
   type Write =
     | { upsert: Record<string, unknown> }
-    | { update: Record<string, unknown>; odoo_so_number: string };
+    | { update: Record<string, unknown>; odoo_so_id: number };
   const reads: { odooId: number; amount: number; planWrite: (fact: NoteFacts | undefined) => Write | null }[] = [
-    ...orders.map((so) => {
+    // An order whose name is not a real Odoo name (S01234) is never stored: a row
+    // named "false" once doubled a total.
+    ...orders.filter((so) => isRealOrderName(so.name)).map((so) => {
       const amount = typeof so.amount_total === "number" ? so.amount_total : 0;
       return {
         odooId: so.id as number,
         amount,
         planWrite: (fact: NoteFacts | undefined): Write | null => {
           const partnerName: string = so.partner_id ? so.partner_id[1] : "";
-          const prior = known.get(so.name);
+          const prior = knownById.get(so.id);
           const next = {
             odoo_so_number: so.name,
             odoo_so_id: so.id,
@@ -363,7 +371,7 @@ async function runSync(
       amount: Number(row.amount) || 0,
       planWrite: (fact: NoteFacts | undefined): Write | null => {
         const changes = changedColumns(row, { ...row, ...keepKnownValues(row, fact) });
-        return changes ? { update: changes, odoo_so_number: row.odoo_so_number } : null;
+        return changes ? { update: changes, odoo_so_id: row.odoo_so_id as number } : null;
       },
     })),
   ];
@@ -379,12 +387,12 @@ async function runSync(
 
     const rows = writes.flatMap((w) => ("upsert" in w ? [w.upsert] : []));
     if (rows.length > 0) {
-      const { error } = await supabase.from("retail_orders").upsert(rows, { onConflict: "odoo_so_number" });
+      const { error } = await supabase.from("retail_orders").upsert(rows, { onConflict: "odoo_so_id" });
       if (error) throw error;
     }
     for (const w of writes) {
       if (!("update" in w)) continue;
-      const { error } = await supabase.from("retail_orders").update(w.update).eq("odoo_so_number", w.odoo_so_number);
+      const { error } = await supabase.from("retail_orders").update(w.update).eq("odoo_so_id", w.odoo_so_id);
       if (error) throw error;
     }
     upserted += writes.length;

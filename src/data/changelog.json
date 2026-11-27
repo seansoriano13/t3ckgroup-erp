@@ -1,6 +1,64 @@
 [
     {
         "date": "2026-11-27",
+        "title": "Compliance Requirements move to Documents",
+        "version": "1.18.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "The Compliance Requirement question now sits in section 5 · Documents, right under the Documents heading. Answer Yes or No, pick the kinds and mark a kind done there, without pressing Edit.",
+            "Each kind keeps the papers of its own clearance. Attach as many files as you need, such as a permit and its official receipt, and remove one you attached by mistake until the IPAS is filed.",
+            "Your move no longer shows the Compliance Requirement card. The line at the top of the IPAS, the SOR's IPAS summary and the warning at Filing stay as they were.",
+            "Section 5 is quieter. The Required files box is gone, a red star after a document's name marks it as required, and the Add buttons show only while you edit.",
+            "New IPAS no longer get a Compliance (Local) document. Older IPAS keep theirs."
+        ]
+    },
+    {
+        "date": "2026-11-27",
+        "title": "Requests in pesos and Full payment",
+        "version": "1.17.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "On an order in a foreign currency, a request for payment can now be asked in pesos. Pick PHP next to Asked in.",
+            "A payment now has a Pesos taken from the bank box. Type the pesos from the bank paper and the rate is worked out for you.",
+            "Full payment is now a choice when you ask for payment. It is 100% of the order and is only offered while nothing else has been paid or asked.",
+            "The Status chip now says For payment when a request is open, for example For payment (Down payment)."
+        ]
+    },
+    {
+        "date": "2026-11-27",
+        "title": "Retail report fixes",
+        "version": "1.16.0",
+        "modules": [
+            "sales.retail"
+        ],
+        "changes": [
+            "Retail now shows one row for each Odoo order, so an order is no longer counted twice.",
+            "The Marketplace Order ID column shows only real marketplace IDs. Notes that held a name or a place are cleared.",
+            "Orders that share a Marketplace Order ID are listed under Missing / Suspect income, each naming the other order. Both stay in the totals.",
+            "A Custom range with From after To now says so under the dates and keeps the figures you had."
+        ]
+    },
+    {
+        "date": "2026-11-27",
+        "title": "Compliance Requirements on the IPAS",
+        "version": "1.15.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Every new IPAS now asks in Your move: does this order need a Compliance Requirement? Answer Yes or No.",
+            "On a Yes, pick one or more kinds (DENR, MARINA, OMB, NTC, FDA). Each kind stays in Your move until you mark it done with the day and, if you like, a note such as the permit number.",
+            "A line near the top of the IPAS, and on the SOR's IPAS summary, shows each kind as done or open. Hover a done kind to see its day.",
+            "Filing only warns while a kind is open or the question is not answered. It never stops you.",
+            "The list of kinds can be changed in Settings > Purchasing, on the new Compliance kinds tab. IPAS made before this change do not ask."
+        ]
+    },
+    {
+        "date": "2026-11-27",
         "title": "Group Tasks on the Calendar",
         "version": "1.14.0",
         "changes": [
@@ -2305,4 +2363,4 @@
             "Established standard practice for recording version control updates."
         ]
     }
-]
+]

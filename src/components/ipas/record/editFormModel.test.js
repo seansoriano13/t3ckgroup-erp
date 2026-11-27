@@ -94,6 +94,12 @@ describe("IPAS edit form model", () => {
       proof_url: null,
     };
 
+    it("starts an old payment with a stored rate on that rate and blank pesos, and a pesos-only payment on its pesos (#1278)", () => {
+      const form = formFromIpas(ipas({ payments: [{ ...saved, id: "a", forex_rate: 56.5, php_debited: 470362.5 }, { ...saved, id: "b", forex_rate: null, php_debited: 468642.36 }] }));
+      expect(form.payments[0]).toMatchObject({ forexRate: "56.5", phpDebited: "" });
+      expect(form.payments[1]).toMatchObject({ forexRate: "", phpDebited: "468642.36" });
+    });
+
     it("starts from the stored payments, charges, documents, bank details, freight and spread", () => {
       const form = formFromIpas(
         ipas({
@@ -167,7 +173,7 @@ describe("IPAS edit form model", () => {
       const plan = planSave(form, base);
       expect(plan.error).toBeNull();
       expect(plan.payments.add).toEqual([]);
-      expect(plan.asks.add).toEqual([{ key: row.key, values: { amount: 3000, purpose: "balance", priority: "high", note: "Friday", percent: null } }]);
+      expect(plan.asks.add).toEqual([{ key: row.key, values: { amount: 3000, purpose: "balance", priority: "high", note: "Friday", percent: null, currency: null } }]);
       expect(planIsEmpty(plan)).toBe(false);
       expect(planSave({ ...form, payments: [{ ...row, amount: "" }] }, base).error).toMatch(/Amount must be a number/);
     });
@@ -220,11 +226,24 @@ describe("IPAS edit form model", () => {
       // Pesos taken from the bank may be left blank on a foreign PO (#604); a given figure must be above zero.
       const noPhp = { ...newPaymentDraft("", "paid"), amount: "5", methodId: "m-1" };
       expect(planSave({ ...foreign, payments: [noPhp] }, foreign).error).toBeNull();
-      const zeroPhp = { ...noPhp, forexRate: "0" };
+      const zeroPhp = { ...noPhp, phpDebited: "0" };
       expect(planSave({ ...foreign, payments: [zeroPhp] }, foreign).error).toBe(
-        "Payment 1: Forex rate paid must be a number more than zero, or left blank.",
+        "Payment 1: Pesos taken from the bank must be a number more than zero, or left blank.",
       );
       expect(planSave({ ...base, charges: [newChargeDraft("", "paid")] }, base).error).toBe("Charge 1: Pick the kind of charge.");
+    });
+
+    it("plans a request in pesos on a foreign-currency PO with no % of order, and ignores the switch on a peso PO (#1277)", () => {
+      const foreign = formFromIpas(ipas({ currency: "USD", contact: "R. Cruz", piNumber: "PI-1", piQtAmount: 1 }));
+      const row = { ...newPaymentDraft("", "ask"), amount: "3000", percentOfOrder: "30", askCurrency: "PHP" };
+      const plan = planSave({ ...foreign, payments: [row] }, foreign);
+      expect(plan.error).toBeNull();
+      expect(plan.asks.add[0].values).toMatchObject({ amount: 3000, percent: null, currency: "PHP" });
+      // A half-typed percent does not block a pesos request; back on USD it does.
+      expect(planSave({ ...foreign, payments: [{ ...row, askCurrency: "", percentOfOrder: "abc" }] }, foreign).error).toMatch(/% of order/);
+      expect(planSave({ ...foreign, payments: [{ ...row, percentOfOrder: "abc" }] }, foreign).error).toBeNull();
+      const peso = formFromIpas(ipas());
+      expect(planSave({ ...peso, payments: [{ ...row, percentOfOrder: "" }] }, peso).asks.add[0].values).toMatchObject({ currency: null });
     });
 
     it("will not save a new charge row until Paid already or For payment is picked (#1227)", () => {

@@ -55,7 +55,7 @@ import {
   shapeBankDetails,
   shapeIpas,
 } from "../utils/ipas";
-import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
+import { isIsoDate, parseAmountInput, pesosReplaceRate, shapePayment } from "../utils/ipasPayments";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "../utils/ipasPaymentPercent";
 import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
@@ -78,6 +78,9 @@ const IPAS_SELECT =
 // The list reads every column but the Odoo copy, and of the copy only the slice it
 // shows (`ipas_list_copy`: no line detail, #928). It also reads each IPAS's payments
 // (kind, amount, method) so the money columns need no per-record fetch (#596).
+// The kinds an IPAS needs and where each stands (#1251). Read on the record only, not on the list.
+const COMPLIANCE_SELECT =
+  ", compliance_requirements:ipas_compliance_requirements(id, kind_id, done_on, note, done_by, kind:ipas_options!ipas_compliance_requirements_kind_id_fkey(id, label, sort, active), files:ipas_compliance_requirement_files(id, url, file_name, created_at))";
 const LIST_COLUMNS = [
   "id", "number", "po_number", "odoo_po_id", "priority", "source", "purpose", "remarks", "odoo_fetched_at",
   "state", "cancel_reason", "cancelled_by", "cancelled_at", "filed_at", "created_by", "created_at", "updated_at",
@@ -331,7 +334,7 @@ export const ipasService = {
     if (!id) return null;
     const outcome = refresh ? await ipasService.refresh(id) : null;
 
-    const { data: row, error } = await supabase.from("ipas").select(IPAS_SELECT).eq("id", id).maybeSingle();
+    const { data: row, error } = await supabase.from("ipas").select(IPAS_SELECT + COMPLIANCE_SELECT).eq("id", id).maybeSingle();
     if (error) throw error;
     if (!row) return null;
 
@@ -693,13 +696,14 @@ export const ipasService = {
   },
 
   /** Changes one open ask (amount, priority, note, % of order), by the ask's own id (#1224). A closed ask is refused. */
-  async editPaymentAsk(askId, { amount, priority, note = null, percent = null }) {
+  async editPaymentAsk(askId, { amount, priority, note = null, percent = null, currency = null }) {
     const { data, error } = await supabase.rpc("ipas_edit_payment_ask", {
       p_ask_id: askId,
       p_amount: amount,
       p_priority: priority,
       p_note: note,
       p_percent: percent,
+      p_currency: currency,
     });
     if (error) throw error;
     return data;
@@ -1002,6 +1006,70 @@ export const ipasService = {
       p_ipas_id: id,
       p_option_id: optionId || null,
     });
+    if (error) throw error;
+    return data;
+  },
+
+  // -- Compliance Requirements (#1251, spec #1247) ------------------------
+
+  /** The active Compliance Requirement kinds, in list order: what the Yes picker offers. */
+  async complianceKinds() {
+    return ipasService.listOptions(IPAS_OPTION_LIST.COMPLIANCE_KIND, { includeInactive: false });
+  },
+
+  /**
+   * Answers "Does this order need a Compliance Requirement?" (Purchasing access, Logistics access or a
+   * Super Admin, until Filing). `needed` true needs at least one kind id; false removes the kinds. A kind
+   * left out of `kindIds` is removed. Returns the IPAS row.
+   */
+  async setCompliance(id, needed, kindIds = []) {
+    if (typeof needed !== "boolean") throw new IpasError(IPAS_ERROR.INVALID, "Answer Yes or No.");
+    const kinds = needed ? [...new Set((kindIds ?? []).filter(Boolean))] : [];
+    if (needed && kinds.length === 0) throw new IpasError(IPAS_ERROR.INVALID, "Pick at least one kind.");
+    const { data, error } = await supabase.rpc("ipas_set_compliance", { p_ipas_id: id, p_needed: needed, p_kind_ids: kinds });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Ticks a kind done: the day (`YYYY-MM-DD`, today when left out) and an optional note. Returns the requirement row. */
+  async tickCompliance(requirementId, doneOn = null, note = "") {
+    const day = (doneOn ?? "").trim();
+    if (day !== "" && !isIsoDate(day)) throw new IpasError(IPAS_ERROR.INVALID, "Give a date.");
+    const text = (note ?? "").trim();
+    if (text.length > 500) throw new IpasError(IPAS_ERROR.INVALID, "The note is up to 500 characters.");
+    const { data, error } = await supabase.rpc("ipas_tick_compliance", {
+      p_requirement_id: requirementId,
+      p_done_on: day === "" ? null : day,
+      p_note: text === "" ? null : text,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Takes a ticked kind back to open. Returns the requirement row. */
+  async untickCompliance(requirementId) {
+    const { data, error } = await supabase.rpc("ipas_untick_compliance", { p_requirement_id: requirementId });
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Adds one file to a Compliance Requirement kind (#1287): `{ url, fileName }`, the link from the upload.
+   * Marking done is separate; a kind holds any number of files. Returns the file row.
+   */
+  async addComplianceFile(requirementId, { url = "", fileName = "" } = {}) {
+    const { data, error } = await supabase.rpc("ipas_add_compliance_file", {
+      p_requirement_id: requirementId,
+      p_url: (url || "").trim(),
+      p_file_name: (fileName || "").trim() || null,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes one file of a Compliance Requirement kind; its other files stay. Returns the removed row. */
+  async removeComplianceFile(fileId) {
+    const { data, error } = await supabase.rpc("ipas_remove_compliance_file", { p_file_id: fileId });
     if (error) throw error;
     return data;
   },
@@ -1950,7 +2018,7 @@ function unavailable(po) {
 
 /** A payment form's values as the RPC's arguments. Refuses half-typed input with a sentence. */
 function paymentArgs(payment, isPhpPo) {
-  const { kind, paidOn, amount, percentOfOrder, forexRate, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
+  const { kind, paidOn, amount, percentOfOrder, forexRate, phpDebited, chargeFeePhp, docStampPhp, miscFeePhp, methodId, methodIsOthers, methodOther, checkNo, proofUrl, proofUrls, askId } = payment || {};
   requireOneOf(kind, IPAS_PAYMENT_KINDS, "Pick the kind of payment.");
   if (!isIsoDate(paidOn)) throw new IpasError(IPAS_ERROR.INVALID, "Give the date of the payment.");
 
@@ -1968,6 +2036,14 @@ function paymentArgs(payment, isPhpPo) {
   if (!isPhpPo && rateRead.value !== null && rateRead.value <= 0) {
     throw new IpasError(IPAS_ERROR.INVALID, "The forex rate paid must be more than zero, or left blank until the bank statement arrives.");
   }
+
+  // Pesos typed from the bank paper (#1278) are stored as they are and replace any stored rate.
+  const pesosRead = parseAmountInput(phpDebited);
+  if (!pesosRead.ok) throw new IpasError(IPAS_ERROR.INVALID, "The pesos taken from the bank must be a number.");
+  if (!isPhpPo && pesosRead.value !== null && pesosRead.value <= 0) {
+    throw new IpasError(IPAS_ERROR.INVALID, "The pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
+  }
+  const kept = pesosReplaceRate(phpDebited, forexRate);
 
   const fees = [
     ["The bank charge", chargeFeePhp],
@@ -1991,7 +2067,8 @@ function paymentArgs(payment, isPhpPo) {
     p_paid_on: paidOn,
     p_amount: amountRead.value,
     p_percent_of_order: percentRead.value,
-    p_forex_rate: isPhpPo ? null : rateRead.value,
+    p_forex_rate: isPhpPo ? null : kept.rate,
+    p_php_debited: isPhpPo ? null : kept.pesos,
     p_doc_stamp_php: fees[1],
     p_misc_fee_php: fees[2],
     // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).

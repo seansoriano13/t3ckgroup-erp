@@ -14,6 +14,7 @@ import IpasStatusPill from "./IpasStatusPill";
 import { LandedCostMark } from "../costing/LandedCost";
 import { formatPHP } from "../../constants/sor";
 import { shortDay } from "../../utils/ipasSummary";
+import IpasComplianceLine from "./IpasComplianceLine";
 import { useIpasSorSummaries } from "./useIpasSorSummaries";
 
 /** Opens the full IPAS in its own tab, so the SOR stays where it is. */
@@ -85,6 +86,8 @@ function SummaryRow({ summary, canOpen }) {
           {summary.directDelivery && <span className="text-muted-foreground">· Direct delivery to client</span>}
         </p>
       )}
+
+      <IpasComplianceLine view={summary.compliance} withNote={false} testId="ipas-summary-compliance" />
 
       <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
         <div className="flex items-baseline gap-2">

@@ -98,6 +98,8 @@ export function movesFor(ctx, digest) {
         label: filed ? "Approve and file" : `${verb} section ${FILING}`,
         verb,
         confirm: !filed,
+        // Filing says a Compliance Requirement is open or unanswered. It warns, never blocks.
+        warning: filed ? (digest.compliance?.warning ?? null) : null,
         run: (from) => on.give(role, from),
       }, digest),
     );

@@ -9,6 +9,7 @@ import {
   IPAS_STATE_LABELS,
   IPAS_STATUS_LABELS,
 } from "@/constants/ipas";
+import { askMoneyPart, joinMoneyPart } from "@/utils/ipasPaymentAsk";
 import { formatDate } from "@/utils/formatDate.js";
 
 /** The one state badge: Open, Filed or Cancelled. */
@@ -25,7 +26,9 @@ export function ipasLine(ipas) {
 /** The Status pill's words: the step, with "On-Hold ·" in front while the order is held (as on the list). */
 const statusFact = (figures) => {
   const step = IPAS_STATUS_LABELS[figures?.status] ?? figures?.status ?? null;
-  return step && figures?.onHold ? `On-Hold · ${step}` : step;
+  const goods = step && figures?.onHold ? `On-Hold · ${step}` : step;
+  const money = askMoneyPart(figures);
+  return joinMoneyPart(goods, money);
 };
 
 /**

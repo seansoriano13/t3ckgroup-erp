@@ -11,6 +11,7 @@ import {
 } from "@/constants/ipas";
 import { TRANSMITTAL_STAFF_LIST } from "@/constants/transmittals";
 import { hasDelivered } from "@/utils/ipasLogistics";
+import { isPhpCurrency, paymentRate } from "@/utils/landedCost";
 import { chargesLackingFile, isBlankCharge } from "@/utils/ipasDocuments";
 
 const LIST_NAME = {
@@ -67,9 +68,9 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   const proofs = files.filter(isProof);
   const otherFiles = files.filter((label) => !isProof(label));
   const finance = { names: "Finance", empty: false };
-  // A foreign-currency payment with no Forex Rate Paid (a PHP PO has no rate to fill).
-  const foreignPo = Boolean(ipas.currency) && String(ipas.currency).toUpperCase() !== "PHP";
-  const noRate = foreignPo ? (ipas.payments ?? []).filter((payment) => payment.forex_rate === null || payment.forex_rate === undefined).length : 0;
+  // A foreign-currency payment with no pesos taken from the bank, typed or kept as an old rate (a PHP PO has none to fill).
+  const foreignPo = Boolean(ipas.currency) && !isPhpCurrency(ipas.currency);
+  const noRate = foreignPo ? (ipas.payments ?? []).filter((payment) => paymentRate(payment) === null).length : 0;
   // Logistics signed means what it needed was in when it was signed: those items stay ticked.
   const logisticsSigned = Boolean(s8?.approved);
   // Direct delivery (#1158): the goods never reach our warehouse, so no Item Location and no Transmittal are asked for.
@@ -83,7 +84,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   const lcReason = ipas.landedCost?.reason;
   const noFigure =
     lcReason === IPAS_LANDED_COST_REASON.NO_REFERENCE_RATE
-      ? { line: "A payment has no Forex Rate Paid yet. Type it in 2 · Payments.", section: "payments", label: "Type rate in 2 · Payments" }
+      ? { line: "A payment has no Pesos taken from the bank yet. Type it in 2 · Payments.", section: "payments", label: "Type pesos in 2 · Payments" }
       : lcReason === IPAS_LANDED_COST_REASON.FREIGHT_CURRENCY
         ? { line: "The freight is in a currency that can't be converted. Enter it in pesos or the PO's currency.", section: "costs", label: "Fix freight in 3 · Costs" }
         : lcReason === IPAS_LANDED_COST_REASON.NO_PAYMENTS
@@ -127,11 +128,11 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
     },
     {
       key: "forex",
-      label: "Fill the Forex Rate Paid",
+      label: "Fill the Pesos taken from the bank",
       done: noRate === 0,
-      line: noRate === 0 ? "Every payment has its rate." : `${noRate} ${noRate === 1 ? "payment has" : "payments have"} no Forex Rate Paid yet.`,
+      line: noRate === 0 ? "Every payment has its pesos." : `${noRate} ${noRate === 1 ? "payment has" : "payments have"} no Pesos taken from the bank yet.`,
       who: finance,
-      action: can.record && noRate > 0 ? { kind: "edit", section: "payments", label: "Type rate in 2 · Payments" } : null,
+      action: can.record && noRate > 0 ? { kind: "edit", section: "payments", label: "Type pesos in 2 · Payments" } : null,
     },
     {
       key: "landed",
@@ -281,6 +282,8 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       key: "file",
       label: "Approve and file",
       done: filed,
+      // A Compliance Requirement open or unanswered is said here. It warns, never blocks.
+      warning: filed ? null : (digest.compliance?.warning ?? null),
       line: filed
         ? `Filed by ${s7.approved?.signedBy?.name ?? "someone"}.`
         : checkedByMe && onList([IPAS_SIGNER_LIST.S7_APPROVED])

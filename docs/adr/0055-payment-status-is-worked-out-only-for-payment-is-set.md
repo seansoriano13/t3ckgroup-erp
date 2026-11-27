@@ -53,3 +53,12 @@ Ma'am Girly (201) found TGIPAS_063 reading "DP paid · 10% paid, 90% left" when 
 - **The list shows two columns that no longer look alike.** Status is the order's pill. Payment is quiet text with a small progress bar; only For payment is an amber pill, and nothing shows when nothing is due.
 
 Rejected: a payment row with a paid/unpaid state (every total, the Landed Cost, the payment scheme, the print, the export and the filing gate would have to skip unpaid rows), and one merged status (an open ask would hide where the goods are).
+
+## Amendment, 2026-11-27: supplier requests may be in pesos, Full payment is a purpose, and the Status chip carries the money part
+
+Purchasing (spec #1276) found a For payment request could only be in the PO's currency, a supplier paid in one go had no fitting purpose, and the Status read "Order-Draft" after a request was saved. Changes:
+
+- **A supplier request may be in PHP** on a foreign-currency PO (a USD | PHP switch, starting on the PO's currency). A PHP request has only a pesos box: no rate, no "% of order", no "more than the order" check.
+- **Full payment is a request purpose**, next to Down payment, Balance and Charge.
+- **The Status chip carries the money part.** While a supplier or charge request is open, the chip reads "Order-Draft · For payment (Down payment)", "Customs · For payment (Duties & Taxes)", or "In Transit · For payment (2)" for several. It is worked out from the IPAS figures, never stored, and goes when the request is paid or withdrawn. It shows on the record header beside the Status control and in the list's Status column.
+- **The Status itself stays goods-only, as ADR 0054 says.** The Status dropdown and the Status filter keep goods steps only; "For Payment" does not come back as a step. The printed IPAS, the separate Payment pill and the Payment column are unchanged.

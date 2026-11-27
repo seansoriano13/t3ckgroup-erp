@@ -291,6 +291,8 @@ export const IPAS_OPTION_LIST = {
   FREIGHT_SERVICE: "freight_service",
   DOCUMENT_KIND: "document_kind",
   ITEM_LOCATION: "item_location",
+  // #1251: DENR, MARINA, OMB, NTC, FDA. Edited on its own Settings > Purchasing tab (#1258).
+  COMPLIANCE_KIND: "compliance_kind",
 };
 
 /** The lists IPAS settings edits, in tab order. */
@@ -300,6 +302,7 @@ export const IPAS_OPTION_LISTS = [
   IPAS_OPTION_LIST.FREIGHT_SERVICE,
   IPAS_OPTION_LIST.DOCUMENT_KIND,
   IPAS_OPTION_LIST.ITEM_LOCATION,
+  IPAS_OPTION_LIST.COMPLIANCE_KIND,
 ];
 
 /**
@@ -421,6 +424,7 @@ export const IPAS_OPTION_LIST_LABELS = {
   [IPAS_OPTION_LIST.DOCUMENT_KIND]: "Document kinds",
   [IPAS_OPTION_LIST.ITEM_LOCATION]: "Item locations",
   // The Transmittal lists (#252) are edited on the same screen.
+  [IPAS_OPTION_LIST.COMPLIANCE_KIND]: "Compliance kinds",
   transmittal_product: "Transmittal products",
   transmittal_reference: "Transmittal reference checklist",
 };
@@ -432,6 +436,7 @@ export const IPAS_OPTION_LIST_NOUNS = {
   [IPAS_OPTION_LIST.FREIGHT_SERVICE]: "freight service",
   [IPAS_OPTION_LIST.DOCUMENT_KIND]: "document kind",
   [IPAS_OPTION_LIST.ITEM_LOCATION]: "item location",
+  [IPAS_OPTION_LIST.COMPLIANCE_KIND]: "compliance kind",
   transmittal_product: "Transmittal product",
   transmittal_reference: "Transmittal reference",
 };
@@ -720,7 +725,18 @@ export const IPAS_EVENT_LABELS = {
   on_hold_set: "Put On-Hold",
   on_hold_changed: "On-Hold note changed",
   on_hold_cleared: "On-Hold cleared",
+  compliance_answered: "Compliance Requirements answered",
+  compliance_kind_added: "Compliance Requirement added",
+  compliance_kind_removed: "Compliance Requirement removed",
+  compliance_ticked: "Compliance Requirement done",
+  compliance_unticked: "Compliance Requirement reopened",
+  compliance_file_added: "Compliance Requirement file attached",
+  compliance_file_removed: "Compliance Requirement file removed",
 };
+
+/** The words screens use for the whole feature: never "Compliance" on its own (CONTEXT.md). */
+export const IPAS_COMPLIANCE_LABEL = "Compliance Requirements";
+export const IPAS_COMPLIANCE_QUESTION = "Does this order need a Compliance Requirement?";
 
 /** What Section 5 / Logistics say when the supplier delivers straight to the client (#1170). */
 export const IPAS_DIRECT_DELIVERY_LABEL = "Direct delivery to client";
@@ -776,10 +792,11 @@ export const IPAS_ASK_PRIORITY_LABELS = {
 };
 
 /** What an ask for payment is for (ipas_payment_asks.purpose). */
-export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "charge"];
+export const IPAS_ASK_PURPOSES = ["down_payment", "balance", "full_payment", "charge"];
 
 export const IPAS_ASK_PURPOSE_LABELS = {
   down_payment: "Down payment",
   balance: "Balance",
+  full_payment: "Full payment",
   charge: "Charge",
 };

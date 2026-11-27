@@ -17,7 +17,7 @@ const MODULES = [
   { id: 'commission-opportunities', name: 'Commission, Opportunities and Bid Decisions', keywords: ['commission', 'opportunit', 'bid'], paths: ['src/pages/opportunities', 'src/pages/sors/commission', 'src/pages/approvals/bid-decisions'] },
   { id: 'retail', name: 'Retail', keywords: ['retail'], paths: ['src/pages/retail'] },
   { id: 'settings', name: 'Settings (General, Approval Rules, HR & Schedule, Sales, Purchasing tabs)', keywords: ['settings'], paths: ['src/pages/settings'] },
-  { id: 'accounts', name: 'Accounts (Login, Reset password, My Profile, Verify)', keywords: ['login', 'profile', 'password', 'auth'], paths: ['src/pages/login', 'src/pages/reset-password', 'src/pages/profile', 'src/pages/verify'] },
+  { id: 'accounts', name: 'Accounts (Login, Reset password, My Profile, Verify)', keywords: ['accounts', 'login', 'profile', 'password', 'auth'], paths: ['src/pages/login', 'src/pages/reset-password', 'src/pages/profile', 'src/pages/verify'] },
   { id: 'release-and-bugs', name: 'Release Notes and Bug Reports', keywords: ['release-notes', 'bug-report', 'changelog'], paths: ['src/pages/release-notes', 'src/pages/bug-reports'] },
   { id: 'super-admin', name: 'Super Admin (Activity Log, audit, admin tools)', keywords: ['super-admin', 'audit', 'activity-log'], paths: ['src/pages/super-admin'] },
 ];

@@ -168,8 +168,8 @@ describe("Retail page", () => {
       "13.3%",
       "0",
     ]);
-    // No Lazada order has both a fee and an income, so no rate; one is Missing.
-    expect(cells(/^Lazada/)).toEqual(["Lazada", formatPHP(450), "2", formatPHP(450), formatPHP(0), "—", "1"]);
+    // No Lazada OK order has a fee, so fees and rate read "—"; one is Missing.
+    expect(cells(/^Lazada/)).toEqual(["Lazada", formatPHP(450), "2", formatPHP(450), "—", "—", "1"]);
   });
 
   it("shows no Marketplace breakdown rows when nothing is in range", async () => {

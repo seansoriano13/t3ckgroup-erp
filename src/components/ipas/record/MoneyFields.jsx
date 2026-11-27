@@ -43,12 +43,13 @@ import { ipasFigures, odooPoTotal } from "@/utils/ipasFigures";
 import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
-import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
-import { pesosFromRate } from "@/utils/landedCost";
-import { formatRateDay, formatRateNumber, rateDivergence, rateSourceLabel } from "@/utils/referenceRate";
-import { askLine, chargeAsks, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
+import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput, pesosReplaceRate } from "@/utils/ipasPayments";
+import { isPhpCurrency, pesosFromRate } from "@/utils/landedCost";
+import { formatRateNumber, rateTypo } from "@/utils/referenceRate";
+import { askLine, askPurposeLocks, chargeAsks, firstOpenPurpose, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
 import { Field, GroupTitle, PickField, ReadValue, RequiredMark, Tick } from "./FormFields";
 import { AskDraftFields, AskLiners, ChargeAskFields, PaidOrAskChoice } from "./AskRows";
+import { scrollToSection } from "./useSectionsOpen";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, PAYMENT_MODE, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
 
@@ -220,35 +221,20 @@ export function WithholdingField({ form, set, disabled }) {
   return <PickField id="f-withholding" label="Withholding (2307)" emptyLabel="Not set" options={options} value={form.withholding} disabled={disabled} onChange={(v) => set("withholding", v)} />;
 }
 
-/** The one-line explanation under "Forex rate paid" (#708). */
-const RATE_HINT = "Pre-filled with the Reference Rate of the payment date. Change it to the rate you actually paid; a payment from a dollar account takes the rate those dollars were bought at.";
+/** The one-line help under "Pesos taken from the bank" (#1278). */
+const sentHint = (currency) => `Copy the ${currency} that reached the supplier from the bank's debit memo.`;
+const PESOS_HINT = "Copy it from the bank's debit memo. Optional: add it when the bank statement arrives.";
 
-function RateNote({ ipas, row }) {
-  const currency = ipas.currency;
-  const amount = parseAmountInput(row.amount);
-  const rate = parseAmountInput(row.forexRate);
-  const { data: referenceRate, isFetched, isError } = useReferenceRate(currency, row.paidOn, { enabled: isIsoDate(row.paidOn) });
-  const typedRate = amount.ok && rate.ok && amount.value > 0 && rate.value > 0 ? rate.value : null;
-  const divergence = rateDivergence(typedRate, referenceRate);
-  if (!isFetched) return null;
+/**
+ * A typo check only: the rate worked out from the pesos and the amount is about ten times too big or too small.
+ * It never blocks saving and never says what our own rate is.
+ */
+function RateTypoNote({ currency, paidOn, workedRate }) {
+  const { data: referenceRate } = useReferenceRate(currency, paidOn, { enabled: workedRate !== null && isIsoDate(paidOn) });
+  if (workedRate === null || !rateTypo(workedRate, referenceRate)) return null;
   return (
-    <p className="text-xs text-muted-foreground sm:col-span-2" data-testid="payment-reference-rate">
-      {isError ? (
-        "The Reference Rate couldn't be loaded."
-      ) : referenceRate ? (
-        <>
-          reference: ₱{formatRateNumber(referenceRate.php_per_unit)} on {formatRateDay(referenceRate.rate_date)}{rateSourceLabel(referenceRate.source) && <> ({rateSourceLabel(referenceRate.source)})</>}
-          {referenceRate.rate_date < row.paidOn && " (the latest before this date)"}
-          {typedRate !== null && <> — you typed ₱{formatRateNumber(typedRate)}</>}
-        </>
-      ) : (
-        `No Reference Rate for ${currency} on or before this date.`
-      )}
-      {divergence?.flagged && (
-        <span className="mt-0.5 block font-medium text-amber-700 dark:text-amber-400" data-testid="payment-rate-divergence">
-          That is {divergence.pct.toFixed(1)}% away from the reference. Check the rate against the remittance advice.
-        </span>
-      )}
+    <p className="text-xs text-amber-700 dark:text-amber-400 sm:col-span-2 lg:col-span-3" role="status" data-testid="payment-rate-typo">
+      That's {formatRateNumber(workedRate)} pesos per {currency === "USD" ? "dollar" : currency}. Check the pesos and the {currency} for a missing or extra zero.
     </p>
   );
 }
@@ -340,7 +326,7 @@ function PaysAskField({ ipas, id, row, rows, disabled, onPatch, source = payable
 }
 
 /** What a payment can be asked for from here; Freight asks belong to Charges (#1227). */
-const ASK_PURPOSES_ON_PAYMENTS = ["down_payment", "balance"];
+const ASK_PURPOSES_ON_PAYMENTS = ["down_payment", "balance", "full_payment"];
 
 function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPatch, onRemove }) {
   const { isPhp } = form;
@@ -352,21 +338,26 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
   const fee = parseAmountInput(row.chargeFeePhp);
   const stamp = parseAmountInput(row.docStampPhp);
   const misc = parseAmountInput(row.miscFeePhp);
-  const inPesos = !isPhp && amount.ok && rate.ok && amount.value > 0 && rate.value > 0 ? pesosFromRate(amount.value, rate.value) : null;
-  const { data: referenceRate } = useReferenceRate(ipas.currency, row.paidOn, { enabled: !isPhp && !saved && isIsoDate(row.paidOn) });
-  // A new payment starts at the day's Reference Rate (#708); once typed over, it is left alone.
-  useEffect(() => {
-    if (!isPhp && !saved && row.forexRate === "" && referenceRate?.php_per_unit) {
-      onPatch({ forexRate: String(referenceRate.php_per_unit) });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the reference rate arrives
-  }, [referenceRate?.php_per_unit]);
+  const pesos = parseAmountInput(row.phpDebited);
+  // The rate is worked out, never typed: typed pesos / amount, else the stored rate of an old payment (#1278).
+  const kept = pesosReplaceRate(row.phpDebited, row.forexRate);
+  const workedRate = isPhp || !amount.ok || !(amount.value > 0)
+    ? null
+    : kept.pesos !== null
+      ? kept.pesos / amount.value
+      : kept.rate > 0
+        ? kept.rate
+        : null;
+  // An old payment with a stored rate and blank pesos shows its pesos as amount x rate; display only.
+  const shownPesos = !isPhp && pesos.value === null && amount.ok && rate.ok && amount.value > 0 && rate.value > 0 ? pesosFromRate(amount.value, rate.value) : null;
   const kindLabel = IPAS_PAYMENT_KIND_LABELS[saved?.kind] ?? "payment";
   const showPercent = percentApplies(row.kind);
   const percent = parsePercentInput(row.percentOfOrder);
   // A new row is Paid already or For payment (#1225); a stored payment is paid. Nothing shows until the pick is made.
   const asking = !saved && row.mode === PAYMENT_MODE.ASK;
   const paid = Boolean(saved) || row.mode === PAYMENT_MODE.PAID;
+  // A new payment that pays a request in pesos: the pesos go in "Pesos taken from the bank", the PO-currency amount is typed from the debit memo (#1279).
+  const fromPesosAsk = !saved && !isPhp && Boolean(row.askId) && payableAsks(ipas).some((a) => a.id === row.askId && a.currency === "PHP");
   return (
     <DraftRow
       label={asking ? "For payment" : `Payment ${index + 1}`}
@@ -389,9 +380,12 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
           id={id}
           row={row}
           purposes={ASK_PURPOSES_ON_PAYMENTS}
+          locks={askPurposeLocks(ipas)}
           currencyLabel={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
           prefix={isPhp ? "PHP" : currency}
           base={base}
+          poCurrency={ipas.currency}
+          switchable={!isPhp}
           disabled={disabled}
           onPatch={onPatch}
         />
@@ -417,36 +411,44 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
             </p>
           </div>
         )}
-        <Field
-          id={id("amount")}
-          label={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
-          kind="amount"
-          prefix={isPhp ? "PHP" : currency}
-          required
-          value={row.amount}
-          disabled={disabled}
-          error={row.amount !== "" && !amount.ok ? "Not a number" : undefined}
-          onChange={(v) => onPatch(afterPercentEdit(row, { field: "amount", value: v, base }))}
-        />
+        <div className="min-w-0">
+          <Field
+            id={id("amount")}
+            label={!isPhp ? `${currency} sent` : "Amount (PHP)"}
+            kind="amount"
+            prefix={isPhp ? "PHP" : currency}
+            required
+            value={row.amount}
+            disabled={disabled}
+            error={row.amount !== "" && !amount.ok ? "Not a number" : undefined}
+            onChange={(v) => onPatch(afterPercentEdit(row, { field: "amount", value: v, base }))}
+          />
+          {fromPesosAsk && (
+            <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-sent-hint">
+              {sentHint(currency)}
+            </p>
+          )}
+        </div>
         {!isPhp && (
           <div className="min-w-0">
             <Field
-              id={id("forexRate")}
-              label="Forex rate paid"
+              id={id("phpDebited")}
+              label="Pesos taken from the bank"
               kind="amount"
               prefix="PHP"
-              value={row.forexRate}
+              placeholder={shownPesos === null ? undefined : formatAmount(shownPesos, "PHP").replace(/^PHP\s*/, "")}
+              value={row.phpDebited}
               disabled={disabled}
-              error={row.forexRate !== "" && !rate.ok ? "Not a number" : undefined}
-              onChange={(v) => onPatch({ forexRate: v })}
+              error={row.phpDebited !== "" && !pesos.ok ? "Not a number" : undefined}
+              onChange={(v) => onPatch({ phpDebited: v })}
             />
             <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-pesos-hint">
-              {RATE_HINT}
+              {PESOS_HINT}
             </p>
           </div>
         )}
-        {!isPhp && <ReadValue label="In pesos">{inPesos === null ? null : formatAmount(inPesos, "PHP")}</ReadValue>}
-        {!isPhp && <RateNote ipas={ipas} row={row} />}
+        {!isPhp && <ReadValue label={`Rate (pesos per ${ipas.currency || "unit"})`}>{workedRate === null ? null : `PHP ${formatRateNumber(workedRate)}`}</ReadValue>}
+        {!isPhp && <RateTypoNote currency={ipas.currency} paidOn={row.paidOn} workedRate={workedRate} />}
         <Field
           id={id("chargeFeePhp")}
           label="Bank charge (PHP)"
@@ -519,8 +521,10 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
   // "Record as paid" opens a new payment row filled from the ask and linked to it (#1225); any box can still change.
   const recordAsk = (ask) => {
     const kind = paidKindForAsk(ask, ipasFigures(ipas).remainingBalance);
+    // A request in pesos is not in the PO's currency: its amount is not copied into the payment's PO-currency box.
+    const inPesosAsk = ask.currency === "PHP" && !form.isPhp;
     const percent = percentApplies(kind) && ask.percent_of_order ? formatPercent(ask.percent_of_order) : "";
-    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: String(Number(ask.amount)), percentOfOrder: percent });
+    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: inPesosAsk ? "" : String(Number(ask.amount)), phpDebited: inPesosAsk ? String(Number(ask.amount)) : "", percentOfOrder: percent });
   };
   useTakeRecordRequest("payments", recordingAsk, onRecordingHandled, recordAsk);
   // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
@@ -540,13 +544,22 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
             onClick={() => {
               // "Does this pay the open item?" starts on the oldest open ask no other new row has picked.
               const picked = new Set(form.payments.filter((row) => row.mode !== PAYMENT_MODE.ASK).map((row) => row.askId).filter(Boolean));
-              rows.add("payments", newPaymentDraft(payableAsks(ipas).find((ask) => !picked.has(ask.id))?.id ?? ""));
+              // A new request starts on the first "What for" that is not greyed out.
+              const purpose = firstOpenPurpose(ASK_PURPOSES_ON_PAYMENTS, askPurposeLocks(ipas));
+              rows.add("payments", { ...newPaymentDraft(payableAsks(ipas).find((ask) => !picked.has(ask.id))?.id ?? ""), ...(purpose ? { askPurpose: purpose } : {}) });
             }}
           >
             Add payment
           </AddButton>
         )
       }>
+      <p className="text-xs text-muted-foreground" data-testid="payment-duties-hint">
+        Paying duties, taxes or brokerage? Use{" "}
+        <Button type="button" variant="link" className="h-auto p-0 align-baseline text-xs font-medium text-foreground" aria-label="Go to 3 · Costs" onClick={() => scrollToSection("costs")}>
+          3 · Costs
+        </Button>
+        , which is in pesos.
+      </p>
       <div className={GRID}>
         <ReadValue label="DP">{sum.downPayment > 0 ? formatAmount(sum.downPayment, currency) : null}</ReadValue>
         <ReadValue label="FP">{sum.fullPayment > 0 ? formatAmount(sum.fullPayment, currency) : null}</ReadValue>
@@ -663,7 +676,7 @@ export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSave
   // "Record as paid" opens a new charge row filled from the ask and linked to it (#1227). The kind comes across;
   // the amount only for a PHP ask, since charges are in pesos. A foreign-currency ask keeps its amount as a hint.
   const recordAsk = (ask) => {
-    const inPesos = String(ask.currency ?? "PHP").toUpperCase() === "PHP";
+    const inPesos = isPhpCurrency(ask.currency ?? "PHP");
     rows.add("charges", {
       ...newChargeDraft(ask.id, PAYMENT_MODE.PAID),
       kindId: ask.charge_kind_id ?? "",
@@ -750,16 +763,18 @@ function SavedDocumentRow({ document, row, required, canChange, canTickFinance, 
       <div className="min-w-[10rem] flex-1">
         <span className="text-sm font-medium text-foreground">
           {document.label}
-          {required && <RequiredMark />}
+          {required && (
+            <>
+              <RequiredMark />
+              <span className="sr-only"> (required)</span>
+            </>
+          )}
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
           {document.byHand ? (
             <span className="text-xs text-muted-foreground">Added by hand</span>
           ) : (
-            <>
-              <span className="text-xs text-muted-foreground">{IPAS_DOCUMENT_APPLIES_TO_LABELS[document.appliesTo] ?? ""}</span>
-              {document.isFiling && <StatusBadge theme="blue" label="Filing item" />}
-            </>
+            <span className="text-xs text-muted-foreground">{IPAS_DOCUMENT_APPLIES_TO_LABELS[document.appliesTo] ?? ""}</span>
           )}
         </span>
       </div>
@@ -896,9 +911,6 @@ export function DocumentsFields({ ipas, form, rows, fresh, canChange, canTickFin
               </>
             );
           })()
-        )}
-        {SHOW_HAS_TICKS && (
-          <p className="text-xs text-muted-foreground">Each department ticks its own box. A filing item ticked here is already ticked at Filing.</p>
         )}
       </Titled>
     </div>

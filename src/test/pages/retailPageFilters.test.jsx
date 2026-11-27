@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import RetailPage from "@/pages/retail/index";
@@ -182,6 +182,46 @@ describe("Retail page filters", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /marketplace order id/i }), "2301010OLDONE");
     expect(await screen.findByText("Old Buyer")).toBeInTheDocument();
     expect(screen.queryByText("Ana Reyes")).not.toBeInTheDocument();
+  });
+
+  it("lists both orders of a shared Marketplace Order ID to chase, and keeps the totals", async () => {
+    retailOrder({ odoo_so_number: "S09901", marketplace_order_id: "2609180SHARED", amount: 700 });
+    retailOrder({ odoo_so_number: "S09902", marketplace_order_id: "2609180SHARED", amount: 700 });
+
+    renderPage();
+    await ready();
+    await waitFor(() => expect(headline()).toHaveTextContent(formatPHP(1400)));
+
+    const chase = screen.getByRole("region", { name: "Missing / Suspect income" });
+    expect(within(chase).getByText(`2 to chase · ${formatPHP(1400)} Order Amount`)).toBeInTheDocument();
+    await userEvent.click(within(chase).getByRole("button", { name: /Kyla Millan/ }));
+    expect(within(chase).getByText("Same Marketplace Order ID as S09902")).toBeInTheDocument();
+    expect(within(chase).getByText("Same Marketplace Order ID as S09901")).toBeInTheDocument();
+    expect(within(chase).queryByText(/suspect/i, { selector: "td *" })).not.toBeInTheDocument();
+  });
+
+  it("shows a dash, not zero, for Marketplace Fees when no OK order has a fee", async () => {
+    retailOrder({ marketplace: "Lazada", partner_name: "Lazada Store", marketplace_fee: null, amount: 500 });
+    renderPage();
+    await ready();
+    const table = await screen.findByRole("table", { name: "Marketplace breakdown" });
+    const cells = within(table).getAllByRole("cell");
+    expect(cells[4]).toHaveTextContent("—");
+  });
+
+  it("says so when a Custom range runs backwards, and keeps the previous figures", async () => {
+    retailOrder({ amount: 1000 });
+    renderPage();
+    await ready();
+    await waitFor(() => expect(headline()).toHaveTextContent(formatPHP(1000)));
+
+    await userEvent.click(screen.getByRole("tab", { name: "Custom" }));
+    fireEvent.change(screen.getByLabelText("From date"), { target: { value: "2026-09-10" } });
+    fireEvent.change(screen.getByLabelText("To date"), { target: { value: "2026-09-01" } });
+
+    expect(await screen.findByText("From is after To. Swap the dates to see orders.")).toBeInTheDocument();
+    expect(screen.queryByText(/No retail orders in this range/)).not.toBeInTheDocument();
+    expect(headline()).toHaveTextContent(formatPHP(1000));
   });
 
   it("says the search ignores the date range, only while searching", async () => {

@@ -11,6 +11,7 @@ import {
   monthlySeries,
   monthMarketplaceGroups,
   chaseList,
+  isBackwardsRange,
 } from "./retailReport"
 // The filter step (#454).
 import { DEFAULT_RETAIL_FILTERS, applyFilters, filterOptions, hasActiveFilters, isSearching } from "./retailReport"
@@ -200,8 +201,18 @@ describe("marketplaceBreakdown", () => {
       order({ marketplace: "Lazada", amount: 500, marketplace_fee: null, order_income: 450 }),
       order({ marketplace: "Shopee", amount: 500, marketplace_fee: 50, order_income: null }),
     ])
-    expect(row(rows, "Lazada")).toMatchObject({ orderIncome: 450, totalFees: 0, feeRate: null })
-    expect(row(rows, "Shopee")).toMatchObject({ orderIncome: 0, totalFees: 0, feeRate: null })
+    expect(row(rows, "Lazada")).toMatchObject({ orderIncome: 450, totalFees: null, feeRate: null })
+    expect(row(rows, "Shopee")).toMatchObject({ orderIncome: 0, totalFees: null, feeRate: null })
+  })
+
+  it("has no Marketplace Fees total, not zero, when no OK order has a fee", () => {
+    const [lazada] = marketplaceBreakdown([
+      order({ marketplace: "Lazada", amount: 500, marketplace_fee: null, order_income: 450 }),
+    ])
+    expect(lazada.totalFees).toBeNull()
+    // A fee of zero is still a fee.
+    const [free] = marketplaceBreakdown([order({ marketplace_fee: 0, order_income: 90 })])
+    expect(free.totalFees).toBe(0)
   })
 
   it("has no fee rate when fee and income are both zero, rather than NaN", () => {
@@ -344,8 +355,8 @@ describe("chaseList", () => {
   })
 
   it("is empty when nothing needs chasing", () => {
-    expect(chaseList([])).toEqual({ groups: [], count: 0, orderAmount: 0 })
-    expect(chaseList([order()])).toEqual({ groups: [], count: 0, orderAmount: 0 })
+    expect(chaseList([])).toMatchObject({ groups: [], count: 0, orderAmount: 0 })
+    expect(chaseList([order()])).toMatchObject({ groups: [], count: 0, orderAmount: 0 })
   })
 
   it("follows the orders it is given, so a range or filter narrows it", () => {
@@ -356,7 +367,7 @@ describe("chaseList", () => {
     ]
     const inRange = ordersInRange(orders, rangeBounds("30d", NOW))
     expect(chaseList(inRange).groups[0].orders.map((o) => o.id)).toEqual(["sep"])
-    expect(chaseList(orders.filter((o) => o.marketplace === "Lazada"))).toEqual({ groups: [], count: 0, orderAmount: 0 })
+    expect(chaseList(orders.filter((o) => o.marketplace === "Lazada"))).toMatchObject({ groups: [], count: 0, orderAmount: 0 })
   })
 })
 
@@ -632,5 +643,61 @@ describe("filterOptions", () => {
       "Shopee T3ck Outdoor",
     ])
     expect(filterOptions(orders, { marketplace: "ALL" }).storefront).toHaveLength(3)
+  })
+})
+
+describe("chaseList: shared Marketplace Order ID", () => {
+  const shared = (id, number, overrides = {}) =>
+    order({ id, odoo_so_number: number, marketplace_order_id: "2609180ABCDEFG", odoo_salesperson_name: "Rita", amount: 700, ...overrides })
+
+  it("lists both OK orders of a pair, each naming the other, and counts them", () => {
+    const list = chaseList([shared("a", "S00001"), shared("b", "S00002"), order({ id: "c", marketplace_order_id: "OTHER0001" })])
+    expect(list.groups[0].orders.map((o) => o.id).sort()).toEqual(["a", "b"])
+    expect(list.sharedWith.get("a")).toEqual(["S00002"])
+    expect(list.sharedWith.get("b")).toEqual(["S00001"])
+    expect(list).toMatchObject({ count: 2, orderAmount: 1400 })
+  })
+
+  it("matches the ID in any case and ignores blank IDs", () => {
+    const list = chaseList([
+      shared("a", "S00001"),
+      shared("b", "S00002", { marketplace_order_id: "2609180abcdefg" }),
+      order({ id: "x", marketplace_order_id: "" }),
+      order({ id: "y", marketplace_order_id: null }),
+    ])
+    expect(list.count).toBe(2)
+  })
+
+  it("lists a Missing order once even when it shares an ID", () => {
+    const list = chaseList([shared("a", "S00001", { order_income: null }), shared("b", "S00002")])
+    expect(list.count).toBe(2)
+    expect(list.groups[0].orders).toHaveLength(2)
+  })
+
+  it("does not pair an order with one that is not in the list given", () => {
+    expect(chaseList([shared("a", "S00001")]).count).toBe(0)
+  })
+
+  it("finds a pair split by the range: the in-range order is listed and names its partner", () => {
+    const inRange = [shared("a", "S00001")]
+    const all = [shared("a", "S00001"), shared("b", "S00002", { ordered_at: "2026-08-31T10:00:00" })]
+    const list = chaseList(inRange, all)
+    expect(list.groups[0].orders.map((o) => o.id)).toEqual(["a"])
+    expect(list.sharedWith.get("a")).toEqual(["S00002"])
+    expect(list).toMatchObject({ count: 1, orderAmount: 700 })
+  })
+
+  it("does not pair with an order that is not counted", () => {
+    const all = [shared("a", "S00001"), shared("b", "S00002", { is_excluded: true })]
+    expect(chaseList([all[0]], all).count).toBe(0)
+  })
+})
+
+describe("isBackwardsRange", () => {
+  it("is true only when both dates are set and From is after To", () => {
+    expect(isBackwardsRange({ from: "2026-09-10", to: "2026-09-01" })).toBe(true)
+    expect(isBackwardsRange({ from: "2026-09-01", to: "2026-09-01" })).toBe(false)
+    expect(isBackwardsRange({ from: "2026-09-10", to: "" })).toBe(false)
+    expect(isBackwardsRange({})).toBe(false)
   })
 })

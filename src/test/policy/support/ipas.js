@@ -13,6 +13,12 @@
 import { serviceClient, sql } from "./stack.js"
 import { ids as castIds, castEmail } from "./cast.js"
 
+// Files hang one level lower (document / requirement), so they go before the rows they hang from (#1153, #1287).
+const GRANDCHILDREN = [
+    ["ipas_document_files", "document_id", "ipas_documents"],
+    ["ipas_compliance_requirement_files", "requirement_id", "ipas_compliance_requirements"],
+]
+
 const CHILDREN = [
     ["transmittal_ipas", "ipas_id"],
     ["ipas_events", "ipas_id"],
@@ -26,6 +32,7 @@ const CHILDREN = [
     ["ipas_sors", "ipas_id"],
     ["ipas_work_marks", "ipas_id"],
     ["ipas_status_steps", "ipas_id"],
+    ["ipas_compliance_requirements", "ipas_id"],
 ]
 
 /**
@@ -35,12 +42,19 @@ const CHILDREN = [
 export async function purgeIpas(ids) {
     if (!ids?.length) return
     await withoutTriggers(async (client) => {
+        await deleteGrandchildren(client, ids)
         for (const [table, column] of CHILDREN) {
             await client.query(`delete from public.${table} where ${column} = any($1::uuid[])`, [ids])
         }
         await client.query(`delete from public.ipas where id = any($1::uuid[])`, [ids])
         await dropSlipsMadeByTheFixture(client)
     })
+}
+
+async function deleteGrandchildren(client, ids) {
+    for (const [table, column, parent] of GRANDCHILDREN) {
+        await client.query(`delete from public.${table} where ${column} in (select id from public.${parent} where ipas_id = any($1::uuid[]))`, [ids])
+    }
 }
 
 /**
@@ -65,6 +79,7 @@ export async function purgeFixtureIpas(emailLike) {
             [emailLike],
         )
         const ids = rows.map((r) => r.id ?? r.ipas_id)
+        await deleteGrandchildren(client, ids)
         for (const [table, column] of CHILDREN) {
             await client.query(`delete from public.${table} where ${column} = any($1::uuid[])`, [ids])
         }

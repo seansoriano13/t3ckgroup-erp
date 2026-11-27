@@ -468,7 +468,7 @@ export default function EmployeeForm({
           {/* Retail — on by default for SALES */}
           <AccessSwitch
             label="Retail"
-            description="Review marketplace orders and see Retail totals"
+            description="See the Retail report: marketplace orders and their income."
             icon={ShoppingBag}
             checked={formData.has_retail_access}
             onChange={(val) =>

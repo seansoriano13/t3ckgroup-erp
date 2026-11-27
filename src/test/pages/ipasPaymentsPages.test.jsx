@@ -545,6 +545,144 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         expect(liner).toHaveTextContent(/Supplier wants it Friday/);
       });
 
+      it("offers a USD | PHP switch only on a foreign-currency PO and shows the duties hint (#1277)", async () => {
+        const foreign = ipas({ po_number: "P02601", odoo_copy: poCopy("P02601", { currency: "USD" }), created_by: purchaser.id });
+        stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02601", { currency: "USD" }) });
+        db.seed("currency_rate_currencies", { currency: "USD" });
+        stubRpc("reference_rate", () => [{ currency: "USD", rate_date: "2000-01-01", php_per_unit: 56, source: "test", overridden: false, divergence_pct: 0 }]);
+        const user = setupUser();
+        renderDetail(foreign.id, "payments", "edit");
+        expect(await screen.findByTestId("payment-duties-hint")).toHaveTextContent("Paying duties, taxes or brokerage? Use 3 · Costs, which is in pesos.");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        const toggle = within(ask).getByTestId("ask-currency-switch");
+        expect(within(toggle).getByRole("radio", { name: "USD" })).toHaveAttribute("aria-checked", "true");
+        expect(within(ask).getByRole("textbox", { name: /^% of order/ })).toBeInTheDocument();
+        await user.click(within(toggle).getByRole("radio", { name: "PHP" }));
+        expect(within(ask).queryByRole("textbox", { name: /^% of order/ })).not.toBeInTheDocument();
+        await user.type(within(ask).getByRole("textbox", { name: /^Amount \(PHP\)/ }), "3000");
+        await user.click(within(toggle).getByRole("radio", { name: "USD" }));
+        expect(within(ask).getByRole("textbox", { name: /^% of order/ })).toBeInTheDocument();
+        await user.click(within(toggle).getByRole("radio", { name: "PHP" }));
+        await saveAll(user);
+        await waitFor(() => expect(db.rows("ipas_payment_asks")).toHaveLength(1));
+        expect(db.rows("ipas_payment_asks")[0]).toMatchObject({ amount: 3000, currency: "PHP", percent_of_order: null });
+        expect(await screen.findByTestId("payment-ask-liner")).toHaveTextContent(/PHP\s?3,000\.00|₱\s?3,000\.00/);
+      });
+
+      it("greys Full payment with its note once a request is open (#1280)", async () => {
+        const taken = ipas({ po_number: "P02610", created_by: purchaser.id });
+        seedAsk(taken, { purpose: "balance" });
+        const user = setupUser();
+        renderDetail(taken.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        expect(within(ask).getByTestId("ask-purpose-note")).toHaveTextContent("There's already a payment or an open request. Use Balance for the rest.");
+        await user.click(within(ask).getByRole("combobox", { name: /^What for/ }));
+        expect(await screen.findByRole("option", { name: "Full payment" })).toHaveAttribute("aria-disabled", "true");
+      });
+
+      it("greys Down payment and Balance while a Full payment request is open (#1280)", async () => {
+        const asked = ipas({ po_number: "P02611", created_by: purchaser.id });
+        seedAsk(asked, { purpose: "full_payment", amount: 9000 });
+        const user = setupUser();
+        renderDetail(asked.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        expect(within(ask).getAllByTestId("ask-purpose-note").map((n) => n.textContent)).toContain("A Full payment is already asked.");
+      });
+
+      it("Record as paid on a Full payment request fills the kind Full payment (#1280)", async () => {
+        const asked = ipas({ po_number: "P02612", created_by: purchaser.id });
+        seedAsk(asked, { purpose: "full_payment", amount: 9000 });
+        const user = setupUser();
+        renderDetail(asked.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).getByRole("combobox", { name: /^Kind/ })).toHaveTextContent("Full payment");
+      });
+
+      it("shows no switch on a peso PO (#1277)", async () => {
+        const row = ipas({ po_number: "P02602", created_by: purchaser.id });
+        const user = setupUser();
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        expect(within(ask).queryByTestId("ask-currency-switch")).not.toBeInTheDocument();
+      });
+
+      const foreignPo = () => {
+        const row = ipas({ po_number: "P02603", odoo_copy: poCopy("P02603", { currency: "USD" }), created_by: purchaser.id });
+        stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02603", { currency: "USD" }) });
+        db.seed("currency_rate_currencies", { currency: "USD" });
+        stubRpc("reference_rate", () => [{ currency: "USD", rate_date: "2000-01-01", php_per_unit: 56, source: "test", overridden: false, divergence_pct: 0 }]);
+        return row;
+      };
+
+      it("Record as paid on a PHP request fills the pesos, leaves USD sent empty and required, and closes the request (#1279)", async () => {
+        const row = foreignPo();
+        const open = seedAsk(row, { amount: 3000, currency: "PHP" });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        const sent = within(payment).getByRole("textbox", { name: /^USD sent/ });
+        expect(sent).toHaveValue("");
+        expect(payment.querySelector(`label[for="${sent.id}"]`)).toHaveTextContent("*");
+        expect(within(payment).getByTestId("payment-sent-hint")).toHaveTextContent("Copy the USD that reached the supplier from the bank's debit memo.");
+        expect(within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ })).toHaveValue("3000");
+        await pick(user, payment, /^Method/, "Dated Check");
+        await user.type(sent, "53.5");
+        await saveAll(user);
+
+        await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
+        expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 53.5, php_debited: 3000, ask_id: open.id });
+        expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id)).toMatchObject({ closed_reason: "paid" });
+      });
+
+      it("Record as paid on a request in the PO's currency still fills the amount and not the pesos (#1279)", async () => {
+        const row = foreignPo();
+        seedAsk(row, { amount: 800 });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).getByRole("textbox", { name: /^USD sent/ })).toHaveValue("800");
+        expect(within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ })).toHaveValue("");
+        expect(within(payment).queryByTestId("payment-sent-hint")).not.toBeInTheDocument();
+      });
+
+      it("labels the amount of any paid payment on a foreign PO as sent, with the debit-memo line only for a PHP request", async () => {
+        const row = foreignPo();
+        const user = setupUser();
+        renderDetail(row.id, "payments", "edit");
+        await addPayment(user);
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).getByRole("textbox", { name: /^USD sent/ })).toBeInTheDocument();
+        expect(within(payment).queryByTestId("payment-sent-hint")).not.toBeInTheDocument();
+      });
+
+      it("puts a Full payment request back to 100% of the order when switched from PHP to the PO currency", async () => {
+        const row = foreignPo();
+        const user = setupUser();
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        await user.click(within(ask).getByRole("combobox", { name: /^What for/ }));
+        await user.click(await screen.findByRole("option", { name: "Full payment" }));
+        const toggle = within(ask).getByTestId("ask-currency-switch");
+        await user.click(within(toggle).getByRole("radio", { name: "PHP" }));
+        await user.click(within(toggle).getByRole("radio", { name: "USD" }));
+        expect(within(ask).getByRole("textbox", { name: /^% of order/ })).toHaveValue("100");
+      });
+
       it("shows each open ask as a grey row with no payments yet, with its priority and note", async () => {
         const row = ipas({ po_number: "P02552", created_by: purchaser.id });
         seedAsk(row, { note: "Before the vessel leaves", priority: "very_high" });
@@ -801,7 +939,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(screen.getByRole("button", { name: /^Save all/ })).toBeDisabled();
     });
 
-    it("takes the forex rate as optional on a foreign-currency PO, and shows Landed Cost as an estimate until it is filled", { timeout: 20000 }, async () => {
+    it("takes the pesos taken from the bank as optional on a foreign-currency PO, and shows Landed Cost as an estimate until it is filled", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02445", source: "import", odoo_copy: poCopy("P02445", { currency: "USD" }), created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02445", { currency: "USD" }) });
       // A Reference Rate older than any payment date, so the estimate has something to stand on.
@@ -815,15 +953,16 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const payment = await screen.findByRole("group", { name: "Payment 1" });
       await pick(user, payment, /^Method/, "Alipay");
 
-      const amount = within(payment).getByRole("textbox", { name: /^Amount \(USD\)/ });
-      // Pre-filled with the day's Reference Rate (#708); cleared, the payment is an estimate.
-      const rate = within(payment).getByRole("textbox", { name: /^Forex rate paid/ });
-      await waitFor(() => expect(rate).toHaveValue("56"));
-      await user.clear(rate);
+      const amount = within(payment).getByRole("textbox", { name: /^USD sent/ });
+      // Nothing is filled from the Reference Rate (#1278): the pesos start empty and there is no rate box.
+      const pesos = within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ });
+      expect(pesos).toHaveValue("");
+      expect(within(payment).queryByRole("textbox", { name: /^Forex rate paid/ })).not.toBeInTheDocument();
+      expect(within(payment).queryByTestId("payment-reference-rate")).not.toBeInTheDocument();
       await user.type(amount, "640");
       // Optional (#604): no Needed mark, a one-line explanation under it, and Save all goes without it.
       expect(within(payment).queryByText("Needed")).not.toBeInTheDocument();
-      expect(within(payment).getByTestId("payment-pesos-hint")).toHaveTextContent(/Pre-filled with the Reference Rate/);
+      expect(within(payment).getByTestId("payment-pesos-hint")).toHaveTextContent(/bank statement arrives/);
       await saveAll(user);
 
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
@@ -843,14 +982,10 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       expect(db.rows("ipas_payments")[0].php_debited).toBeNull();
     });
 
-    it("shows the Reference Rate for the payment's date beside the typed rate, pre-fills it, and flags a wide gap", { timeout: 20000 }, async () => {
+    it("works the rate out from the typed pesos, never names the Reference Rate, and warns only at ten times off (#1278)", { timeout: 20000 }, async () => {
       const row = ipas({ po_number: "P02446", source: "import", odoo_copy: poCopy("P02446", { currency: "USD" }), created_by: purchaser.id });
       stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02446", { currency: "USD" }) });
-      const asked = [];
-      stubRpc("reference_rate", (args) => {
-        asked.push(args.p_on);
-        return [{ currency: "USD", rate_date: "2026-09-12", php_per_unit: 58.2, source: "ECB", overridden: false, divergence_pct: 2 }];
-      });
+      stubRpc("reference_rate", () => [{ currency: "USD", rate_date: "2026-09-12", php_per_unit: 58.2, source: "ECB", overridden: false, divergence_pct: 2 }]);
       const user = setupUser();
 
       renderDetail(row.id, "payments", "edit");
@@ -861,26 +996,22 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.clear(date);
       await user.type(date, "2026-09-12");
 
-      // The rate paid starts at the Reference Rate of the date (#708).
-      const phpDebited = within(dialog).getByRole("textbox", { name: /^Forex rate paid/ });
-      await waitFor(() => expect(phpDebited).toHaveValue("58.2"));
-      const line = await within(dialog).findByTestId("payment-reference-rate");
-      expect(line).toHaveTextContent(/reference: ₱58\.20 on 12 Sep/);
-      expect(asked).toContain("2026-09-12");
-
-      await user.type(within(dialog).getByRole("textbox", { name: /^Amount \(USD\)/ }), "1000");
-      await user.clear(phpDebited);
-      await user.type(phpDebited, "58.44");
-      expect(line).toHaveTextContent(/you typed ₱58\.44/);
+      await user.type(within(dialog).getByRole("textbox", { name: /^USD sent/ }), "1000");
+      const pesos = within(dialog).getByRole("textbox", { name: /^Pesos taken from the bank/ });
+      // A rate a few % from ours says nothing at all.
+      await user.type(pesos, "58440");
+      expect(within(dialog).getByText("Rate (pesos per USD)").parentElement).toHaveTextContent("PHP 58.44");
+      expect(within(dialog).queryByTestId("payment-rate-typo")).not.toBeInTheDocument();
       expect(within(dialog).queryByTestId("payment-rate-divergence")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText(/58\.20/)).not.toBeInTheDocument();
 
-      await user.clear(phpDebited);
-      await user.type(phpDebited, "5.844");
-      expect(within(dialog).getByTestId("payment-rate-divergence")).toBeInTheDocument();
-      // It flags; it blocks nothing.
+      // A missing zero: ten times off. It warns; it blocks nothing.
+      await user.clear(pesos);
+      await user.type(pesos, "5000");
+      expect(await within(dialog).findByTestId("payment-rate-typo")).toHaveTextContent(/That's 5\.00 pesos per dollar\. Check the pesos and the USD for a missing or extra zero\./);
       await saveAll(user);
       await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
-      expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 1000, php_debited: 5844 });
+      expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 1000, php_debited: 5000, forex_rate: null });
     });
 
     it("edits and removes a payment, asking before it goes", async () => {
