@@ -16,7 +16,7 @@ import { ipasErrorMessage } from "@/utils/ipas";
 import { isPhpCurrency } from "@/utils/landedCost";
 import { parseAmountInput } from "@/utils/ipasPayments";
 import { AskCurrencySwitch } from "@/components/ipas/record/AskRows";
-import { askLine, askPriorityOptions, firstOpenPurpose } from "@/utils/ipasPaymentAsk";
+import { askLine, askPriorityOptions, firstOpenPurpose, lockNoteLines } from "@/utils/ipasPaymentAsk";
 import { amountFromPercent, parsePercentInput, percentBase, PERCENT_ERROR } from "@/utils/ipasPaymentPercent";
 
 // A Charge ask is made from Charges (#1227), with its kind and currency.
@@ -194,11 +194,12 @@ function Body({ number, figures, initial, locks = null, only, onAsk, onEdit, onW
           <SelectField id="ask-purpose" size="sm" options={purposeOptions} value={purpose} onChange={setPurpose} className="h-10 w-full" />
         </FieldBox>
       )}
-      {!editing && (purposeLock || Object.values(locks ?? {}).some(Boolean)) && (
-        <p className="text-xs text-muted-foreground" data-testid="ask-purpose-lock">
-          {purposeLock ?? Object.values(locks).find(Boolean)}
-        </p>
-      )}
+      {!editing &&
+        lockNoteLines(PURPOSES, locks).map((line) => (
+          <p key={line} className="text-xs text-muted-foreground" data-testid="ask-purpose-lock">
+            {line}
+          </p>
+        ))}
       <FieldBox label="Note (optional)" bare>
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={300} />
       </FieldBox>

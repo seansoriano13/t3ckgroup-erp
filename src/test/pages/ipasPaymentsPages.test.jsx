@@ -579,7 +579,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         await user.click(await screen.findByRole("button", { name: "Add payment" }));
         await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
         const ask = await screen.findByRole("group", { name: "For payment" });
-        expect(within(ask).getByTestId("ask-purpose-note")).toHaveTextContent("There's already a payment or an open request. Use Balance for the rest.");
+        expect(within(ask).getByTestId("ask-purpose-note")).toHaveTextContent("Full payment: There's already a payment or an open request. Use Balance for the rest.");
         await user.click(within(ask).getByRole("combobox", { name: /^What for/ }));
         expect(await screen.findByRole("option", { name: "Full payment" })).toHaveAttribute("aria-disabled", "true");
       });
@@ -592,7 +592,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         await user.click(await screen.findByRole("button", { name: "Add payment" }));
         await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
         const ask = await screen.findByRole("group", { name: "For payment" });
-        expect(within(ask).getAllByTestId("ask-purpose-note").map((n) => n.textContent)).toContain("A Full payment is already asked.");
+        expect(within(ask).getAllByTestId("ask-purpose-note").map((n) => n.textContent)).toContain("Down payment and Balance: A Full payment is already asked.");
       });
 
       it("Record as paid on a Full payment request fills the kind Full payment (#1280)", async () => {

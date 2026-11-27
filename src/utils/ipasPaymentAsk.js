@@ -102,6 +102,20 @@ export function askPurposeLocks(ipas) {
   };
 }
 
+/**
+ * One line per lock note, naming the greyed choices first, so the note never seems to be about the one picked:
+ * "Full payment: There's already a payment or an open request. Use Balance for the rest."
+ * "Down payment and Balance: A Full payment is already asked."
+ */
+export function lockNoteLines(purposes, locks) {
+  const byNote = new Map();
+  for (const value of purposes) {
+    const note = locks?.[value];
+    if (note) byNote.set(note, [...(byNote.get(note) ?? []), IPAS_ASK_PURPOSE_LABELS[value] ?? value]);
+  }
+  return [...byNote].map(([note, names]) => `${names.join(" and ")}: ${note}`);
+}
+
 /** The first of `purposes` that `locks` leaves open, so a new request never starts on a greyed choice; null when all are locked. */
 export const firstOpenPurpose = (purposes, locks) => purposes.find((value) => !locks?.[value]) ?? null;
 
