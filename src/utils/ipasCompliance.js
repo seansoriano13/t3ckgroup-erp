@@ -17,6 +17,7 @@ export function complianceView({ asked, needed, kinds }) {
     label: kind.label ?? "",
     doneOn: kind.doneOn ?? null,
     note: kind.note ?? null,
+    files: kind.files ?? [],
   }));
   if (needed === false) return { state: "none", kinds: [], open: [] };
   if (needed !== true) return { state: "unanswered", kinds: [], open: [] };
@@ -27,7 +28,17 @@ export function complianceView({ asked, needed, kinds }) {
 export function complianceViewOfIpas(ipas) {
   const kinds = [...(ipas?.compliance_requirements ?? [])]
     .sort((a, b) => (a.kind?.sort ?? 0) - (b.kind?.sort ?? 0) || (a.kind?.label ?? "").localeCompare(b.kind?.label ?? ""))
-    .map((row) => ({ id: row.id, kindId: row.kind_id, label: row.kind?.label ?? "", doneOn: row.done_on, note: row.note }));
+    .map((row) => ({
+      id: row.id,
+      kindId: row.kind_id,
+      label: row.kind?.label ?? "",
+      doneOn: row.done_on,
+      note: row.note,
+      // The kind's papers, oldest first (#1287). The SOR summary never carries them.
+      files: [...(row.files ?? [])]
+        .sort((a, b) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")))
+        .map((file) => ({ id: file.id, url: file.url, fileName: file.file_name })),
+    }));
   return complianceView({ asked: ipas?.compliance_asked === true, needed: ipas?.compliance_needed ?? null, kinds });
 }
 

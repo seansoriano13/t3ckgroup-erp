@@ -2076,6 +2076,31 @@ export function stubIpasRpcs({
     event(ipas.id, "compliance_unticked", { requirement_id: requirement.id, kind })
     return updated
   })
+
+  // #1287: the papers of one kind. Same rights and refusals as ticking; marking done is separate.
+  stubRpc("ipas_add_compliance_file", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_add_compliance_file", args.p_requirement_id)
+    const url = clean(args.p_url)
+    if (!url || !/^https?:\/\//i.test(url)) refuse("22023", "ipas_add_compliance_file: the file must be a link to the uploaded file")
+    const row = insertRow("ipas_compliance_requirement_files", {
+      requirement_id: requirement.id,
+      url,
+      file_name: clean(args.p_file_name) ?? url.split("?")[0].split("/").pop(),
+      created_by: actorId,
+    })
+    event(ipas.id, "compliance_file_added", { requirement_id: requirement.id, kind, file_id: row.id, file_name: row.file_name })
+    return row
+  })
+
+  stubRpc("ipas_remove_compliance_file", (args) => {
+    const file = findRow("ipas_compliance_requirement_files", args.p_file_id)
+    if (!file) refuse("22023", `ipas_remove_compliance_file: file ${args.p_file_id} not found`)
+    const { requirement, ipas, kind } = complianceRequirement("ipas_remove_compliance_file", file.requirement_id)
+    const rows = rowsOf("ipas_compliance_requirement_files")
+    rows.splice(rows.indexOf(file), 1)
+    event(ipas.id, "compliance_file_removed", { requirement_id: requirement.id, kind, file_id: file.id, file_name: file.file_name })
+    return file
+  })
 }
 
 /**

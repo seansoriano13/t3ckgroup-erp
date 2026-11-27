@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import IpasDetailPage from "@/pages/purchasing/ipas/[id]";
 import { renderWithProviders, setupUser } from "@/test/support";
@@ -15,6 +15,11 @@ const mockUser = vi.hoisted(() => ({ current: null }));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current, isAuthLoading: false }),
+}));
+
+// The upload goes to Cloudinary; here a file simply comes back as a link in the app's file store.
+vi.mock("@/components/ipas/uploadDocumentFile", () => ({
+  uploadDocumentFile: vi.fn(async (file) => `https://res.cloudinary.com/demo/raw/upload/${file.name}`),
 }));
 
 /**
@@ -203,6 +208,84 @@ describe("Compliance Requirements on the IPAS page", () => {
       const block = await screen.findByTestId("ipas-compliance-block");
       expect(block).toHaveTextContent("DENR");
       expect(within(block).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    // #1287: each kind holds the papers of its own clearance.
+    describe("the papers of a kind", () => {
+      const URL_BASE = "https://res.cloudinary.com/demo/raw/upload";
+      const seedFile = (requirementId, name) =>
+        db.seed("ipas_compliance_requirement_files", { requirement_id: requirementId, url: `${URL_BASE}/${name}`, file_name: name });
+      const requirementOf = (row, label) => db.rows("ipas_compliance_requirements").find((r) => r.ipas_id === row.id && r.kind_id === kinds[label].id);
+
+      it("attaches two files to a kind, shows both under it, and removes one", async () => {
+        const row = asking(true, [["FDA"], ["DENR"]]);
+        const user = setupUser();
+        renderDetail(row.id, "documents");
+
+        const papers = await screen.findByTestId(`ipas-compliance-papers-${requirementOf(row, "FDA").id}`);
+        const input = papers.querySelector("input[type=file]");
+        fireEvent.change(input, { target: { files: [new File(["a"], "permit.pdf"), new File(["b"], "receipt.pdf")] } });
+
+        await waitFor(() => expect(db.rows("ipas_compliance_requirement_files").map((f) => f.file_name)).toEqual(["permit.pdf", "receipt.pdf"]));
+        expect(await within(papers).findByRole("link", { name: "permit.pdf" })).toHaveAttribute("href", `${URL_BASE}/permit.pdf`);
+        expect(within(papers).getByRole("link", { name: "receipt.pdf" })).toBeInTheDocument();
+        // The other kind holds none, and attaching did not mark anything done.
+        expect(within(screen.getByTestId(`ipas-compliance-papers-${requirementOf(row, "DENR").id}`)).queryByRole("link")).not.toBeInTheDocument();
+        expect(db.rows("ipas_compliance_requirements").every((r) => r.done_on === null)).toBe(true);
+
+        await user.click(within(papers).getByRole("button", { name: "Remove permit.pdf from FDA" }));
+        await waitFor(() => expect(db.rows("ipas_compliance_requirement_files").map((f) => f.file_name)).toEqual(["receipt.pdf"]));
+        expect(within(papers).queryByRole("link", { name: "permit.pdf" })).not.toBeInTheDocument();
+        expect(within(papers).getByRole("link", { name: "receipt.pdf" })).toBeInTheDocument();
+      });
+
+      it("writes each attach and remove in the IPAS history", async () => {
+        const row = asking(true, [["FDA"]]);
+        const user = setupUser();
+        renderDetail(row.id, "documents");
+
+        const papers = await screen.findByTestId(`ipas-compliance-papers-${requirementOf(row, "FDA").id}`);
+        fireEvent.change(papers.querySelector("input[type=file]"), { target: { files: [new File(["a"], "permit.pdf")] } });
+        await within(papers).findByRole("link", { name: "permit.pdf" });
+        await user.click(within(papers).getByRole("button", { name: "Remove permit.pdf from FDA" }));
+        await waitFor(() => expect(db.rows("ipas_compliance_requirement_files")).toHaveLength(0));
+
+        const kindsWritten = db.rows("ipas_events").filter((e) => e.ipas_id === row.id).map((e) => e.kind);
+        expect(kindsWritten).toEqual(expect.arrayContaining(["compliance_file_added", "compliance_file_removed"]));
+      });
+
+      it("lists a done kind's files too, and Mark done stays a separate step", async () => {
+        const row = asking(true, [["DENR", "2020-11-02"], ["FDA"]]);
+        seedFile(requirementOf(row, "DENR").id, "denr-permit.pdf");
+        renderDetail(row.id, "documents");
+
+        const papers = await screen.findByTestId(`ipas-compliance-papers-${requirementOf(row, "DENR").id}`);
+        expect(within(papers).getByRole("link", { name: "denr-permit.pdf" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Mark FDA done" })).toBeInTheDocument();
+      });
+
+      it("reads the files without Attach or Remove for Finance", async () => {
+        const finance = makeEmployee({ name: "Fin Ance", has_finance_flow: true });
+        const row = asking(true, [["DENR", "2020-11-02"], ["FDA"]]);
+        seedFile(requirementOf(row, "DENR").id, "denr-permit.pdf");
+        signIn(finance);
+        renderDetail(row.id, "documents");
+
+        const block = await screen.findByTestId("ipas-compliance-block");
+        expect(within(block).getByRole("link", { name: "denr-permit.pdf" })).toBeInTheDocument();
+        expect(within(block).queryByRole("button")).not.toBeInTheDocument();
+        expect(block.querySelector("input[type=file]")).toBeNull();
+      });
+
+      it("reads the files of a filed IPAS without Attach or Remove", async () => {
+        const row = asking(true, [["DENR", "2020-11-02"]], { state: "filed" });
+        seedFile(requirementOf(row, "DENR").id, "denr-permit.pdf");
+        renderDetail(row.id, "documents");
+
+        const block = await screen.findByTestId("ipas-compliance-block");
+        expect(within(block).getByRole("link", { name: "denr-permit.pdf" })).toBeInTheDocument();
+        expect(within(block).queryByRole("button")).not.toBeInTheDocument();
+      });
     });
 
     it("shows no block on an old IPAS", async () => {

@@ -18,6 +18,7 @@ import { FieldBox } from "@/components/ui/FieldBox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { IPAS_COMPLIANCE_LABEL, IPAS_COMPLIANCE_QUESTION, IPAS_OPTION_LIST } from "@/constants/ipas";
+import { DocumentFiles } from "@/components/ipas/DocumentFiles";
 import { ipasService } from "@/services/ipasService";
 import { ipasErrorMessage } from "@/utils/ipas";
 import { shortDay } from "@/utils/ipasSummary";
@@ -120,8 +121,28 @@ function KindPicker({ ipasId, held, onSave, onNo, onCancel, saving, changing }) 
   );
 }
 
-/** One kind, as read: its name, open or the day it was done, and its note. */
-function KindLine({ kind }) {
+/**
+ * A kind's papers (#1287): its files, any number, each with its own remove, and one Attach. Read-only, it
+ * lists the files and says nothing when there are none. Attaching never marks the kind done.
+ */
+function KindPapers({ kind, canChange = false, onAdd, onRemove }) {
+  if (!canChange && kind.files.length === 0) return null;
+  return (
+    <div className="mt-1.5" data-testid={`ipas-compliance-papers-${kind.id}`}>
+      <DocumentFiles
+        align="start"
+        label={kind.label}
+        files={kind.files}
+        canChange={canChange}
+        onAdd={(picked) => onAdd(kind, picked)}
+        onRemove={(file) => onRemove(kind, file)}
+      />
+    </div>
+  );
+}
+
+/** One kind, as read: its name, open or the day it was done, its note and its papers. */
+function KindLine({ kind, canChange = false, onAdd, onRemove }) {
   return (
     <li className="text-sm text-foreground" data-testid="ipas-compliance-kind">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -129,6 +150,7 @@ function KindLine({ kind }) {
         <span className="text-xs text-muted-foreground">{kind.doneOn ? `done ${shortDay(kind.doneOn)}` : "open"}</span>
       </div>
       {kind.note && <p className="mt-0.5 break-words text-xs text-muted-foreground">{kind.note}</p>}
+      <KindPapers kind={kind} canChange={canChange} onAdd={onAdd} onRemove={onRemove} />
     </li>
   );
 }
@@ -202,6 +224,30 @@ function EditableBlock({ ipas, compliance }) {
     onSettled: settle,
   });
 
+  // A kind's papers (#1287). Attaching and removing never touch the done day.
+  const addFile = useMutation({
+    mutationFn: ({ kind, file }) => ipasService.addComplianceFile(kind.id, file),
+    onError: (error, variables) => setFailure({ message: ipasErrorMessage(error), retry: () => addFile.mutate(variables) }),
+    onSuccess: () => setFailure(null),
+    onSettled: settle,
+  });
+  const removeFile = useMutation({
+    mutationFn: ({ file }) => ipasService.removeComplianceFile(file.id),
+    onError: (error, variables) => setFailure({ message: ipasErrorMessage(error), retry: () => removeFile.mutate(variables) }),
+    onSuccess: () => setFailure(null),
+    onSettled: settle,
+  });
+  const attach = async (kind, picked) => {
+    for (const file of picked) {
+      try {
+        await addFile.mutateAsync({ kind, file });
+      } catch {
+        return; // the error is on screen with Retry
+      }
+    }
+  };
+  const detach = (kind, file) => removeFile.mutate({ kind, file });
+
   const { state, kinds, open } = compliance;
   const done = kinds.filter((kind) => kind.doneOn);
   const answered = state !== "unanswered";
@@ -259,6 +305,7 @@ function EditableBlock({ ipas, compliance }) {
                             </Button>
                           )}
                         </div>
+                        <KindPapers kind={kind} canChange onAdd={attach} onRemove={detach} />
                         {stepOf === kind.id && (
                           <TickStep kind={kind} saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
                         )}
@@ -270,6 +317,13 @@ function EditableBlock({ ipas, compliance }) {
                 <p className="text-xs text-muted-foreground">
                   {IPAS_COMPLIANCE_LABEL}: {state === "none" ? "none needed" : "all done"}.
                 </p>
+              )}
+              {done.length > 0 && (
+                <ul className={`${open.length > 0 ? "mt-2 border-t border-amber-a5 pt-2" : "mt-1.5"} space-y-1.5`} data-testid="ipas-compliance-done-lines">
+                  {done.map((kind) => (
+                    <KindLine key={kind.id} kind={kind} canChange onAdd={attach} onRemove={detach} />
+                  ))}
+                </ul>
               )}
               <Button variant="link" className="mt-1 h-auto p-0 text-xs font-medium underline underline-offset-4" onClick={() => setPicking(true)}>
                 Change answer or kinds
@@ -299,6 +353,7 @@ function EditableBlock({ ipas, compliance }) {
                           </span>
                         </div>
                         {kind.note && <p className="mt-0.5 break-words text-xs text-muted-foreground">{kind.note}</p>}
+                        <KindPapers kind={kind} canChange onAdd={attach} onRemove={detach} />
                         {stepOf === kind.id && (
                           <TickStep kind={kind} editing saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
                         )}

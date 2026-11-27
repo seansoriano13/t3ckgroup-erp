@@ -86,7 +86,7 @@ describe("after Yes", () => {
   it("lists one line per open kind and none for a done kind", () => {
     show({ compliance_needed: true, compliance_requirements: [requirement("FDA"), requirement("NTC"), requirement("DENR", "2026-11-20")] })
     const lines = screen.getAllByTestId("ipas-compliance-open-kind").map((line) => line.textContent)
-    expect(lines).toEqual(["NTCopenMark done", "FDAopenMark done"])
+    expect(lines).toEqual(["NTCopenMark doneAttach", "FDAopenMark doneAttach"])
   })
 
   it("Mark done opens a step with today's day and no note, and saves them", async () => {
