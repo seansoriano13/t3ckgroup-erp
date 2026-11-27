@@ -1038,7 +1038,8 @@ Recording the payment or Charge that pays an ask clears it, even for less than w
 (the rest is asked again); a different payment recorded meanwhile does not. A payment
 may also be recorded with no ask. Every ask, and every payment or Charge added, changed
 or removed, is written in the IPAS Chat with its amounts. It shows while an ask is
-open, whatever was paid before. DP paid (some paid, a balance left) and Fully paid (nothing left) are
+open, whatever was paid before, as the amount and what it is for in plain text: the
+words "For payment" are the IPAS Status's to say, once. DP paid (some paid, a balance left) and Fully paid (nothing left) are
 worked out from the payments recorded, never picked. On-Hold is the IPAS's own.
 _Avoid_: Pending (an old IPAS Status step; here it is Not due yet), Paid (the
 team says Fully paid), Payment Approval (an old IPAS Status step)
@@ -1083,16 +1084,18 @@ _Avoid_: Unapprove, Revert
 
 **IPAS Status**:
 Where an IPAS's order stands, set by hand by anyone with Purchasing access or
-Logistics access, in the team's own words: Order-Draft, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit,
+Logistics access, in the team's own words: Order-Draft, For Payment, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit,
 Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done. A Local purchase has
 no Customs / Port Hold, Arrived at Local Hub or Out for Delivery. Customs / Port
 Hold is the normal customs step, not trouble. The local hub is the forwarder's or
 courier's warehouse in the Philippines; Out for Delivery is leaving it for our
 warehouse, or for the client on a Direct delivery; Delivered is reaching our
-warehouse, or the client on a Direct delivery. It tracks the goods only: money
-waiting to be paid is the Payment status's, so an order whose payment must be
-released before it is placed stays Order-Draft while the Payment status shows For
-payment. Done comes only from Filing and leaves only on
+warehouse, or the client on a Direct delivery. For Payment is the one step that is
+not about the goods: money is asked at any point of the journey, so it sits over
+the step the goods are at without wiping that step or its date, and goes back to it
+by itself once no payment request is left open (the Chat says the app moved it).
+Picking it opens "Ask for payment" when nothing is asked yet; a step picked by hand
+meanwhile stays. Done comes only from Filing and leaves only on
 Reopen. When the IPAS already knows a fact that matches a step (raised, the Odoo PO
 confirmed, the goods received), it suggests that step; it never
 moves on its own. Any step may be picked, forward or back, and skipped steps stay
@@ -1106,8 +1109,8 @@ track and the Supplier Origin dates. Separate from the IPAS's state (open, filed
 cancelled) and from its Computation status.
 _Avoid_: Shipping status, Buyer track, Supplier Origin (the old dates), Pending,
 Requested, Ongoing or Paid (the old steps), Processing / Preparing Shipment (now
-In Production and Ready for Shipment), Payment Approval and For Payment (old
-steps; money is the Payment status's), Payment status, Progress, PMS status
+In Production and Ready for Shipment), Payment Approval (an old step), Payment
+status, Progress, PMS status
 (the sheet put "PMS" before each step; screens do not)
 
 **Direct delivery**:

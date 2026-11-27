@@ -86,9 +86,14 @@ export const IPAS_STATE_FILTER_ALL = "all";
  * only from filing. Customs / Port Hold, Arrived at Local Hub and Out for Delivery belong to
  * an Import IPAS. A cancelled IPAS has none. Separate from the state above and from the
  * Computation status. On-Hold is a flag on top of the step (`ipas.on_hold`), not a step.
+ *
+ * For Payment (back on 2026-11-27, ADR 0054 amendment) is a side step: picking it keeps every goods step and its
+ * day (`ipas.status_before_payment` remembers where the goods are), and the database moves the Status back there
+ * once no payment request is open.
  */
 const IPAS_STATUS_STEPS = [
   { key: "order_draft", label: "Order-Draft" },
+  { key: "for_payment", label: "For Payment" },
   { key: "ordered", label: "Ordered" },
   { key: "in_production", label: "In Production" },
   { key: "ready_for_shipment", label: "Ready for Shipment" },
@@ -109,13 +114,12 @@ export const IPAS_STATUS = Object.fromEntries(IPAS_STATUS_STEPS.map(({ key }) =>
 export const IPAS_STATUSES = IPAS_STATUS_STEPS.map(({ key }) => key);
 
 // A status-history entry can still name a retired step: `processing` (before #1206) reads as In Production,
-// and Payment Approval / For Payment (retired in #1221) keep their words (the database label function does the
-// same). None is a step: none is in IPAS_STATUSES or the dropdown.
+// and Payment Approval (retired in #1221) keeps its words (the database label function does the same). Neither
+// is a step: neither is in IPAS_STATUSES or the dropdown.
 export const IPAS_STATUS_LABELS = {
   ...Object.fromEntries(IPAS_STATUS_STEPS.map(({ key, label }) => [key, label])),
   processing: "In Production",
   payment_approval: "Payment Approval",
-  for_payment: "For Payment",
 };
 
 /** The list filter's value for an IPAS that is On-Hold (a flag over its step, not a step). */
@@ -747,6 +751,7 @@ export const IPAS_DIRECT_DELIVERY_LABEL = "Direct delivery to client";
  */
 export const IPAS_STATUS_MEANINGS = {
   [IPAS_STATUS.ORDER_DRAFT]: null,
+  [IPAS_STATUS.FOR_PAYMENT]: null,
   [IPAS_STATUS.ORDERED]: null,
   [IPAS_STATUS.IN_PRODUCTION]: null,
   [IPAS_STATUS.READY_FOR_SHIPMENT]: null,

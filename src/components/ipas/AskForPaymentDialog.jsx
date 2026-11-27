@@ -16,18 +16,18 @@ import { ipasErrorMessage } from "@/utils/ipas";
 import { isPhpCurrency } from "@/utils/landedCost";
 import { parseAmountInput } from "@/utils/ipasPayments";
 import { AskCurrencySwitch } from "@/components/ipas/record/AskRows";
-import { askLine, askPriorityOptions } from "@/utils/ipasPaymentAsk";
+import { askLine, askPriorityOptions, firstOpenPurpose } from "@/utils/ipasPaymentAsk";
 import { amountFromPercent, parsePercentInput, percentBase, PERCENT_ERROR } from "@/utils/ipasPaymentPercent";
 
 // A Charge ask is made from Charges (#1227), with its kind and currency.
-const PURPOSE_OPTIONS = IPAS_ASK_PURPOSES.filter((value) => value !== "charge").map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
+const PURPOSES = IPAS_ASK_PURPOSES.filter((value) => value !== "charge");
 const PRIORITY_OPTIONS = askPriorityOptions();
 
 /**
  * "Ask for payment" (ADR 0055): Purchasing, Finance or a Super Admin says how much, in the P0's currency, and what
  * for, so the Payers see the IPAS as For payment. An IPAS may have several asks open at once (#1224): each is listed
  * with Edit and Withdraw, and a payment saved as paying it is what closes it. `initial` ({ purpose, amount })
- * pre-fills a new ask (#1209). `onAsk({ amount, purpose, note, priority, percent })`, `onEdit(askId, { amount,
+ * pre-fills a new ask (#1209). `locks` is `askPurposeLocks(ipas)`: a greyed What for, with its note (#1280). `onAsk({ amount, purpose, note, priority, percent })`, `onEdit(askId, { amount,
  * priority, note, percent })` and `onWithdraw(askId)` return promises; the dialog closes when they resolve and says
  * why in itself when they fail. Mounted only while open.
  */
@@ -35,13 +35,15 @@ export default function AskForPaymentDialog({ open, onOpenChange, ...body }) {
   return open ? <Body {...body} onClose={() => onOpenChange(false)} /> : null;
 }
 
-function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClose }) {
+function Body({ number, figures, initial, locks = null, only, onAsk, onEdit, onWithdraw, onClose }) {
   // `only` (#1225): opened from an ask's grey row to change just that ask. Cancel and Save both close it.
   const openAsks = only ? [] : (figures?.paymentAsks ?? []);
   const [editing, setEditing] = useState(only ?? null); // the open ask being changed, or null for a new one
   const owed = Number(initial?.amount);
   const [amount, setAmount] = useState(only ? String(only.amount) : Number.isFinite(owed) && owed > 0 ? String(owed) : "");
-  const [purpose, setPurpose] = useState(initial?.purpose ?? "down_payment");
+  const [purpose, setPurpose] = useState(initial?.purpose ?? firstOpenPurpose(PURPOSES, locks) ?? "down_payment");
+  const purposeOptions = PURPOSES.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value], disabled: Boolean(locks?.[value]) }));
+  const purposeLock = locks?.[purpose] ?? null;
   const [note, setNote] = useState(only?.note ?? "");
   const [priority, setPriority] = useState(only?.priority ?? IPAS_ASK_DEFAULT_PRIORITY);
   const [percent, setPercent] = useState(only?.percent_of_order ? String(Number(only.percent_of_order)) : "");
@@ -57,7 +59,8 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
   const inPesos = canSwitch && pesos;
   const parsed = parseAmountInput(amount);
   const percentRead = parsePercentInput(percent);
-  const valid = parsed.ok && parsed.value !== null && parsed.value > 0 && (isCharge || inPesos || percentRead.ok) && Boolean(priority);
+  const valid =
+    parsed.ok && parsed.value !== null && parsed.value > 0 && (isCharge || inPesos || percentRead.ok) && Boolean(priority) && (editing || !purposeLock);
   const askCurrency = inPesos ? "PHP" : (isCharge ? editing?.currency : null) ?? figures?.currency;
   const currency = askCurrency ? ` (${askCurrency})` : "";
   // The same base as a payment's percent: the P.I/QT Amount, else the P0 total.
@@ -188,8 +191,13 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
       </FieldBox>
       {!editing && (
         <FieldBox label="What for" htmlFor="ask-purpose" required bare>
-          <SelectField id="ask-purpose" size="sm" options={PURPOSE_OPTIONS} value={purpose} onChange={setPurpose} className="h-10 w-full" />
+          <SelectField id="ask-purpose" size="sm" options={purposeOptions} value={purpose} onChange={setPurpose} className="h-10 w-full" />
         </FieldBox>
+      )}
+      {!editing && (purposeLock || Object.values(locks ?? {}).some(Boolean)) && (
+        <p className="text-xs text-muted-foreground" data-testid="ask-purpose-lock">
+          {purposeLock ?? Object.values(locks).find(Boolean)}
+        </p>
       )}
       <FieldBox label="Note (optional)" bare>
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={300} />

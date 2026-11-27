@@ -62,3 +62,7 @@ Purchasing (spec #1276) found a For payment request could only be in the PO's cu
 - **Full payment is a request purpose**, next to Down payment, Balance and Charge.
 - **The Status chip carries the money part.** While a supplier or charge request is open, the chip reads "Order-Draft · For payment (Down payment)", "Customs · For payment (Duties & Taxes)", or "In Transit · For payment (2)" for several. It is worked out from the IPAS figures, never stored, and goes when the request is paid or withdrawn. It shows on the record header beside the Status control and in the list's Status column.
 - **The Status itself stays goods-only, as ADR 0054 says.** The Status dropdown and the Status filter keep goods steps only; "For Payment" does not come back as a step. The printed IPAS, the separate Payment pill and the Payment column are unchanged.
+
+## Amendment, 2026-11-27 (afternoon): "For payment" is said once
+
+The money part on the Status chip and the amber For payment chip in the Payment column said the same words twice. The team chose a hand-picked For Payment Status step instead (ADR 0054, amendment of 2026-11-27). The Status chip shows only the picked step; the Payment column and the record header show an open request as plain text: the amount and what it is for (the header adds its priority; the list has a Priority column). Not due yet, DP paid and Fully paid are unchanged.

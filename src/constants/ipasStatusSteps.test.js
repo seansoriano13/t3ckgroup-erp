@@ -13,6 +13,7 @@ describe("the IPAS Status steps are listed once (#1151)", () => {
   it("keeps the team's words and order, with one constant, one label and one colour per step", () => {
     expect(IPAS_STATUSES.map((key) => IPAS_STATUS_LABELS[key])).toEqual([
       "Order-Draft",
+      "For Payment",
       "Ordered",
       "In Production",
       "Ready for Shipment",

@@ -43,3 +43,15 @@ Purchasing's notes listed the order's early life as For Payment, In Production, 
 ## Amendment, 2026-11-25: Payment Approval and For Payment leave the list
 
 Both steps are removed; money waiting to be paid is shown only by the Payment status (ADR 0055, amendment of 2026-11-25). An order whose payment must be released before it is placed stays Order-Draft while its Payment status reads For payment. IPAS on either step move to Order-Draft, and the hints that suggested Payment Approval (section 1 prepared, the P.I and its amount in) go. The list is now: Order-Draft, Ordered, In Production, Ready for Shipment, Shipped / Picked Up, In Transit, Customs / Port Hold, Arrived at Local Hub, Out for Delivery, Delivered, Done.
+
+## Amendment, 2026-11-27: For Payment comes back, as a side step
+
+Purchasing (TGIPAS_061, Micko's request) wanted "For Payment" in the Status again, and found the Status chip with an automatic "· For payment (Down payment)" beside an amber "For payment" in the Payment column: the same words twice. Changes:
+
+- **For Payment is a step again**, picked by hand, right after Order-Draft, for Import and Local alike. Payment Approval stays retired.
+- **It is a side step.** Money is asked at any point (a down payment at Order-Draft, a Balance in transit, duties at Customs), so picking it keeps every goods step and its date and remembers the goods step under it (`ipas.status_before_payment`). This is what the 2026-11-24 version lacked: picking it then wiped every later step.
+- **It goes back by itself** to that goods step (or Order-Draft) once no payment request is open, paid or withdrawn. The Chat line says the app moved it. A step picked by hand meanwhile is left alone. This is the one move the database makes on its own besides Filing and Reopen.
+- **Picking it opens "Ask for payment"** when nothing is asked yet, so the Payment column always says how much.
+- **The automatic money part on the Status chip goes** (it came in on the morning of 2026-11-27, spec #1276), and the Payment column drops its amber chip for plain text ("₱6,691.96 · Balance"), so "For payment" is said once.
+
+Rejected: keeping the automatic money part with a hand-picked step (two ways to say one thing, and they can disagree), and a For Payment that replaces the goods step (the 2026-11-24 behaviour: it wiped the goods dates and hid where the order is).

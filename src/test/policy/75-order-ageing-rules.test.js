@@ -39,6 +39,7 @@ async function tryDelete(client, table, step) {
 
 const STEPS = [
     "order_draft",
+    "for_payment",
     "ordered",
     "in_production",
     "ready_for_shipment",

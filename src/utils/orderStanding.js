@@ -188,9 +188,10 @@ export function standingLabel(next, viewerLists = null) {
   return `${next.label}, waiting on ${TRANSMITTAL_STAFF_LIST_LABELS[next.list] ?? next.list}`;
 }
 
-/** Who owes each IPAS Status step before Delivered. Anything past Order-Draft is someone else's. */
+/** Who owes each IPAS Status step before Delivered. Anything past For Payment is someone else's. */
 const STATUS_OWNER = {
   [IPAS_STATUS.ORDER_DRAFT]: ORDER_OWNER.PURCHASING,
+  [IPAS_STATUS.FOR_PAYMENT]: ORDER_OWNER.GM,
 };
 
 /** The steps of the status before Delivered. */

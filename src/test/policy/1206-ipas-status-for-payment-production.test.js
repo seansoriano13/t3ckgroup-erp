@@ -46,10 +46,10 @@ describe("what the processing move leaves behind", () => {
         expect(onSteps.count).toBe(0)
     })
 
-    it("keeps the Ageing rule on in_production, with ready_for_shipment added and processing gone (for_payment left in #1221)", async () => {
+    it("keeps the Ageing rule on in_production, with ready_for_shipment added and processing gone (for_payment left in #1221, back on 2026-11-27)", async () => {
         const { data, error } = await svc().from("order_ageing_rules").select("step").in("step", ["processing", "in_production", "for_payment", "ready_for_shipment"])
         expect(error).toBeNull()
-        expect(data.map((r) => r.step).sort()).toEqual(["in_production", "ready_for_shipment"])
+        expect(data.map((r) => r.step).sort()).toEqual(["for_payment", "in_production", "ready_for_shipment"])
     })
 
     it("refuses the old word as an Ageing rule step", async () => {

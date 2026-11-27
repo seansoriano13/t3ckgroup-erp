@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ipasFigures } from "./ipasFigures";
-import { askLine, askPurposeLocks, askWhat, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, firstOpenPurpose, joinMoneyPart, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
+import { askLine, askPurposeLocks, askWhat, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, firstOpenPurpose, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
 
 const withAsk = (ask) => ({ figures: { paymentAsk: ask } });
 
@@ -30,12 +30,6 @@ describe("where a new request starts, and the Status chip words", () => {
     expect(firstOpenPurpose(purposes, { full_payment: "x", down_payment: null, balance: null })).toBe("down_payment");
     expect(firstOpenPurpose(purposes, { down_payment: "x", balance: "x", full_payment: null })).toBe("full_payment");
     expect(firstOpenPurpose(purposes, { down_payment: "x", balance: "x", full_payment: "x" })).toBeNull();
-  });
-
-  it("joins the step and the money part with a dot, or keeps the step alone", () => {
-    expect(joinMoneyPart("In Transit", "For payment (2)")).toBe("In Transit · For payment (2)");
-    expect(joinMoneyPart("In Transit", null)).toBe("In Transit");
-    expect(joinMoneyPart(null, "For payment (2)")).toBeNull();
   });
 });
 
