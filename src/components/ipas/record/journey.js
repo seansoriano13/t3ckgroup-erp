@@ -281,6 +281,8 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
       key: "file",
       label: "Approve and file",
       done: filed,
+      // A Compliance Requirement open or unanswered is said here. It warns, never blocks.
+      warning: filed ? null : (digest.compliance?.warning ?? null),
       line: filed
         ? `Filed by ${s7.approved?.signedBy?.name ?? "someone"}.`
         : checkedByMe && onList([IPAS_SIGNER_LIST.S7_APPROVED])

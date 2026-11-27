@@ -49,6 +49,29 @@ describe("IpasSorSection (#249)", () => {
     expect(screen.getAllByText("Not started")).toHaveLength(2)
   })
 
+  it("shows the Compliance Requirements line: each kind, done or open, and nothing when the IPAS does not ask (#1257)", async () => {
+    authUser = { id: "emp-1" }
+    stubRpc("ipas_summaries_for_sor", [
+      summary({
+        compliance: {
+          needed: true,
+          kinds: [
+            { id: "r1", kind_id: "k1", label: "DENR", done_on: "2026-11-02" },
+            { id: "r2", kind_id: "k2", label: "MARINA", done_on: null },
+          ],
+        },
+      }),
+      summary({ ipas_id: "ipas-2", number: "TGIPAS_053", compliance: null }),
+    ])
+    renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
+
+    const line = await screen.findByTestId("ipas-summary-compliance")
+    expect(line).toHaveTextContent("Compliance Requirements")
+    expect(screen.getByTestId("ipas-compliance-kind-done")).toHaveTextContent("DENR")
+    expect(screen.getByTestId("ipas-compliance-kind-open")).toHaveTextContent("MARINA open")
+    expect(screen.getAllByTestId("ipas-summary-compliance")).toHaveLength(1)
+  })
+
   it("renders nothing when no IPAS names the SOR", async () => {
     authUser = { id: "emp-1" }
     stubRpc("ipas_summaries_for_sor", [])

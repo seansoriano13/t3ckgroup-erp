@@ -136,3 +136,19 @@ describe("rail: Approve and file after the Check (#921)", () => {
     expect(file("u2", "u1").action).toMatchObject({ kind: "file" });
   });
 });
+
+describe("rail: Filing's Compliance Requirements warning (#1257)", () => {
+  const fileItem = (warning) =>
+    journeyFor({
+      ipas: { charges: [], slips: [], source: "local" },
+      digest: { ...baseDigest, compliance: { warning } },
+      lists: {},
+      userId: "u1",
+      can: {},
+    }).sign.find((entry) => entry.key === "file");
+
+  it("says an open kind beside Approve and file, and says nothing when none is open", () => {
+    expect(fileItem("Compliance Requirements still open: DENR.").warning).toBe("Compliance Requirements still open: DENR.");
+    expect(fileItem(null).warning).toBeNull();
+  });
+});

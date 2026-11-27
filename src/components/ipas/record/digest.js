@@ -19,6 +19,7 @@ import {
 } from "@/constants/ipas";
 import { formatAmount, statusDayOf } from "@/utils/ipas";
 import { billCheckView } from "@/utils/ipasBillCheck";
+import { complianceViewOfIpas, complianceWarning } from "@/utils/ipasCompliance";
 import { ipasFigures } from "@/utils/ipasFigures";
 import { filingChecklist, fileRulesOf, missingDocumentsByPart } from "@/utils/ipasDocuments";
 import { FILING_STATUS, SIGNOFF_STATUS, isLandedCostFinal } from "@/utils/ipasSignoffs";
@@ -91,6 +92,9 @@ export function digestIpas(ipas, signerLists = null) {
   // The money summary and section 1's approval warning read the same figures (#603).
   const figures = ipasFigures(ipas);
   const bill = billCheckView(figures);
+  // Compliance Requirements (#1257): the line near the top, and Filing's warning while open.
+  const complianceView = complianceViewOfIpas(ipas);
+  const compliance = { view: complianceView, warning: open ? complianceWarning(complianceView) : null };
 
   // Sign-offs.
   const s1 = ipas.signoffSections[IPAS_REQUEST_SECTION];
@@ -223,6 +227,7 @@ export function digestIpas(ipas, signerLists = null) {
     money,
     figures,
     bill,
+    compliance,
     s1,
     s3,
     s6,
