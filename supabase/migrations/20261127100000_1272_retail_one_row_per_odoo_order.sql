@@ -12,15 +12,9 @@ where r.odoo_so_number !~ '^S[0-9]+$'
     where o.odoo_so_id = r.odoo_so_id and o.id <> r.id and o.odoo_so_number ~ '^S[0-9]+$'
   );
 
--- Any other pair sharing an Odoo id: keep the oldest row, drop the later copies.
-delete from public.retail_orders r
-using public.retail_orders o
-where r.odoo_so_id is not null
-  and r.odoo_so_id = o.odoo_so_id
-  and (o.created_at, o.id) < (r.created_at, r.id);
-
 -- 2. The database refuses a second row for the same Odoo order. (Nulls stay allowed: a row
---    with no Odoo id yet does not clash.)
+--    with no Odoo id yet does not clash.) If a clash is left after step 1, this fails loudly
+--    on purpose: someone looks at the two rows instead of the migration choosing for them.
 create unique index if not exists retail_orders_odoo_so_id_key
   on public.retail_orders (odoo_so_id);
 

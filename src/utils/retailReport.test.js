@@ -677,6 +677,20 @@ describe("chaseList: shared Marketplace Order ID", () => {
   it("does not pair an order with one that is not in the list given", () => {
     expect(chaseList([shared("a", "S00001")]).count).toBe(0)
   })
+
+  it("finds a pair split by the range: the in-range order is listed and names its partner", () => {
+    const inRange = [shared("a", "S00001")]
+    const all = [shared("a", "S00001"), shared("b", "S00002", { ordered_at: "2026-08-31T10:00:00" })]
+    const list = chaseList(inRange, all)
+    expect(list.groups[0].orders.map((o) => o.id)).toEqual(["a"])
+    expect(list.sharedWith.get("a")).toEqual(["S00002"])
+    expect(list).toMatchObject({ count: 1, orderAmount: 700 })
+  })
+
+  it("does not pair with an order that is not counted", () => {
+    const all = [shared("a", "S00001"), shared("b", "S00002", { is_excluded: true })]
+    expect(chaseList([all[0]], all).count).toBe(0)
+  })
 })
 
 describe("isBackwardsRange", () => {

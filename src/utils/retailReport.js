@@ -251,7 +251,7 @@ export function marketplaceBreakdown(orders) {
         orderIncome: 0,
         orderCount: 0,
         totalFees: 0,
-        feeCount: 0, // OK orders that carry a fee
+        okFeeCount: 0, // OK orders that carry a fee
         missingCount: 0,
         okOrderCount: 0,
         incomeWithFee: 0, // income of the OK orders that also carry a fee
@@ -268,19 +268,19 @@ export function marketplaceBreakdown(orders) {
     row.orderIncome += income
     if (order.marketplace_fee != null) {
       row.totalFees += Number(order.marketplace_fee) || 0
-      row.feeCount += 1
+      row.okFeeCount += 1
       row.incomeWithFee += income
     }
   }
 
   return [...byMarketplace.values()]
     .sort((a, b) => a.marketplace.localeCompare(b.marketplace))
-    .map(({ okOrderCount, incomeWithFee, feeCount, ...row }) => {
+    .map(({ okOrderCount, incomeWithFee, okFeeCount, ...row }) => {
       const ratedTotal = row.totalFees + incomeWithFee
       return {
         ...row,
         // null, not 0, when no OK order carries a fee: zero would read as "charges nothing".
-        totalFees: feeCount === 0 ? null : row.totalFees,
+        totalFees: okFeeCount === 0 ? null : row.totalFees,
         averageIncome: okOrderCount === 0 ? null : row.orderIncome / okOrderCount,
         feeRate: ratedTotal === 0 ? null : row.totalFees / ratedTotal,
       }
@@ -315,11 +315,13 @@ export function sharedMarketplaceOrderIds(orders) {
 
 /**
  * Who to chase for Order Income: every Missing and Suspect order, plus every
- * order whose Marketplace Order ID is on another order given (both stay in the
- * totals; the salesperson fixes Odoo), grouped by Odoo salesperson. Takes the
- * orders already narrowed to what is on screen (`applyFilters`: range plus
- * filters), like `summarize`, so it follows the range and filters rather than
- * deciding them. `sharedWith` maps an order id to the Odoo numbers of the other
+ * order whose Marketplace Order ID is on another counted order (both stay in the
+ * totals; the salesperson fixes Odoo), grouped by Odoo salesperson. `orders` is
+ * already narrowed to what is on screen (`applyFilters`: range plus filters),
+ * like `summarize`, so the list follows the range and filters rather than
+ * deciding them. Pairs are found across `allOrders` (every order, counted ones
+ * kept), so a pair split by the range or a filter still lists the order on
+ * screen, with its partner named. `sharedWith` maps an order id to the Odoo numbers of the other
  * orders sharing its Marketplace Order ID. Each group has a count and the
  * `orderAmount` its orders put at stake (Order Amount, never Order Income, which
  * these orders lack or cannot be trusted for); the list has a grand count and
@@ -327,8 +329,8 @@ export function sharedMarketplaceOrderIds(orders) {
  * salesperson sit in one `salesperson: null` group, always last. A group's
  * orders run newest first.
  */
-export function chaseList(orders) {
-  const sharedWith = sharedMarketplaceOrderIds(orders)
+export function chaseList(orders, allOrders = orders) {
+  const sharedWith = sharedMarketplaceOrderIds(allOrders.filter(isCountedOrder))
   const bySalesperson = new Map()
   let count = 0
   let orderAmount = 0

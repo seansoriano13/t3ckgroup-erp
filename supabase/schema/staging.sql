@@ -3194,6 +3194,7 @@ CREATE INDEX request_canvass_suppliers_canvass_idx ON public.request_canvass_sup
 CREATE UNIQUE INDEX request_canvass_suppliers_name_key ON public.request_canvass_suppliers USING btree (canvass_id, lower(btrim(supplier_name)));
 CREATE UNIQUE INDEX request_units_label_key ON public.request_units USING btree (lower(btrim(label)));
 CREATE INDEX request_units_sort_idx ON public.request_units USING btree (sort);
+CREATE UNIQUE INDEX retail_orders_odoo_so_id_key ON public.retail_orders USING btree (odoo_so_id);
 CREATE INDEX retail_orders_ordered_at_idx ON public.retail_orders USING btree (ordered_at DESC);
 CREATE UNIQUE INDEX sale_types_live_name_key ON public.sale_types USING btree (lower(btrim(name))) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX sale_types_system_key_key ON public.sale_types USING btree (system_key) WHERE (system_key IS NOT NULL);

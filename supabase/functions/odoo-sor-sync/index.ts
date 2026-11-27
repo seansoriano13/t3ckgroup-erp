@@ -308,12 +308,8 @@ async function runSync(
   }
 
   const stored = await loadStoredOrders();
-  // Stored rows are matched on the Odoo id: one row per Odoo order. A row with no
-  // Odoo id yet (an old queue import) is matched on its order number instead.
+  // Stored rows are matched on the Odoo id: one row per Odoo order.
   const knownById = new Map<number, any>(stored.filter((row) => row.odoo_so_id != null).map((row) => [row.odoo_so_id, row]));
-  const knownByNumber = new Map<string, any>(
-    stored.filter((row) => row.odoo_so_id == null).map((row) => [row.odoo_so_number, row]),
-  );
   const touched =
     mode === "full"
       ? await fetchOrdersWithTouchedNotes(
@@ -348,7 +344,7 @@ async function runSync(
         amount,
         planWrite: (fact: NoteFacts | undefined): Write | null => {
           const partnerName: string = so.partner_id ? so.partner_id[1] : "";
-          const prior = knownById.get(so.id) ?? knownByNumber.get(so.name);
+          const prior = knownById.get(so.id);
           const next = {
             odoo_so_number: so.name,
             odoo_so_id: so.id,
