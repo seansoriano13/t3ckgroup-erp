@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import Spinner from "../ui/Spinner";
@@ -20,6 +20,7 @@ import {
   monthMarketplaceGroups,
   monthlySeries,
   applyFilters,
+  isBackwardsRange,
   isSearching,
   rangeBounds,
   summarize,
@@ -95,9 +96,14 @@ export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_F
   // The counted orders in the range that pass every filter: the one list every
   // figure and block below reads (headline, Missing line, chart, month groups,
   // breakdown and chase list), so they all follow the same controls.
+  // A backwards Custom range keeps the last good one until it is fixed.
+  const backwards = range === "custom" && isBackwardsRange(custom);
+  const lastGoodCustom = useRef(custom);
+  if (!backwards) lastGoodCustom.current = custom;
+  const effectiveCustom = backwards ? lastGoodCustom.current : custom;
   const inRange = useMemo(
-    () => applyFilters(orders, filters, rangeBounds(range, new Date(), custom)),
-    [orders, filters, range, custom],
+    () => applyFilters(orders, filters, rangeBounds(range, new Date(), effectiveCustom)),
+    [orders, filters, range, effectiveCustom],
   );
   const summary = useMemo(() => summarize(inRange), [inRange]);
   const series = useMemo(() => monthlySeries(inRange), [inRange]);
@@ -130,6 +136,11 @@ export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_F
 
   return (
     <div className="space-y-8">
+      {backwards && (
+        <p role="alert" className="text-sm font-semibold text-foreground">
+          From is after To. Swap the dates to see orders.
+        </p>
+      )}
       <RetailHeadline summary={summary} mom={mom} series={series} scope={scopeNote(filters)} empty={empty} searching={isSearching(filters)} />
 
       <MarketplaceBreakdown orders={inRange} />
