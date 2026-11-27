@@ -17,20 +17,21 @@ const HELD_STYLE = "bg-mauve-11 text-mauve-1 border-mauve-11 hover:bg-mauve-12 h
 const SHAPE =
   "inline-block h-5 max-w-full truncate rounded-full border px-2 text-center align-middle text-label font-bold uppercase leading-[18px] tracking-wider whitespace-nowrap shrink-0";
 
-export default function IpasStatusPill({ status, onHold = false, note = null, onClick = null, className = "" }) {
+export default function IpasStatusPill({ status, onHold = false, note = null, onClick = null, className = "", money = null }) {
   if (!status) return null;
   const stepLabel = IPAS_STATUS_LABELS[status] ?? status;
+  const withMoney = (text) => (money ? `${text} · ${money}` : text);
 
   if (!onHold) {
     return (
       <span data-testid="ipas-status-pill" data-status={status} className="inline-flex max-w-full">
-        <StatusBadge status={status} label={stepLabel} className={className} title={stepLabel} />
+        <StatusBadge status={status} label={withMoney(stepLabel)} className={className} title={withMoney(stepLabel)} />
       </span>
     );
   }
 
   // A held pill, read-only or a button: the same marks, label and look either way.
-  const label = `On-Hold · ${stepLabel}`;
+  const label = withMoney(`On-Hold · ${stepLabel}`);
   const title = note ? `${label}: ${note}` : label;
   const held = {
     "data-testid": "ipas-status-pill",

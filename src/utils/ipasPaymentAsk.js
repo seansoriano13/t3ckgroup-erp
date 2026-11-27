@@ -42,6 +42,16 @@ export const askWhat = (ask) =>
     ? (ask.charge_kind?.label ?? IPAS_ASK_PURPOSE_LABELS.charge)
     : (IPAS_ASK_PURPOSE_LABELS[ask?.purpose] ?? ask?.purpose);
 
+/**
+ * The money part the Status chip carries beside the goods step (ADR 0055, 2026-11-27): "For payment (Down payment)"
+ * for one open ask, "For payment (2)" for several, null when none is open. Worked out from the figures, never stored.
+ */
+export function askMoneyPart(figures) {
+  const asks = figures?.paymentAsks ?? [];
+  if (asks.length === 0) return null;
+  return asks.length === 1 ? `For payment (${askWhat(asks[0])})` : `For payment (${asks.length})`;
+}
+
 /** A Charge ask is billed in its own currency (#1227); the others use the P0's. */
 export const askCurrency = (ask, fallback) => (ask?.purpose === "charge" && ask.currency ? ask.currency : fallback);
 
