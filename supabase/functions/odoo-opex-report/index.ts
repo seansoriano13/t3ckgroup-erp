@@ -17,6 +17,8 @@
 // Each report read logs one line, `opex_read_timing`, with how long each part took
 // (sign-in check, settings, Odoo authenticate, rounds 1–4 and each call in them), so
 // the function logs show where the ~3 s goes (#1266). No figures are logged.
+// `odooRetries` and `odooRetryWaitMs` count Odoo's "try again" answers (HTTP 429)
+// during the read and the time spent waiting before retrying them.
 //
 // Speed (#1266): the Odoo sign-in is remembered while the function stays warm
 // (authenticateOnce), and it starts together with the settings read, alongside the
@@ -26,7 +28,7 @@
 // JWT verification ON. Odoo credentials stay in function secrets.
 
 import { callerEmail } from "../_shared/caller.ts";
-import { authenticateOnce, corsHeaders, executeKw, isConfigured, jsonResponse, normalizePoNumber, normalizeReference } from "../_shared/odoo.ts";
+import { authenticateOnce, corsHeaders, odooRetryStats, executeKw, isConfigured, jsonResponse, normalizePoNumber, normalizeReference } from "../_shared/odoo.ts";
 import { readOpexReport } from "../_shared/odooOpexRead.ts";
 import { createStepTimer, type StepTimer } from "../_shared/stepTimer.ts";
 
@@ -35,8 +37,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-function logTiming(timer: StepTimer, s0: string, ok: boolean) {
-  console.log(JSON.stringify({ event: "opex_read_timing", s0, ok, ...timer.summary() }));
+type RetryStats = ReturnType<typeof odooRetryStats>;
+
+function logTiming(timer: StepTimer, retriesAtStart: RetryStats, s0: string, ok: boolean) {
+  const now = odooRetryStats();
+  console.log(
+    JSON.stringify({
+      event: "opex_read_timing",
+      s0,
+      ok,
+      odooRetries: now.retries - retriesAtStart.retries,
+      odooRetryWaitMs: now.waitMs - retriesAtStart.waitMs,
+      ...timer.summary(),
+    }),
+  );
 }
 
 Deno.serve(async (req) => {
@@ -51,6 +65,7 @@ Deno.serve(async (req) => {
 
   const timer = createStepTimer();
   const timed = timer.time;
+  const retriesAtStart = odooRetryStats();
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   // Started now, awaited only once the caller has passed. A failure is reported
@@ -100,10 +115,10 @@ Deno.serve(async (req) => {
     const [{ data: settings }, uid] = await Promise.all([settingsRead, odooUidRead]);
     const vatDivisor = Number(settings?.vat_divisor) || 1.12;
     const report = await timed("readOpexReport", () => readOpexReport(uid, { s0, handP0s, vatDivisor, timer }));
-    logTiming(timer, s0, true);
+    logTiming(timer, retriesAtStart, s0, true);
     return jsonResponse({ success: true, readAt: new Date().toISOString(), vatDivisor, ...report });
   } catch (e) {
-    logTiming(timer, s0, false);
+    logTiming(timer, retriesAtStart, s0, false);
     return jsonResponse({ success: false, message: `Odoo could not be read: ${(e as Error).message}` });
   }
 });
