@@ -17,12 +17,14 @@ import ReadTick from "@/components/record/ReadTick";
 import { useEditable, useInDrawer } from "@/components/record/sectionChrome";
 import { fileRulesOf, requiredFilesByPart } from "../../utils/ipasDocuments";
 import { DocumentFiles } from "./DocumentFiles";
+import IpasComplianceBlock from "./record/IpasComplianceBlock";
 
 /**
  * Section 3's documents (#246): one list, two ticks per row. Purchasing has it
  * belongs to Purchasing and Finance has it to Finance; neither ticks for the
  * other (the database refuses it, and the page only offers each person their own).
  *
+ *   compliance      the Compliance Requirement view (moves.js `complianceFor`), or null
  *   canChange       Purchasing on an open IPAS: adds, attaches and removes rows,
  *                   and ticks Purchasing has it
  *   canTickFinance  Finance access on an open IPAS: ticks Finance has it
@@ -33,6 +35,7 @@ import { DocumentFiles } from "./DocumentFiles";
  */
 export function IpasDocuments({
   ipas,
+  compliance = null,
   canChange: changeGranted = false,
   canTickFinance: tickGranted = false,
   onTick,
@@ -76,6 +79,8 @@ export function IpasDocuments({
           </>
         )}
       </SectionHeader>
+
+      {compliance && <IpasComplianceBlock ipas={ipas} compliance={compliance} />}
 
       {required.length > 0 && (
         <div className="rounded-xl border border-border px-3 py-2 text-xs" data-testid="ipas-required-files">

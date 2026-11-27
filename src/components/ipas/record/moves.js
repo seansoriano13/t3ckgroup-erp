@@ -202,20 +202,20 @@ export function cardMovesFor(ctx, digest) {
 }
 
 /**
- * The Compliance Requirement group of "Your move" (#1251, spec #1247): a group of its own beside the
- * sign-offs, shown only to people the database lets answer (`ctx.can.compliance`: Purchasing access,
- * Logistics access or a Super Admin) on an open IPAS that asks. Returns null when nothing shows.
+ * The Compliance Requirement block of section 5 · Documents (#1251, spec #1247; moved by #1286). Null when
+ * the IPAS does not ask (an old IPAS shows no block). Everyone who can open the IPAS gets the view; it is
+ * `readOnly`, with no buttons, for anyone without `ctx.can.compliance` (Purchasing access, Logistics access
+ * or a Super Admin) and on a filed or cancelled IPAS.
  *   state      "unanswered" | "none" | "kinds" (see complianceViewOfIpas)
- *   open       the kinds still open, in list order (done kinds leave Your move)
+ *   open       the kinds still open, in list order
  *   kinds      every kind the IPAS holds: `{ id, kindId, label, doneOn, note }`
- * With a Yes whose kinds are all done, or a No, there is no to-do: the group is only a quiet line with
- * "Change".
+ *   readOnly   true when nobody may change it here
  */
 export function complianceFor(ctx) {
   const ipas = ctx.ipas;
-  if (!ctx.can?.compliance || !ipas?.compliance_asked) return null;
-  if (ipas.state !== "open") return null;
-  return complianceViewOfIpas(ipas);
+  if (!ipas?.compliance_asked) return null;
+  const readOnly = !ctx.can?.compliance || ipas.state !== "open";
+  return { ...complianceViewOfIpas(ipas), readOnly };
 }
 
 /**

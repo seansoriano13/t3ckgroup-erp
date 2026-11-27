@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "@/test/support"
-import IpasComplianceMove from "./IpasComplianceMove"
+import IpasComplianceBlock from "./IpasComplianceBlock"
 import { complianceFor } from "./moves"
 
 const service = vi.hoisted(() => ({
@@ -29,7 +29,7 @@ const requirement = (label, doneOn = null) => ({
 function show(ipas) {
   const row = { id: "ipas-1", state: "open", compliance_asked: true, compliance_needed: null, compliance_requirements: [], ...ipas }
   const compliance = complianceFor({ can: { compliance: true }, ipas: row })
-  return renderWithProviders(<IpasComplianceMove ipas={row} compliance={compliance} />)
+  return renderWithProviders(<IpasComplianceBlock ipas={row} compliance={compliance} />)
 }
 
 beforeEach(() => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { canEditSection, cardMovesFor, complianceFor, footerMovesFor } from "./moves";
 
-describe("complianceFor: the Compliance Requirement group of Your move", () => {
+describe("complianceFor: the Compliance Requirement block of section 5", () => {
   const kind = (id, label, sort, doneOn = null) => ({ id: `r-${id}`, kind_id: id, done_on: doneOn, note: null, kind: { id, label, sort } });
   const ctx = (ipas, can = true) => ({
     can: { compliance: can },
@@ -10,14 +10,17 @@ describe("complianceFor: the Compliance Requirement group of Your move", () => {
   });
 
   it("asks the question on a new IPAS, to people with the rights", () => {
-    expect(complianceFor(ctx({}))).toMatchObject({ state: "unanswered", open: [] });
+    expect(complianceFor(ctx({}))).toMatchObject({ state: "unanswered", open: [], readOnly: false });
   });
 
-  it("shows nothing to anyone without the rights, on an IPAS that does not ask, or one that is filed or cancelled", () => {
-    expect(complianceFor(ctx({}, false))).toBeNull();
+  it("shows nothing on an IPAS that does not ask", () => {
     expect(complianceFor(ctx({ compliance_asked: false }))).toBeNull();
-    expect(complianceFor(ctx({ state: "filed" }))).toBeNull();
-    expect(complianceFor(ctx({ state: "cancelled", compliance_needed: true, compliance_requirements: [kind("a", "FDA", 5)] }))).toBeNull();
+  });
+
+  it("is read-only for anyone without the rights, and on a filed or cancelled IPAS", () => {
+    expect(complianceFor(ctx({}, false))).toMatchObject({ state: "unanswered", readOnly: true });
+    expect(complianceFor(ctx({ state: "filed" }))).toMatchObject({ readOnly: true });
+    expect(complianceFor(ctx({ state: "cancelled", compliance_needed: true, compliance_requirements: [kind("a", "FDA", 5)] }))).toMatchObject({ state: "kinds", readOnly: true });
   });
 
   it("lists the open kinds in list order after Yes, and drops the done ones", () => {

@@ -1,7 +1,10 @@
-// The Compliance Requirement group of the IPAS's Your move (#1251, spec #1247).
+// The Compliance Requirement block of section 5 · Documents (#1251, spec #1247; moved here by #1286, spec #1284).
 // Unanswered: the question, Yes and No. Yes opens a picker of the active kinds. After Yes: one line per
 // open kind with Mark done (#1256: the day, never after today in Manila, and an optional note), and a way to
 // change the answer or the kinds. That step also lists the done kinds: Undo a tick, or Edit its day and note.
+// It works in view mode. Without the rights, or on a filed or cancelled IPAS, `compliance.readOnly` shows the
+// same facts (kinds, days, notes) with no buttons. Each kind reads as one `KindLine`, so a kind's papers can
+// join that row later (#1287).
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -117,11 +120,47 @@ function KindPicker({ ipasId, held, onSave, onNo, onCancel, saving, changing }) 
   );
 }
 
+/** One kind, as read: its name, open or the day it was done, and its note. */
+function KindLine({ kind }) {
+  return (
+    <li className="text-sm text-foreground" data-testid="ipas-compliance-kind">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium">{kind.label}</span>
+        <span className="text-xs text-muted-foreground">{kind.doneOn ? `done ${shortDay(kind.doneOn)}` : "open"}</span>
+      </div>
+      {kind.note && <p className="mt-0.5 break-words text-xs text-muted-foreground">{kind.note}</p>}
+    </li>
+  );
+}
+
+/** The no-buttons view: for someone without the rights, and for a filed or cancelled IPAS. */
+function ReadOnlyBlock({ compliance }) {
+  const { state, kinds } = compliance;
+  return (
+    <section className="rounded-xl border border-border bg-background px-3 py-2.5" aria-label={IPAS_COMPLIANCE_LABEL} data-testid="ipas-compliance-block">
+      <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_LABEL}</p>
+      {state === "unanswered" && <p className="mt-0.5 text-xs text-muted-foreground">Not answered yet.</p>}
+      {state === "none" && <p className="mt-0.5 text-xs text-muted-foreground">None needed.</p>}
+      {state === "kinds" && (
+        <ul className="mt-1.5 space-y-1.5">
+          {kinds.map((kind) => (
+            <KindLine key={kind.id} kind={kind} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /**
  * `compliance` is `complianceFor(ctx)` (moves.js), never null here. The database decides in the end who may
- * answer; the group is only shown to people it will let.
+ * answer; the buttons are only shown to people it will let.
  */
-export default function IpasComplianceMove({ ipas, compliance }) {
+export default function IpasComplianceBlock({ ipas, compliance }) {
+  return compliance.readOnly ? <ReadOnlyBlock compliance={compliance} /> : <EditableBlock ipas={ipas} compliance={compliance} />;
+}
+
+function EditableBlock({ ipas, compliance }) {
   const queryClient = useQueryClient();
   // "picking": the kind picker is open.
   const [picking, setPicking] = useState(false);
@@ -173,9 +212,9 @@ export default function IpasComplianceMove({ ipas, compliance }) {
 
   return (
     <section
-      className={`mt-3 rounded-xl border px-3 py-2.5 ${needsMe ? "border-amber-a6 bg-amber-2" : "border-border bg-background"}`}
+      className={`rounded-xl border px-3 py-2.5 ${needsMe ? "border-amber-a6 bg-amber-2" : "border-border bg-background"}`}
       aria-label={IPAS_COMPLIANCE_LABEL}
-      data-testid="ipas-compliance-move"
+      data-testid="ipas-compliance-block"
     >
       <div className="flex items-start gap-2.5">
         <span className="mt-0.5 shrink-0" aria-hidden="true">
