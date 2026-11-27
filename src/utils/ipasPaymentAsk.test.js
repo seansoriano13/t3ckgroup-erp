@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ipasFigures } from "./ipasFigures";
-import { askLine, askPurposeLocks, askWhat, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, firstOpenPurpose, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
+import { askLine, askPurposeLocks, askWhat, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, firstOpenPurpose, lockNoteLines, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
 
 const withAsk = (ask) => ({ figures: { paymentAsk: ask } });
 
@@ -34,6 +34,13 @@ describe("where a new request starts, and the Status chip words", () => {
 });
 
 describe("Full payment requests (#1280)", () => {
+  it("names the greyed choices before each note, once per note", () => {
+    const purposes = ["down_payment", "balance", "full_payment"];
+    expect(lockNoteLines(purposes, { full_payment: "Taken." })).toEqual(["Full payment: Taken."]);
+    expect(lockNoteLines(purposes, { down_payment: "Asked.", balance: "Asked.", full_payment: null })).toEqual(["Down payment and Balance: Asked."]);
+    expect(lockNoteLines(purposes, {})).toEqual([]);
+  });
+
   it("is labelled Full payment and Record as paid fills the kind Full payment", () => {
     expect(askWhat({ purpose: "full_payment" })).toBe("Full payment");
     expect(paidKindForAsk({ purpose: "full_payment", amount: 100 }, 1000)).toBe("full_payment");
