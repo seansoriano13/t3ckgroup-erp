@@ -41,7 +41,9 @@ async function raise(currency = "USD") {
 const ask = (ipasId, over = {}) =>
     rpc("outsider", "ipas_ask_for_payment", { p_ipas_id: ipasId, p_amount: 1000, p_purpose: "full_payment", p_note: null, ...over })
 const withdraw = (askId) => rpc("outsider", "ipas_withdraw_payment_ask", { p_ask_id: askId })
-const pay = (ipasId) =>
+const chat = async (ipasId) =>
+    (await svc().from("ipas_messages").select("content, metadata").eq("ipas_id", ipasId).order("created_at")).data.filter((m) => m.metadata?.event)
+const pay = (ipasId, over = {}) =>
     rpc("outsider", "ipas_save_payment", {
         p_ipas_id: ipasId,
         p_payment_id: null,
@@ -55,6 +57,7 @@ const pay = (ipasId) =>
         p_method_id: methodId,
         p_check_no: null,
         p_proof_url: null,
+        ...over,
     })
 
 beforeAll(async () => {
@@ -107,5 +110,15 @@ describe("a Full payment ask", () => {
         expect((await ask(ipas.id, { p_purpose: "balance" })).error?.code).toBe("22023")
         expect((await withdraw(full.id)).error).toBeNull()
         expect((await ask(ipas.id, { p_purpose: "balance" })).error).toBeNull()
+    })
+
+    it("labels the paying payment in the PO's currency and the ask in its own", async () => {
+        const ipas = await raise("USD")
+        const pesos = (await ask(ipas.id, { p_currency: "PHP", p_amount: 56000 })).data
+        const paid = await pay(ipas.id, { p_ask_id: pesos.id, p_amount: 1000 })
+        expect(paid.error).toBeNull()
+        const closed = (await chat(ipas.id)).find((m) => m.metadata.event === "payment_ask_closed")
+        expect(closed.content).toContain("PHP 56,000.00")
+        expect(closed.content).toContain("payment of USD 1,000.00 recorded")
     })
 })

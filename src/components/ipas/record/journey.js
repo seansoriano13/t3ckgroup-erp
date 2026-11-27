@@ -11,7 +11,7 @@ import {
 } from "@/constants/ipas";
 import { TRANSMITTAL_STAFF_LIST } from "@/constants/transmittals";
 import { hasDelivered } from "@/utils/ipasLogistics";
-import { paymentRate } from "@/utils/landedCost";
+import { isPhpCurrency, paymentRate } from "@/utils/landedCost";
 import { chargesLackingFile, isBlankCharge } from "@/utils/ipasDocuments";
 
 const LIST_NAME = {
@@ -69,7 +69,7 @@ export function journeyFor({ ipas, digest, lists, userId, can }) {
   const otherFiles = files.filter((label) => !isProof(label));
   const finance = { names: "Finance", empty: false };
   // A foreign-currency payment with no pesos taken from the bank, typed or kept as an old rate (a PHP PO has none to fill).
-  const foreignPo = Boolean(ipas.currency) && String(ipas.currency).toUpperCase() !== "PHP";
+  const foreignPo = Boolean(ipas.currency) && !isPhpCurrency(ipas.currency);
   const noRate = foreignPo ? (ipas.payments ?? []).filter((payment) => paymentRate(payment) === null).length : 0;
   // Logistics signed means what it needed was in when it was signed: those items stay ticked.
   const logisticsSigned = Boolean(s8?.approved);

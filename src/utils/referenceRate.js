@@ -19,13 +19,6 @@ export function formatRateNumber(value) {
   return Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
-/** The short name of where a rate came from: "BSP", "ECB" or "Override". Blank when unknown. */
-export function rateSourceLabel(source) {
-  const word = String(source ?? "").trim().split(/\s+/)[0] ?? "";
-  if (word.toLowerCase() === "override") return "Override";
-  return /^[A-Z]{2,5}$/.test(word) ? word : "";
-}
-
 /** "USD 1 = ₱58.20 · 17 Sep". Blank when there is no rate. */
 export function formatReferenceRate(rate, today) {
   if (!rate) return "";
@@ -42,17 +35,4 @@ export function rateTypo(workedRate, rate) {
   const reference = Number(rate?.php_per_unit);
   if (!(worked > 0) || !(reference > 0)) return null;
   return worked < reference / 10 || worked > reference * 10 ? { rate: worked } : null;
-}
-
-/**
- * How far a typed rate sits from the Reference Rate, and whether that is beyond the
- * currency's threshold. Null when either number is missing. It flags; it never blocks.
- */
-export function rateDivergence(typedRate, rate) {
-  const typed = Number(typedRate);
-  const reference = Number(rate?.php_per_unit);
-  if (!typedRate || !rate || !Number.isFinite(typed) || typed <= 0 || !(reference > 0)) return null;
-  const pct = (Math.abs(typed - reference) / reference) * 100;
-  const threshold = Number(rate.divergence_pct) || 2;
-  return { pct, flagged: pct > threshold + 1e-9 };
 }

@@ -1,6 +1,7 @@
 import { Button } from "../ui/button";
 import StatusBadge from "../StatusBadge";
 import { IPAS_STATUS_LABELS } from "../../constants/ipas";
+import { joinMoneyPart } from "../../utils/ipasPaymentAsk";
 
 /**
  * The IPAS Status pill (ADR 0054): the step the order is at, in the team's own words, coloured through
@@ -20,7 +21,7 @@ const SHAPE =
 export default function IpasStatusPill({ status, onHold = false, note = null, onClick = null, className = "", money = null }) {
   if (!status) return null;
   const stepLabel = IPAS_STATUS_LABELS[status] ?? status;
-  const withMoney = (text) => (money ? `${text} · ${money}` : text);
+  const withMoney = (text) => joinMoneyPart(text, money);
 
   if (!onHold) {
     return (

@@ -55,7 +55,7 @@ import {
   shapeBankDetails,
   shapeIpas,
 } from "../utils/ipas";
-import { isIsoDate, parseAmountInput, shapePayment } from "../utils/ipasPayments";
+import { isIsoDate, parseAmountInput, pesosReplaceRate, shapePayment } from "../utils/ipasPayments";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "../utils/ipasPaymentPercent";
 import { sumPesos } from "../utils/landedCost";
 import { shapeDocuments, unfiledRequiredDocuments } from "../utils/ipasDocuments";
@@ -2022,7 +2022,7 @@ function paymentArgs(payment, isPhpPo) {
   if (!isPhpPo && pesosRead.value !== null && pesosRead.value <= 0) {
     throw new IpasError(IPAS_ERROR.INVALID, "The pesos taken from the bank must be more than zero, or left blank until the bank statement arrives.");
   }
-  const typedPesos = !isPhpPo && pesosRead.value !== null;
+  const kept = pesosReplaceRate(phpDebited, forexRate);
 
   const fees = [
     ["The bank charge", chargeFeePhp],
@@ -2046,8 +2046,8 @@ function paymentArgs(payment, isPhpPo) {
     p_paid_on: paidOn,
     p_amount: amountRead.value,
     p_percent_of_order: percentRead.value,
-    p_forex_rate: isPhpPo || typedPesos ? null : rateRead.value,
-    p_php_debited: typedPesos ? pesosRead.value : null,
+    p_forex_rate: isPhpPo ? null : kept.rate,
+    p_php_debited: isPhpPo ? null : kept.pesos,
     p_doc_stamp_php: fees[1],
     p_misc_fee_php: fees[2],
     // charge_fee_php holds every fee: bank charge + doc stamp + misc (#708).

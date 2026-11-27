@@ -1,6 +1,6 @@
 import { IPAS_ASK_PRIORITIES, IPAS_ASK_PRIORITY_LABELS, IPAS_ASK_PURPOSE_LABELS, IPAS_PAYMENT_KIND } from "../constants/ipas";
 import { formatAmount } from "./ipas";
-import { toCents } from "./landedCost";
+import { isPhpCurrency, toCents } from "./landedCost";
 import { formatPercent } from "./ipasPaymentPercent";
 
 /** Where an ask sorts: Very High 0, High 1, Medium 2; anything else last. */
@@ -52,6 +52,9 @@ export function askMoneyPart(figures) {
   return asks.length === 1 ? `For payment (${askWhat(asks[0])})` : `For payment (${asks.length})`;
 }
 
+/** "Goods step · money part": the money part follows the step when there is one (the Status chip, ADR 0055). */
+export const joinMoneyPart = (step, money) => (step && money ? `${step} · ${money}` : step);
+
 /** A Charge ask is billed in its own currency (#1227); a supplier ask in PHP says so (#1277); the rest use the P0's. */
 export const askCurrency = (ask, fallback) => (ask?.currency ? ask.currency : fallback);
 
@@ -79,13 +82,14 @@ export const chargeAsks = (ipas) => openAsksByAge(ipas, (ask) => ask.purpose ===
 
 /**
  * The kind "Record as paid" fills for an ask (#1225): Down payment fills Down payment; Balance fills Full payment
- * when the asked amount pays off what is left, otherwise Payment. Any of it can be changed before saving.
+ * when the asked amount pays off what is left, otherwise Payment. A Balance asked in pesos is never compared with the
+ * PO-currency balance left: it starts on Payment (#1277). Any of it can be changed before saving.
  */
 export function paidKindForAsk(ask, remainingBalance) {
   if (ask?.purpose === "down_payment") return IPAS_PAYMENT_KIND.DOWN_PAYMENT;
   if (ask?.purpose === "full_payment") return IPAS_PAYMENT_KIND.FULL_PAYMENT;
   const left = Number(remainingBalance);
-  if (ask?.purpose === "balance" && Number.isFinite(left) && left > 0 && toCents(Number(ask.amount)) >= toCents(left)) {
+  if (ask?.purpose === "balance" && !isPhpCurrency(ask.currency) && Number.isFinite(left) && left > 0 && toCents(Number(ask.amount)) >= toCents(left)) {
     return IPAS_PAYMENT_KIND.FULL_PAYMENT;
   }
   return IPAS_PAYMENT_KIND.PAYMENT;
@@ -110,6 +114,9 @@ export function askPurposeLocks(ipas) {
     balance: fullAsked ? FULL_PAYMENT_ASKED_NOTE : null,
   };
 }
+
+/** The first of `purposes` that `locks` leaves open, so a new request never starts on a greyed choice; null when all are locked. */
+export const firstOpenPurpose = (purposes, locks) => purposes.find((value) => !locks?.[value]) ?? null;
 
 /** One line per open ask, most urgent first, or null when none is open. */
 export function paymentAskHover(figures) {

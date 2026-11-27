@@ -152,7 +152,16 @@ export function AskDraftFields({ id, row, purposes, locks = {}, currencyLabel, p
             poCurrency={poCurrency}
             value={row.askCurrency}
             disabled={disabled}
-            onChange={(v) => onPatch(v === "PHP" ? { askCurrency: "PHP", percentOfOrder: "" } : { askCurrency: "" })}
+            // Back to the PO's currency: a Full payment is 100% of the order again, with the amount filled from it.
+            onChange={(v) =>
+              onPatch(
+                v === "PHP"
+                  ? { askCurrency: "PHP", percentOfOrder: "" }
+                  : row.askPurpose === "full_payment"
+                    ? { askCurrency: "", ...afterPercentEdit(row, { field: "percent", value: "100", base }) }
+                    : { askCurrency: "" },
+              )
+            }
           />
         )}
         <Field

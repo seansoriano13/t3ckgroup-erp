@@ -9,7 +9,7 @@ import {
   IPAS_STATE_LABELS,
   IPAS_STATUS_LABELS,
 } from "@/constants/ipas";
-import { askMoneyPart } from "@/utils/ipasPaymentAsk";
+import { askMoneyPart, joinMoneyPart } from "@/utils/ipasPaymentAsk";
 import { formatDate } from "@/utils/formatDate.js";
 
 /** The one state badge: Open, Filed or Cancelled. */
@@ -28,7 +28,7 @@ const statusFact = (figures) => {
   const step = IPAS_STATUS_LABELS[figures?.status] ?? figures?.status ?? null;
   const goods = step && figures?.onHold ? `On-Hold · ${step}` : step;
   const money = askMoneyPart(figures);
-  return goods && money ? `${goods} · ${money}` : goods;
+  return joinMoneyPart(goods, money);
 };
 
 /**

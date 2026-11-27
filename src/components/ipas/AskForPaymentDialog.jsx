@@ -13,6 +13,7 @@ import {
   IPAS_ASK_PURPOSE_LABELS,
 } from "@/constants/ipas";
 import { ipasErrorMessage } from "@/utils/ipas";
+import { isPhpCurrency } from "@/utils/landedCost";
 import { parseAmountInput } from "@/utils/ipasPayments";
 import { AskCurrencySwitch } from "@/components/ipas/record/AskRows";
 import { askLine, askPriorityOptions } from "@/utils/ipasPaymentAsk";
@@ -52,7 +53,7 @@ function Body({ number, figures, initial, only, onAsk, onEdit, onWithdraw, onClo
   const isCharge = editing?.purpose === "charge";
   // A supplier ask on a foreign-currency PO can be in pesos; on a peso PO there is nothing to switch.
   const poCurrency = figures?.currency ?? null;
-  const canSwitch = !isCharge && Boolean(poCurrency) && String(poCurrency).toUpperCase() !== "PHP";
+  const canSwitch = !isCharge && Boolean(poCurrency) && !isPhpCurrency(poCurrency);
   const inPesos = canSwitch && pesos;
   const parsed = parseAmountInput(amount);
   const percentRead = parsePercentInput(percent);

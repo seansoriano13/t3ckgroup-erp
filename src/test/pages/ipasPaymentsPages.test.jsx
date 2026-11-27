@@ -653,9 +653,34 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         renderDetail(row.id, "payments", "edit");
         await user.click(await screen.findByRole("button", { name: "Record as paid" }));
         const payment = await screen.findByRole("group", { name: "Payment 1" });
-        expect(within(payment).getByRole("textbox", { name: /^Amount \(USD\)/ })).toHaveValue("800");
+        expect(within(payment).getByRole("textbox", { name: /^USD sent/ })).toHaveValue("800");
         expect(within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ })).toHaveValue("");
         expect(within(payment).queryByTestId("payment-sent-hint")).not.toBeInTheDocument();
+      });
+
+      it("labels the amount of any paid payment on a foreign PO as sent, with the debit-memo line only for a PHP request", async () => {
+        const row = foreignPo();
+        const user = setupUser();
+        renderDetail(row.id, "payments", "edit");
+        await addPayment(user);
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).getByRole("textbox", { name: /^USD sent/ })).toBeInTheDocument();
+        expect(within(payment).queryByTestId("payment-sent-hint")).not.toBeInTheDocument();
+      });
+
+      it("puts a Full payment request back to 100% of the order when switched from PHP to the PO currency", async () => {
+        const row = foreignPo();
+        const user = setupUser();
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Add payment" }));
+        await user.click(await screen.findByRole("radio", { name: /^For payment \(not paid yet\)/ }));
+        const ask = await screen.findByRole("group", { name: "For payment" });
+        await user.click(within(ask).getByRole("combobox", { name: /^What for/ }));
+        await user.click(await screen.findByRole("option", { name: "Full payment" }));
+        const toggle = within(ask).getByTestId("ask-currency-switch");
+        await user.click(within(toggle).getByRole("radio", { name: "PHP" }));
+        await user.click(within(toggle).getByRole("radio", { name: "USD" }));
+        expect(within(ask).getByRole("textbox", { name: /^% of order/ })).toHaveValue("100");
       });
 
       it("shows each open ask as a grey row with no payments yet, with its priority and note", async () => {
@@ -928,7 +953,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       const payment = await screen.findByRole("group", { name: "Payment 1" });
       await pick(user, payment, /^Method/, "Alipay");
 
-      const amount = within(payment).getByRole("textbox", { name: /^Amount \(USD\)/ });
+      const amount = within(payment).getByRole("textbox", { name: /^USD sent/ });
       // Nothing is filled from the Reference Rate (#1278): the pesos start empty and there is no rate box.
       const pesos = within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ });
       expect(pesos).toHaveValue("");
@@ -971,7 +996,7 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
       await user.clear(date);
       await user.type(date, "2026-09-12");
 
-      await user.type(within(dialog).getByRole("textbox", { name: /^Amount \(USD\)/ }), "1000");
+      await user.type(within(dialog).getByRole("textbox", { name: /^USD sent/ }), "1000");
       const pesos = within(dialog).getByRole("textbox", { name: /^Pesos taken from the bank/ });
       // A rate a few % from ours says nothing at all.
       await user.type(pesos, "58440");

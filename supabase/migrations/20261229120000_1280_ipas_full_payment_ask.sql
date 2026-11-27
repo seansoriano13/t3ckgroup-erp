@@ -133,6 +133,7 @@ AS $function$
 declare
   v_meta jsonb;
   v_ask public.ipas_payment_asks;
+  v_pay_currency text;
 begin
   if new.ask_id is null then
     return null;
@@ -161,11 +162,14 @@ begin
    where id = v_ask.id;
 
   v_meta := public._ipas_ask_meta(v_ask);
+  -- The ask keeps its own currency (a request in pesos); the payment is in the PO's currency, which is its own.
+  select coalesce(nullif(i.odoo_copy -> 'po' ->> 'currency', ''), '') into v_pay_currency
+    from public.ipas i where i.id = new.ipas_id;
   perform public._ipas_payment_ask_to_chat(
     new.ipas_id, 'payment_ask_closed',
     'Paid the ask for payment: ' || (v_meta ->> 'purpose_label') || ' '
       || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(v_ask.amount, 'FM999G999G999G990.00')))
-      || ' (payment of ' || btrim((v_meta ->> 'currency') || ' ' || trim(to_char(new.amount, 'FM999G999G999G990.00'))) || ' recorded).',
+      || ' (payment of ' || btrim(coalesce(v_pay_currency, '') || ' ' || trim(to_char(new.amount, 'FM999G999G999G990.00'))) || ' recorded).',
     v_ask.id,
     v_meta || jsonb_build_object('reason', 'paid', 'payment_id', new.id, 'paid_amount', new.amount)
   );

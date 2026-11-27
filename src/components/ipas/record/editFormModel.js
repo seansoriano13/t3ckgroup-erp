@@ -15,7 +15,7 @@ import {
   ipasSectionLabel,
 } from "@/constants/ipas";
 import { getCurrentLocalDate } from "@/utils/formatDate.js";
-import { isIsoDate, isOthersMethod, paymentProofFiles, parseAmountInput } from "@/utils/ipasPayments";
+import { isIsoDate, isOthersMethod, paymentProofFiles, parseAmountInput, pesosReplaceRate } from "@/utils/ipasPayments";
 import { ipasDateIssue } from "@/utils/ipasDateLimits";
 import { IPAS_LIMITS, amountSizeIssue, textLengthIssue } from "@/utils/ipasLimits";
 import { PERCENT_ERROR, parsePercentInput, percentApplies } from "@/utils/ipasPaymentPercent";
@@ -502,12 +502,15 @@ const chargeAskValues = (c) => ({
   percent: null,
 });
 
+// Typed pesos replace a stored rate (#1278): the rate is left out of what is saved.
+const keptRateText = (p) => (pesosReplaceRate(p.phpDebited, p.forexRate).rate === null ? "" : p.forexRate);
+
 const paymentValues = (p) => ({
   kind: p.kind,
   paidOn: p.paidOn,
   amount: p.amount,
   percentOfOrder: percentApplies(p.kind) ? p.percentOfOrder : "",
-  forexRate: p.forexRate,
+  forexRate: keptRateText(p),
   phpDebited: p.phpDebited,
   chargeFeePhp: p.chargeFeePhp,
   docStampPhp: p.docStampPhp,

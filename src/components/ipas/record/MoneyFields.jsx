@@ -43,13 +43,12 @@ import { ipasFigures, odooPoTotal } from "@/utils/ipasFigures";
 import { afterPercentEdit, formatPercent, parsePercentInput, paymentWarnings, percentApplies, percentBase, refillAmountsFromPercent } from "@/utils/ipasPaymentPercent";
 import { fileRulesOf, kindsToAdd, requiredKindsByPart } from "@/utils/ipasDocuments";
 import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
-import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput } from "@/utils/ipasPayments";
-import { pesosFromRate } from "@/utils/landedCost";
+import { formatDay, isIsoDate, isOthersMethod, optionsForPicker, parseAmountInput, pesosReplaceRate } from "@/utils/ipasPayments";
+import { isPhpCurrency, pesosFromRate } from "@/utils/landedCost";
 import { formatRateNumber, rateTypo } from "@/utils/referenceRate";
-import { askLine, askPurposeLocks, chargeAsks, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
+import { askLine, askPurposeLocks, chargeAsks, firstOpenPurpose, paidKindForAsk, payableAsks } from "@/utils/ipasPaymentAsk";
 import { Field, GroupTitle, PickField, ReadValue, RequiredMark, Tick } from "./FormFields";
 import { AskDraftFields, AskLiners, ChargeAskFields, PaidOrAskChoice } from "./AskRows";
-import { sectionDomId } from "@/components/record/sectionDom";
 import { scrollToSection } from "./useSectionsOpen";
 import { GRID, reducedMotion, scrollIntoViewGently } from "./formHelpers";
 import { BY_HAND, PAYMENT_MODE, newChargeDraft, newDocumentDraft, newPaymentDraft } from "./editFormModel";
@@ -223,7 +222,7 @@ export function WithholdingField({ form, set, disabled }) {
 }
 
 /** The one-line help under "Pesos taken from the bank" (#1278). */
-const USD_SENT_HINT = "Copy the USD that reached the supplier from the bank's debit memo.";
+const sentHint = (currency) => `Copy the ${currency} that reached the supplier from the bank's debit memo.`;
 const PESOS_HINT = "Copy it from the bank's debit memo. Optional: add it when the bank statement arrives.";
 
 /**
@@ -341,12 +340,13 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
   const misc = parseAmountInput(row.miscFeePhp);
   const pesos = parseAmountInput(row.phpDebited);
   // The rate is worked out, never typed: typed pesos / amount, else the stored rate of an old payment (#1278).
+  const kept = pesosReplaceRate(row.phpDebited, row.forexRate);
   const workedRate = isPhp || !amount.ok || !(amount.value > 0)
     ? null
-    : pesos.ok && pesos.value > 0
-      ? pesos.value / amount.value
-      : rate.ok && rate.value > 0
-        ? rate.value
+    : kept.pesos !== null
+      ? kept.pesos / amount.value
+      : kept.rate > 0
+        ? kept.rate
         : null;
   // An old payment with a stored rate and blank pesos shows its pesos as amount x rate; display only.
   const shownPesos = !isPhp && pesos.value === null && amount.ok && rate.ok && amount.value > 0 && rate.value > 0 ? pesosFromRate(amount.value, rate.value) : null;
@@ -414,7 +414,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
         <div className="min-w-0">
           <Field
             id={id("amount")}
-            label={fromPesosAsk ? `${currency} sent` : isPhp ? "Amount (PHP)" : `Amount (${currency})`}
+            label={!isPhp ? `${currency} sent` : "Amount (PHP)"}
             kind="amount"
             prefix={isPhp ? "PHP" : currency}
             required
@@ -425,7 +425,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
           />
           {fromPesosAsk && (
             <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-sent-hint">
-              {USD_SENT_HINT}
+              {sentHint(currency)}
             </p>
           )}
         </div>
@@ -436,7 +436,7 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
               label="Pesos taken from the bank"
               kind="amount"
               prefix="PHP"
-              placeholder={shownPesos === null ? undefined : formatAmount(shownPesos, "PHP").replace(/^PHPs*/, "")}
+              placeholder={shownPesos === null ? undefined : formatAmount(shownPesos, "PHP").replace(/^PHP\s*/, "")}
               value={row.phpDebited}
               disabled={disabled}
               error={row.phpDebited !== "" && !pesos.ok ? "Not a number" : undefined}
@@ -544,7 +544,9 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
             onClick={() => {
               // "Does this pay the open item?" starts on the oldest open ask no other new row has picked.
               const picked = new Set(form.payments.filter((row) => row.mode !== PAYMENT_MODE.ASK).map((row) => row.askId).filter(Boolean));
-              rows.add("payments", newPaymentDraft(payableAsks(ipas).find((ask) => !picked.has(ask.id))?.id ?? ""));
+              // A new request starts on the first "What for" that is not greyed out.
+              const purpose = firstOpenPurpose(ASK_PURPOSES_ON_PAYMENTS, askPurposeLocks(ipas));
+              rows.add("payments", { ...newPaymentDraft(payableAsks(ipas).find((ask) => !picked.has(ask.id))?.id ?? ""), ...(purpose ? { askPurpose: purpose } : {}) });
             }}
           >
             Add payment
@@ -553,16 +555,9 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
       }>
       <p className="text-xs text-muted-foreground" data-testid="payment-duties-hint">
         Paying duties, taxes or brokerage? Use{" "}
-        <a
-          href={`#${sectionDomId("costs")}`}
-          className="font-medium underline underline-offset-2 hover:text-foreground"
-          onClick={(event) => {
-            event.preventDefault();
-            scrollToSection("costs");
-          }}
-        >
+        <Button type="button" variant="link" className="h-auto p-0 align-baseline text-xs font-medium text-foreground" onClick={() => scrollToSection("costs")}>
           3 · Costs
-        </a>
+        </Button>
         , which is in pesos.
       </p>
       <div className={GRID}>
@@ -681,7 +676,7 @@ export function ChargesFields({ ipas, form, rows, fresh, canRecord, onRemoveSave
   // "Record as paid" opens a new charge row filled from the ask and linked to it (#1227). The kind comes across;
   // the amount only for a PHP ask, since charges are in pesos. A foreign-currency ask keeps its amount as a hint.
   const recordAsk = (ask) => {
-    const inPesos = String(ask.currency ?? "PHP").toUpperCase() === "PHP";
+    const inPesos = isPhpCurrency(ask.currency ?? "PHP");
     rows.add("charges", {
       ...newChargeDraft(ask.id, PAYMENT_MODE.PAID),
       kindId: ask.charge_kind_id ?? "",

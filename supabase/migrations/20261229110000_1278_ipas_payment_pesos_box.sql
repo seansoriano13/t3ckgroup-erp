@@ -122,4 +122,5 @@ end;
 $function$
 ;
 
+revoke all on function public.ipas_save_payment(uuid, uuid, text, date, numeric, numeric, numeric, numeric, numeric, uuid, text, text, numeric, text, text[], uuid, numeric) from public, anon;
 grant execute on function public.ipas_save_payment(uuid, uuid, text, date, numeric, numeric, numeric, numeric, numeric, uuid, text, text, numeric, text, text[], uuid, numeric) to authenticated;
