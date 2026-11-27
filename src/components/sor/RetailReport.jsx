@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import Spinner from "../ui/Spinner";
@@ -107,9 +107,9 @@ export default function RetailReport({ range, custom, filters = DEFAULT_RETAIL_F
   // A backwards Custom range keeps the last good one until it is fixed.
   const backwards = range === "custom" && isBackwardsRange(custom);
   const [lastGoodCustom, setLastGoodCustom] = useState(custom);
-  useEffect(() => {
-    if (!backwards) setLastGoodCustom(custom);
-  }, [backwards, custom]);
+  if (!backwards && (lastGoodCustom.from !== custom.from || lastGoodCustom.to !== custom.to)) {
+    setLastGoodCustom(custom);
+  }
   const effectiveCustom = backwards ? lastGoodCustom : custom;
   const inRange = useMemo(
     () => applyFilters(orders, filters, rangeBounds(range, new Date(), effectiveCustom)),
