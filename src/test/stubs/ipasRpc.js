@@ -1214,7 +1214,7 @@ export function stubIpasRpcs({
       if (!ask) refuse("22023", "that ask for payment was not found")
       if (ask.ipas_id !== saved.ipas_id) refuse("22023", "that ask for payment is on another IPAS")
       if (ask.closed_at) refuse("22023", "that ask for payment is already closed")
-      if (!["down_payment", "balance"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
+      if (!["down_payment", "balance", "full_payment"].includes(ask.purpose)) refuse("22023", "a payment cannot pay a Charge ask; record a charge instead")
       updateRow("ipas_payments", findRow("ipas_payments", saved.id), { ask_id: ask.id })
       updateRow("ipas_payment_asks", ask, { closed_at: new Date().toISOString(), closed_by: actorId, closed_reason: "paid", paid_by_payment_id: saved.id })
     }
@@ -1229,7 +1229,10 @@ export function stubIpasRpcs({
     requireAsker("ipas_ask_for_payment")
     const ipas = requireOpenIpas("ipas_ask_for_payment", args.p_ipas_id)
     if (!(Number(args.p_amount) > 0)) refuse("22023", "ipas_ask_for_payment: the amount must be more than zero")
-    if (!["down_payment", "balance", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance or Charge")
+    if (!["down_payment", "balance", "full_payment", "charge"].includes(args.p_purpose)) refuse("22023", "ipas_ask_for_payment: the purpose must be Down payment, Balance, Full payment or Charge")
+    const supplierAsks = rowsOf("ipas_payment_asks").filter((a) => a.ipas_id === ipas.id && a.purpose !== "charge" && a.closed_reason !== "withdrawn")
+    if (args.p_purpose === "full_payment" && (rowsOf("ipas_payments").some((pay) => pay.ipas_id === ipas.id) || supplierAsks.length > 0)) refuse("22023", "ipas_ask_for_payment: there's already a payment or an open request; use Balance for the rest")
+    if (["down_payment", "balance"].includes(args.p_purpose) && supplierAsks.some((a) => a.purpose === "full_payment")) refuse("22023", "ipas_ask_for_payment: a Full payment is already asked")
     if (args.p_purpose === "charge" && !args.p_charge_kind_id) refuse("22023", "ipas_ask_for_payment: pick the kind of charge")
     if (args.p_purpose === "charge" && args.p_percent != null) refuse("22023", "ipas_ask_for_payment: a Charge ask has no % of order (it applies to a supplier ask only)")
     const isCharge = args.p_purpose === "charge"

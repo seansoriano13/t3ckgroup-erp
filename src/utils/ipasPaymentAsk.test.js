@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ipasFigures } from "./ipasFigures";
-import { askLine, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
+import { askLine, askPurposeLocks, askWhat, askPriorityLabel, askPriorityOptions, askPriorityRank, chargeAsks, comparePaymentForecast, paidKindForAsk, payableAsks, paymentAskHover } from "./ipasPaymentAsk";
 
 const withAsk = (ask) => ({ figures: { paymentAsk: ask } });
 
@@ -15,6 +15,29 @@ describe("the kind Record as paid fills (#1225)", () => {
     expect(paidKindForAsk({ purpose: "balance", amount: 999.99 }, 1000)).toBe("payment");
     expect(paidKindForAsk({ purpose: "balance", amount: 500 }, null)).toBe("payment");
     expect(paidKindForAsk({ purpose: "balance", amount: 500 }, 0)).toBe("payment");
+  });
+});
+
+describe("Full payment requests (#1280)", () => {
+  it("is labelled Full payment and Record as paid fills the kind Full payment", () => {
+    expect(askWhat({ purpose: "full_payment" })).toBe("Full payment");
+    expect(paidKindForAsk({ purpose: "full_payment", amount: 100 }, 1000)).toBe("full_payment");
+  });
+
+  it("greys Full payment once anything is paid or asked, never for withdrawn or Charge asks", () => {
+    expect(askPurposeLocks({ payments: [], payment_asks: [] })).toEqual({ full_payment: null, down_payment: null, balance: null });
+    expect(askPurposeLocks({ payments: [{ id: "p" }], payment_asks: [] }).full_payment).toMatch(/Use Balance for the rest/);
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "balance", closed_at: null }] }).full_payment).toMatch(/already a payment or an open request/);
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "down_payment", closed_reason: "withdrawn" }] }).full_payment).toBeNull();
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "charge", closed_at: null }] }).full_payment).toBeNull();
+  });
+
+  it("greys Down payment and Balance while a Full payment ask is open or paid, not once withdrawn", () => {
+    const open = askPurposeLocks({ payments: [], payment_asks: [{ purpose: "full_payment", closed_at: null }] });
+    expect(open.down_payment).toBe("A Full payment is already asked.");
+    expect(open.balance).toBe("A Full payment is already asked.");
+    expect(askPurposeLocks({ payments: [{ id: "p" }], payment_asks: [{ purpose: "full_payment", closed_reason: "paid" }] }).balance).not.toBeNull();
+    expect(askPurposeLocks({ payments: [], payment_asks: [{ purpose: "full_payment", closed_reason: "withdrawn" }] }).balance).toBeNull();
   });
 });
 

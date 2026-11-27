@@ -105,19 +105,33 @@ export function AskCurrencySwitch({ id, poCurrency, value, disabled, onChange })
  * What an ask takes (#1225). `row` holds `amount`, `percentOfOrder`, `askPurpose`, `askPriority`, `askNote`;
  * `purposes` are the "what for" values on offer; `base` is where a % is taken from (null: the % cannot fill the amount).
  */
-export function AskDraftFields({ id, row, purposes, currencyLabel, prefix, base, poCurrency, switchable = false, disabled, onPatch }) {
+export function AskDraftFields({ id, row, purposes, locks = {}, currencyLabel, prefix, base, poCurrency, switchable = false, disabled, onPatch }) {
   // On a foreign-currency PO the request can be in pesos: only a pesos box is left (no % of order).
   const inPesos = switchable && row.askCurrency === "PHP";
   const label = inPesos ? "Amount (PHP)" : currencyLabel;
   const amountPrefix = inPesos ? "PHP" : prefix;
   const amount = parseAmountInput(row.amount);
   const percent = parsePercentInput(row.percentOfOrder);
-  const purposeOptions = purposes.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value] }));
+  const purposeOptions = purposes.map((value) => ({ value, label: IPAS_ASK_PURPOSE_LABELS[value], disabled: Boolean(locks[value]) }));
+  const lockNotes = [...new Set(purposes.map((value) => locks[value]).filter(Boolean))];
   const priorityOptions = askPriorityOptions();
   return (
     <div className="space-y-3" data-testid="payment-ask-fields">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <PickField id={id("askPurpose")} label="What for" required options={purposeOptions} value={row.askPurpose} disabled={disabled} onChange={(v) => onPatch({ askPurpose: v })} />
+        <div className="min-w-0">
+          <PickField
+            id={id("askPurpose")}
+            label="What for"
+            required
+            options={purposeOptions}
+            value={row.askPurpose}
+            disabled={disabled}
+            onChange={(v) => onPatch(v === "full_payment" && !inPesos ? { askPurpose: v, ...afterPercentEdit(row, { field: "percent", value: "100", base }) } : { askPurpose: v })}
+          />
+          {lockNotes.map((note) => (
+            <p key={note} className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="ask-purpose-note">{note}</p>
+          ))}
+        </div>
         {!inPesos && <div className="min-w-0">
           <Field
             id={id("percentOfOrder")}

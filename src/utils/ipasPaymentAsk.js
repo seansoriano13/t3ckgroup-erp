@@ -83,11 +83,32 @@ export const chargeAsks = (ipas) => openAsksByAge(ipas, (ask) => ask.purpose ===
  */
 export function paidKindForAsk(ask, remainingBalance) {
   if (ask?.purpose === "down_payment") return IPAS_PAYMENT_KIND.DOWN_PAYMENT;
+  if (ask?.purpose === "full_payment") return IPAS_PAYMENT_KIND.FULL_PAYMENT;
   const left = Number(remainingBalance);
   if (ask?.purpose === "balance" && Number.isFinite(left) && left > 0 && toCents(Number(ask.amount)) >= toCents(left)) {
     return IPAS_PAYMENT_KIND.FULL_PAYMENT;
   }
   return IPAS_PAYMENT_KIND.PAYMENT;
+}
+
+export const FULL_PAYMENT_TAKEN_NOTE = "There's already a payment or an open request. Use Balance for the rest.";
+export const FULL_PAYMENT_ASKED_NOTE = "A Full payment is already asked.";
+
+/**
+ * Which "What for" choices are greyed out on a new request (#1280), each with its note, else null:
+ *   Full payment   once the IPAS has any recorded payment or any open or paid supplier request.
+ *   Down payment / Balance   while a Full payment request is open or paid.
+ * Withdrawn requests and Charge requests count for nothing. The database refuses the same.
+ */
+export function askPurposeLocks(ipas) {
+  const asks = (ipas?.payment_asks ?? []).filter((ask) => ask && ask.purpose !== "charge" && ask.closed_reason !== "withdrawn");
+  const anyPayment = (ipas?.payments ?? []).length > 0;
+  const fullAsked = asks.some((ask) => ask.purpose === "full_payment");
+  return {
+    full_payment: anyPayment || asks.length > 0 ? FULL_PAYMENT_TAKEN_NOTE : null,
+    down_payment: fullAsked ? FULL_PAYMENT_ASKED_NOTE : null,
+    balance: fullAsked ? FULL_PAYMENT_ASKED_NOTE : null,
+  };
 }
 
 /** One line per open ask, most urgent first, or null when none is open. */
