@@ -216,6 +216,8 @@ describe("RequestedItems", () => {
     renderWithProviders(<RequestedItems request={request} />)
 
     await user.click(await screen.findByRole("button", { name: "Ask for a product" }))
+    // The dialog moves focus into itself as it opens; let that settle before typing.
+    await new Promise((resolve) => setTimeout(resolve, 100))
     await user.type(screen.getByRole("combobox", { name: "What do you need?" }), "harness")
     await user.click(await screen.findByRole("button", { name: /Full Body Harness XL/ }))
     expect(screen.getByText("From Odoo")).toBeInTheDocument()
