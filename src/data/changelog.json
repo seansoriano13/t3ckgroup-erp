@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-11-27",
+        "title": "Group Tasks on the Calendar",
+        "version": "1.14.0",
+        "changes": [
+            "A Group Task can now go on the Calendar. Open the Group Task and press Add to Calendar. The form fills in the title, the members and the days from Start to Due.",
+            "Once it is on the Calendar, the same button reads Open in Calendar. The Calendar entry has an Open Group Task link back, for people who can open it.",
+            "The Calendar entry keeps the Group Task's title. Rename the Group Task and the entry follows.",
+            "When you cancel a Group Task, you are asked whether to cancel its Calendar entry too.",
+            "Settings > Activities has a new Group Task row."
+        ]
+    },
+    {
         "date": "2026-11-26",
         "title": "New: OPEX Report for Finance",
         "version": "1.13.0",
