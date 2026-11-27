@@ -615,6 +615,49 @@ describe("IPAS page: payments, charges and Landed Cost", () => {
         expect(within(ask).queryByTestId("ask-currency-switch")).not.toBeInTheDocument();
       });
 
+      const foreignPo = () => {
+        const row = ipas({ po_number: "P02603", odoo_copy: poCopy("P02603", { currency: "USD" }), created_by: purchaser.id });
+        stubEdgeFunction("odoo-po-ipas", { success: true, found: true, ...poCopy("P02603", { currency: "USD" }) });
+        db.seed("currency_rate_currencies", { currency: "USD" });
+        stubRpc("reference_rate", () => [{ currency: "USD", rate_date: "2000-01-01", php_per_unit: 56, source: "test", overridden: false, divergence_pct: 0 }]);
+        return row;
+      };
+
+      it("Record as paid on a PHP request fills the pesos, leaves USD sent empty and required, and closes the request (#1279)", async () => {
+        const row = foreignPo();
+        const open = seedAsk(row, { amount: 3000, currency: "PHP" });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        const sent = within(payment).getByRole("textbox", { name: /^USD sent/ });
+        expect(sent).toHaveValue("");
+        expect(payment.querySelector(`label[for="${sent.id}"]`)).toHaveTextContent("*");
+        expect(within(payment).getByTestId("payment-sent-hint")).toHaveTextContent("Copy the USD that reached the supplier from the bank's debit memo.");
+        expect(within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ })).toHaveValue("3000");
+        await pick(user, payment, /^Method/, "Dated Check");
+        await user.type(sent, "53.5");
+        await saveAll(user);
+
+        await waitFor(() => expect(db.rows("ipas_payments")).toHaveLength(1));
+        expect(db.rows("ipas_payments")[0]).toMatchObject({ amount: 53.5, php_debited: 3000, ask_id: open.id });
+        expect(db.rows("ipas_payment_asks").find((a) => a.id === open.id)).toMatchObject({ closed_reason: "paid" });
+      });
+
+      it("Record as paid on a request in the PO's currency still fills the amount and not the pesos (#1279)", async () => {
+        const row = foreignPo();
+        seedAsk(row, { amount: 800 });
+        const user = setupUser();
+
+        renderDetail(row.id, "payments", "edit");
+        await user.click(await screen.findByRole("button", { name: "Record as paid" }));
+        const payment = await screen.findByRole("group", { name: "Payment 1" });
+        expect(within(payment).getByRole("textbox", { name: /^Amount \(USD\)/ })).toHaveValue("800");
+        expect(within(payment).getByRole("textbox", { name: /^Pesos taken from the bank/ })).toHaveValue("");
+        expect(within(payment).queryByTestId("payment-sent-hint")).not.toBeInTheDocument();
+      });
+
       it("shows each open ask as a grey row with no payments yet, with its priority and note", async () => {
         const row = ipas({ po_number: "P02552", created_by: purchaser.id });
         seedAsk(row, { note: "Before the vessel leaves", priority: "very_high" });
