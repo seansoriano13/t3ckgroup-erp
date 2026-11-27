@@ -10,7 +10,7 @@ import { useRecordParam } from "@/hooks/useRecordParam";
 import TabGroup from "@/components/ui/TabGroup";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
-import { getPermissionContext } from "../../utils/permissions";
+import { canReadIpas, getPermissionContext } from "../../utils/permissions";
 import { canEditFAQ } from "../../utils/faqAccess";
 
 import toast from "react-hot-toast";
@@ -248,12 +248,14 @@ function SalesPanel() {
  */
 function PurchasingPanel() {
   const { user } = useAuth();
-  const { isSuperAdmin } = getPermissionContext(user);
+  const context = getPermissionContext(user);
+  // #1258: other IPAS readers see the Compliance kinds list, read-only, and nothing else of Purchasing.
+  const readOnly = !context.isSuperAdmin && !context.hasPurchasingFlow;
   return (
     <div className="space-y-3">
       {/* #946: purchasing settings ship as Beta. */}
       <BetaTag />
-      <PurchasingSettings isSuperAdmin={isSuperAdmin} />
+      <PurchasingSettings isSuperAdmin={context.isSuperAdmin} readOnly={readOnly} />
     </div>
   );
 }
@@ -310,7 +312,7 @@ const TAB_DEFS = [
   { value: "venues", label: "Venues", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: VenueManager },
   { value: "activities", label: "Activities", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: ActivitySettings },
   { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
-  { value: "purchasing", label: "Purchasing", isPermitted: (c) => c.isSuperAdmin || c.hasPurchasingFlow, Panel: PurchasingPanel },
+  { value: "purchasing", label: "Purchasing", isPermitted: (c) => canReadIpas(c), Panel: PurchasingPanel },
   { value: "costing", label: "S0 Evaluation", isPermitted: (c) => c.isSuperAdmin || c.hasFinanceFlow || c.hasPurchasingFlow || c.managesCostingMarkup, Panel: CostingMatrixPanel },
   { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin, Panel: EmployeeGroupsPanel },
   { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin, Panel: AnnouncementsPanel },
