@@ -555,7 +555,7 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
       }>
       <p className="text-xs text-muted-foreground" data-testid="payment-duties-hint">
         Paying duties, taxes or brokerage? Use{" "}
-        <Button type="button" variant="link" className="h-auto p-0 align-baseline text-xs font-medium text-foreground" onClick={() => scrollToSection("costs")}>
+        <Button type="button" variant="link" className="h-auto p-0 align-baseline text-xs font-medium text-foreground" aria-label="Go to 3 · Costs" onClick={() => scrollToSection("costs")}>
           3 · Costs
         </Button>
         , which is in pesos.
