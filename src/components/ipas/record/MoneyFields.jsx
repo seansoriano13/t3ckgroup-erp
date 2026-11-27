@@ -223,6 +223,7 @@ export function WithholdingField({ form, set, disabled }) {
 }
 
 /** The one-line help under "Pesos taken from the bank" (#1278). */
+const USD_SENT_HINT = "Copy the USD that reached the supplier from the bank's debit memo.";
 const PESOS_HINT = "Copy it from the bank's debit memo. Optional: add it when the bank statement arrives.";
 
 /**
@@ -355,6 +356,8 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
   // A new row is Paid already or For payment (#1225); a stored payment is paid. Nothing shows until the pick is made.
   const asking = !saved && row.mode === PAYMENT_MODE.ASK;
   const paid = Boolean(saved) || row.mode === PAYMENT_MODE.PAID;
+  // A new payment that pays a request in pesos: the pesos go in "Pesos taken from the bank", the PO-currency amount is typed from the debit memo (#1279).
+  const fromPesosAsk = !saved && !isPhp && Boolean(row.askId) && payableAsks(ipas).some((a) => a.id === row.askId && a.currency === "PHP");
   return (
     <DraftRow
       label={asking ? "For payment" : `Payment ${index + 1}`}
@@ -407,17 +410,24 @@ function PaymentRow({ ipas, form, row, index, saved, fresh, disabled, base, onPa
             </p>
           </div>
         )}
-        <Field
-          id={id("amount")}
-          label={isPhp ? "Amount (PHP)" : `Amount (${currency})`}
-          kind="amount"
-          prefix={isPhp ? "PHP" : currency}
-          required
-          value={row.amount}
-          disabled={disabled}
-          error={row.amount !== "" && !amount.ok ? "Not a number" : undefined}
-          onChange={(v) => onPatch(afterPercentEdit(row, { field: "amount", value: v, base }))}
-        />
+        <div className="min-w-0">
+          <Field
+            id={id("amount")}
+            label={fromPesosAsk ? `${currency} sent` : isPhp ? "Amount (PHP)" : `Amount (${currency})`}
+            kind="amount"
+            prefix={isPhp ? "PHP" : currency}
+            required
+            value={row.amount}
+            disabled={disabled}
+            error={row.amount !== "" && !amount.ok ? "Not a number" : undefined}
+            onChange={(v) => onPatch(afterPercentEdit(row, { field: "amount", value: v, base }))}
+          />
+          {fromPesosAsk && (
+            <p className="mt-1 pl-1 text-xs text-muted-foreground" data-testid="payment-sent-hint">
+              {USD_SENT_HINT}
+            </p>
+          )}
+        </div>
         {!isPhp && (
           <div className="min-w-0">
             <Field
@@ -513,7 +523,7 @@ export function PaymentsFields({ ipas, form, rows, fresh, canRecord, onRemoveSav
     // A request in pesos is not in the PO's currency: its amount is not copied into the payment's PO-currency box.
     const inPesosAsk = ask.currency === "PHP" && !form.isPhp;
     const percent = percentApplies(kind) && ask.percent_of_order ? formatPercent(ask.percent_of_order) : "";
-    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: inPesosAsk ? "" : String(Number(ask.amount)), percentOfOrder: percent });
+    rows.add("payments", { ...newPaymentDraft(ask.id, PAYMENT_MODE.PAID), kind, amount: inPesosAsk ? "" : String(Number(ask.amount)), phpDebited: inPesosAsk ? String(Number(ask.amount)) : "", percentOfOrder: percent });
   };
   useTakeRecordRequest("payments", recordingAsk, onRecordingHandled, recordAsk);
   // When the base changes while editing, a payment with a % follows it (#958): the label, amount and
