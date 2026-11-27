@@ -2041,6 +2041,39 @@ export function stubIpasRpcs({
     event(row.id, "direct_delivery_changed", { to: on })
     return updated
   })
+
+  // ── Compliance Requirements (#1251, #1256) ───────────────────────────────
+
+  const complianceRequirement = (fn, id) => {
+    if (!purchasing && !logistics && !superAdmin) refuse("42501", `${fn}: only Purchasing, Logistics or a Super Admin may do this`)
+    const requirement = findRow("ipas_compliance_requirements", id)
+    if (!requirement) refuse("22023", `${fn}: that Compliance Requirement does not exist`)
+    const ipas = requireOpenIpas(fn, requirement.ipas_id)
+    const kind = findRow("ipas_options", requirement.kind_id)?.label ?? null
+    return { requirement, ipas, kind }
+  }
+
+  stubRpc("ipas_tick_compliance", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_tick_compliance", args.p_requirement_id)
+    const today = manilaToday()
+    const day = args.p_done_on ?? today
+    if (day > today) refuse("22023", "ipas_tick_compliance: the day cannot be after today")
+    if (day < "2015-01-01") refuse("22023", "ipas_tick_compliance: the day cannot be before January 1, 2015")
+    const note = (args.p_note ?? "").trim() || null
+    if (note && note.length > 500) refuse("22023", "ipas_tick_compliance: the note is up to 500 characters")
+    if (requirement.done_on === day && (requirement.note ?? null) === note) return requirement
+    const updated = updateRow("ipas_compliance_requirements", requirement, { done_on: day, note, done_by: actorId })
+    event(ipas.id, "compliance_ticked", { requirement_id: requirement.id, kind, done_on: day, note })
+    return updated
+  })
+
+  stubRpc("ipas_untick_compliance", (args) => {
+    const { requirement, ipas, kind } = complianceRequirement("ipas_untick_compliance", args.p_requirement_id)
+    if (!requirement.done_on) return requirement
+    const updated = updateRow("ipas_compliance_requirements", requirement, { done_on: null, note: null, done_by: null })
+    event(ipas.id, "compliance_unticked", { requirement_id: requirement.id, kind })
+    return updated
+  })
 }
 
 /**

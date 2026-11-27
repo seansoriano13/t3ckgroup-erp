@@ -1,6 +1,7 @@
 // The Compliance Requirement group of the IPAS's Your move (#1251, spec #1247).
 // Unanswered: the question, Yes and No. Yes opens a picker of the active kinds. After Yes: one line per
-// open kind, and a way to change the answer or the kinds. "Mark done" is #1256's; this file only lists.
+// open kind with Mark done (#1256: the day, never after today in Manila, and an optional note), and a way to
+// change the answer or the kinds. That step also lists the done kinds: Undo a tick, or Edit its day and note.
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,10 +11,61 @@ import InlineError from "@/components/record/InlineError";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { IPAS_COMPLIANCE_QUESTION, IPAS_OPTION_LIST } from "@/constants/ipas";
 import { ipasService } from "@/services/ipasService";
 import { ipasErrorMessage } from "@/utils/ipas";
+import { IPAS_DATE_MIN, ipasDateIssue, ipasDateMax } from "@/utils/ipasDateLimits";
 import { ipasKey, ipasOptionsKey, markIpasListStale } from "../ipasKeys";
+
+const NOTE_MAX = 500;
+
+/** 'YYYY-MM-DD' as "20 Nov 2026" (no time zone maths: the day is already a Manila day). */
+const dayLabel = (day) => {
+  const [year, month, date] = String(day).split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, date)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+};
+
+/** The small step of one kind: the day (today to start, never later) and an optional note. */
+function TickStep({ kind, editing, saving, onSave, onCancel }) {
+  const [day, setDay] = useState(() => kind.doneOn ?? ipasDateMax());
+  const [note, setNote] = useState(() => kind.note ?? "");
+  const issue = day === "" ? "Pick the day it was done." : ipasDateIssue(day, "The day");
+  const tooLong = note.length > NOTE_MAX;
+  const unchanged = editing && day === kind.doneOn && note.trim() === (kind.note ?? "");
+  return (
+    <div className="mt-2 space-y-2 rounded-lg border border-border p-2.5" data-testid={`ipas-compliance-step-${kind.id}`}>
+      <div>
+        <FieldBox label="Done on" bare>
+          <Input type="date" min={IPAS_DATE_MIN} max={ipasDateMax()} value={day} onChange={(event) => setDay(event.target.value)} error={issue} />
+        </FieldBox>
+        {issue && <p className="mt-1 text-xs font-medium text-red-11">{issue}</p>}
+      </div>
+      <div>
+        <Textarea
+          label="Note (optional)"
+          placeholder="Permit number, for example"
+          rows={2}
+          value={note}
+          error={tooLong ? `Up to ${NOTE_MAX} characters.` : undefined}
+          onChange={(event) => setNote(event.target.value)}
+        />
+        <p className={`mt-1 text-xs ${tooLong ? "font-medium text-red-11" : "text-muted-foreground"}`}>
+          {note.length}/{NOTE_MAX}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={saving || Boolean(issue) || tooLong || unchanged} onClick={() => onSave(day, note)}>
+          {saving ? "Saving…" : editing ? "Save" : "Mark done"}
+        </Button>
+        <Button size="sm" variant="ghost" disabled={saving} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** The picker: the active kinds, plus any retired kind the IPAS already holds (it stays until unpicked). */
 function KindPicker({ ipasId, held, onSave, onNo, onCancel, saving, changing }) {
@@ -86,12 +138,37 @@ export default function IpasComplianceMove({ ipas, compliance }) {
       setFailure(null);
       toast.success("Compliance Requirements saved.");
     },
-    onError: (error, variables) => setFailure({ message: ipasErrorMessage(error), variables }),
+    onError: (error, variables) => setFailure({ message: ipasErrorMessage(error), retry: () => answer.mutate(variables) }),
     // Nobody is told; the record and the list read again.
     onSettled: () => Promise.all([markIpasListStale(queryClient), queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) })]),
   });
 
+  // The kind whose Mark done / Edit step is open (one at a time).
+  const [stepOf, setStepOf] = useState(null);
+  const settle = () =>
+    Promise.all([markIpasListStale(queryClient), queryClient.invalidateQueries({ queryKey: ipasKey(ipas.id) })]);
+  const tick = useMutation({
+    mutationFn: ({ kind, day, note }) => ipasService.tickCompliance(kind.id, day, note),
+    onSuccess: (_row, { kind }) => {
+      setStepOf(null);
+      setFailure(null);
+      toast.success(`${kind.label} marked done.`);
+    },
+    onError: (error, variables) => setFailure({ message: ipasErrorMessage(error), retry: () => tick.mutate(variables) }),
+    onSettled: settle,
+  });
+  const untick = useMutation({
+    mutationFn: ({ kind }) => ipasService.untickCompliance(kind.id),
+    onSuccess: (_row, { kind }) => {
+      setFailure(null);
+      toast.success(`${kind.label} is open again.`);
+    },
+    onError: (error, variables) => setFailure({ message: ipasErrorMessage(error), retry: () => untick.mutate(variables) }),
+    onSettled: settle,
+  });
+
   const { state, kinds, open } = compliance;
+  const done = kinds.filter((kind) => kind.doneOn);
   const answered = state !== "unanswered";
   const saving = answer.isPending;
   const choose = (needed, kindIds = []) => answer.mutate({ needed, kindIds });
@@ -126,9 +203,19 @@ export default function IpasComplianceMove({ ipas, compliance }) {
               <p className="text-sm font-semibold text-foreground">Compliance Requirements</p>
               <ul className="mt-1.5 space-y-1">
                 {open.map((kind) => (
-                  <li key={kind.id} className="flex items-center gap-2 text-sm text-foreground" data-testid="ipas-compliance-open-kind">
-                    <span className="font-medium">{kind.label}</span>
-                    <span className="text-xs text-muted-foreground">open</span>
+                  <li key={kind.id} className="text-sm text-foreground" data-testid="ipas-compliance-open-kind">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{kind.label}</span>
+                      <span className="text-xs text-muted-foreground">open</span>
+                      {stepOf !== kind.id && (
+                        <Button size="sm" variant="outline" className="ml-auto" aria-label={`Mark ${kind.label} done`} onClick={() => setStepOf(kind.id)}>
+                          Mark done
+                        </Button>
+                      )}
+                    </div>
+                    {stepOf === kind.id && (
+                      <TickStep kind={kind} saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
+                    )}
                   </li>
                 ))}
               </ul>
@@ -147,6 +234,33 @@ export default function IpasComplianceMove({ ipas, compliance }) {
       {answered && picking && (
         <>
           <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_QUESTION}</p>
+          {done.length > 0 && (
+            <div className="mt-2" data-testid="ipas-compliance-done">
+              <p className="text-xs font-medium text-muted-foreground">Done</p>
+              <ul className="mt-1 space-y-1.5">
+                {done.map((kind) => (
+                  <li key={kind.id} className="text-sm text-foreground" data-testid="ipas-compliance-done-kind">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-medium">{kind.label}</span>
+                      <span className="text-xs text-muted-foreground">done {dayLabel(kind.doneOn)}</span>
+                      <span className="ml-auto flex gap-1">
+                        <Button size="sm" variant="ghost" aria-label={`Edit ${kind.label} day and note`} disabled={untick.isPending} onClick={() => setStepOf(kind.id)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="ghost" aria-label={`Undo ${kind.label} tick`} disabled={untick.isPending} onClick={() => untick.mutate({ kind })}>
+                          Undo
+                        </Button>
+                      </span>
+                    </div>
+                    {kind.note && <p className="mt-0.5 break-words text-xs text-muted-foreground">{kind.note}</p>}
+                    {stepOf === kind.id && (
+                      <TickStep kind={kind} editing saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <KindPicker ipasId={ipas.id} held={kinds} changing saving={saving} onSave={(ids) => choose(true, ids)} onNo={() => choose(false)} onCancel={() => setPicking(false)} />
         </>
       )}
@@ -154,8 +268,8 @@ export default function IpasComplianceMove({ ipas, compliance }) {
       {failure && (
         <InlineError
           message={failure.message}
-          busy={saving}
-          onRetry={() => answer.mutate(failure.variables)}
+          busy={saving || tick.isPending || untick.isPending}
+          onRetry={failure.retry}
           onDismiss={() => setFailure(null)}
         />
       )}
