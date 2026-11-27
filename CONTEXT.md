@@ -781,7 +781,7 @@ the item is Purchased, which is checked again. An attach picks the P0 lines for 
 _Avoid_: Line Item, Procurement Request
 
 **Other request**:
-A Requested Item with no SOR line: a product Sales asks for in its own words (brand, spec, photos) that is not on the S0, or material for the job. It sits in the Other requests section of the project request, starts at Not checked, and reaches the S0 Evaluation only once it joins the S0 (a later ticket); materials never do. Not the same as a Direct request, which is a whole Purchase Request with no SOR.
+A Requested Item with no SOR line: a product that is not on the S0, or material for the job, picked from Odoo or asked for in the asker's own words (brand, spec, photos). Several can be asked for in one go. It sits in the Other requests section of the project request, starts at Not checked, and reaches the S0 Evaluation only once it joins the S0 (a later ticket); materials never do. Not the same as a Direct request, which is a whole Purchase Request with no SOR.
 _Avoid_: Free-text item, Extra item
 
 **Is this yours?**:
