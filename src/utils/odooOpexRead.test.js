@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // odoo.ts reads its settings from Deno.env when it loads, so Deno is stubbed first.
 
 let readOpexReport;
+let calls = [];
 
 function fakeOdoo(model, method, args) {
   const key = `${model}.${method}`;
@@ -35,11 +36,11 @@ function fakeOdoo(model, method, args) {
     case "purchase.order.read":
       return [{ id: 10, name: "P00010", state: "purchase", partner_id: [3, "Supplier A"], currency_rate: 1 }];
     case "account.move.line.search_read":
-      return [{ purchase_line_id: [200, "x"], quantity: 2, balance: 200, move_id: [600, "BILL/1"] }];
+      return [{ purchase_line_id: [200, "x"], quantity: 2, balance: 200, move_id: [600, "BILL/1"], move_type: "in_invoice" }];
     case "account.move.line.read":
       return [{ id: 400, purchase_line_id: false, tax_line_id: false, move_id: [500, "MISC/1"] }];
     case "account.move.read":
-      return args[1].includes("move_type") ? [{ id: 600, move_type: "in_invoice" }] : [{ id: 500, stock_move_id: false }];
+      return [{ id: 500, stock_move_id: false }];
     case "account.account.read":
       return [{ id: 7, code: "6100" }];
     default:
@@ -56,6 +57,7 @@ function stubOdoo() {
     if (service === "common") result = 1;
     else {
       const [, , , model, odooMethod, odooArgs] = args;
+      calls.push(`${model}.${odooMethod}`);
       if (model === "account.analytic.line" && odooMethod === "search_read") {
         result = [{ id: 300, date: "2026-11-01", name: "Fuel", amount: -500, general_account_id: [7, "Fuel"], move_line_id: [400, "x"] }];
       } else {
@@ -74,6 +76,24 @@ beforeAll(async () => {
 beforeEach(() => stubOdoo());
 
 describe("readOpexReport", () => {
+  it("asks Odoo for the Projects plan and its column only once per warm function", async () => {
+    await readOpexReport(1, { s0: "S00001", handP0s: [], vatDivisor: 1.12 });
+    calls = [];
+    await readOpexReport(1, { s0: "S00001", handP0s: [], vatDivisor: 1.12 });
+
+    expect(calls).not.toContain("account.analytic.plan.search_read");
+    expect(calls).not.toContain("account.analytic.line.fields_get");
+  });
+
+  it("reads the bill type with the bill lines, not in a call of its own", async () => {
+    calls = [];
+    await readOpexReport(1, { s0: "S00001", handP0s: [], vatDivisor: 1.12 });
+
+    // One account.move read is left: the expenses' stock check.
+    expect(calls.filter((c) => c === "account.move.read")).toHaveLength(1);
+    expect(calls).toHaveLength(12);
+  });
+
   it("reads the P0 lines and the expenses of one S0", async () => {
     const report = await readOpexReport(1, { s0: "S00001", handP0s: [], vatDivisor: 1.12 });
 
