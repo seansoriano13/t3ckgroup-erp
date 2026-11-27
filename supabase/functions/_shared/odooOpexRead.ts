@@ -3,8 +3,7 @@
 //
 // Speed: Odoo answers each call in a few hundred milliseconds, so the calls that
 // do not need each other's answers go out together, in four rounds, instead of
-// one after another (about 18 calls), and the expenses are read alongside
-// rounds 3 and 4. The answer is the same either way.
+// one after another (about 18 calls). The answer is the same either way.
 // Each call and each round is timed (stepTimer.ts) so the function logs show
 // which part is slow (#1266).
 
@@ -164,55 +163,49 @@ export async function readOpexReport(
     ...handOrders.map((o) => o.id as number),
   ]);
 
-  // The expenses need only the tags, and nothing in rounds 3 and 4 needs the
-  // expenses: read them alongside, so round 4 does not wait for them (#1266).
-  const readP0Lines = async () => {
-    // Round 3: P0 lines tagged to the S0, and P0 lines on the P0s above.
-    const [taggedLines, reportOrderLines] = await timed("round3", () =>
-      Promise.all([
-        tagIds.length
-          ? timed("r3.taggedLines", () =>
-              executeKw(uid, "purchase.order.line", "search_read", [
-                [["analytic_distribution", "in", tagIds], ["display_type", "=", false]],
-                PO_LINE_FIELDS,
-              ]) as Promise<Row[]>,
-            )
-          : Promise.resolve([] as Row[]),
-        onReportIds.size
-          ? timed("r3.reportLines", () =>
-              executeKw(uid, "purchase.order.line", "search_read", [
-                [["order_id", "in", [...onReportIds]], ["display_type", "=", false]],
-                PO_LINE_FIELDS,
-              ]) as Promise<Row[]>,
-            )
-          : Promise.resolve([] as Row[]),
-      ]),
-    );
+  // Round 3: P0 lines tagged to the S0, P0 lines on the P0s above, and the expenses.
+  // Tried and taken back (#1266): reading the expenses alongside round 4 sent more
+  // calls at once, Odoo started answering "try again in 1 second", and a 3 s read
+  // took 6–9 s. Keep the expenses here unless Odoo's rate limit is known to allow more.
+  const [taggedLines, reportOrderLines, expenses] = await timed("round3", () =>
+    Promise.all([
+      tagIds.length
+        ? timed("r3.taggedLines", () =>
+            executeKw(uid, "purchase.order.line", "search_read", [
+              [["analytic_distribution", "in", tagIds], ["display_type", "=", false]],
+              PO_LINE_FIELDS,
+            ]) as Promise<Row[]>,
+          )
+        : Promise.resolve([] as Row[]),
+      onReportIds.size
+        ? timed("r3.reportLines", () =>
+            executeKw(uid, "purchase.order.line", "search_read", [
+              [["order_id", "in", [...onReportIds]], ["display_type", "=", false]],
+              PO_LINE_FIELDS,
+            ]) as Promise<Row[]>,
+          )
+        : Promise.resolve([] as Row[]),
+      tagIds.length ? timed("r3.expenses", () => readExpenses(uid, tagIds, column)) : Promise.resolve([]),
+    ]),
+  );
 
-    const byId = new Map<number, Row>();
-    for (const l of [...taggedLines, ...reportOrderLines]) byId.set(l.id as number, l);
-    const allLines = [...byId.values()];
+  const byId = new Map<number, Row>();
+  for (const l of [...taggedLines, ...reportOrderLines]) byId.set(l.id as number, l);
+  const allLines = [...byId.values()];
 
-    // Round 4: each line's P0, its tag shares and what was billed on it.
-    const orderIds = [...new Set(numbers(allLines.map((l) => idOf(l.order_id))))];
-    const [poRows, shares, billed] = await timed("round4", () =>
-      Promise.all([
-        orderIds.length
-          ? timed("r4.p0s", () =>
-              executeKw(uid, "purchase.order", "read", [orderIds, ["name", "state", "partner_id", "currency_rate"]]) as Promise<Row[]>,
-            )
-          : Promise.resolve([] as Row[]),
-        timed("r4.shares", () => sharesForLines(uid, allLines as { id: number; analytic_distribution?: unknown }[])),
-        timed("r4.billed", () => readBilled(uid, allLines.map((l) => l.id as number))),
-      ]),
-    );
-    return { allLines, poRows, shares, billed };
-  };
-
-  const [expenses, { allLines, poRows, shares, billed }] = await Promise.all([
-    tagIds.length ? timed("expenses", () => readExpenses(uid, tagIds, column)) : Promise.resolve([]),
-    readP0Lines(),
-  ]);
+  // Round 4: each line's P0, its tag shares and what was billed on it.
+  const orderIds = [...new Set(numbers(allLines.map((l) => idOf(l.order_id))))];
+  const [poRows, shares, billed] = await timed("round4", () =>
+    Promise.all([
+      orderIds.length
+        ? timed("r4.p0s", () =>
+            executeKw(uid, "purchase.order", "read", [orderIds, ["name", "state", "partner_id", "currency_rate"]]) as Promise<Row[]>,
+          )
+        : Promise.resolve([] as Row[]),
+      timed("r4.shares", () => sharesForLines(uid, allLines as { id: number; analytic_distribution?: unknown }[])),
+      timed("r4.billed", () => readBilled(uid, allLines.map((l) => l.id as number))),
+    ]),
+  );
   const poById = new Map(poRows.map((p) => [p.id as number, p]));
 
   const lines = allLines

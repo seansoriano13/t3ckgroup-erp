@@ -3,10 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 // readOpexReport against a fake Odoo (#1266). Made-up figures only.
 // odoo.ts reads its settings from Deno.env when it loads, so Deno is stubbed first.
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let readOpexReport;
-let log;
-let billedAsked;
 
 function fakeOdoo(model, method, args) {
   const key = `${model}.${method}`;
@@ -38,8 +35,6 @@ function fakeOdoo(model, method, args) {
     case "purchase.order.read":
       return [{ id: 10, name: "P00010", state: "purchase", partner_id: [3, "Supplier A"], currency_rate: 1 }];
     case "account.move.line.search_read":
-      log.push("billed asked");
-      billedAsked();
       return [{ purchase_line_id: [200, "x"], quantity: 2, balance: 200, move_id: [600, "BILL/1"] }];
     case "account.move.line.read":
       return [{ id: 400, purchase_line_id: false, tax_line_id: false, move_id: [500, "MISC/1"] }];
@@ -62,10 +57,6 @@ function stubOdoo() {
     else {
       const [, , , model, odooMethod, odooArgs] = args;
       if (model === "account.analytic.line" && odooMethod === "search_read") {
-        // The expenses answer late: they wait until the billed read has been asked,
-        // or give up after 300 ms when nothing asks for it in the meantime.
-        await Promise.race([new Promise((r) => (billedAsked = r)), sleep(300)]);
-        log.push("expenses answered");
         result = [{ id: 300, date: "2026-11-01", name: "Fuel", amount: -500, general_account_id: [7, "Fuel"], move_line_id: [400, "x"] }];
       } else {
         result = fakeOdoo(model, odooMethod, odooArgs);
@@ -84,8 +75,6 @@ beforeEach(() => stubOdoo());
 
 describe("readOpexReport", () => {
   it("reads the P0 lines and the expenses of one S0", async () => {
-    log = [];
-    billedAsked = () => {};
     const report = await readOpexReport(1, { s0: "S00001", handP0s: [], vatDivisor: 1.12 });
 
     expect(report).toMatchObject({
@@ -99,12 +88,5 @@ describe("readOpexReport", () => {
     expect(report.expenses).toEqual([
       expect.objectContaining({ analyticLineId: 300, amount: 500, accountCode: "6100", group: "operation_admin" }),
     ]);
-  });
-
-  it("does not make the billed read wait for the expenses", async () => {
-    log = [];
-    await readOpexReport(1, { s0: "S00001", handP0s: [], vatDivisor: 1.12 });
-
-    expect(log).toEqual(["billed asked", "expenses answered"]);
   });
 });
