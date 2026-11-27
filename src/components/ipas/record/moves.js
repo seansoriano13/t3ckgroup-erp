@@ -11,6 +11,7 @@ import {
   IPAS_UNDO_APPROVAL_SECTIONS,
   ipasSectionNo,
 } from "@/constants/ipas";
+import { complianceViewOfIpas } from "@/utils/ipasCompliance";
 import { isLandedCostFinal } from "@/utils/ipasSignoffs";
 import { hintFor } from "./moveCopy";
 
@@ -204,7 +205,7 @@ export function cardMovesFor(ctx, digest) {
  * The Compliance Requirement group of "Your move" (#1251, spec #1247): a group of its own beside the
  * sign-offs, shown only to people the database lets answer (`ctx.can.compliance`: Purchasing access,
  * Logistics access or a Super Admin) on an open IPAS that asks. Returns null when nothing shows.
- *   state      "unanswered" | "yes" | "no"
+ *   state      "unanswered" | "none" | "kinds" (see complianceViewOfIpas)
  *   open       the kinds still open, in list order (done kinds leave Your move)
  *   kinds      every kind the IPAS holds: `{ id, kindId, label, doneOn, note }`
  * With a Yes whose kinds are all done, or a No, there is no to-do: the group is only a quiet line with
@@ -214,19 +215,7 @@ export function complianceFor(ctx) {
   const ipas = ctx.ipas;
   if (!ctx.can?.compliance || !ipas?.compliance_asked) return null;
   if (ipas.state !== "open") return null;
-  const kinds = [...(ipas.compliance_requirements ?? [])]
-    .map((row) => ({
-      id: row.id,
-      kindId: row.kind_id,
-      label: row.kind?.label ?? "",
-      sort: row.kind?.sort ?? 0,
-      doneOn: row.done_on ?? null,
-      note: row.note ?? null,
-    }))
-    .sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label));
-  const needed = ipas.compliance_needed;
-  const state = needed === true ? "yes" : needed === false ? "no" : "unanswered";
-  return { state, kinds, open: kinds.filter((kind) => !kind.doneOn) };
+  return complianceViewOfIpas(ipas);
 }
 
 /**

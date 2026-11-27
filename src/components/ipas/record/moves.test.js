@@ -24,13 +24,13 @@ describe("complianceFor: the Compliance Requirement group of Your move", () => {
     const group = complianceFor(
       ctx({ compliance_needed: true, compliance_requirements: [kind("f", "FDA", 50), kind("n", "NTC", 40), kind("d", "DENR", 10, "2026-11-20")] }),
     );
-    expect(group.state).toBe("yes");
+    expect(group.state).toBe("kinds");
     expect(group.open.map((item) => item.label)).toEqual(["NTC", "FDA"]);
     expect(group.kinds.map((item) => item.label)).toEqual(["DENR", "NTC", "FDA"]);
   });
 
   it("has no to-do after No", () => {
-    expect(complianceFor(ctx({ compliance_needed: false }))).toMatchObject({ state: "no", open: [] });
+    expect(complianceFor(ctx({ compliance_needed: false }))).toMatchObject({ state: "none", open: [] });
   });
 });
 

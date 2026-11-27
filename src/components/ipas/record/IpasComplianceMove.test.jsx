@@ -153,12 +153,12 @@ describe("after Yes", () => {
     const user = setupUser()
     show({
       compliance_needed: true,
-      compliance_requirements: [{ ...requirement("DENR", "2026-11-20"), note: "Permit 9" }, requirement("FDA")],
+      compliance_requirements: [{ ...requirement("DENR", "2020-11-20"), note: "Permit 9" }, requirement("FDA")],
     })
     await user.click(screen.getByRole("button", { name: "Change answer or kinds" }))
     const done = await screen.findByTestId("ipas-compliance-done")
     expect(within(done).getByText("DENR")).toBeInTheDocument()
-    expect(within(done).getByText("done 20 Nov 2026")).toBeInTheDocument()
+    expect(within(done).getByText("done Nov 20, 2020")).toBeInTheDocument()
     expect(within(done).getByText("Permit 9")).toBeInTheDocument()
     expect(within(done).queryByText("FDA")).toBeNull()
 

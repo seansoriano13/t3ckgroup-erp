@@ -14,7 +14,6 @@ import IpasStatusPill from "./IpasStatusPill";
 import { LandedCostMark } from "../costing/LandedCost";
 import { formatPHP } from "../../constants/sor";
 import { shortDay } from "../../utils/ipasSummary";
-import { complianceViewOfSummary } from "../../utils/ipasCompliance";
 import IpasComplianceLine from "./IpasComplianceLine";
 import { useIpasSorSummaries } from "./useIpasSorSummaries";
 
@@ -88,7 +87,7 @@ function SummaryRow({ summary, canOpen }) {
         </p>
       )}
 
-      <IpasComplianceLine view={complianceViewOfSummary(summary.compliance)} withNote={false} testId="ipas-summary-compliance" />
+      <IpasComplianceLine view={summary.compliance} withNote={false} testId="ipas-summary-compliance" />
 
       <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
         <div className="flex items-baseline gap-2">

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { act, screen } from "@testing-library/react"
 
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { stubRpc } from "@/test/msw/server"
 import { db } from "@/test/db/store"
 import IpasSorSection from "./IpasSorSection"
@@ -70,6 +70,20 @@ describe("IpasSorSection (#249)", () => {
     expect(screen.getByTestId("ipas-compliance-kind-done")).toHaveTextContent("DENR")
     expect(screen.getByTestId("ipas-compliance-kind-open")).toHaveTextContent("MARINA open")
     expect(screen.getAllByTestId("ipas-summary-compliance")).toHaveLength(1)
+  })
+
+  it("says only the day when a done kind is hovered: the note never reaches the SOR (#1257)", async () => {
+    authUser = { id: "emp-1" }
+    stubRpc("ipas_summaries_for_sor", [
+      summary({ compliance: { needed: true, kinds: [{ id: "r1", kind_id: "k1", label: "DENR", done_on: "2020-11-02", note: "ECC no. 5" }] } }),
+    ])
+    const user = setupUser()
+    renderWithProviders(<IpasSorSection opportunityId="sor-1" />)
+
+    await user.hover(await screen.findByTestId("ipas-compliance-kind-done"))
+
+    expect(await screen.findByText("Done Nov 2, 2020")).toBeInTheDocument()
+    expect(screen.queryByText(/ECC no. 5/)).not.toBeInTheDocument()
   })
 
   it("renders nothing when no IPAS names the SOR", async () => {

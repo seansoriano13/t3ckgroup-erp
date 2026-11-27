@@ -1,6 +1,21 @@
 [
     {
         "date": "2026-11-27",
+        "title": "Compliance Requirements on the IPAS",
+        "version": "1.15.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Every new IPAS now asks in Your move: does this order need a Compliance Requirement? Answer Yes or No.",
+            "On a Yes, pick one or more kinds (DENR, MARINA, OMB, NTC, FDA). Each kind stays in Your move until you mark it done with the day and, if you like, a note such as the permit number.",
+            "A line near the top of the IPAS, and on the SOR's IPAS summary, shows each kind as done or open. Hover a done kind to see its day.",
+            "Filing only warns while a kind is open or the question is not answered. It never stops you.",
+            "The list of kinds can be changed in Settings > Purchasing, on the new Compliance kinds tab. IPAS made before this change do not ask."
+        ]
+    },
+    {
+        "date": "2026-11-27",
         "title": "Group Tasks on the Calendar",
         "version": "1.14.0",
         "changes": [

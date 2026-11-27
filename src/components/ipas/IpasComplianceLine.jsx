@@ -2,19 +2,20 @@
 // A done kind shows a tick; hovering it says the day (and the note, unless `withNote` is false). Not standing text.
 
 import { Tooltip } from "@/components/ui/Tooltip";
-import { COMPLIANCE_LABEL, doneHover } from "@/utils/ipasCompliance";
+import { IPAS_COMPLIANCE_LABEL } from "@/constants/ipas";
+import { doneTooltipText } from "@/utils/ipasComplianceHover";
 
 export default function IpasComplianceLine({ view, withNote = true, className = "text-xs", testId = "ipas-compliance-line" }) {
   if (!view) return null;
   return (
     <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${className}`} data-testid={testId}>
-      <span className="font-semibold text-muted-foreground">{COMPLIANCE_LABEL}</span>
+      <span className="font-semibold text-muted-foreground">{IPAS_COMPLIANCE_LABEL}</span>
       {view.state === "unanswered" && <span className="text-muted-foreground">Not answered yet</span>}
       {view.state === "none" && <span className="text-muted-foreground">None needed</span>}
       {view.state === "kinds" &&
         view.kinds.map((kind) =>
           kind.doneOn ? (
-            <Tooltip key={kind.id} content={doneHover(kind, { withNote })}>
+            <Tooltip key={kind.id} content={doneTooltipText(kind, { withNote })}>
               <span tabIndex={0} className="font-medium text-foreground" data-testid="ipas-compliance-kind-done">
                 {kind.label} <span aria-label="done">✓</span>
               </span>

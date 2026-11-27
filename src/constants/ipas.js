@@ -732,7 +732,8 @@ export const IPAS_EVENT_LABELS = {
   compliance_unticked: "Compliance Requirement reopened",
 };
 
-/** The word screens use for the whole feature: never "Compliance" on its own (CONTEXT.md). */
+/** The words screens use for the whole feature: never "Compliance" on its own (CONTEXT.md). */
+export const IPAS_COMPLIANCE_LABEL = "Compliance Requirements";
 export const IPAS_COMPLIANCE_QUESTION = "Does this order need a Compliance Requirement?";
 
 /** What Section 5 / Logistics say when the supplier delivers straight to the client (#1170). */

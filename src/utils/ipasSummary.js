@@ -14,6 +14,7 @@ import {
   IPAS_STATUS_LABELS,
   ipasSectionName,
 } from "../constants/ipas";
+import { complianceView } from "./ipasCompliance";
 
 /**
  * The columns `ipas_summaries_for_sor` returns, and nothing else. A test holds
@@ -82,21 +83,22 @@ export function signoffProgress(signoffs) {
   });
 }
 
-/** One `ipas_summaries_for_sor` row as the SOR's IPAS section reads it, or null. */
-/** The Compliance Requirements of a summary row: `{ needed, kinds: [{ id, kindId, label, doneOn }] }`, or null when the IPAS does not ask. */
+/** The Compliance Requirements of a summary row, as the shared view (utils/ipasCompliance), or null when the IPAS does not ask. No note comes with it. */
 function shapeSummaryCompliance(value) {
   if (!value || typeof value !== "object") return null;
-  return {
+  return complianceView({
+    asked: true,
     needed: typeof value.needed === "boolean" ? value.needed : null,
     kinds: (Array.isArray(value.kinds) ? value.kinds : []).map((kind) => ({
       id: kind.id,
       kindId: kind.kind_id,
-      label: kind.label ?? "",
-      doneOn: kind.done_on ?? null,
+      label: kind.label,
+      doneOn: kind.done_on,
     })),
-  };
+  });
 }
 
+/** One `ipas_summaries_for_sor` row as the SOR's IPAS section reads it, or null. */
 export function shapeIpasSummary(row) {
   if (!row || typeof row !== "object" || !row.ipas_id) return null;
   return {

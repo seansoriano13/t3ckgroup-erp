@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { complianceView, complianceViewOfIpas, complianceViewOfSummary, complianceWarning, doneHover } from "./ipasCompliance";
+import { complianceView, complianceViewOfIpas, complianceWarning } from "./ipasCompliance";
 
 describe("complianceView", () => {
   it("is nothing on an IPAS that does not ask", () => {
     expect(complianceView({ asked: false, needed: null, kinds: [] })).toBeNull();
-    expect(complianceViewOfSummary(null)).toBeNull();
     expect(complianceViewOfIpas({ compliance_asked: false })).toBeNull();
   });
 
@@ -34,14 +33,6 @@ describe("complianceView", () => {
       ],
     });
     expect(view.kinds.map((kind) => kind.label)).toEqual(["DENR", "MARINA"]);
-  });
-});
-
-describe("doneHover", () => {
-  it("says the day and the note, or the day alone", () => {
-    const kind = { doneOn: "2020-11-02", note: "ECC no. 5" };
-    expect(doneHover(kind)).toBe("Done Nov 2, 2020 · ECC no. 5");
-    expect(doneHover(kind, { withNote: false })).toBe("Done Nov 2, 2020");
   });
 });
 
