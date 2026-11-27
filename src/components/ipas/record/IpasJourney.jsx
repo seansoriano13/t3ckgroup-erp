@@ -76,7 +76,8 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, onGoToSignof
   const [showReady, setShowReady] = useState(false);
   const { run, dialog } = useMoveConfirm({ restate: (section) => digest.lines[section], viewer, origin: CHROME.CARD });
   const { returns } = movesFor(ctx, digest);
-  // The Compliance Requirement group (#1251): its own group, beside the sign-offs.
+  // The Compliance Requirement card (#1251): first under the headline, so it is seen without scrolling. It
+  // sits outside "Get it ready" on purpose: it never counts toward that list and never holds up signing.
   const compliance = complianceFor(ctx);
   const working = Boolean(busy.signoff || busy.give);
   const { ready, readyDone, sign } = journey;
@@ -104,6 +105,8 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, onGoToSignof
           </Link>
         </p>
       )}
+
+      {compliance && <IpasComplianceMove ipas={ctx.ipas} compliance={compliance} />}
 
       {!finished && (
         <>
@@ -137,8 +140,6 @@ export default function IpasJourney({ ctx, digest, journey, onEdit, onGoToSignof
           </ol>
         </>
       )}
-
-      {compliance && <IpasComplianceMove ipas={ctx.ipas} compliance={compliance} />}
 
       {returns.length > 0 && (
         <ul className="mt-4 border-t border-border pt-3">

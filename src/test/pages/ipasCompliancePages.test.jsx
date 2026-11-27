@@ -160,6 +160,18 @@ describe("Compliance Requirements on the IPAS page", () => {
     });
   });
 
+  describe("in Your move", () => {
+    it("asks first, above Get it ready, without scrolling past the steps", async () => {
+      const row = asking(null);
+      renderDetail(row.id);
+
+      const card = await screen.findByTestId("ipas-compliance-move");
+      const getReady = screen.getByRole("heading", { name: /1\. Get it ready/ });
+      expect(card).toHaveTextContent("Does this order need a Compliance Requirement?");
+      expect(card.compareDocumentPosition(getReady) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+  });
+
   describe("Filing's warning", () => {
     const fileStep = async () => within(await screen.findByRole("region", { name: "Your move" })).findByTestId("ipas-journey-file");
 

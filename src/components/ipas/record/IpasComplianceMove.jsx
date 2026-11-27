@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { Check, Circle } from "lucide-react";
 
 import InlineError from "@/components/record/InlineError";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,7 @@ function TickStep({ kind, editing, saving, onSave, onCancel }) {
   const tooLong = note.length > NOTE_MAX;
   const unchanged = editing && day === kind.doneOn && note.trim() === (kind.note ?? "");
   return (
-    <div className="mt-2 space-y-2 rounded-lg border border-border p-2.5" data-testid={`ipas-compliance-step-${kind.id}`}>
+    <div className="mt-2 space-y-2 border-t border-amber-a5 pt-2.5" data-testid={`ipas-compliance-step-${kind.id}`}>
       <div>
         <FieldBox label="Done on" bare>
           <Input type="date" min={IPAS_DATE_MIN} max={ipasDateMax()} value={day} onChange={(event) => setDay(event.target.value)} error={issue} />
@@ -167,107 +168,120 @@ export default function IpasComplianceMove({ ipas, compliance }) {
   const answered = state !== "unanswered";
   const saving = answer.isPending;
   const choose = (needed, kindIds = []) => answer.mutate({ needed, kindIds });
+  // Amber, like the rail's other to-dos, while it waits on someone: unanswered, a kind open, or being changed.
+  const needsMe = state === "unanswered" || open.length > 0 || picking;
 
   return (
-    <section className="mt-4 border-t border-border pt-3" aria-label={IPAS_COMPLIANCE_LABEL} data-testid="ipas-compliance-move">
-      {state === "unanswered" && !picking && (
-        <>
-          <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_QUESTION}</p>
-          <div className="mt-2 flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => setPicking(true)}>
-              Yes
-            </Button>
-            <Button size="sm" variant="outline" disabled={saving} onClick={() => choose(false)}>
-              No
-            </Button>
-          </div>
-        </>
-      )}
-
-      {state === "unanswered" && picking && (
-        <>
-          <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_QUESTION}</p>
-          <KindPicker ipasId={ipas.id} held={kinds} saving={saving} onSave={(ids) => choose(true, ids)} onCancel={() => setPicking(false)} />
-        </>
-      )}
-
-      {answered && !picking && (
-        <>
-          {open.length > 0 ? (
+    <section
+      className={`mt-3 rounded-xl border px-3 py-2.5 ${needsMe ? "border-amber-a6 bg-amber-2" : "border-border bg-background"}`}
+      aria-label={IPAS_COMPLIANCE_LABEL}
+      data-testid="ipas-compliance-move"
+    >
+      <div className="flex items-start gap-2.5">
+        <span className="mt-0.5 shrink-0" aria-hidden="true">
+          {needsMe ? <Circle size={16} className="text-amber-11" /> : <Check size={16} className="text-green-11" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          {state === "unanswered" && !picking && (
             <>
-              <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_LABEL}</p>
-              <ul className="mt-1.5 space-y-1">
-                {open.map((kind) => (
-                  <li key={kind.id} className="text-sm text-foreground" data-testid="ipas-compliance-open-kind">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{kind.label}</span>
-                      <span className="text-xs text-muted-foreground">open</span>
-                      {stepOf !== kind.id && (
-                        <Button size="sm" variant="outline" className="ml-auto" aria-label={`Mark ${kind.label} done`} onClick={() => setStepOf(kind.id)}>
-                          Mark done
-                        </Button>
-                      )}
-                    </div>
-                    {stepOf === kind.id && (
-                      <TickStep kind={kind} saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_QUESTION}</p>
+              <div className="mt-2 flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setPicking(true)}>
+                  Yes
+                </Button>
+                <Button size="sm" variant="outline" disabled={saving} onClick={() => choose(false)}>
+                  No
+                </Button>
+              </div>
             </>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {IPAS_COMPLIANCE_LABEL}: {state === "none" ? "none needed" : "all done"}.
-            </p>
           )}
-          <Button variant="link" className="mt-1 h-auto p-0 text-xs font-medium underline underline-offset-4" onClick={() => setPicking(true)}>
-            Change answer or kinds
-          </Button>
-        </>
-      )}
 
-      {answered && picking && (
-        <>
-          <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_QUESTION}</p>
-          {done.length > 0 && (
-            <div className="mt-2" data-testid="ipas-compliance-done">
-              <p className="text-xs font-medium text-muted-foreground">Done</p>
-              <ul className="mt-1 space-y-1.5">
-                {done.map((kind) => (
-                  <li key={kind.id} className="text-sm text-foreground" data-testid="ipas-compliance-done-kind">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-medium">{kind.label}</span>
-                      <span className="text-xs text-muted-foreground">done {shortDay(kind.doneOn)}</span>
-                      <span className="ml-auto flex gap-1">
-                        <Button size="sm" variant="ghost" aria-label={`Edit ${kind.label} day and note`} disabled={untick.isPending} onClick={() => setStepOf(kind.id)}>
-                          Edit
-                        </Button>
-                        <Button size="sm" variant="ghost" aria-label={`Undo ${kind.label} tick`} disabled={untick.isPending} onClick={() => untick.mutate({ kind })}>
-                          Undo
-                        </Button>
-                      </span>
-                    </div>
-                    {kind.note && <p className="mt-0.5 break-words text-xs text-muted-foreground">{kind.note}</p>}
-                    {stepOf === kind.id && (
-                      <TickStep kind={kind} editing saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {state === "unanswered" && picking && (
+            <>
+              <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_QUESTION}</p>
+              <KindPicker ipasId={ipas.id} held={kinds} saving={saving} onSave={(ids) => choose(true, ids)} onCancel={() => setPicking(false)} />
+            </>
           )}
-          <KindPicker ipasId={ipas.id} held={kinds} changing saving={saving} onSave={(ids) => choose(true, ids)} onNo={() => choose(false)} onCancel={() => setPicking(false)} />
-        </>
-      )}
 
-      {failure && (
-        <InlineError
-          message={failure.message}
-          busy={saving || tick.isPending || untick.isPending}
-          onRetry={failure.retry}
-          onDismiss={() => setFailure(null)}
-        />
-      )}
+          {answered && !picking && (
+            <>
+              {open.length > 0 ? (
+                <>
+                  <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_LABEL}</p>
+                  <ul className="mt-1.5 space-y-1">
+                    {open.map((kind) => (
+                      <li key={kind.id} className="text-sm text-foreground" data-testid="ipas-compliance-open-kind">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{kind.label}</span>
+                          <span className="text-xs text-muted-foreground">open</span>
+                          {stepOf !== kind.id && (
+                            <Button size="sm" variant="outline" className="ml-auto" aria-label={`Mark ${kind.label} done`} onClick={() => setStepOf(kind.id)}>
+                              Mark done
+                            </Button>
+                          )}
+                        </div>
+                        {stepOf === kind.id && (
+                          <TickStep kind={kind} saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {IPAS_COMPLIANCE_LABEL}: {state === "none" ? "none needed" : "all done"}.
+                </p>
+              )}
+              <Button variant="link" className="mt-1 h-auto p-0 text-xs font-medium underline underline-offset-4" onClick={() => setPicking(true)}>
+                Change answer or kinds
+              </Button>
+            </>
+          )}
+
+          {answered && picking && (
+            <>
+              <p className="text-sm font-semibold text-foreground">{IPAS_COMPLIANCE_QUESTION}</p>
+              {done.length > 0 && (
+                <div className="mt-2" data-testid="ipas-compliance-done">
+                  <p className="text-xs font-medium text-muted-foreground">Done</p>
+                  <ul className="mt-1 space-y-1.5">
+                    {done.map((kind) => (
+                      <li key={kind.id} className="text-sm text-foreground" data-testid="ipas-compliance-done-kind">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-medium">{kind.label}</span>
+                          <span className="text-xs text-muted-foreground">done {shortDay(kind.doneOn)}</span>
+                          <span className="ml-auto flex gap-1">
+                            <Button size="sm" variant="ghost" aria-label={`Edit ${kind.label} day and note`} disabled={untick.isPending} onClick={() => setStepOf(kind.id)}>
+                              Edit
+                            </Button>
+                            <Button size="sm" variant="ghost" aria-label={`Undo ${kind.label} tick`} disabled={untick.isPending} onClick={() => untick.mutate({ kind })}>
+                              Undo
+                            </Button>
+                          </span>
+                        </div>
+                        {kind.note && <p className="mt-0.5 break-words text-xs text-muted-foreground">{kind.note}</p>}
+                        {stepOf === kind.id && (
+                          <TickStep kind={kind} editing saving={tick.isPending} onCancel={() => setStepOf(null)} onSave={(day, note) => tick.mutate({ kind, day, note })} />
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <KindPicker ipasId={ipas.id} held={kinds} changing saving={saving} onSave={(ids) => choose(true, ids)} onNo={() => choose(false)} onCancel={() => setPicking(false)} />
+            </>
+          )}
+
+          {failure && (
+            <InlineError
+              message={failure.message}
+              busy={saving || tick.isPending || untick.isPending}
+              onRetry={failure.retry}
+              onDismiss={() => setFailure(null)}
+            />
+          )}
+        </div>
+      </div>
     </section>
   );
 }
