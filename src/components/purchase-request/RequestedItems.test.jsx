@@ -261,6 +261,86 @@ describe("RequestedItems", () => {
     expect(screen.queryByRole("button", { name: "Ask for a product" })).not.toBeInTheDocument()
   })
 
+  describe("editing and removing an added product", () => {
+    const PHOTO = { url: "https://res.cloudinary.com/demo/image/upload/v1/bracket.jpg", name: "bracket.jpg", type: "image/jpeg", bytes: 2048 }
+    const seedAdded = (fields = {}) =>
+      db.seed("purchase_request_items", {
+        request_id: request.id,
+        source: "new",
+        name: "Custom mounting bracket",
+        quantity: 4,
+        unit: "pc",
+        images: [PHOTO],
+        status: "not_checked",
+        requested_by: salesperson.id,
+        ...fields,
+      })
+    const otherRow = async () => {
+      const other = await screen.findByRole("region", { name: "Other requests" })
+      return openRow(await within(other).findByTestId("requested-item"))
+    }
+
+    it("edits it in the form it was asked with, keeping its photo, and posts the change", async () => {
+      const added = seedAdded()
+      const user = setupUser()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      await user.click(within(await otherRow()).getByRole("button", { name: "Edit" }))
+      const dialog = await screen.findByRole("dialog")
+      expect(within(dialog).getByRole("combobox", { name: "What do you need?" })).toHaveValue("Custom mounting bracket")
+      expect(within(dialog).getByAltText("bracket.jpg")).toBeInTheDocument()
+      await user.clear(within(dialog).getByLabelText(/^Quantity/))
+      await user.type(within(dialog).getByLabelText(/^Quantity/), "6")
+      await user.click(within(dialog).getByRole("button", { name: "Save" }))
+
+      await waitFor(() => expect(itemRow("Custom mounting bracket").quantity).toBe(6))
+      expect(itemRow("Custom mounting bracket")).toMatchObject({ unit: "pc", images: [PHOTO] })
+      const posts = db.rows("purchase_request_messages").filter((m) => m.metadata?.event === "item_edited")
+      expect(posts.map((m) => m.metadata.item_id)).toEqual([added.id])
+    })
+
+    it("removes it after asking: it leaves the list, stays on record, and the Chat says so", async () => {
+      const added = seedAdded()
+      const user = setupUser()
+      renderWithProviders(<RequestedItems request={request} />)
+
+      await user.click(within(await otherRow()).getByRole("button", { name: "Remove" }))
+      const confirm = await screen.findByRole("dialog", { name: "Remove Custom mounting bracket?" })
+      await user.click(within(confirm).getByRole("button", { name: "Remove" }))
+
+      expect(await screen.findByText("No other requests.")).toBeInTheDocument()
+      const kept = db.rows("purchase_request_items").find((i) => i.id === added.id)
+      expect(kept).toMatchObject({ status: "cancelled" })
+      expect(kept.removed_at).toBeTruthy()
+      const posts = db.rows("purchase_request_messages").filter((m) => m.metadata?.event === "item_removed")
+      expect(posts.map((m) => m.metadata.item_id)).toEqual([added.id])
+    })
+
+    it("turns both off, with the reason on hover, once the product is bought", async () => {
+      seedAdded({ status: "purchased" })
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await otherRow()
+      for (const name of ["Edit", "Remove"]) {
+        const button = within(row).getByRole("button", { name })
+        expect(button).toBeDisabled()
+        expect(button).toHaveAttribute("title", "It is on a P0 already. Cancel it instead.")
+      }
+    })
+
+    it("offers neither on a product from the S0, nor to someone who may not add", async () => {
+      seedAdded()
+      stubRpc("purchase_request_can_add_items", () => false)
+      renderWithProviders(<RequestedItems request={request} />)
+
+      const row = await otherRow()
+      expect(within(row).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
+      const s0 = screen.getByRole("region", { name: "From the S0" })
+      const s0Row = await openRow(within(s0).getAllByTestId("requested-item")[0])
+      expect(within(s0Row).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
+    })
+  })
+
   describe("the price copied from a Canvass winner (#582)", () => {
     it("shows the price on the row when the database returns it", async () => {
       const kit = itemRow("Rope Access Kit")

@@ -1408,7 +1408,9 @@ create table if not exists public."purchase_request_items" (
   "ordered_early_reason" text,
   "odoo_received_qty" numeric(12,2),
   "ipas_pending" boolean not null default false,
-  "ipas_number" text
+  "ipas_number" text,
+  "removed_at" timestamp with time zone,
+  "removed_by" uuid
 );
 
 create table if not exists public."purchase_request_members" (
@@ -2872,6 +2874,7 @@ alter table pms_evidence add constraint "pms_evidence_uploaded_by_fkey" FOREIGN 
 alter table pms_handoff_events add constraint "pms_handoff_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES employees(id);
 alter table purchase_request_item_prices add constraint "purchase_request_item_prices_item_id_fkey" FOREIGN KEY (item_id) REFERENCES purchase_request_items(id) ON DELETE CASCADE;
 alter table purchase_request_items add constraint "purchase_request_items_component_id_fkey" FOREIGN KEY (component_id) REFERENCES costing_components(id) ON DELETE SET NULL;
+alter table purchase_request_items add constraint "purchase_request_items_removed_by_fkey" FOREIGN KEY (removed_by) REFERENCES employees(id);
 alter table purchase_request_items add constraint "purchase_request_items_request_id_fkey" FOREIGN KEY (request_id) REFERENCES purchase_requests(id) ON DELETE CASCADE;
 alter table purchase_request_items add constraint "purchase_request_items_requested_by_fkey" FOREIGN KEY (requested_by) REFERENCES employees(id);
 alter table purchase_request_items add constraint "purchase_request_items_sor_item_id_fkey" FOREIGN KEY (sor_item_id) REFERENCES sales_opportunity_items(id) ON DELETE SET NULL;
@@ -8146,6 +8149,49 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public._purchase_request_item_amount(p_quantity numeric, p_unit text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+ SET search_path TO 'public'
+AS $function$
+  select trim_scale(p_quantity)::text || coalesce(' ' || nullif(btrim(p_unit), ''), '');
+$function$
+;
+CREATE OR REPLACE FUNCTION public._purchase_request_item_for_changing(p_item_id uuid, p_fn text)
+ RETURNS purchase_request_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_item public.purchase_request_items;
+begin
+  if public.get_employee_id() is null then
+    raise exception '%: not signed in', p_fn using errcode = '42501';
+  end if;
+  select * into v_item from public.purchase_request_items where id = p_item_id for update;
+  if v_item.id is null then
+    raise exception '%: item % not found', p_fn, p_item_id using errcode = 'P0002';
+  end if;
+  if not public.purchase_request_can_add_items(v_item.request_id) then
+    raise exception '%: only the request''s members may change its products', p_fn using errcode = '42501';
+  end if;
+  if v_item.source <> 'new' then
+    raise exception '%: % comes from the S0; change it there', p_fn, v_item.name using errcode = '22023';
+  end if;
+  if v_item.removed_at is not null then
+    raise exception '%: % was already removed', p_fn, v_item.name using errcode = '22023';
+  end if;
+  if v_item.po_number is not null
+     or coalesce(cardinality(v_item.odoo_po_line_ids), 0) > 0
+     or v_item.status in ('purchased', 'received') then
+    raise exception '%: % is on a P0 already; cancel it instead', p_fn, v_item.name using errcode = '22023';
+  end if;
+  return v_item;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public._purchase_request_item_is_closed(p_status text)
  RETURNS boolean
  LANGUAGE sql
@@ -8164,6 +8210,9 @@ AS $function$
 declare
   v_item public.purchase_request_items;
 begin
+  if p_item.removed_at is not null then
+    raise exception '%: % was removed from the request', p_fn, p_item.name using errcode = '22023';
+  end if;
   if p_item.status = p_to and not (p_to = 'available' and p_item.stock_short_free is not null) then
     raise exception '%: the item is already %', p_fn, public._purchase_request_item_status_label(p_to)
       using errcode = '22023';
@@ -8444,6 +8493,15 @@ begin
     perform public._purchase_request_notify(
       v_req.id, array[v_req.buyer_id], new.author_id, 'PURCHASE_REQUEST_ITEM_ADDED',
       'Item requested',
+      v_label || ': ' || new.content
+    );
+
+  elsif v_event in ('item_edited', 'item_removed') then
+    select * into v_item from public.purchase_request_items
+    where id = nullif(new.metadata->>'item_id', '')::uuid;
+    perform public._purchase_request_notify(
+      v_req.id, array[v_req.buyer_id, v_item.requested_by], new.author_id, 'PURCHASE_REQUEST_ITEM_ADDED',
+      case when v_event = 'item_removed' then 'Item removed' else 'Item changed' end,
       v_label || ': ' || new.content
     );
 
@@ -15889,7 +15947,7 @@ begin
                 array['not_checked','to_purchase','still_canvassing','purchased','available','received','cannot_source'],
                 it.status)
               limit 1),
-            case when exists (select 1 from public.purchase_request_items it where it.request_id = r.id)
+            case when exists (select 1 from public.purchase_request_items it where it.request_id = r.id and it.removed_at is null)
                  then 'cancelled' else 'not_checked' end
           ) as status
       ) i on true
@@ -24645,7 +24703,7 @@ AS $function$
     r.title,
     coalesce(nullif(o.sales_reference, ''), o.sor_code, o.opportunity_no),
     r.opportunity_id,
-    (select count(*)::integer from public.purchase_request_items it where it.request_id = r.id),
+    (select count(*)::integer from public.purchase_request_items it where it.request_id = r.id and it.removed_at is null),
     r.deleted_at,
     e.name,
     r.delete_reason
@@ -24655,6 +24713,125 @@ AS $function$
   where r.deleted_at is not null
     and (coalesce(public.is_super_admin(), false) or coalesce(public.has_purchasing_access(), false))
   order by r.deleted_at desc;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_edit_item(p_item_id uuid, p_item jsonb)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_old public.purchase_request_items := public._purchase_request_item_for_changing(p_item_id, 'purchase_request_edit_item');
+  v_name text;
+  v_quantity numeric;
+  v_unit text;
+  v_description text;
+  v_purpose text;
+  v_images jsonb;
+  v_odoo int;
+  v_parts text[] := '{}';
+  v_actor uuid := public.get_employee_id();
+begin
+  if p_item is null or jsonb_typeof(p_item) <> 'object' then
+    raise exception 'purchase_request_edit_item: send the product as an object' using errcode = '22023';
+  end if;
+
+  v_name := nullif(btrim(p_item->>'name'), '');
+  if v_name is null then
+    raise exception 'purchase_request_edit_item: a product needs a name' using errcode = '22023';
+  end if;
+
+  begin
+    v_quantity := (p_item->>'quantity')::numeric;
+  exception when others then
+    v_quantity := null;
+  end;
+  if v_quantity is null or v_quantity <= 0 then
+    raise exception 'purchase_request_edit_item: the quantity must be more than zero' using errcode = '22023';
+  end if;
+
+  v_unit := nullif(btrim(p_item->>'unit'), '');
+  v_description := nullif(btrim(p_item->>'description'), '');
+
+  v_purpose := coalesce(nullif(p_item->>'purpose', ''), 'client');
+  if v_purpose not in ('client', 'job') then
+    raise exception 'purchase_request_edit_item: say whether it is for the client or material for the job' using errcode = '22023';
+  end if;
+
+  v_images := coalesce(p_item->'images', '[]'::jsonb);
+  if jsonb_typeof(v_images) <> 'array'
+     or jsonb_array_length(v_images) > 5
+     or exists (
+       select 1 from jsonb_array_elements(v_images) img
+       where jsonb_typeof(img) <> 'object' or nullif(img->>'url', '') is null
+     ) then
+    raise exception 'purchase_request_edit_item: images must be up to 5 uploaded files' using errcode = '22023';
+  end if;
+
+  v_odoo := null;
+  if nullif(p_item->>'odoo_product_id', '') is not null then
+    begin
+      v_odoo := (p_item->>'odoo_product_id')::int;
+    exception when others then
+      v_odoo := null;
+    end;
+    if v_odoo is null or v_odoo <= 0 then
+      raise exception 'purchase_request_edit_item: the Odoo product is not valid' using errcode = '22023';
+    end if;
+  end if;
+
+  if v_name is distinct from v_old.name then
+    v_parts := v_parts || format('name to %s', v_name);
+  elsif v_odoo is distinct from v_old.odoo_product_id then
+    v_parts := v_parts || case when v_odoo is null then 'no longer from Odoo' else 'now from Odoo' end;
+  end if;
+  if v_quantity is distinct from v_old.quantity or v_unit is distinct from nullif(btrim(v_old.unit), '') then
+    v_parts := v_parts || format('quantity %s → %s',
+      public._purchase_request_item_amount(v_old.quantity, v_old.unit),
+      public._purchase_request_item_amount(v_quantity, v_unit));
+  end if;
+  if v_purpose is distinct from v_old.purpose then
+    v_parts := v_parts || case when v_purpose = 'job' then 'now material for the job' else 'now for the client' end;
+  end if;
+  if v_description is distinct from nullif(btrim(v_old.description), '') then
+    v_parts := v_parts || 'description'::text;
+  end if;
+  if v_images is distinct from v_old.images then
+    v_parts := v_parts || 'photos'::text;
+  end if;
+
+  if cardinality(v_parts) = 0 then
+    return false;
+  end if;
+
+  update public.purchase_request_items
+     set name = v_name,
+         quantity = v_quantity,
+         unit = v_unit,
+         description = v_description,
+         images = v_images,
+         purpose = v_purpose,
+         odoo_product_id = v_odoo
+   where id = v_old.id;
+
+  perform public._purchase_request_post_event(
+    v_old.request_id,
+    v_actor,
+    format('Changed %s: %s.', v_old.name, array_to_string(v_parts, ', ')),
+    jsonb_build_object(
+      'event', 'item_edited',
+      'item_id', v_old.id,
+      'before', jsonb_build_object(
+        'name', v_old.name, 'quantity', v_old.quantity, 'unit', v_old.unit, 'description', v_old.description,
+        'images', v_old.images, 'purpose', v_old.purpose, 'odoo_product_id', v_old.odoo_product_id),
+      'after', jsonb_build_object(
+        'name', v_name, 'quantity', v_quantity, 'unit', v_unit, 'description', v_description,
+        'images', v_images, 'purpose', v_purpose, 'odoo_product_id', v_odoo)
+    )
+  );
+  return true;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_item_apply_po_check(p_actor_email text, p_item_id uuid, p_action text, p_po_number text, p_odoo text)
@@ -25305,6 +25482,7 @@ AS $function$
       count(*) filter (where not public._purchase_request_item_is_closed(it.status)) as open_count
     from public.purchase_request_items it
     where it.request_id = r.id
+      and it.removed_at is null
   ) i on true
   left join lateral (
     select max(msg.created_at) as last_message_at
@@ -25314,6 +25492,35 @@ AS $function$
   where (p_request_id is null or r.id = p_request_id)
     and public.can_read_purchase_request(r.id)
   order by greatest(r.updated_at, m.last_message_at) desc nulls last, r.created_at desc;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.purchase_request_remove_item(p_item_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_old public.purchase_request_items := public._purchase_request_item_for_changing(p_item_id, 'purchase_request_remove_item');
+  v_actor uuid := public.get_employee_id();
+begin
+  update public.purchase_request_items
+     set status = 'cancelled',
+         stock_short_free = null,
+         stock_short_needed = null,
+         status_changed_by = v_actor,
+         status_changed_at = now(),
+         removed_at = now(),
+         removed_by = v_actor
+   where id = v_old.id;
+
+  perform public._purchase_request_post_event(
+    v_old.request_id,
+    v_actor,
+    format('Removed %s × %s.', v_old.name, public._purchase_request_item_amount(v_old.quantity, v_old.unit)),
+    jsonb_build_object('event', 'item_removed', 'item_id', v_old.id, 'from', v_old.status)
+  );
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.purchase_request_remove_member(p_request_id uuid, p_employee_id uuid)
@@ -30187,7 +30394,8 @@ begin
               order by i.created_at, i.id
             )
        from public.purchase_request_items i
-      where i.request_id = v_request_id),
+      where i.request_id = v_request_id
+        and i.removed_at is null),
     '[]'::jsonb
   );
 end;
@@ -30227,6 +30435,7 @@ AS $function$
       ) order by it.created_at, it.id)
       from public.purchase_request_items it
       where it.request_id = r.id
+        and it.removed_at is null
     ), '[]'::jsonb)
   from public.purchase_requests r
   left join public.employees b on b.id = r.buyer_id

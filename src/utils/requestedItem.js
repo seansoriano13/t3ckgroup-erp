@@ -37,6 +37,19 @@ export const isFromS0 = (item) => Boolean(item?.sor_item_id);
  */
 export const p0Reference = (request) => (request?.opportunity_id ? request.sales_reference : request?.pr_number) || null;
 
+/** Whether a member may edit or remove this item at all: only a product someone added by hand. */
+export const isChangeableItem = (item) => item?.source === ITEM_SOURCE.NEW && !item?.removed_at;
+
+/**
+ * Why an added product can't be edited or removed any more, for the buttons' hover, or null while
+ * it can: once a P0 is attached, Odoo has the order (purchase_request_edit_item says the same).
+ */
+export function changeLock(item) {
+  const onP0 =
+    item?.po_number || item?.odoo_po_line_ids?.length > 0 || [ITEM_STATUS.PURCHASED, ITEM_STATUS.RECEIVED].includes(item?.status);
+  return onP0 ? "It is on a P0 already. Cancel it instead." : null;
+}
+
 /** The section an item sits in, in the screen's words. */
 export const itemSectionLabel = (item) => (isFromS0(item) ? "From the S0" : "Other request");
 

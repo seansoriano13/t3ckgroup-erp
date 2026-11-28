@@ -19,6 +19,7 @@ import RequestedItemDetails from "./RequestedItemDetails";
 import RequestedItemActions from "./RequestedItemActions";
 import BulkStatusBar from "./BulkStatusBar";
 import LineButtons from "./LineButtons";
+import ItemChangeButtons from "./ItemChangeButtons";
 import { CanvassGridModal } from "./CanvassGrid";
 import AttachFollowUpHost from "./AttachFollowUpHost";
 import { AskedSub, ColumnHeads, COLUMNS, ForCell, NotesCell, P0Cell, ProductCode, QtyCell, StockCell } from "./ProductLineCells";
@@ -310,7 +311,12 @@ export default function RequestedItems({ request, renderActions }) {
       replaces: byId.get(item.substitute_for_item_id),
       replacedBy,
       mergedFrom: mergedRequestOf(item, items),
-      buttons: renderActions ? null : <LineButtons item={item} request={request} actor={actor} />,
+      buttons: renderActions ? null : (
+        <div className="flex flex-wrap items-center gap-2">
+          <LineButtons item={item} request={request} actor={actor} />
+          <ItemChangeButtons item={item} request={request} />
+        </div>
+      ),
       status: renderActions ? (
         <div className="flex items-center gap-2">
           {statusBadge}

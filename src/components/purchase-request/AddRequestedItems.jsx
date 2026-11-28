@@ -45,10 +45,11 @@ const isFilled = (product) => product.name.trim() && Number(product.quantity) > 
 /**
  * One product on the form: picked from Odoo or typed, with its quantity, unit, what it is for,
  * a description and images. The images stay here until the form is sent; `uploaders` lets the
- * form upload every product's images at once.
+ * form upload every product's images at once. `product.initialImages` are photos it already has
+ * (Edit), shown at once and kept as they are unless taken off.
  */
-function ProductRow({ product, index, count, onChange, onRemove, uploaders, unitOptions, defaultUnit, busy }) {
-  const attachments = useFileAttachments();
+export function ProductRow({ product, index, count, onChange, onRemove, uploaders, unitOptions, defaultUnit, busy }) {
+  const attachments = useFileAttachments({ initial: product.initialImages });
   const fileRef = useRef(null);
   const set = (key) => (value) => onChange({ ...product, [key]: value });
   const label = count > 1 ? `Product ${index + 1}` : null;

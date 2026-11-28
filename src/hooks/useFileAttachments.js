@@ -8,6 +8,13 @@ import {
   formatBytes,
 } from "../utils/attachments";
 
+/** A file already hosted, held as a pick that upload() hands back untouched. */
+const linkedEntry = (descriptor) => ({
+  file: { name: descriptor.name, type: descriptor.type || "", size: descriptor.bytes || 0 },
+  preview: null,
+  linked: { ...descriptor, linked: true },
+});
+
 /**
  * Owns the pick → validate → preview → upload cycle for file attachments.
  *
@@ -17,14 +24,19 @@ import {
  *
  * `maxBytes`, `anyType` and `uploadFile` let a caller with its own storage
  * (Bug Reports: a Supabase bucket, 50 MB, any type) keep the same cycle.
+ *
+ * `initial` holds files already hosted (an edited product's photos), as
+ * `addLinked` would: shown at once, handed back by upload() untouched.
  */
 export function useFileAttachments({
   max = MAX_ATTACHMENTS,
   maxBytes = MAX_ATTACHMENT_BYTES,
   anyType = false,
   uploadFile = (file) => storageService.uploadFileToCloudinary(file),
+  initial = null,
 } = {}) {
-  const [files, setFiles] = useState([]); // [{ file, preview }]
+  // [{ file, preview, linked? }]
+  const [files, setFiles] = useState(() => (initial ?? []).filter((d) => d?.url).slice(0, max).map(linkedEntry));
   const [isUploading, setIsUploading] = useState(false);
 
   // Validation runs outside the state updater — toasts and createObjectURL are
@@ -83,14 +95,7 @@ export function useFileAttachments({
         return;
       }
       if (files.some((f) => f.linked?.url === descriptor.url)) return;
-      setFiles((prev) => [
-        ...prev,
-        {
-          file: { name: descriptor.name, type: descriptor.type || "", size: descriptor.bytes || 0 },
-          preview: null,
-          linked: { ...descriptor, linked: true },
-        },
-      ]);
+      setFiles((prev) => [...prev, linkedEntry(descriptor)]);
     },
     [files, max],
   );

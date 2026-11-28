@@ -282,8 +282,33 @@ export const purchaseRequestService = {
   },
 
   /**
+   * Edits an added product (20261229170000): the same fields as `addItems`, for one product. Photos
+   * it already had come back from the form as linked descriptors and are sent as they are stored.
+   * Resolves to true when something changed (the Chat says what), false when nothing did.
+   */
+  async editItem(itemId, { odooProductId = null, purpose = "client", images = [], ...item }) {
+    const { data, error } = await supabase.rpc("purchase_request_edit_item", {
+      p_item_id: itemId,
+      p_item: {
+        ...itemFields({ ...item, images: images.map(({ linked: _linked, ...descriptor }) => descriptor) }),
+        purpose,
+        odoo_product_id: odooProductId,
+      },
+    });
+    if (error) throw error;
+    return data === true;
+  },
+
+  /** Removes an added product: it leaves the request's lists, stays on record, and the Chat says who. */
+  async removeItem(itemId) {
+    const { error } = await supabase.rpc("purchase_request_remove_item", { p_item_id: itemId });
+    if (error) throw error;
+  },
+
+  /**
    * The request's items, oldest first. An item with `sor_item_id` is for an S0 line (and
-   * carries `removed_from_s0` when the S0 dropped it); any other is an Other request.
+   * carries `removed_from_s0` when the S0 dropped it); any other is an Other request. A product a
+   * member removed is left out.
    */
   async listItems(requestId) {
     if (!requestId) return [];
@@ -291,6 +316,7 @@ export const purchaseRequestService = {
       .from("purchase_request_items")
       .select(ITEM_SELECT)
       .eq("request_id", requestId)
+      .is("removed_at", null)
       .order("created_at", { ascending: true })
       .order("id", { ascending: true });
     if (items.error) throw items.error;
