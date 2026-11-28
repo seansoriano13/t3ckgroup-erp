@@ -237,7 +237,7 @@ export const purchaseRequestService = {
 
   // ── Requested Items (#305) ───────────────────────────────────────────────
 
-  /** Whether the signed-in employee may add items: a sales-side member or the Buyer. */
+  /** Whether the signed-in employee may add items: anyone in the request (a member or the Buyer). */
   async canAddItems(requestId) {
     if (!requestId) return false;
     const { data, error } = await supabase.rpc("purchase_request_can_add_items", {

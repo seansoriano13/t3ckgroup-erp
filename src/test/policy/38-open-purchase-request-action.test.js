@@ -494,16 +494,18 @@ describe("who can request items", () => {
         return data
     }
 
-    it("an action saved without the setting keeps the Deal Team rule", async () => {
+    // Since 2026-11-28 every member adds, an extra member too; only someone outside the request can't.
+    it("an action saved without the setting: every member adds, a non-member doesn't", async () => {
         const sorId = await freshSor({ first: { extras: [employee(ids.ordinary)] } })
         await run(sorId, [firstActionId])
         const [request] = await requestOf(sorId)
         expect(request.requesters).toBeNull()
         expect(await canAdd("support", request.id)).toBe(true)
-        expect(await canAdd("ordinary", request.id)).toBe(false)
+        expect(await canAdd("ordinary", request.id)).toBe(true)
+        expect(await canAdd("outsider", request.id)).toBe(false)
     })
 
-    // #503: the list only widens. The Deal Team always adds, listed or not.
+    // #503: the list only widens. Someone listed off the request joins it on the requester side.
     it("the action's list only widens: the Deal Team still adds, someone listed off it joins on the requester side", async () => {
         const requesters = [employee(ids.outsider)]
         const sorId = await freshSor({ first: { requesters, extras: [employee(ids.ordinary)] } })
@@ -517,7 +519,8 @@ describe("who can request items", () => {
         expect(await canAdd("outsider", request.id)).toBe(true)
         expect(await canAdd("dealOwner", request.id)).toBe(true)
         expect(await canAdd("support", request.id)).toBe(true)
-        expect(await canAdd("ordinary", request.id)).toBe(false)
+        expect(await canAdd("ordinary", request.id)).toBe(true)
+        expect(await canAdd("hr", request.id)).toBe(false)
     })
 
     it("the requester side may cancel but not buy", async () => {
@@ -531,7 +534,7 @@ describe("who can request items", () => {
         expect((await client.rpc("purchase_request_set_item_status", { p_item_id: item.id, p_status: "cancelled" })).error).toBeNull()
     })
 
-    it("an empty list adds nobody: the Deal Team and the Buyer still add", async () => {
+    it("an empty list adds nobody to the request: its members still add", async () => {
         const sorId = await freshSor({
             first: { requesters: [], buyer: employee(ids.stageParticipant), extras: [employee(ids.ordinary)] },
         })
@@ -539,6 +542,7 @@ describe("who can request items", () => {
         const [request] = await requestOf(sorId)
         expect(await canAdd("dealOwner", request.id)).toBe(true)
         expect(await canAdd("stageParticipant", request.id)).toBe(true)
-        expect(await canAdd("ordinary", request.id)).toBe(false)
+        expect(await canAdd("ordinary", request.id)).toBe(true)
+        expect(await canAdd("outsider", request.id)).toBe(false)
     })
 })

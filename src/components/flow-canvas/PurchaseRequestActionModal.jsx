@@ -115,7 +115,7 @@ export default function PurchaseRequestActionModal({ isOpen, onClose, initialDat
           <FieldBox label="Who can request items" bare>
             <PeoplePicker value={requesters} onChange={setRequesters} allowRoles allowDepartments placeholder="Add people, roles or groups" />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              The Deal Team and the Buyer always can. Anyone added here joins the request and may add and cancel items too.
+              Everyone in the request always can. Anyone added here joins the request and may cancel items too.
             </p>
           </FieldBox>
 

@@ -243,8 +243,8 @@ export function NewProductDialog({ open, onOpenChange, requestId }) {
  * Issue #305 / #678 — adding to a Purchase Request. The S0's products are on the request by
  * themselves, so what is added here is an Other request: products picked from Odoo or typed in
  * Sales' own words, one or several at a time (a Canvass is never added; it starts on the line,
- * ADR 0047). Shown only to whoever may add (the request's sales side or its Buyer; the database
- * checks again on save).
+ * ADR 0047). Shown only to whoever may add (anyone in the request, since 2026-11-28; the database
+ * checks again on save, and each product's Chat line records who added it).
  *
  * Self-contained, for the request view to mount (#308): `request` needs `id`.
  */

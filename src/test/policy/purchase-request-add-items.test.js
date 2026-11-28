@@ -3,8 +3,8 @@
  *
  * One call adds a list of Other requests, each typed or picked from Odoo (its Odoo id kept).
  * All are added or none are: one bad product refuses the whole list, naming the product. Each
- * added product gets its own Chat line; one picked from Odoo says "from Odoo". Someone who may
- * not add items is refused.
+ * added product gets its own Chat line; one picked from Odoo says "from Odoo". Someone who isn't
+ * in the request is refused.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -75,7 +75,7 @@ describe("adding several products", () => {
         expect(error).toBeNull()
     })
 
-    it("refuses someone who may not add items", async () => {
+    it("refuses someone who isn't in the request", async () => {
         const { error } = await add("outsider", [{ name: `${MARKER} Nope`, quantity: 1 }])
         expect(error?.code).toBe("42501")
     })

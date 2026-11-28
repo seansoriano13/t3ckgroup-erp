@@ -1,7 +1,7 @@
 /**
  * Code-review fixes for #209's Purchase Request functions: anon can't execute
- * the access helpers, Deal Team members (any side) and the Buyer may add items,
- * and the Buyer may add a substitute whatever their side.
+ * the access helpers, every member of the request (any side) and the Buyer may
+ * add items, and the Buyer may add a substitute whatever their side.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -60,9 +60,11 @@ describe("who may add items", () => {
         ["a Deal Team member who also has Purchasing access", "dealOwner", "purchasing", null, true],
         ["a Deal Team member", "dealOwner", "sales", null, true],
         ["the Buyer, whatever their side", "hr", "other", "hr", true],
-        ["a purchasing member who isn't on the Deal Team or the Buyer", "outsider", "purchasing", null, false],
+        // Since 2026-11-28 every member adds, whatever their side.
+        ["a purchasing member who isn't on the Deal Team or the Buyer", "outsider", "purchasing", null, true],
+        ["someone who isn't in the request", "outsider", null, null, false],
     ])("%s: %s", async (_, who, side, buyer, can) => {
-        const id = await newRequest(buyer, [[who, side]])
+        const id = await newRequest(buyer, side ? [[who, side]] : [])
         const { data, error } = await (await clientFor(who)).rpc("purchase_request_can_add_items", { p_request_id: id })
         expect(error).toBeNull()
         expect(data).toBe(can)
