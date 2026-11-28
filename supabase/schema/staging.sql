@@ -8084,7 +8084,7 @@ begin
     raise exception '%: request % not found', p_fn, p_request_id using errcode = 'P0002';
   end if;
   if not public.purchase_request_can_add_items(p_request_id) then
-    raise exception '%: only the request''s sales side or its Buyer may add items', p_fn using errcode = '42501';
+    raise exception '%: only the request''s members may ask for products', p_fn using errcode = '42501';
   end if;
   return v_req;
 end;
@@ -24512,19 +24512,8 @@ AS $function$
       and (
         r.buyer_id = get_employee_id()
         or (r.opportunity_id is null and r.created_by = get_employee_id())
-        or exists (
-          select 1 from purchase_request_members m
-          where m.request_id = r.id
-            and m.employee_id = get_employee_id()
-            and (
-              m.side in ('sales', 'requester')
-              or exists (
-                select 1 from sales_opportunities o, public._sor_deal_team_roles(o) t
-                where o.id = r.opportunity_id and t.employee_id = m.employee_id
-              )
-              or public._purchase_request_may_request(r, m.employee_id)
-            )
-        )
+        or is_purchase_request_member(r.id)
+        or coalesce(is_super_admin(), false)
       )
   );
 $function$

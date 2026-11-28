@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-11-28",
+        "title": "Everyone in a Purchase Request can ask for products",
+        "version": "1.21.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Anyone in a Purchase Request now sees Ask for a product, not only Sales and the Buyer.",
+            "Every product asked for still gets its own line in the request's Chat, with the name of who asked and when."
+        ]
+    },
+    {
         "date": "2026-11-27",
         "title": "Ask for several products at once",
         "version": "1.20.0",

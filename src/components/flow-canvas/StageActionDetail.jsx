@@ -132,8 +132,8 @@ export default function StageActionDetail({
           <Field label="Purchase Request">{purchaseRequestSummary(config, nameOf)}</Field>
           <Field label="Who can request items">
             {requesters.length === 0
-              ? "The Deal Team"
-              : `The Deal Team, plus ${requesters
+              ? "Everyone in the request"
+              : `Everyone in the request, plus ${requesters
                   .map((s) => deciderLabel(s, nameOf))
                   .join(", ")}`}
           </Field>
