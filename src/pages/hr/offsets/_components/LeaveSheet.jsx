@@ -9,7 +9,7 @@ import { DetailRow, DetailSection, PersonChip } from '@/components/ui/DetailPart
 import { AttachmentList } from '../../../../components/ui/Attachments';
 import { APPROVE_CLASS } from '@/components/ui/approveClass';
 import { StatusPill } from './LeaveParts';
-import { LABEL, TYPE_META, ago, balanceFor, fmtDay, fmtRange, hoursOf, recordKey, statusOf, windowOf } from './leaveDisplay';
+import { LABEL, TYPE_META, ago, balanceFor, fmtDay, fmtRange, fmtHours, hoursOf, recordKey, statusOf, windowOf } from './leaveDisplay';
 
 const LONG_DATE = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
 
@@ -306,9 +306,9 @@ function BalanceImpact({ request, available }) {
     <DetailSection title="Balance impact">
       <div className="flex flex-col gap-3">
         <div className="grid grid-cols-3 gap-3">
-          <Figure label="Balance" value={balance} />
-          <Figure label="Requested" value={request.hours} />
-          <Figure label="Left after" value={available} warn={short} />
+          <Figure label="Balance" value={fmtHours(balance)} />
+          <Figure label="Requested" value={fmtHours(request.hours)} />
+          <Figure label="Left after" value={fmtHours(available)} warn={short} />
         </div>
         <div className="flex h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
           {heldByOthers > 0 && <span className="h-full bg-mauve-7" style={{ width: barWidth(heldByOthers) }} />}
@@ -318,8 +318,8 @@ function BalanceImpact({ request, available }) {
           <p className={`flex items-start gap-1.5 text-xs font-semibold ${short ? 'text-red-11' : 'text-muted-foreground'}`}>
             {short && <AlertTriangle size={13} className="mt-px shrink-0" />}
             {short
-              ? `Short by ${Math.abs(available)} hrs once every pending request is counted.`
-              : `${heldByOthers} hrs are already held by other pending requests.`}
+              ? `Short by ${fmtHours(Math.abs(available))} hrs once every pending request is counted.`
+              : `${fmtHours(heldByOthers)} hrs are already held by other pending requests.`}
           </p>
         )}
       </div>

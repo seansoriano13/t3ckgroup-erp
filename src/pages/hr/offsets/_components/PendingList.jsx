@@ -7,7 +7,7 @@ import Avatar from '../../../../components/Avatar';
 import EmptyState from '@/components/ui/EmptyState';
 import { StatusPill } from './LeaveParts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { LABEL, TYPE_META, fmtRange, hoursOf, recordKey, relTime, windowOf } from './leaveDisplay';
+import { LABEL, TYPE_META, fmtRange, fmtHours, hoursOf, recordKey, relTime, windowOf } from './leaveDisplay';
 
 const PAGE_SIZES = [20, 100, 500];
 
@@ -89,7 +89,7 @@ export default function PendingList({ rows, total, loading, availableHoursFor, a
                       {/* Balance minus every pending application, not the raw balance (#106). */}
                       {available !== null && (
                         <span className={`block text-xs font-semibold max-md:hidden ${available < 0 ? 'text-red-11' : 'text-muted-foreground'}`}>
-                          {available} hrs available
+                          {fmtHours(available)} hrs available
                         </span>
                       )}
                     </TableCell>
