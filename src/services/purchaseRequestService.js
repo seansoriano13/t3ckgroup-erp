@@ -75,8 +75,8 @@ export function filterQueue(
 }
 
 /**
- * One new product's fields as the item RPCs take them (#500): adding a new
- * item, adding a substitute and opening a Direct request all build them here,
+ * One new product's fields as the item RPCs take them (#500): adding
+ * items, adding a substitute and opening a Direct request all build them here,
  * so a new item field is one edit. `images` go only when given: a Direct
  * request's items carry none.
  */
@@ -87,10 +87,6 @@ const itemFields = ({ name, quantity, unit, description, images }) => ({
   description: description || null,
   ...(images !== undefined && { images: images || [] }),
 });
-
-/** `itemFields` as an RPC's named arguments: `p_name`, `p_quantity`, … */
-const itemArgs = (item) =>
-  Object.fromEntries(Object.entries(itemFields(item)).map(([key, value]) => [`p_${key}`, value]));
 
 /**
  * The refusal text an edge function put in the body of a failed call, or `fallback` when there is none.
@@ -267,19 +263,22 @@ export const purchaseRequestService = {
   },
 
   /**
-   * Adds a product that isn't in Odoo. `images` are the uploaded files'
-   * descriptors ({ url, name, type, bytes }), at most five. Returns the new
-   * item's id.
+   * Adds one or more products as Other requests, in one database call: all are added or none are.
+   * Each is picked from Odoo (`odooProductId`) or typed. `images` are the uploaded files'
+   * descriptors ({ url, name, type, bytes }), at most five per product; `purpose` is "client" or
+   * "job" (#679), "client" when left out. Returns the new items' ids, in order.
    */
-  async addNewItem(requestId, { name, quantity, unit = null, description = null, images = [], purpose }) {
-    const { data, error } = await supabase.rpc("purchase_request_add_new_item", {
+  async addItems(requestId, items) {
+    const { data, error } = await supabase.rpc("purchase_request_add_items", {
       p_request_id: requestId,
-      ...itemArgs({ name, quantity, unit, description, images }),
-      // "client" or "job" (#679); left out, the database says "client".
-      ...(purpose && { p_purpose: purpose }),
+      p_items: items.map(({ odooProductId = null, purpose = "client", images = [], ...item }) => ({
+        ...itemFields({ ...item, images }),
+        purpose,
+        ...(odooProductId && { odoo_product_id: odooProductId }),
+      })),
     });
     if (error) throw error;
-    return data;
+    return data || [];
   },
 
   /**
