@@ -16,7 +16,10 @@ import {
 } from "../../utils/attachments";
 import { cloudinaryThumb } from "../../lib/cloudinaryThumb";
 
-/** Files chosen but not yet uploaded. */
+/** An already-hosted image (a linked file) previews from its own address. */
+const previewOf = (f) => f.preview ?? (f.linked?.type?.startsWith("image/") ? cloudinaryThumb(f.linked.url, { width: 112, height: 112 }) : null);
+
+/** Files chosen but not yet uploaded, and already-hosted ones held beside them. */
 export function AttachmentPreviews({ files, onRemove, disabled }) {
   if (!files.length) return null;
 
@@ -27,9 +30,9 @@ export function AttachmentPreviews({ files, onRemove, disabled }) {
           key={`${f.file.name}-${i}`}
           className="relative group rounded-lg overflow-hidden border border-border bg-muted/40"
         >
-          {f.preview ? (
+          {previewOf(f) ? (
             <img
-              src={f.preview}
+              src={previewOf(f)}
               alt={f.file.name}
               className="w-14 h-14 object-cover"
             />

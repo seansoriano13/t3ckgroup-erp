@@ -113,6 +113,63 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     })
   })
 
+  // 20261229170000_purchase_request_item_edit_remove.sql: edit or remove an added product until a
+  // P0 is attached; each posts a Chat line. The rules are proven in
+  // purchase-request-item-edit-remove.test.js; the wording of an edit's line is the server's.
+  const changeable = (itemId, fn) => {
+    const item = findRow("purchase_request_items", itemId)
+    if (!item) throw pgrstError("P0002", `${fn}: item ${itemId} not found`)
+    if (item.source !== "new" || item.removed_at) throw pgrstError("22023", `${fn}: ${item.name} can't be changed`)
+    if (item.po_number) throw pgrstError("22023", `${fn}: ${item.name} is on a P0 already; cancel it instead`)
+    return item
+  }
+
+  stubRpc("purchase_request_edit_item", (args) => {
+    const item = changeable(args.p_item_id, "purchase_request_edit_item")
+    const fields = args.p_item
+    if (!fields.name?.trim() || !(Number(fields.quantity) > 0)) {
+      throw pgrstError("22023", "purchase_request_edit_item: a product needs a name")
+    }
+    const next = {
+      name: fields.name.trim(),
+      quantity: Number(fields.quantity),
+      unit: fields.unit || null,
+      description: fields.description || null,
+      images: fields.images || [],
+      purpose: fields.purpose || "client",
+      odoo_product_id: fields.odoo_product_id ?? null,
+    }
+    if (Object.entries(next).every(([key, value]) => JSON.stringify(item[key] ?? null) === JSON.stringify(value))) return false
+    updateRow("purchase_request_items", item, next)
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `Changed ${item.name}.`,
+      metadata: { event: "item_edited", item_id: item.id },
+    })
+    return true
+  })
+
+  stubRpc("purchase_request_remove_item", (args) => {
+    const item = changeable(args.p_item_id, "purchase_request_remove_item")
+    const from = item.status
+    const now = new Date().toISOString()
+    updateRow("purchase_request_items", item, {
+      status: "cancelled",
+      status_changed_by: actorId,
+      status_changed_at: now,
+      removed_at: now,
+      removed_by: actorId,
+    })
+    insertRow("purchase_request_messages", {
+      request_id: item.request_id,
+      author_id: actorId,
+      content: `Removed ${item.name}.`,
+      metadata: { event: "item_removed", item_id: item.id, from },
+    })
+    return null
+  })
+
   // #501 (20261012100500_purchase_request_stock_snapshot.sql): the request's
   // SOR stock snapshot, or null. Who may read it is can_read_purchase_request.
   stubRpc("purchase_request_stock_snapshot", (args) => {

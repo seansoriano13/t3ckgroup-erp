@@ -1,6 +1,21 @@
 [
     {
         "date": "2026-11-28",
+        "title": "Edit or remove a product you asked for",
+        "version": "1.22.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Open a product under Other requests to find Edit and Remove. Anyone in the request can use them.",
+            "Edit opens the same form you asked with, so you can fix the name, quantity, unit, what it is for, the description or the photos.",
+            "Remove takes the product off the request. It is kept on record, and the Chat says who removed it.",
+            "Every edit gets its own line in the Chat saying what changed. The Buyer and whoever first asked are told.",
+            "Once a P0 is attached, Edit and Remove switch off and Cancel is the way out."
+        ]
+    },
+    {
+        "date": "2026-11-28",
         "title": "Everyone in a Purchase Request can ask for products",
         "version": "1.21.0",
         "modules": [
