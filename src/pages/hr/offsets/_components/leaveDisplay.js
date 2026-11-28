@@ -72,10 +72,15 @@ export function fmtRange(r, long = false) {
 
 export const windowOf = (r) => (r.start_time && r.end_time ? formatWindow(r.start_time, r.end_time) : null);
 
-/** Hours HR granted, and whether that differs from what was asked (#328). */
+/** Hours for display: at most 2 decimals, so 3.5999999999999996 shows as 3.6. */
+export const fmtHours = (v) => Math.round(num(v) * 100) / 100;
+
+/** Hours HR granted, and whether that differs from what was asked (#328). Rounded for display. */
 export function hoursOf(r) {
-  const changed = (r.type === 'OVERTIME' || r.type === 'OFFSET') && r.approved_hours != null && r.approved_hours !== r.hours;
-  return { requested: r.hours, granted: changed ? r.approved_hours : r.hours, changed };
+  const requested = fmtHours(r.hours);
+  const approved = r.approved_hours == null ? null : fmtHours(r.approved_hours);
+  const changed = (r.type === 'OVERTIME' || r.type === 'OFFSET') && approved != null && approved !== requested;
+  return { requested, granted: changed ? approved : requested, changed };
 }
 
 export const balanceFor = (r) =>

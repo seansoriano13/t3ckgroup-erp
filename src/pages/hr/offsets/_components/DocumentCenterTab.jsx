@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FieldBox } from '@/components/ui/FieldBox';
 import { Input } from '@/components/ui/input';
 import { useDocumentCenter, recordKey, formatRecordDate } from './useDocumentCenter';
-import { TYPE_META } from './leaveDisplay';
+import { TYPE_META, fmtHours } from './leaveDisplay';
 import { CAPTION_BASE } from "@/lib/captionStyle";
 
 /**
@@ -56,7 +56,7 @@ export default function DocumentCenterTab(props) {
                       <HighlightText text={req.employee?.name} search={search} />
                     </span>
                     <span className="block truncate text-xs font-medium text-muted-foreground">
-                      {TYPE_META[req.type]?.label ?? req.type} · {formatRecordDate(req)} · {req.hours} hrs
+                      {TYPE_META[req.type]?.label ?? req.type} · {formatRecordDate(req)} · {fmtHours(req.hours)} hrs
                     </span>
                     {req.printed_at && (
                       <span className={`mt-1 inline-block rounded-full bg-mauve-3 px-2 py-0.5 ${CAPTION_BASE} tracking-wider text-muted-foreground`}>
