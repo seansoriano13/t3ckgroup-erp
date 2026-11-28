@@ -5,8 +5,9 @@
  *   buyer         { type: BUYER_EMPLOYEE, id } | { type: BUYER_COSTING_INCHARGE } | null
  *   extras        people selectors (resolvePeople.js) added as default members
  *   leaveOutRoles Deal Team roles not made members
- *   requesters    people selectors who may also request items, on top of
- *                 the Deal Team (who always may, #503)
+ *   requesters    people selectors who join the request on the requester side,
+ *                 so they may request and cancel items (every member of the
+ *                 request may request items anyway, since 2026-11-28)
  *   access        { until, stageId }, the purchasing members' window
  *
  * `sor_open_purchase_request` reads it from the Flow Snapshot and resolves

@@ -1,7 +1,8 @@
 /**
- * Requested Items (#305, part of #209): a new product added by the request's
- * sales side or its Buyer. The items of the SOR's own lines are made by the
- * database (#678): see 141-requested-item-follows-s0.test.js.
+ * Requested Items (#305, part of #209): a new product added by anyone in the
+ * request (since 2026-11-28; before, only its sales side or its Buyer), each on
+ * record in the Chat under the one who added it. The items of the SOR's own
+ * lines are made by the database (#678): see 141-requested-item-follows-s0.test.js.
  *
  * `dealOwner` is the sales-side member and the SOR's Deal Owner;
  * `stageParticipant` is the Buyer; `outsider` is a purchasing member who isn't
@@ -129,8 +130,8 @@ describe("who may add items", () => {
     it.each([
         ["the sales side", "dealOwner", true],
         ["the Buyer", "stageParticipant", true],
-        ["a purchasing member who isn't the Buyer", "outsider", false],
-        ["a member on the other side", "hr", false],
+        ["a purchasing member who isn't the Buyer", "outsider", true],
+        ["a member on the other side", "hr", true],
         ["a non-member", "ordinary", false],
     ])("%s: %s", async (_, who, allowed) => {
         const client = await clientFor(who)
@@ -140,6 +141,16 @@ describe("who may add items", () => {
 
         const fresh = await addNew(who)
         expect(fresh.error?.code ?? null).toBe(allowed ? null : "42501")
+        if (!allowed) return
+
+        // On record: the item and its Chat line both name the one who added it.
+        expect((await item(fresh.data)).requested_by).toBe(ids[who])
+        const { data: posts } = await svc()
+            .from("purchase_request_messages")
+            .select("author_id")
+            .eq("request_id", requestId)
+            .contains("metadata", { item_id: fresh.data })
+        expect(posts).toEqual([{ author_id: ids[who] }])
     })
 
     it("a direct insert into the items is refused", async () => {
