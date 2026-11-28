@@ -1,6 +1,20 @@
 [
     {
         "date": "2026-11-27",
+        "title": "Ask for several products at once",
+        "version": "1.20.0",
+        "modules": [
+            "purchasing"
+        ],
+        "changes": [
+            "Ask for a product now searches Odoo as you type. Pick a product from the list, or type one in your own words when Odoo has none.",
+            "Press Add another product to ask for more than one in the same form. They are all added together, or none are if one is missing its name or quantity.",
+            "The Purchase Requests list shows each request's PR number after the SOR number, and it lights up when you search for it.",
+            "Every product you add still gets its own line in the request's Chat. One picked from Odoo says from Odoo."
+        ]
+    },
+    {
+        "date": "2026-11-27",
         "title": "For Payment is a Status again",
         "version": "1.19.0",
         "modules": [

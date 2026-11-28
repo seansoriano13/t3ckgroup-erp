@@ -86,6 +86,33 @@ export function stubPurchaseRequestItemRpcs({ actorId, side, canSubstitute = fal
     return item.id
   })
 
+  // 20261229150000_purchase_request_add_items.sql: several products in one call, each typed or
+  // picked from Odoo; all are added or none are.
+  stubRpc("purchase_request_add_items", (args) => {
+    if (!args.p_items?.length) throw pgrstError("22023", "purchase_request_add_items: add at least one product")
+    args.p_items.forEach((item, n) => {
+      if (!item.name?.trim() || !(Number(item.quantity) > 0)) {
+        throw pgrstError("22023", `purchase_request_add_items: product ${n + 1}: a product needs a name`)
+      }
+    })
+    return args.p_items.map((fields) => {
+      const item = insertRow("purchase_request_items", {
+        request_id: args.p_request_id,
+        source: "new",
+        odoo_product_id: fields.odoo_product_id ?? null,
+        name: fields.name.trim(),
+        unit: fields.unit || null,
+        quantity: Number(fields.quantity),
+        description: fields.description || null,
+        images: fields.images || [],
+        purpose: fields.purpose || "client",
+        requested_by: actorId,
+      })
+      postAdded(item)
+      return item.id
+    })
+  })
+
   // #501 (20261012100500_purchase_request_stock_snapshot.sql): the request's
   // SOR stock snapshot, or null. Who may read it is can_read_purchase_request.
   stubRpc("purchase_request_stock_snapshot", (args) => {
